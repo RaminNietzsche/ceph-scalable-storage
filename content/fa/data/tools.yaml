@@ -1,0 +1,16 @@
+ceph: خط فرمان اصلی کلاستر
+rados: کار مستقیم با اشیای RADOS
+rbd: مدیریت تصاویر RBD
+radosgw-admin: مدیریت RGW
+cephadm: استقرار و مدیریت با cephadm
+ceph-volume: آماده‌سازی دیسک و OSD
+ceph-bluestore-tool: بازرسی و تعمیر BlueStore
+ceph-objectstore-tool: بازرسی آفلاین PG و اشیا
+osdmaptool: کار آفلاین با OSDMap
+crushtool: کامپایل و آزمون نقشه‌ی CRUSH
+ceph-dencoder: decode ساختارهای باینری
+kubectl: Kubernetes (Rook)
+ceph-mon: daemon مانیتور
+monmaptool: کار با MonMap
+cephfs-journal-tool: ابزار journal در CephFS
+ceph-kvstore-tool: بازرسی RocksDB
