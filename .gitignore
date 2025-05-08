@@ -1,0 +1,11 @@
+# build outputs
+/build/
+/dist/
+*.pdf
+!assets/**/*.pdf
+# tooling
+/node_modules/
+__pycache__/
+*.pyc
+.venv/
+.DS_Store

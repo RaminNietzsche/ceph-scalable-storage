@@ -1,0 +1,31 @@
+# markdownlint-cli2 configuration for the book sources.
+# Book conventions that intentionally differ from markdownlint defaults:
+#  - each chapter file has several level-1 headings (numbered chapter sections),
+#    and the chapter title lives in the YAML front matter;
+#  - prose paragraphs are one line each (no hard wrapping);
+#  - "Sources" lists use bare URLs, which the build turns into bibliography entries;
+#  - Persian prose embeds identifiers such as foo_bar and x[32]; tools/lint_prose.py
+#    covers orthography instead of the emphasis/reference heuristics.
+config:
+  default: true
+  MD010:
+    code_blocks: false     # C/Go excerpts keep their upstream tabs
+  MD013: false             # one paragraph per line
+  MD024:
+    siblings_only: true
+  MD025: false             # several numbered H1 sections per chapter
+  MD033: false             # rare inline HTML (e.g. <br/> in tables)
+  MD034: false             # bare URLs in "Sources" lists
+  MD036: false
+  MD037: false             # identifiers with underscores in Persian prose
+  MD038: false
+  MD041: false             # title is in front matter
+  MD052: false             # array subscripts such as x[32][32]
+  MD060: false             # table column alignment style
+globs:
+  - "content/**/*.md"
+  - "*.md"
+ignores:
+  - "build/**"
+  - "dist/**"
+  - "node_modules/**"

@@ -1,0 +1,7 @@
+# Python toolchain for the book build (pinned; tested with CPython 3.13)
+weasyprint==68.1
+matplotlib==3.11.2
+numpy==2.5.4
+Pillow==13.0.0
+PyYAML==6.0.3
+codespell==2.4.1
