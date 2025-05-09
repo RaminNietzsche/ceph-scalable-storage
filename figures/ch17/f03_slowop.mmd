@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph A["۱. ورود و صف"]
+    direction LR
+    I["initiated<br/>دریافت MOSDOp"] --> Q["queued_for_pg<br/>صف شارد OSD (mclock)"] --> R["reached_pg<br/>گرفتن قفل PG"]
+  end
+  subgraph B["۲. انتظارهای رایج (رویداد waiting for ...)"]
+    direction LR
+    W1["waiting for active / peered<br/>PG هنوز فعال نیست"] ~~~ W2["waiting for degraded / missing object<br/>شیء در حال بازیابی"] ~~~ W3["waiting for readable<br/>lease خواندن"]
+  end
+  subgraph C["۳. اجرا و تکثیر"]
+    direction LR
+    ST["started"] --> SS["sub_op_sent<br/>ارسال به replicaها"] --> SC["sub_op_commit_rec<br/>ack هر replica"] --> CS["commit_sent<br/>پاسخ به کلاینت"]
+  end
+  A ~~~ B ~~~ C

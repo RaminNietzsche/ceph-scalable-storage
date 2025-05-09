@@ -1,0 +1,11 @@
+sequenceDiagram
+  participant R as reactor هسته‌ی 1
+  participant N as شبکه (socket)
+  participant S as ObjectStore
+  N->>R: داده‌ی پیام رسید (poll)
+  R->>R: task: decode MOSDOp ⇒ future<>
+  R->>S: do_transaction(t) ⇒ future<>
+  Note over R: بدون بلوکه شدن؛ task بعدی در صف اجرا می‌شود<br/>(سقف هر task: crimson_reactor_task_quota_ms = 0.5)
+  S-->>R: promise.set_value() ⇒ continuation در صف
+  R->>R: .then(): ساخت MOSDOpReply
+  R->>N: ارسال پاسخ ⇒ future<>

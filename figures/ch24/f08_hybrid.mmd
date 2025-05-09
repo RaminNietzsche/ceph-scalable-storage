@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph I["درج یک بازه‌ی آزاد: AvlAllocator::_try_insert_range"]
+    direction LR
+    i1["بازه‌ی آزاد [start، end)"] --> i2{"تعداد بازه‌ها کمتر از range_count_cap؟<br/>cap = hybrid_alloc_mem_cap / sizeof(range_seg_t)"}
+    i2 -- "بله" --> i3["درج در دو درخت AVL<br/>(بر پایه‌ی offset و بر پایه‌ی اندازه)"]
+    i2 -- "خیر" --> i4{"بزرگ‌تر از کوچک‌ترین بازه‌ی درخت؟"}
+    i4 -- "بله" --> i5["درج و انتقال کوچک‌ترین بازه<br/>به bitmap (_spillover_range)"]
+    i4 -- "خیر" --> i6["مستقیم به bitmap"]
+  end
+  subgraph A["تخصیص: HybridAllocatorBase::allocate"]
+    direction LR
+    a1["want، unit، max_alloc_size"] --> a2{"bitmap خالی نیست و<br/>want کمتر از کوچک‌ترین بازه‌ی AVL؟"}
+    a2 -- "بله" --> a3["اول از bitmap"]
+    a2 -- "خیر" --> a4["اول از AVL"]
+    a3 --> a5["کسری از دیگری؛<br/>اگر هیچ: ENOSPC"]
+    a4 --> a5
+  end
+  I ~~~ A

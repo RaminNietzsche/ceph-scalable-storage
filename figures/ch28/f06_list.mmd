@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph L["bucket list شماره‌ی -6: item 20 (w=1)، 21 (w=1)، 22 (w=2)؛ sum_weights = 1، 2، 4"]
+    direction LR
+    a["شروع از آخر: item 22<br/>h16=0xF9C9 × 4 ≫ 16 = 3.90"] -->|"3.90 ≥ 2 ⇒ رد"| b["item 21<br/>h16=0x2D95 × 2 ≫ 16 = 0.36"] -->|"0.36 < 1 ⇒ انتخاب"| c["r=0 ⇒ item 21"]
+  end
+  subgraph M["r=1 و r=2"]
+    direction LR
+    d["r=1: 22 رد (2.81) ⇒ 21 رد (1.92)"] --> e["item 20 (0.29 < 1) ⇒ انتخاب"] --> f["r=2: 22 رد ⇒ 21 رد ⇒ 20"]
+  end
+  L ~~~ M

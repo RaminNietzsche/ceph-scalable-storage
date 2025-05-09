@@ -1,0 +1,17 @@
+flowchart TB
+  ADM["ceph-node1<br/>bootstrap · _admin<br/>MON · MGR · OSD"]
+  N2["ceph-node2<br/>MON · MGR · OSD"]
+  N3["ceph-node3<br/>MON · OSD"]
+  N4["ceph-node4<br/>OSD · RGW · MDS<br/>(مرحله‌ی گسترش)"]
+  CLI["client-node1<br/>rbd · s3cmd · ceph-fuse"]
+  PUB[["شبکه‌ی عمومی 192.168.56.0/24"]]
+  CLU[["شبکه‌ی کلاستر 10.10.10.0/24 (اختیاری)"]]
+  ADM --- PUB
+  N2 --- PUB
+  N3 --- PUB
+  N4 --- PUB
+  CLI --- PUB
+  ADM -.- CLU
+  N2 -.- CLU
+  N3 -.- CLU
+  N4 -.- CLU

@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph I["ورودی پروفایل: plugin=lrc k=4 m=2 l=3"]
+    direction LR
+    i1["local_group_count = (k+m)/l = 2"] --> i2["k/2 = 2 داده و m/2 = 1 parity در هر گروه"] --> i3["هر گروه l+1 = 4 chunk ⇒ کل 8"]
+  end
+  subgraph M["رشته‌های تولیدشده در parse_kml"]
+    direction LR
+    m1["mapping = DD__DD__"] --> m2["لایه‌ی سراسری: DDc_DDc_"] --> m3["لایه‌ی محلی ۱: DDDc____"] --> m4["لایه‌ی محلی ۲: ____DDDc"]
+  end
+  subgraph R["ترمیم یک chunk از گروه ۱"]
+    direction LR
+    r1["chunk 1 از دست رفت"] --> r2["لایه‌ی محلی ۱: خواندن 0، 2، 3"] --> r3["سه chunk به جای چهار<br/>و ترافیک درون rack"]
+  end
+  subgraph Q["قانون CRUSH با crush-locality=rack"]
+    direction LR
+    q1["choose 2 type rack"] --> q2["chooseleaf 4 type host"]
+  end
+  I --> M --> R --> Q

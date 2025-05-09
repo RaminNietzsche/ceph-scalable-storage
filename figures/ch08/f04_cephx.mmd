@@ -1,0 +1,11 @@
+sequenceDiagram
+  participant C as کلاینت
+  participant M as MON
+  participant O as OSD
+  C->>M: درخواست احراز هویت (نام کاربر)
+  M-->>C: چالش رمز‌شده با کلید مشترک
+  C->>M: پاسخ صحیح به چالش
+  M-->>C: کلید جلسه + ticket با زمان انقضا
+  C->>O: درخواست I/O همراه ticket
+  O->>O: بررسی ticket با کلید سرویس (بدون تماس با MON)
+  O-->>C: پاسخ

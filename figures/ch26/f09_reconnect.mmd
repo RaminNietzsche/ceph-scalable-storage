@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant C as کلاینت (out_seq=120)
+  participant S as OSD (in_seq=118)
+  Note over C: sent = پیام‌های 118، 119، 120 (بی‌ack)
+  C--xS: قطع TCP
+  Note over C: requeue_sent یعنی out_seq = 120 − 3 = 117 و 118..120 به سر صف HIGHEST
+  C->>S: banner، HELLO، AUTH
+  C->>S: SESSION_RECONNECT با global_seq، connect_seq و msg_seq=in_seq سمت کلاینت
+  S->>S: handle_reconnect یعنی بررسی cookie و global_seq
+  S-->>C: SESSION_RECONNECT_OK با msg_seq=118
+  Note over C: discard_requeued_up_to(117، 118) یعنی 118 دور ریخته می‌شود و out_seq = 118
+  C->>S: MESSAGE seq 119
+  C->>S: MESSAGE seq 120
+  S-->>C: ACK 120

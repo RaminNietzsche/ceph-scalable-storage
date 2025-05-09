@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Started/Primary/Peering (PeeringState.h)"]
+    direction LR
+    GI["GetInfo<br/>جمع‌آوری pg_info از<br/>OSDهای prior set"] --> GL["GetLog<br/>choose_acting و<br/>find_best_info"] --> GM["GetMissing<br/>محاسبه‌ی missing<br/>هر replica"] --> WU["WaitUpThru<br/>ثبت up_thru در OSDMap"]
+  end
+  subgraph R2["شاخه‌های شکست Peering"]
+    direction LR
+    DN["Down<br/>OSDهای لازم prior set در دسترس نیستند"] ~~~ IC["Incomplete<br/>هیچ log کافی برای<br/>last_update قابل‌قبول نیست"] ~~~ WAC["WaitActingChange<br/>pg_temp درخواست شد"]
+  end
+  subgraph R3["Started/Primary/Active"]
+    direction LR
+    AC["Activating"] --> RC["WaitLocal/RemoteRecoveryReserved<br/>→ Recovering"] --> BF["WaitLocal/RemoteBackfillReserved<br/>→ Backfilling"] --> CL["Recovered → Clean"]
+  end
+  R1 ~~~ R2 ~~~ R3

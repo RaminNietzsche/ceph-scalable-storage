@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph A[۱. CEPH_TYPES، با image خود Ceph]
+    direction LR
+    mgr --> mon --> crash --> osd[osd، دسته‌ای با ok-to-stop و حداکثر max_parallel_osd_upgrades = 16]
+  end
+  subgraph A2[ادامه‌ی CEPH_TYPES]
+    direction LR
+    mds --> rgw --> rbdm[rbd-mirror] --> cfsm[cephfs-mirror] --> cexp[ceph-exporter]
+  end
+  subgraph B[۲. GATEWAY_TYPES و ۳. INGRESS_TYPES]
+    direction LR
+    iscsi --> nfs --> nvmeof --> smb --> haproxy --> keepalived
+  end
+  subgraph C[۴. پایش و ۵. mgmt-gateway، با imageهای جداگانه]
+    direction LR
+    ne[node-exporter] --> prom[prometheus] --> am[alertmanager] --> graf[grafana] --> rest[loki، promtail، alloy، pushgateway] --> mg[mgmt-gateway] --> oa[oauth2-proxy]
+  end
+  A --> A2 --> B --> C

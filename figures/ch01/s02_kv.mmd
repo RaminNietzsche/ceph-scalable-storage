@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["RocksDB داخل BlueStore: پیشوندهای کلید (BlueStore.cc)"]
+    direction LR
+    S["S: superblock"] --- T["T: آمار"] --- C["C: collection → cnode_t"] --- O["O: نام شیء → onode_t"] --- M["M: omap (u64 + کلید)"]
+  end
+  subgraph R2["ادامه"]
+    direction LR
+    L["L: deferred_transaction_t<br/>(نوشتن‌های کوچک در صف)"] --- B["B: freelist<br/>offset → length"] --- X["X: shared_blob_t<br/>(blobهای مشترک بین clone)"]
+  end
+  subgraph R3["pg_log_entry_t (osd_types.h) — در omap شیء pgmeta"]
+    direction LR
+    e1["op، soid، version، prior_version"] --- e2["reqid + extra_reqids<br/>(تشخیص درخواست تکراری)"] --- e3["user_version، mtime، return_code<br/>mod_desc (rollback برای EC)"]
+  end
+  R1 ~~~ R2 ~~~ R3

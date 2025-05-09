@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["فرایند ceph-mgr (C++) — src/mgr/"]
+    direction LR
+    ms["MgrStandby<br/>(beacon به MON، انتظار برای active شدن)"] --> mg["Mgr: اشتراک نقشه‌ها<br/>ClusterState (pg، osd، health)"] --> ds["DaemonServer<br/>دریافت MMgrReport/perf counters<br/>از OSD و MDS و RGW"]
+  end
+  subgraph R2["میزبانی پایتون"]
+    direction LR
+    reg["PyModuleRegistry<br/>کشف و بارگذاری ماژول‌ها"] --> ap["ActivePyModules<br/>هر ماژول: یک sub-interpreter<br/>+ thread برای serve()"] --> bm["BaseMgrModule (C++↔Python)<br/>get، mon_command، set_store"]
+  end
+  subgraph R3["ماژول پایتون — pybind/mgr/&lt;name&gt;/module.py"]
+    direction LR
+    mm["class Module(MgrModule)<br/>MODULE_OPTIONS، NOTIFY_TYPES"] --- cli["@CLIReadCommand / @CLIWriteCommand<br/>→ فرمان ceph &lt;...&gt;"] --- sv["serve(): حلقه‌ی پس‌زمینه<br/>notify(type, id): رویداد نقشه"]
+  end
+  R1 ~~~ R2 ~~~ R3

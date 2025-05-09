@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant C as کلاینت
+  participant P as primary (shard 0)
+  participant S as shardهای 1..k+m−1
+  C->>P: MOSDOp write(off, len)
+  P->>P: ECTransaction: تقسیم به stripe، تعیین RMW
+  P->>S: (در صورت نیاز) خواندن chunkهای قدیمی
+  S-->>P: داده‌ی قدیمی
+  P->>P: encode / parity delta
+  P->>S: ECSubWrite (chunk هر shard + log entry با ObjectModDesc)
+  S->>S: BlueStore: نوشتن chunk + pg log
+  S-->>P: ECSubWriteReply (committed)
+  P-->>C: ack پس از commit همه‌ی shardهای acting
+  Note over P,S: اگر پیش از commit همه خرابی رخ دهد:<br/>log entry با rollback (APPEND/ROLLBACK_EXTENTS/...) بازگردانده می‌شود

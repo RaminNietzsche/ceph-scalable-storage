@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["layout: stripe_unit=1MiB، stripe_count=4، object_size=4MiB"]
+    direction LR
+    A["blockno = off / su<br/>blockoff = off % su"] --> B["stripeno = blockno / sc<br/>stripepos = blockno % sc"] --> C["objsetno = stripeno / (os/su)<br/>objsetpos = stripeno % (os/su)"] --> D["objno = objsetno×sc + stripepos<br/>objoff = objsetpos×su + blockoff"]
+  end
+  subgraph R2["مثال: خواندن 3MiB از آفست 10.5MiB"]
+    direction LR
+    E["10.5M→ شیء 2 @2.5M<br/>طول 0.5M"] --> F["11M→ شیء 3 @2M<br/>طول 1M"] --> G["12M→ شیء 0 @3M<br/>طول 1M"] --> H["13M→ شیء 1 @3M<br/>طول 0.5M"]
+  end
+  subgraph R3["نام شیء"]
+    direction LR
+    I["RBD v2:<br/>rbd_data.&lt;id&gt;.%016llx"] --- J["CephFS:<br/>&lt;ino hex&gt;.%08llx"] --- K["RBD v1:<br/>&lt;block_name&gt;.%012llx"]
+  end
+  R1 ~~~ R2 ~~~ R3

@@ -1,0 +1,12 @@
+flowchart LR
+  subgraph A["site-a (اصلی)"]
+    direction TB
+    CA["کلاینت‌ها"] --> PA[("pool: vms<br/>images: primary")]
+    MA["rbd-mirror<br/>(برای جهت معکوس)"]
+  end
+  subgraph B["site-b (پشتیبان)"]
+    direction TB
+    MB["rbd-mirror"] --> PB[("pool: vms<br/>images: non-primary")]
+  end
+  PA -.->|"خواندن تغییرات"| MB
+  PB -.->|"پس از failback"| MA

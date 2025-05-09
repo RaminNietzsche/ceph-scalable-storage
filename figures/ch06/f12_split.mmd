@@ -1,0 +1,17 @@
+flowchart TB
+  subgraph A1[" "]
+    direction LR
+    H["hit_dir(dir, type): v = pop_me[type].hit(1)"] --> HOT{"IRD v > 25000 or IWR v > 10000?"}
+    S{"frag_size + snap items > 10000?"}
+  end
+  subgraph A2[" "]
+    direction LR
+    P{"split already pending?"} -- "no" --> Q["queue_split: timer 5 s (mds_bal_fragment_interval)"]
+    P -- "yes" --> F{"size > 10000 x 1.5?"} -- "yes" --> FF["queue_split fast: now"]
+  end
+  subgraph A3[" "]
+    direction LR
+    SP["split_dir(dir, 3 bits) -> 8 child frags, load x 1/8"] --> M{"child size < 50?"} -- "yes" --> MG["queue_merge back to parent"]
+    X["size 100000 = mds_bal_fragment_size_max: new dentry gets ENOSPC"]
+  end
+  A1 --> A2 --> A3

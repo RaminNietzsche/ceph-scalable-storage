@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["هزینه‌ی هر تراکنش (_txc_calc_cost)"]
+    direction LR
+    A["ios = 1 (کامیت kv)<br/>+ تعداد aio داده"] --> B["cost = ios × cost_per_io<br/>+ bytes"] --> C["throttle_bytes.get(cost)<br/>سقف bluestore_throttle_bytes=64M"]
+  end
+  subgraph R2["نوشتن 4K: چند تراکنش هم‌زمان در صف BlueStore جا می‌شود؟"]
+    direction LR
+    D["HDD مستقیم<br/>2×670000+4096 = 1,344,096<br/>≈ 49"] --- E["HDD deferred<br/>1×670000+4096 = 674,096<br/>≈ 99"] --- F["SSD مستقیم<br/>2×4000+4096 = 12,096<br/>≈ 5548"]
+  end
+  subgraph R3["پیامد"]
+    direction LR
+    G["صف کوتاه در BlueStore"] --> H["انتظار بیشتر در صف mClock<br/>(جایی که اولویت‌بندی ممکن است)"]
+  end
+  R1 ~~~ R2 ~~~ R3

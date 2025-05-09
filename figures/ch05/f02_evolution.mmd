@@ -1,0 +1,12 @@
+flowchart LR
+  subgraph H["Hammer: federated"]
+    direction TB
+    RG["region"] --> AG["radosgw-agent<br/>فرایند جداگانه، Python"]
+    AG --> M1["master zone فعال<br/>slave فقط‌خواندنی"]
+  end
+  subgraph J["Jewel به بعد: multisite v2"]
+    direction TB
+    RE["realm + period"] --> IN["همگام‌سازی درون radosgw"]
+    IN --> AA["active-active<br/>همه‌ی zoneها نوشتنی"]
+  end
+  H ==>|"بازطراحی"| J

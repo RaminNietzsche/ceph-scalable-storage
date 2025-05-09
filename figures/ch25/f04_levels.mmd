@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["اندازه‌ی سطوح با پیش‌فرض‌ها (base=1G، multiplier=8)"]
+    direction LR
+    L0["L0<br/>8 فایل تا trigger"] --> L1["L1 ≈ 1G"] --> L2["L2 ≈ 8G"] --> L3["L3 ≈ 64G"] --> L4["L4 ≈ 512G"]
+  end
+  subgraph R2["جای‌گذاری BlueFS (use_some_extra)"]
+    direction LR
+    W["WAL → db.wal / DB"] --> D["سطوحی که جا می‌شوند → block.db"] --> X["فضای اضافه‌ی DB<br/>برای بخشی از سطح بعدی"] --> S["باقی → block (slow)<br/>هشدار BLUEFS_SPILLOVER"]
+  end
+  R1 ~~~ R2

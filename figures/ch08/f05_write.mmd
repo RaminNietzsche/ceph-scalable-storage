@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant C as کلاینت
+  participant P as OSD اصلی
+  participant S1 as OSD ثانویه ۱
+  participant S2 as OSD ثانویه ۲
+  C->>P: write(obj)
+  par تکثیر موازی
+    P->>S1: تکرار نوشتن
+    P->>S2: تکرار نوشتن
+  end
+  P->>P: commit در BlueStore
+  S1-->>P: ack
+  S2-->>P: ack
+  P-->>C: ack (پس از commit همه‌ی نسخه‌ها)

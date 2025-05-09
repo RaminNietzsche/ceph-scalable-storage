@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph F1["failover برنامه‌ریزی‌شده (هر دو سایت سالم)"]
+    direction LR
+    a1["توقف برنامه در A"] --> a2["rbd mirror image demote<br/>در A"] --> a3["انتظار همگام شدن<br/>mirror image status"] --> a4["rbd mirror image promote<br/>در B"] --> a5["راه‌اندازی برنامه در B"]
+  end
+  subgraph F2["failover اضطراری (سایت A از دست رفته)"]
+    direction LR
+    b1["promote --force در B<br/>(پذیرش RPO)"] --> b2["راه‌اندازی برنامه در B"] --> b3["بازگشت A: demote در A"] --> b4["rbd mirror image resync<br/>در A (split-brain)"]
+  end
+  F1 ~~~ F2

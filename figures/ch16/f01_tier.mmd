@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["۱. مسیر کلاینت با overlay"]
+    direction LR
+    CL["کلاینت (Objecter)"] --> OV["pool پایه: cold-storage<br/>read_tier/write_tier = hot-storage"] --> HOT["pool کش: hot-storage<br/>(SSD، تکثیری)"]
+  end
+  subgraph R2["۲. درون OSD کش (PrimaryLogPG)"]
+    direction LR
+    MH["maybe_handle_cache_detail<br/>شیء در کش هست؟"] --> HS["HitSet (bloom)<br/>بررسی recency"] --> PR["promote_object<br/>کپی از pool پایه"]
+  end
+  subgraph R3["۳. عامل کش (Tier Agent)"]
+    direction LR
+    AG["agent_work"] --> FL["agent_maybe_flush<br/>نوشتن شیء dirty در pool پایه"] --> EV["agent_maybe_evict<br/>حذف شیء clean سرد"]
+  end
+  R1 ~~~ R2 ~~~ R3

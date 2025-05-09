@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["crimson-osd"]
+    direction LR
+    A["PG / PGBackend"] --> B["FuturizedStore<br/>(رابط future)"]
+  end
+  subgraph R2["پشتیبان‌های بومی (روی reactor)"]
+    direction LR
+    C["SeaStore<br/>log-structured، تراکنشی"] --- D["CyanStore<br/>در حافظه، داده ذخیره نمی‌شود"]
+  end
+  subgraph R3["پشتیبان‌های غیربومی (alien threads)"]
+    direction LR
+    E["AlienStore"] --> F["ThreadPool<br/>crimson_bluestore_num_threads=6 (main)"] --> G["BlueStore / MemStore<br/>کد کلاسیک"] --> H["seastar::alien::submit_to<br/>نتیجه به هسته‌ی مبدأ"]
+  end
+  R1 ~~~ R2 ~~~ R3

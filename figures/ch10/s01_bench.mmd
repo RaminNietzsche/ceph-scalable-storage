@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["ceph tell osd.N bench [count] [bsize] — مسیر OSD::run_osd_bench_test"]
+    direction LR
+    t["فرمان tell به OSD"] --> chk["بررسی محدودیت‌ها:<br/>bsize ≤ osd_bench_max_block_size=64M<br/>کوچک: ≤ osd_bench_small_size_max_iops=100 × 30s<br/>بزرگ: ≤ 100M/s × osd_bench_duration=30s"] --> ob["OSDBenchTest روی meta collection:<br/>Transaction write مستقیم به ObjectStore<br/>(بدون شبکه، بدون PG، بدون تکثیر)"]
+  end
+  subgraph R2["rados bench — ObjBencher (common/obj_bencher.cc)"]
+    direction LR
+    wb["write_bench: -t هم‌زمانی (پیش‌فرض 16)<br/>اشیای benchmark_data_&lt;host&gt;_&lt;pid&gt;_objectN"] --> md["متادیتا در benchmark_last_metadata<br/>(برای seq/rand بعدی؛ با --no-cleanup)"] --> rd["seq_read_bench / rand_read_bench<br/>status_printer: هر ثانیه cur MB/s، lat"]
+  end
+  subgraph R3["هنگام بوت OSD — maybe_override_max_osd_capacity_for_qos"]
+    direction LR
+    bt["اگر skip_benchmark=false:<br/>اجرای bench کوتاه 4K"] --> th["مقایسه با آستانه‌ها<br/>(hdd 50..500، ssd 1000..80000)"] --> cfg["ثبت osd_mclock_max_capacity_iops_hdd/ssd<br/>در config MON با mon_cmd_set_config"]
+  end
+  R1 ~~~ R2 ~~~ R3

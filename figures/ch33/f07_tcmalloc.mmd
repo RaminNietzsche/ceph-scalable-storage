@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph T["سطح thread"]
+    direction LR
+    t1["malloc(n) در thread"] --> t2["کلاس اندازه<br/>size class"] --> t3["thread cache یا per-CPU cache<br/>بدون قفل"]
+  end
+  subgraph C["سطح مرکزی"]
+    direction LR
+    c1["transfer cache"] --> c2["central free list<br/>برای هر size class"] --> c3["page heap<br/>spanها"]
+  end
+  subgraph O["سیستم‌عامل"]
+    direction LR
+    o1["mmap / sbrk"] --> o2["madvise(DONTNEED)<br/>release_free_memory"] --> o3["pageheap_unmapped_bytes"]
+  end
+  T --> C --> O

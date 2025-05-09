@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant P as primary PG
+  participant BE as PGBackend
+  participant R1 as replica 1
+  participant R2 as replica 2
+  P->>BE: objects_list_partial(start, min, max)
+  BE-->>P: فهرست hobjectها و candidate_end
+  P->>P: جابه‌جایی end تا head و clone در یک chunk باشند
+  P->>P: _range_available_for_scrub؟ در غیر این صورت RangeBlocked
+  P->>R1: MOSDRepScrub(start, end, deep, scrub_to)
+  P->>R2: MOSDRepScrub(start, end, deep, scrub_to)
+  P->>BE: build_scrub_map_chunk (خواندن داده در گام‌های 4 MiB در deep)
+  R1-->>P: MOSDRepScrubMap (اندازه، attrs، digest داده و omap)
+  R2-->>P: MOSDRepScrubMap
+  P->>P: select_auth_object برای هر شیء ⇒ ناسازگاری‌ها
+  Note over P: اگر نوشتن مشتری در محدوده رسید: preemption<br/>بیشینه‌ی chunk نصف می‌شود (chunk_divisor ×2)

@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["شیء 64K، k=4 m=2، stripe_unit=4K → stripe_width=16K"]
+    direction LR
+    A["stripe 0:<br/>0–16K"] --> B["stripe 1:<br/>16–32K"] --> C["stripe 2"] --> D["stripe 3:<br/>48–64K"]
+  end
+  subgraph R2["چیدمان یک stripe روی shardها"]
+    direction LR
+    S0["shard 0 (D0)<br/>0–4K"] --> S1["shard 1 (D1)<br/>4–8K"] --> S2["shard 2 (D2)<br/>8–12K"] --> S3["shard 3 (D3)<br/>12–16K"] --> P0["shard 4 (P0)"] --> P1["shard 5 (P1)"]
+  end
+  subgraph R3["روی هر OSD"]
+    direction LR
+    O1["شیء shard (ghobject با shard_id)<br/>اندازه = 64K/4 = 16K"] --> O2["hinfo / crc هر chunk<br/>(در xattr)"]
+  end
+  R1 ~~~ R2 ~~~ R3

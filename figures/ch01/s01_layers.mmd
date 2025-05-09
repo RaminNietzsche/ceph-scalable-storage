@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["لایه‌ی منطقی"]
+    direction LR
+    o["شیء: pool=3، name=rbd_data.5e2a.00…01"] --> h["hobject_t: hash=rjenkins(name)<br/>+ namespace + snap"] --> pg["pg_t = (pool، ceph_stable_mod(hash، pg_num))<br/>مثلاً 3.1a"]
+  end
+  subgraph R2["لایه‌ی نگاشت (OSDMap)"]
+    direction LR
+    cr["CRUSH(pps، rule) → [osd.4، osd.9، osd.17]"] --> up["up set ← upmap / pg_temp / primary_temp<br/>→ acting set"] --> pr["primary = acting[0]<br/>(primary affinity اثر دارد)"]
+  end
+  subgraph R3["لایه‌ی فیزیکی (روی هر OSD)"]
+    direction LR
+    bs["BlueStore collection 3.1a_head"] --> on["onode در RocksDB (پیشوند O)<br/>nid، size، attrs، extent_map_shards"] --> bl["extent → blob → pextent<br/>(offset/length روی دیسک خام)"]
+  end
+  R1 ~~~ R2 ~~~ R3

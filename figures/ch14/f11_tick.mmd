@@ -1,0 +1,16 @@
+flowchart TB
+  subgraph K1[" "]
+    direction LR
+    T["Objecter::tick every 5 s (objecter_tick_interval)"] --> L{"op older than objecter_timeout 10 s?"} -- "yes" --> LS["count laggy op; mark its session for ping"]
+  end
+  subgraph K2[" "]
+    direction LR
+    W{"session has linger ops?"} -- "registered watch, no error" --> WP["send linger ping"]
+    W --> C{"command ops?"} -- "yes" --> CS["mark session"]
+  end
+  subgraph K3[" "]
+    direction LR
+    H{"homeless ops or marked sessions?"} -- "yes" --> MR["_maybe_request_map: ask mon for newer osdmap"]
+    MR --> P["ping each marked session (MPing)"]
+  end
+  K1 --> K2 --> K3

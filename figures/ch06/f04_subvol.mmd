@@ -1,0 +1,7 @@
+flowchart TB
+  V["volume: fs01<br/>(یک فایل‌سیستم)"] --> G1["subvolumegroup: k8s-csi"]
+  V --> G2["subvolumegroup: manila"]
+  G1 --> S1["subvolume: pvc-1a2b<br/>quota 50G · namespace RADOS اختیاری"]
+  G1 --> S2["subvolume: pvc-3c4d"]
+  G2 --> S3["subvolume: share-01"]
+  S1 --> SN["snapshot و clone<br/>ceph fs subvolume snapshot create"]

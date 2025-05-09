@@ -1,0 +1,23 @@
+flowchart TB
+  CL["کلاینت<br/>librados"]
+  subgraph CP["سرویس‌های کنترلی"]
+    direction LR
+    M1["MON a"]
+    M2["MON b"]
+    M3["MON c"]
+    MG["MGR فعال + آماده‌به‌کار<br/>dashboard · prometheus · orchestrator"]
+  end
+  subgraph DP["سرویس‌های داده"]
+    direction LR
+    O1["OSD.0<br/>BlueStore"]
+    O2["OSD.1<br/>BlueStore"]
+    O3["OSD.2<br/>BlueStore"]
+    O4["OSD.n ..."]
+  end
+  CL -->|"۱. دریافت نقشه‌ها (cluster map)"| CP
+  CL ==>|"۲. خواندن و نوشتن مستقیم"| DP
+  O1 <-.->|"تکثیر و heartbeat"| O2
+  O2 <-.-> O3
+  DP -->|"گزارش وضعیت"| CP
+  M1 <--> M2
+  M2 <--> M3

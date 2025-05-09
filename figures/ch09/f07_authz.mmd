@@ -1,0 +1,16 @@
+flowchart TB
+  subgraph A["احراز هویت درخواست REST"]
+    direction LR
+    a1["سرآیند Authorization: Bearer JWT<br/>یا کوکی token"] --> a2{"امضا و exp معتبر؟<br/>(jwt_token_ttl پیش‌فرض 28800 s)"}
+    a2 -- "خیر" --> a3["401"]
+    a2 -- "بله" --> a4{"jti در blocklist<br/>(خروج قبلی)؟"}
+    a4 -- "بله" --> a3
+  end
+  subgraph B["مجوز: AuthManagerTool._check_authorization"]
+    direction LR
+    b1["_security_scope کنترلر<br/>مثلاً pool"] --> b2["_security_permissions متد<br/>GET→read، POST→create، PUT→update، DELETE→delete"] --> b3{"User.authorize"}
+    b3 -- "pwd_update_required" --> b5["403"]
+    b3 -- "هیچ نقشی همه‌ی مجوزها را<br/>یک‌جا ندارد" --> b5
+    b3 -- "یک نقش کافی است" --> b6["اجرای handler"]
+  end
+  A ~~~ B

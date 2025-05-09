@@ -1,0 +1,7 @@
+flowchart TB
+  WO["ObjectWriteOperation"] --> G1["guardها<br/>assert_exists، assert_version،<br/>cmpxattr، cmpext"]
+  WO --> M1["تغییرها<br/>write، write_full، append،<br/>setxattr، omap_set، remove"]
+  WO --> X1["exec<br/>فراخوانی متد کلاس RADOS"]
+  G1 --> T["یک تراکنش اتمی روی یک شیء<br/>همه یا هیچ"]
+  M1 --> T
+  X1 --> T

@@ -1,0 +1,13 @@
+flowchart TB
+  subgraph J["حالت journal"]
+    direction LR
+    W1["نوشتن کلاینت"] --> JR["journal در RADOS"] --> IM1["image محلی"]
+    JR -->|"rbd-mirror راه دور<br/>بازپخش رویدادها"| R1["image راه دور"]
+  end
+  subgraph S["حالت snapshot"]
+    direction LR
+    W2["نوشتن کلاینت"] --> IM2["image محلی"]
+    IM2 -->|"snapshot زمان‌بندی‌شده"| MS["mirror snapshot"]
+    MS -->|"rbd-mirror راه دور<br/>کپی تفاضل"| R2["image راه دور"]
+  end
+  J ~~~ S

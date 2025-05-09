@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph A["۱. دریافت فرمان (PaxosService::dispatch)"]
+    direction LR
+    m["MMonCommand: osd pool set ..."] --> pq{"preprocess_query<br/>فقط‌خواندنی؟"}
+    pq -- بله --> rr["پاسخ فوری<br/>از نقشه‌ی فعلی"]
+  end
+  subgraph B["۲. تغییر"]
+    direction LR
+    pu["prepare_update:<br/>اعمال روی pending_inc"] --> sp["should_propose:<br/>تأخیر paxos_propose_interval=1s<br/>برای دسته‌بندی تغییرات"] --> pp["propose_pending:<br/>encode_pending → Paxos::begin"]
+  end
+  subgraph C["۳. پس از commit"]
+    direction LR
+    rf["refresh: بارگذاری epoch جدید"] --> pub["انتشار OSDMap incremental<br/>به مشترکان (OSD، کلاینت)"] --> rep["پاسخ به فرمان‌دهنده"]
+  end
+  A ~~~ B ~~~ C

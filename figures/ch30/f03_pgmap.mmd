@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["درخواست برای PG تازه روی هسته‌ی 2"]
+    direction LR
+    A["get_or_create_pg_mapping(pgid)<br/>در نقشه‌ی محلی نیست"] --> B["container().invoke_on(0, …)<br/>پرسش از هسته‌ی 0"]
+  end
+  subgraph R2["هسته‌ی 0: نقشه‌ی اصلی"]
+    direction LR
+    C["pg_to_core.find(pgid)"] -->|"نیست"| D["min_element(core_to_num_pgs)<br/>کم‌بارترین هسته"] --> E["++count ؛ انتخاب store shard"]
+    C -->|"هست"| F["همان هسته"]
+  end
+  subgraph R3["پخش و ادامه"]
+    direction LR
+    G["به‌روزرسانی نقشه‌ی همه‌ی هسته‌ها"] --> H["پیام به هسته‌ی مقصد منتقل می‌شود"] --> I["همه‌ی کارهای آن PG<br/>فقط روی همان هسته"]
+  end
+  R1 ~~~ R2 ~~~ R3

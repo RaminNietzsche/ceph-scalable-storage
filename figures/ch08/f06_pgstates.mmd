@@ -1,0 +1,10 @@
+flowchart LR
+  CR["creating"] --> PE["peering"]
+  PE --> AC["active+clean"]
+  AC -->|"OSD down"| DG["active+degraded"]
+  DG -->|"بازیابی log"| RE["recovering"]
+  DG -->|"OSD out، کپی کامل"| BF["backfilling"]
+  RE --> AC
+  BF --> AC
+  PE -->|"نسخه‌ی کافی نیست"| IN["inactive / incomplete"]
+  AC -->|"scrub ناسازگاری"| INC["inconsistent"]

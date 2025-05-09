@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph C1[" "]
+    direction LR
+    W["write >= compression_min_blob_size (64K), mode/hints allow"] --> Z["compressor->compress(blob) (lz4/snappy/zstd/zlib)"] --> L["want = roundup(blob x 0.875, min_alloc)"]
+  end
+  subgraph C2[" "]
+    direction LR
+    T{"roundup(len, min_alloc) <= want and < blob?"} -- "no" --> R["store uncompressed (compress_rejected_count++)"]
+    T -- "yes" --> H["prepend compression header, test again"]
+  end
+  subgraph C3[" "]
+    direction LR
+    P["pad to min_alloc, allocate result_len"] --> S["statfs: compressed, compressed_original, compressed_allocated"] --> V["ceph df detail: USED COMPR / UNDER COMPR"]
+  end
+  C1 --> C2 --> C3

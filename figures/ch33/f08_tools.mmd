@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph A["درون Ceph"]
+    direction LR
+    a1["dump_mempools<br/>بایت هر pool"] --> a2["heap stats<br/>tcmalloc"] --> a3["perf dump<br/>prioritycache:*"] --> a4["dump_op_pq_state<br/>dump_historic_ops"]
+  end
+  subgraph B["هسته و CPU"]
+    direction LR
+    b1["perf top -p PID<br/>نمونه‌برداری"] --> b2["perf record -g<br/>flame graph"] --> b3["bpftrace<br/>offcputime، tracepoint"]
+  end
+  subgraph C["توابع کاربر"]
+    direction LR
+    c1["uftrace<br/>با -pg یا dynamic"] --> c2["gdb / eu-stack<br/>پشته‌ی همه‌ی threadها"]
+  end
+  A ~~~ B ~~~ C

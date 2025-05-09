@@ -1,0 +1,19 @@
+flowchart TB
+  subgraph T["محاسبه‌ی مهلت در process_events"]
+    direction LR
+    t1["end = now + 30 s<br/>(EventMaxWaitUs)"] --> t2["اگر نخستین time event زودتر است:<br/>مهلت = تا آن زمان"] --> t3["کف مهلت: ms_time_events_min_wait_interval<br/>= 1000 µs"] --> t4["اگر poller یا رویداد خارجی هست:<br/>مهلت = 0"]
+  end
+  subgraph W["انتظار و رویدادهای فایل"]
+    direction LR
+    w1["driver.event_wait<br/>epoll_wait با مهلت"] --> w2["برای هر fd آماده:<br/>read_cb در صورت READABLE"] --> w3["write_cb در صورت WRITABLE<br/>اگر با read_cb یکی نباشد"]
+  end
+  subgraph X["زمان‌دار و خارجی"]
+    direction LR
+    x1["process_time_events<br/>(map مرتب بر حسب زمان)"] --> x2["external_events.swap<br/>زیر external_lock"] --> x3["do_request روی هر رویداد<br/>(مثلاً ارسال پیام از thread دیگر)"]
+  end
+  subgraph K["بیدار کردن از thread دیگر"]
+    direction LR
+    k1["dispatch_event_external(e)"] --> k2["push در external_events<br/>و external_num_events++"] --> k3["wakeup: write(eventfd، 1)"] --> k4["epoll_wait بیدار می‌شود"]
+  end
+  T --> W --> X
+  X ~~~ K

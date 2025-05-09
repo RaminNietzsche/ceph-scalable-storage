@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph K["ثبت قانون: PutBucketLifecycle"]
+    direction LR
+    k1["کلید = tenant:bucket:marker<br/>(get_bucket_lc_key)"] --> k2["ceph_str_hash_linux(کلید)<br/>% 7877 % rgw_lc_max_objs"] --> k3["شیء lc.N در pool لاگ<br/>(N بین 0 و 31)"] --> k4["ورودی bucket با وضعیت<br/>UNINITIAL در lc.N"]
+  end
+  subgraph W["اجرا: RGWLC::process در پنجره‌ی rgw_lifecycle_work_time"]
+    direction LR
+    w1["هر LCWorker (rgw_lc_max_worker=3)<br/>shardها را به ترتیب تصادفی می‌گردد"] --> w2["قفل شیء lc.N<br/>(rgw_lc_lock_max_time=90 s)"] --> w3["ورودی بعدی: PROCESSING<br/>و ثبت start time"] --> w4["bucket_lc_process<br/>با rgw_lc_max_wp_worker=128 coroutine"]
+  end
+  subgraph O["برای هر نسخه‌ی شیء"]
+    direction LR
+    o1["obj_has_expired(mtime، days)"] --> o2["Expiration ⇒ حذف یا delete marker"] --> o3["Transition ⇒ کپی به pool کلاس هدف<br/>و به‌روزرسانی manifest"] --> o4["پایان: COMPLETE"]
+  end
+  K --> W --> O

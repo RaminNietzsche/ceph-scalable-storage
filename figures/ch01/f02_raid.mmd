@@ -1,0 +1,17 @@
+flowchart LR
+  subgraph A["RAID سنتی: بازسازی چند به یک"]
+    direction TB
+    D1["دیسک ۱"] --> SP["دیسک یدک<br/>گلوگاه نوشتن"]
+    D2["دیسک ۲"] --> SP
+    D3["دیسک ۳"] --> SP
+    DX["دیسک خراب ✖"]
+  end
+  subgraph B["Ceph: بازیابی چند به چند"]
+    direction TB
+    O1["OSD ۱"] --> O5["OSD ۵"]
+    O2["OSD ۲"] --> O6["OSD ۶"]
+    O3["OSD ۳"] --> O7["OSD ۷"]
+    O4["OSD ۴"] --> O8["OSD ۸"]
+    OX["OSD خراب ✖<br/>صدها PG پخش‌شده"]
+  end
+  A -.->|"زمان بازسازی: ساعت‌ها تا روزها"| B

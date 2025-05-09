@@ -1,0 +1,8 @@
+flowchart LR
+  U["مرورگر"] -->|"HTTPS"| GW["mgmt-gateway<br/>nginx (اختیاری)"]
+  GW --> OA["oauth2-proxy<br/>SSO با IdP"]
+  GW --> D["ماژول dashboard<br/>در MGR فعال"]
+  GW --> GR["Grafana"]
+  GW --> PR["Prometheus<br/>Alertmanager"]
+  D -->|"librados و orchestrator"| CL[("کلاستر Ceph")]
+  PR -->|"scrape"| EX["ماژول prometheus<br/>و ceph-exporter"]

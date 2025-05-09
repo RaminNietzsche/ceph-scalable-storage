@@ -1,0 +1,5 @@
+flowchart TB
+  N["حالت عادی<br/>eu-1 master فراداده"] --> D{"eu-1 در دسترس نیست"}
+  D -->|"خرابی کوتاه"| W["صبر؛ نوشتن داده در eu-2 ادامه دارد<br/>فقط ساخت user و bucket متوقف است"]
+  D -->|"خرابی طولانی"| F["در eu-2: zone modify --master --default<br/>period update --commit"]
+  F --> B["بازگشت eu-1: realm pull · period pull<br/>و در صورت نیاز master را برگردانید"]

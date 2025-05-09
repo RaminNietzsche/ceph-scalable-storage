@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph U["فضای کاربر"]
+    direction LR
+    Q["QEMU/KVM<br/>librbd"]
+    N["rbd-nbd<br/>librbd + NBD"]
+    G["دروازه‌ی NVMe-oF<br/>SPDK + librbd"]
+  end
+  subgraph K["هسته‌ی لینوکس"]
+    KR["krbd<br/>/dev/rbdX"]
+  end
+  Q --> RADOS[("RADOS")]
+  N --> RADOS
+  G --> RADOS
+  KR --> RADOS
+  H["میزبان بدون Ceph<br/>(VMware، ویندوز)"] -->|"NVMe/TCP"| G

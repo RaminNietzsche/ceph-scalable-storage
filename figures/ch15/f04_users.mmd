@@ -1,0 +1,7 @@
+flowchart LR
+  RBD["librbd"] --> CR["cls_rbd: سرآیند تصویر، snapshotها،<br/>object map، mirroring"]
+  RGW["RGW"] --> CG["cls_rgw: شاخص bucket و bilog"]
+  RGW --> CGC["cls_rgw_gc، cls_2pc_queue،<br/>cls_fifo: GC، صف و log"]
+  FS["CephFS"] --> CF["cls_cephfs: ابزار بازیابی"]
+  ANY["همه‌ی مصرف‌کنندگان"] --> CL["cls_lock: قفل مشورتی"]
+  ANY --> CV["cls_version، cls_refcount،<br/>cls_log، cls_timeindex"]

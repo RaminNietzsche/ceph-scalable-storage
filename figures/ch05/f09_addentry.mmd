@@ -1,0 +1,16 @@
+flowchart TB
+  subgraph R1[" "]
+    direction LR
+    A["PUT/DELETE in bucket shard s"] --> B["index = (hash(bucket)+s) % 128"] --> C{"watch on sem-set healthy?"}
+    C -- "no" --> D["push entry directly"]
+  end
+  subgraph R2[" "]
+    direction LR
+    E{"now < cur_expiration?"} -- "yes" --> F["add to cur_cycle; sem-set +1; return"]
+    E -- "no" --> G{"pending push?"} -- "yes" --> H["wait for it; return"]
+  end
+  subgraph R3[" "]
+    direction LR
+    I["pending = true; push entry to shard index"] --> J["cur_expiration = send time + 30 s"] --> K["renew thread every 22 s: push cur_cycle, extend expiration, sem-set -1"]
+  end
+  R1 --> R2 --> R3

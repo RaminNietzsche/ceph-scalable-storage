@@ -1,0 +1,17 @@
+flowchart TB
+  subgraph T1[" "]
+    direction LR
+    A["timer: rgw_sync_log_trim_interval = 20 min"] --> B["GET /admin/log/?type=data&status from every peer zone"] --> C{"all peers replied?"}
+    C -- "no" --> X["skip this round; datalog keeps growing"]
+  end
+  subgraph T2[" "]
+    direction LR
+    D["per shard i: stable marker = FullSync ? next_step_marker : marker"] --> E["min_i = min over peers"] --> F{"min_i > last_trim[i]?"}
+    F -- "yes" --> G["trim shard i up to min_i"]
+    F -- "no" --> H["leave shard i"]
+  end
+  subgraph T3[" "]
+    direction LR
+    P["example shard 5: peer A at m120, peer B at m087"] --> Q["min = m087, last_trim = m050"] --> S["trim shard 5 to m087"]
+  end
+  T1 --> T2 --> T3

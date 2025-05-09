@@ -1,0 +1,4 @@
+flowchart LR
+  A["acting = NONE، 6، 7، 8، 9، 10<br/>(shard 0 از دست رفته)"] --> T["pgtemp_primaryfirst<br/>shardهای مجاز primary جلو"]
+  T --> B["pg_temp = NONE، 9، 10، 6، 7، 8"]
+  B --> P["primary = osd.9<br/>(parity که همیشه به‌روز است)"]

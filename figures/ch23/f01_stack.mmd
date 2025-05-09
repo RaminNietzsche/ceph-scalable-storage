@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["فضای کاربر: ceph-osd"]
+    direction LR
+    a["BlueStore::_do_alloc_write<br/>bufferlist هم‌تراز 4K"] --> b["IOContext: فهرست aio_t<br/>(offset، iovec، write_hint)"] --> c["KernelDevice::aio_submit<br/>→ aio_queue_t::submit_batch"]
+  end
+  subgraph R2["مرز syscall"]
+    direction LR
+    d["libaio: io_submit(ctx، iocb[])<br/>یا io_uring: io_uring_prep_writev + io_uring_submit"] --> e["fd باز شده با O_RDWR | O_DIRECT<br/>(یک fd برای هر write hint)"]
+  end
+  subgraph R3["هسته"]
+    direction LR
+    f["block layer: bio → request<br/>blk-mq، صف سخت‌افزاری"] --> g["درایور NVMe/SCSI<br/>DMA مستقیم از صفحه‌های کاربر"] --> h["تکمیل: io_getevents / CQE<br/>→ _aio_thread → aio_callback"]
+  end
+  R1 ~~~ R2 ~~~ R3

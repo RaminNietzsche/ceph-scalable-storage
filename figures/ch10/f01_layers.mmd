@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph L1["لایه‌ی ۱: سخت‌افزار خام"]
+    direction LR
+    D["fio روی دیسک خام"] ~~~ N["iperf3 بین گره‌ها"]
+  end
+  subgraph L2["لایه‌ی ۲: RADOS"]
+    direction LR
+    OB["ceph tell osd.N bench"] ~~~ RB["rados bench"]
+  end
+  subgraph L3["لایه‌ی ۳: رابط‌ها"]
+    direction LR
+    RBD["rbd bench و fio با rbd"] ~~~ S3["warp یا s3bench روی RGW"] ~~~ FS["fio روی CephFS"]
+  end
+  subgraph L4["لایه‌ی ۴: بار واقعی"]
+    direction LR
+    APP["بار برنامه یا replay"]
+  end
+  L1 ~~~ L2 ~~~ L3 ~~~ L4

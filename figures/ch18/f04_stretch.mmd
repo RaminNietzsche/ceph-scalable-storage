@@ -1,0 +1,16 @@
+flowchart LR
+  subgraph DC1["datacenter=site1"]
+    direction TB
+    M1["mon.a، mon.b"] ~~~ O1["OSDها: ۲ نسخه از هر PG"]
+  end
+  subgraph DC3["datacenter=site3 (داور)"]
+    direction TB
+    M5["mon.e (tiebreaker)<br/>بدون داده"]
+  end
+  subgraph DC2["datacenter=site2"]
+    direction TB
+    M3["mon.c، mon.d"] ~~~ O2["OSDها: ۲ نسخه از هر PG"]
+  end
+  DC1 <--> |"لینک بین سایت‌ها<br/>نوشتن در هر دو سایت پیش از ack"| DC2
+  DC1 -.-> DC3
+  DC2 -.-> DC3

@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph H["۱. هر میزبان"]
+    direction LR
+    D["daemonهای Ceph<br/>(osd، mon، rgw، mds)"] --> AS["admin socket<br/>perf counters"] --> CE["ceph-exporter<br/>شمارنده‌های هر daemon"] ~~~ NE["node-exporter<br/>CPU، دیسک، شبکه"]
+  end
+  subgraph M["۲. mgr فعال"]
+    direction LR
+    PM["ماژول prometheus (پورت 9283)<br/>سلامت، PG، pool، فراداده"] ~~~ SD["service discovery<br/>(cephadm، پورت 8765)"]
+  end
+  subgraph S["۳. پشته‌ی پایش"]
+    direction LR
+    P["Prometheus<br/>scrape و قواعد هشدار"] --> AM["Alertmanager<br/>گروه‌بندی، سکوت"] --> N["ایمیل / chat / pager"] ~~~ G["Grafana<br/>داشبوردهای ceph-mixin"]
+  end
+  H ~~~ M ~~~ S

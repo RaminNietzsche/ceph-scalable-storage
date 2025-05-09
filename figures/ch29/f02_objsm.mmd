@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["rbd_img_state"]
+    direction LR
+    A["RBD_IMG_START"] --> B["RBD_IMG_EXCLUSIVE_LOCK<br/>(اگر feature فعال باشد)"] --> C["RBD_IMG_OBJECT_REQUESTS<br/>(انتظار برای همه‌ی obj_reqها)"] --> D["تکمیل request در blk-mq"]
+  end
+  subgraph R2["rbd_obj_write_state"]
+    direction LR
+    E["START"] --> F["PRE_OBJECT_MAP<br/>(علامت OBJECT_EXISTS)"] --> G["OBJECT<br/>(نوشتن روی OSD)"] --> H["COPYUP<br/>(-ENOENT در clone)"] --> I["POST_OBJECT_MAP"]
+  end
+  subgraph R3["rbd_obj_read_state"]
+    direction LR
+    J["START"] --> K["READ_OBJECT"] --> L["READ_PARENT<br/>(اگر -ENOENT و parent دارد)"]
+  end
+  R1 ~~~ R2 ~~~ R3

@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant A as کلاینت A
+  participant O as OSD primary
+  participant B as کلاینت B
+  A->>O: read(counter) → v=7، ver=41
+  B->>O: read(counter) → v=7، ver=41
+  A->>O: WriteOp{assert_version(41)، write_full(8)}
+  O-->>A: موفق؛ ver=42
+  B->>O: WriteOp{assert_version(41)، write_full(8)}
+  O-->>B: -ERANGE (نسخه عوض شده)
+  B->>O: read دوباره → v=8، ver=42
+  B->>O: WriteOp{assert_version(42)، write_full(9)}
+  O-->>B: موفق

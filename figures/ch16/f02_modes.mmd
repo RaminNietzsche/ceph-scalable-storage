@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph M1["حالت‌های flush (TierAgentState::flush_mode_t)"]
+    direction LR
+    FI["IDLE<br/>dirty ≤ dirty_ratio"] --> FLW["LOW<br/>dirty > cache_target_dirty_ratio"] --> FH["HIGH<br/>dirty > cache_target_dirty_high_ratio"]
+  end
+  subgraph M2["حالت‌های evict (TierAgentState::evict_mode_t)"]
+    direction LR
+    EI["IDLE<br/>full ≤ full_ratio"] --> ES["SOME<br/>full > cache_target_full_ratio<br/>effort متناسب با فاصله"] --> EF["FULL<br/>full > 100% هدف<br/>evict هر شیء clean"]
+  end
+  subgraph M3["هیسترزیس"]
+    direction LR
+    SL["osd_agent_slop = 0.02<br/>ورود: هدف + slop، خروج: هدف − slop"]
+  end
+  M1 ~~~ M2 ~~~ M3

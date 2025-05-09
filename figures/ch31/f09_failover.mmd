@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant A as درگاه A (مالک گروه 1)
+  participant M as mon: NVMeofGwMon
+  participant B as درگاه B
+  participant O as OSDMonitor
+  participant H as میزبان
+  A--xM: beaconها قطع شد
+  Note over M: پس از mon_nvmeofgw_beacon_grace (7 ثانیه)<br/>A ⇒ UNAVAILABLE
+  M->>M: find_failover_candidate: کم‌بارترین درگاه در همان location
+  M->>O: blocklist نشانی‌های A
+  M->>B: نقشه: گروه 1 = WAIT_BLOCKLIST_CMPL (تایمر 30 ثانیه)
+  O-->>B: OSDMap با epoch ≥ epoch مربوط به blocklist
+  B->>M: beacon با osd_epoch تازه
+  M->>B: گروه 1 = ACTIVE
+  B->>H: تغییر ANA: مسیر B برای گروه 1 optimized
+  H->>B: ادامه‌ی I/O

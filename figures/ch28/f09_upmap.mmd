@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph A["آماده‌سازی (OSDMap::calc_pg_upmaps)"]
+    direction LR
+    a1["build_pool_pgs_info<br/>PGهای هر OSD و وزن‌ها"] --> a2["pgs_per_weight =<br/>total_pgs / Σ وزن"] --> a3["calc_deviations<br/>dev = pgs − w × ppw"] --> a4["اگر max|dev| ≤ max_deviation<br/>⇒ پایان"]
+  end
+  subgraph B["هر دور (تا max تغییر)"]
+    direction LR
+    b1["fill_overfull_underfull<br/>dev > max ⇒ overfull<br/>dev < −max ⇒ underfull"] --> b2["پرترین OSD اول:<br/>try_drop_remap_overfull"] --> b3["try_pg_upmap ⇒<br/>find_best_remap"] --> b4["add_remap_pair<br/>یک جفت (from,to)"]
+  end
+  subgraph C["آزمون تغییر"]
+    direction LR
+    c1["calc_deviations دوباره<br/>new_bal_score"] -->|"بدتر شد"| c2["رد و پرش از PG"]
+    c1 -->|"بهتر شد"| c3["اعمال در tmp_osd_map<br/>pending_inc"]
+  end
+  A ~~~ B ~~~ C

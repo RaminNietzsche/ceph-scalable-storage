@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["ceph_choose_crc32 (common/crc32c.cc) — یک بار در بارگذاری"]
+    direction LR
+    a["x86 با AVX512 + VPCLMULQDQ<br/>→ intel_fast_avx512_vpclmul"] --> b["x86 با SSE4.2<br/>→ intel_fast (و نسخه‌ی pclmul)"] --> c["aarch64 با CRC32<br/>→ crc32c_aarch64"] --> d["ppc / s390x / riscv<br/>→ نسخه‌های مخصوص"] --> e["در غیر این صورت<br/>→ sctp (جدولی، نرم‌افزاری)"]
+  end
+  subgraph R2["استفاده‌ها"]
+    direction LR
+    u1["BlueStore csum هر chunk<br/>(bluestore_csum_type=crc32c)"] --- u2["msgr2 در حالت crc:<br/>crc هر segment و preamble"] --- u3["bufferlist::crc32c با کش<br/>last_crc روی raw"]
+  end
+  R1 ~~~ R2

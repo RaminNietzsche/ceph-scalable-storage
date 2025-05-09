@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant D as درایور (هسته یا SPDK)
+  participant SQ as SQ در حافظه
+  participant C as کنترلر NVMe
+  participant CQ as CQ در حافظه
+  D->>SQ: نوشتن SQE در خانه‌ی sq_tail (64 بایت)
+  D->>C: writel(sq_tail) به SQ Tail Doorbell<br/>آفست 0x1000 + (2·qid)·(4 << DSTRD)
+  C->>SQ: واکشی SQE با DMA
+  C->>C: اجرای فرمان و DMA داده به/از PRP
+  C->>CQ: نوشتن CQE با phase فعلی
+  C-->>D: وقفه‌ی MSI-X (یا بدون وقفه در polling)
+  D->>CQ: تا وقتی status&1 == cq_phase: پردازش CQE
+  Note over D: cq_head++، در انتهای صف: cq_head=0 و cq_phase ^= 1
+  D->>C: writel(cq_head) به CQ Head Doorbell<br/>آفست 0x1000 + (2·qid+1)·(4 << DSTRD)

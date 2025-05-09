@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant P as سایت A: تصویر primary
+  participant D as rbd-mirror در سایت B
+  participant N as سایت B: تصویر non-primary
+  Note over P: زمان‌بندی: rbd mirror snapshot schedule add 15m
+  P->>P: ایجاد mirror snapshot S2 (state=PRIMARY، peer_uuids={B})
+  D->>P: scan_remote_mirror_snapshots: S1 (همگام‌شده) و S2 (جدید)
+  D->>N: create_non_primary_snapshot S2' (complete=false، primary_snap_id=S2)
+  D->>P: copy_image: deep-copy تفاوت S1..S2 (با object map / diff)
+  P-->>D: بلوک‌های تغییرکرده
+  D->>N: نوشتن تفاوت، به‌روزرسانی last_copied_object_number
+  D->>N: apply_image_state (اندازه، metadata) و complete=true
+  D->>P: unlink_peer از S1 (S1 قابل حذف می‌شود)

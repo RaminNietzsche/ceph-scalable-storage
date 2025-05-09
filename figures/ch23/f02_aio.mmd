@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant T as thread تراکنش (txc)
+  participant K as KernelDevice
+  participant Q as aio_queue_t (libaio/io_uring)
+  participant A as _aio_thread
+  participant BS as BlueStore
+  T->>K: aio_write(off, bl, ioc)  (فقط در ioc ثبت می‌شود)
+  T->>K: aio_submit(ioc)
+  K->>Q: submit_batch(pending_aios) تا bdev_aio_max_queue_depth=1024
+  Q-->>K: تعداد ثبت‌شده (EAGAIN → retry با تأخیر)
+  loop هر bdev_aio_poll_ms=250ms یا رویداد
+    A->>Q: get_next_completed(max=bdev_aio_reap_max=16)
+    Q-->>A: aio_t[] تکمیل‌شده
+    A->>A: کاهش ioc->num_running
+  end
+  A->>BS: aio_callback(priv=txc) وقتی همه‌ی aioهای ioc تمام شد
+  BS->>BS: _txc_state_proc: AIO_WAIT → IO_DONE → KV_QUEUED

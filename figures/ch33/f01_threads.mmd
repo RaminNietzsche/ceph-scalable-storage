@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph N["شبکه"]
+    direction LR
+    n1["msgr-worker-0..2<br/>ms_async_op_threads=3"] --> n2["تجزیه‌ی پیام، crc یا AES-GCM<br/>EventCenter (epoll)"]
+  end
+  subgraph Q["صف op"]
+    direction LR
+    q1["ShardedOpWQ<br/>shard = ps mod num_shards"] --> q2["tp_osd_tp<br/>SSD: 8 shard × 2 thread"] --> q3["قفل PG<br/>PrimaryLogPG::do_op"]
+  end
+  subgraph B["BlueStore"]
+    direction LR
+    b1["bstore_aio<br/>تکمیل libaio/io_uring"] --> b2["bstore_kv_sync<br/>دسته‌ی commit در RocksDB"] --> b3["bstore_kv_final<br/>آزادسازی txc"] --> b4["cfin<br/>commit_finisher"]
+  end
+  subgraph O["پس‌زمینه"]
+    direction LR
+    o1["bstore_mempool<br/>autotune هر 5 ثانیه"] --> o2["rocksdb:low / high<br/>compaction و flush"] --> o3["osd_srv_heartbt<br/>heartbeat"] --> o4["safe_timer<br/>tick"]
+  end
+  N ~~~ Q ~~~ B ~~~ O

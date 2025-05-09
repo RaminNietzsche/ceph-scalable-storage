@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["سه ابزار اصلاح توزیع"]
+    direction LR
+    A["reweight (0..1)<br/>is_out احتمالی<br/>جابه‌جایی گسترده"] --> B["choose_args / weight-set<br/>وزن جایگزین در هر position<br/>(balancer crush-compat)"] --> C["pg_upmap_items<br/>جایگزینی صریح osd→osd<br/>(balancer upmap)"]
+  end
+  subgraph R2["ترتیب اعمال در OSDMap::_pg_to_raw_osds و _apply_upmap"]
+    direction LR
+    D["crush_do_rule<br/>با choose_args"] --> E["حذف OSDهای ناموجود"] --> F["pg_upmap (کل لیست)"] --> G["pg_upmap_items (جفت‌ها)"] --> H["pg_upmap_primary"]
+  end
+  R1 ~~~ R2

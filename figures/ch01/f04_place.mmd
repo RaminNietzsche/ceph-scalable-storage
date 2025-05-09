@@ -1,0 +1,6 @@
+flowchart LR
+  OBJ["شیء<br/>نام: vm-disk.0001"] -->|"hash(نام) mod pg_num"| PG["Placement Group<br/>مثلاً 3.1a"]
+  PG -->|"CRUSH(PG، نقشه، قاعده)"| SET["مجموعه‌ی عمل<br/>Acting set"]
+  SET --> P["OSD.12 — اصلی<br/>rack-a"]
+  SET --> S1["OSD.37<br/>rack-b"]
+  SET --> S2["OSD.58<br/>rack-c"]

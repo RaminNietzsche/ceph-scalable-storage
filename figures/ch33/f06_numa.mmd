@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph N0["NUMA node 0"]
+    direction LR
+    c0["هسته‌های 0..31"] --> m0["حافظه‌ی محلی"] --> d0["nvme0, nvme1<br/>(PCIe روی node 0)"] --> e0["NIC ens1f0<br/>public و cluster"]
+  end
+  subgraph N1["NUMA node 1"]
+    direction LR
+    c1["هسته‌های 32..63"] --> m1["حافظه‌ی محلی"] --> d1["nvme2, nvme3"] --> e1["NIC ens2f0"]
+  end
+  subgraph D["تصمیم set_numa_affinity برای osd.2 روی nvme2"]
+    direction LR
+    x1["store_node=1"] --> x2["front_node و back_node<br/>از iface"] --> x3["هر سه برابر؟ ⇒ numa_node=1<br/>(osd_numa_auto_affinity)"] --> x4["set_cpu_affinity_all_threads"]
+  end
+  N0 ~~~ N1 ~~~ D

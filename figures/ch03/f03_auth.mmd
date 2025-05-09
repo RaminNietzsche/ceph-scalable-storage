@@ -1,0 +1,16 @@
+flowchart TB
+  subgraph CTL["گره کنترلی"]
+    GA["glance-api<br/>client.glance"]
+    CV["cinder-volume<br/>client.cinder"]
+    BK["cinder-backup<br/>client.cinder-backup"]
+  end
+  subgraph CMP["گره محاسباتی"]
+    NC["nova-compute<br/>client.cinder"]
+    LV["libvirt secret<br/>UUID ← کلید client.cinder"]
+    QM["QEMU"]
+  end
+  NC --> LV --> QM
+  GA -->|"rwx: images"| CEPH[("Ceph")]
+  CV -->|"rwx: volumes, vms · r: images"| CEPH
+  BK -->|"rwx: backups"| CEPH
+  QM -->|"librbd"| CEPH

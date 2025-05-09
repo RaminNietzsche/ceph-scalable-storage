@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["payload یک MOSDOp (HEAD_VERSION=9) به ترتیب encode"]
+    direction LR
+    A["pgid (spg_t)<br/>hash شیء"] --> B["osdmap_epoch<br/>flags"] --> C["reqid<br/>(client.N, tid)"] --> D["client_inc<br/>mtime"]
+  end
+  subgraph R2["ادامه"]
+    direction LR
+    E["object_locator<br/>(pool, key, nspace)"] --> F["oid (نام)"] --> G["num_ops + ceph_osd_op × n<br/>(op, flags, extent/xattr/cls …)"] --> H["snap, snap_seq, snaps[]<br/>retry_attempt, features"]
+  end
+  subgraph R3["segmentها در msgr2"]
+    direction LR
+    I["front: همین payload"] --> J["data: indata همه‌ی opها<br/>پشت سر هم (هم‌تراز 4K)"]
+  end
+  R1 ~~~ R2 ~~~ R3

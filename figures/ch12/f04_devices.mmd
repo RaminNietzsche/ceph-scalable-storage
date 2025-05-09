@@ -1,0 +1,6 @@
+flowchart LR
+  subgraph H["گره با ۱۲ HDD و ۲ NVMe"]
+    direction TB
+    N1["NVMe 1<br/>۶ LV برای block.db"] --> O1["osd.0 … osd.5<br/>block روی HDD"]
+    N2["NVMe 2<br/>۶ LV برای block.db"] --> O2["osd.6 … osd.11<br/>block روی HDD"]
+  end

@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph L1["۱. سخت‌افزار و شبکه"]
+    direction LR
+    a["NVMe / HDD + block.db"] ~~~ b["شبکه‌ی public و cluster<br/>MTU، bonding، تأخیر"] ~~~ c["CPU: فرکانس، C-state،<br/>NUMA"]
+  end
+  subgraph L2["۲. سیستم‌عامل"]
+    direction LR
+    d["زمان‌بند I/O<br/>none برای NVMe"] ~~~ e["tuned profile<br/>throughput-performance"] ~~~ f["sysctl شبکه<br/>بافرهای TCP"]
+  end
+  subgraph L3["۳. OSD"]
+    direction LR
+    g["osd_memory_target<br/>کش BlueStore"] ~~~ h["شاردها و threadها<br/>osd_op_num_shards_*"] ~~~ i["mClock: پروفایل و<br/>ظرفیت IOPS"]
+  end
+  subgraph L4["۴. pool و کلاینت"]
+    direction LR
+    j["تعداد PG، replica یا EC"] ~~~ k["کش librbd، object size،<br/>striping"] ~~~ l["RGW: shardهای index،<br/>threadها"]
+  end
+  L1 ~~~ L2 ~~~ L3 ~~~ L4

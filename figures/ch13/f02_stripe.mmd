@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph S0["stripe 0"]
+    direction LR
+    a0["s0: 0-4K"] ~~~ a1["s1: 4-8K"] ~~~ a2["s2: 8-12K"] ~~~ a3["s3: 12-16K"] ~~~ ap0["p0"] ~~~ ap1["p1"]
+  end
+  subgraph S1["stripe 1"]
+    direction LR
+    b0["s0: 16-20K"] ~~~ b1["s1: 20-24K"] ~~~ b2["s2: 24-28K"] ~~~ b3["s3: 28-32K"] ~~~ bp0["p0"] ~~~ bp1["p1"]
+  end
+  S0 ~~~ S1

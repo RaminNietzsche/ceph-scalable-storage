@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["۱. درخواست فراداده (مثلاً mkdir)"]
+    direction LR
+    c["کلاینت: MClientRequest"] --> m["MDS rank فعال:<br/>قفل‌ها (SimpleLock/ScatterLock)<br/>+ به‌روزرسانی کش"] --> j["EUpdate در MDLog<br/>(journal روی pool metadata)"]
+  end
+  subgraph R2["۲. پایداری"]
+    direction LR
+    sg["segment: mds_log_events_per_segment=1024<br/>حداکثر mds_log_max_segments=128"] --> ack["پاسخ safe به کلاینت<br/>پس از flush journal"] --> exp["expire segment:<br/>نوشتن dirfragها در اشیای<br/>&lt;ino&gt;.&lt;frag&gt; (omap)"]
+  end
+  subgraph R3["۳. شکست rank"]
+    direction LR
+    st["standby-replay دنبال journal"] --> rp["replay → resolve → reconnect<br/>(کلاینت‌ها capها را دوباره اعلام می‌کنند)"] --> act["rejoin → clientreplay → active"]
+  end
+  R1 ~~~ R2 ~~~ R3

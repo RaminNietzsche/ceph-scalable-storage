@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph C["۱. کلاینت"]
+    direction LR
+    APP["برنامه"] --> EX["ioctx.execute(oid,<br/>'numops', 'add', in)"] --> OBJR["Objecter: محاسبه‌ی<br/>PG و primary"] --> OP["ارسال MOSDOp با<br/>CEPH_OSD_OP_CALL"]
+  end
+  subgraph O["۲. OSD primary — PrimaryLogPG::do_osd_ops"]
+    direction LR
+    DEC["decode نام کلاس،<br/>نام متد، indata"] --> CH["ClassHandler::open_class<br/>(osd_class_load_list)"] --> GM["get_method<br/>نبود: -EOPNOTSUPP"]
+  end
+  subgraph X["۳. اجرا و کنترل"]
+    direction LR
+    RUN["method->exec(hctx, in, out)<br/>cls_cxx_read / map_get_val"] --> CHK["مقایسه‌ی num_read/num_write<br/>با پرچم RD/WR؛ نقض: -EIO"] --> TXN["تغییرات در همان تراکنش PG<br/>و تکثیر به replicaها"]
+  end
+  C ~~~ O ~~~ X

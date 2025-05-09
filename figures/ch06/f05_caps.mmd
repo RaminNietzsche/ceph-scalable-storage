@@ -1,0 +1,12 @@
+sequenceDiagram
+  participant A as کلاینت A
+  participant M as MDS
+  participant B as کلاینت B
+  A->>M: open(report.txt, write)
+  M-->>A: capability نوشتن + buffer
+  A->>A: نوشتن در cache محلی
+  B->>M: open(report.txt, read)
+  M->>A: فراخوانی capability (revoke)
+  A->>A: flush داده به OSDها
+  A-->>M: آزاد کردن capability
+  M-->>B: capability خواندن

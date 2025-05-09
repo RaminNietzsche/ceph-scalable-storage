@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["نام شیء → PG"]
+    direction LR
+    A["«rbd_data.10ab2c3d4e5f.0000…0»"] --> B["ceph_str_hash_rjenkins<br/>= 0xD1895615"] --> C["ceph_stable_mod(h, 128, 127)<br/>= 0x15"] --> D["pg 3.15"]
+  end
+  subgraph R2["PG → ورودی CRUSH"]
+    direction LR
+    E["HASHPSPOOL"] --> F["pps = crush_hash32_2(<br/>stable_mod(ps), pool=3)"] --> G["x = 0x36D15C32"]
+  end
+  subgraph R3["CRUSH → OSDها → نگاشت نهایی"]
+    direction LR
+    H["crush_do_rule(rule, x,<br/>size, weights, choose_args)"] --> I["raw: [osd…]"] --> J["حذف down/out<br/>pg_upmap / pg_upmap_items"] --> K["up set → pg_temp<br/>→ acting set"]
+  end
+  R1 ~~~ R2 ~~~ R3

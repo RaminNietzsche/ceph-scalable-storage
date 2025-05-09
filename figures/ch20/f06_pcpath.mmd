@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["داخل daemon"]
+    direction LR
+    A["کد OSD: logger->tinc(l_osd_op_r_lat, dt)"] --> B["perf_counter_data_any_d<br/>avgcount++ ؛ u64 += ns ؛ avgcount2++"] --> C["PerfCountersCollection<br/>(prio، unit، type)"]
+  end
+  subgraph R2["مسیر mgr"]
+    direction LR
+    D["MgrClient: هر mgr_stats_period=5s<br/>فقط prio ≥ mgr_stats_threshold=5"] --> E["MMgrReport (msgr2)"] --> F["DaemonServer → DaemonState"] --> G["ماژول prometheus<br/>:9283/metrics"]
+  end
+  subgraph R3["مسیر ceph-exporter (هر میزبان)"]
+    direction LR
+    H["asok: counter schema + counter dump<br/>هر exporter_stats_period=5s"] --> I["promethize نام‌ها<br/>_sum و _count برای avg"] --> J["HTTP :9926<br/>prio ≥ exporter_prio_limit=5"]
+  end
+  R1 ~~~ R2 ~~~ R3

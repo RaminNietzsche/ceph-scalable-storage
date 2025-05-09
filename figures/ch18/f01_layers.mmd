@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph L1["۱. درون یک کلاستر (خودکار)"]
+    direction LR
+    A1["تکثیر/EC روی دامنه‌های خرابی CRUSH"] ~~~ A2["recovery و backfill"] ~~~ A3["scrub و repair"]
+  end
+  subgraph L2["۲. بین دو سایت با یک کلاستر"]
+    direction LR
+    B1["stretch mode<br/>دو datacenter + MON داور"] ~~~ B2["نوشتن هم‌زمان در هر دو سایت<br/>RPO = 0"]
+  end
+  subgraph L3["۳. بین کلاسترها (ناهم‌زمان)"]
+    direction LR
+    C1["rbd-mirror<br/>journal یا snapshot"] ~~~ C2["RGW multisite<br/>(فصل ۵)"] ~~~ C3["cephfs-mirror<br/>snapshotهای دایرکتوری"]
+  end
+  subgraph L4["۴. نسخه‌ی پشتیبان مستقل"]
+    direction LR
+    D1["export دوره‌ای rbd / s3 sync"] ~~~ D2["object lock و نسخه‌گذاری"] ~~~ D3["پشتیبان mon store و keyringها"]
+  end
+  L1 ~~~ L2 ~~~ L3 ~~~ L4

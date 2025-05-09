@@ -1,0 +1,2 @@
+flowchart LR
+  DEV["تغییر spec<br/>Merge Request"] --> REV["بازبینی همکار<br/>و lint"] --> CI["CI: dry-run<br/>ceph orch apply --dry-run"] --> APP["اعمال<br/>در پنجره‌ی تغییر"] --> VER["بررسی<br/>ceph -s و هشدارها"]

@@ -1,0 +1,6 @@
+flowchart TB
+  I["ErasureCodeInterface<br/>init، encode، decode، minimum_to_decode"] --> ISA["isa<br/>Intel ISA-L؛ پیش‌فرض از Tentacle"]
+  I --> JER["jerasure<br/>دیگر نگهداری نمی‌شود"]
+  I --> LRC["lrc<br/>parity محلی، بازیابی ارزان‌تر"]
+  I --> SHEC["shec<br/>بازیابی ارزان با هزینه‌ی دوام"]
+  I --> CLAY["clay<br/>کاهش ترافیک بازیابی با sub-chunk"]

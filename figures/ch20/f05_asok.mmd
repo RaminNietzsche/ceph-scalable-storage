@@ -1,0 +1,10 @@
+sequenceDiagram
+  participant C as کلاینت (ceph daemon / ceph-exporter)
+  participant S as AdminSocket در daemon<br/>/var/run/ceph/FSID/ceph-osd.3.asok
+  C->>S: connect(AF_UNIX)
+  C->>S: JSON: prefix = counter dump سپس بایت 0x00 یا 0x0A
+  Note over S: do_accept: خواندن بایت‌به‌بایت تا 0x00 یا 0x0A<br/>(بایت اول 0x00 یعنی پروتکل قدیمی 4 بایتی)
+  S->>S: execute_command → hook ثبت‌شده
+  S-->>C: طول پاسخ: uint32 big-endian (htonl)
+  S-->>C: payload (JSON)، در خطا با ERROR: شروع می‌شود
+  Note over C,S: اتصال بسته می‌شود، هر فرمان یک اتصال

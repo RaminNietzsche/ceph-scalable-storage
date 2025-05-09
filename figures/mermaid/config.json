@@ -1,0 +1,1 @@
+{"theme": "base", "themeVariables": {"fontFamily": "Vazirmatn", "fontSize": "20px", "primaryColor": "#E8F0FE", "primaryBorderColor": "#4A72C4", "lineColor": "#4A72C4", "secondaryColor": "#FFF8E1", "tertiaryColor": "#F3F3F3"}, "flowchart": {"htmlLabels": true, "curve": "basis"}, "sequence": {"messageFontSize": 18, "actorFontSize": 17, "useMaxWidth": false}}

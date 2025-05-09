@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["rgw_data_sync_info::state (rgw_data_sync.h)"]
+    direction LR
+    a["StateInit = 0<br/>ساخت اشیای وضعیت هر شارد"] --> b["StateBuildingFullSyncMaps = 1<br/>فهرست کردن همه‌ی bucketهای<br/>مبدأ در full-sync map"] --> c["StateSync = 2<br/>هر شارد مستقل جلو می‌رود"]
+  end
+  subgraph R2["هر شارد datalog در StateSync"]
+    direction LR
+    fs["full sync:<br/>پیمایش full-sync map،<br/>همگام‌سازی کامل هر bucket shard"] --> is["incremental sync:<br/>خواندن datalog از marker<br/>هر rgw_data_sync_poll_interval=20s"] --> er["خطا → error repo<br/>retry بعدی (rgw_sync_error_repo)"]
+  end
+  subgraph R3["هماهنگی بین چند RGW مقصد"]
+    direction LR
+    l["lease روی شیء وضعیت<br/>rgw_sync_lease_period=2min"] --- t["trim لاگ‌های مبدأ<br/>هر rgw_sync_log_trim_interval=20min<br/>تا کمترین marker همه‌ی peerها"]
+  end
+  R1 ~~~ R2 ~~~ R3

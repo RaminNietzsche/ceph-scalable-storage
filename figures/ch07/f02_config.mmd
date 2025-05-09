@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph L1["اولویت از کم به زیاد"]
+    direction LR
+    S1["۱. پیش‌فرض کامپایل‌شده"] --> S2["۲. پایگاه پیکربندی MON<br/>ceph config set"] --> S3["۳. ceph.conf محلی<br/>حداقلی"]
+  end
+  subgraph L2["ادامه"]
+    direction LR
+    S4["۴. آرگومان خط فرمان"] --> S5["۵. تغییر زمان اجرا<br/>ceph tell / daemon config set"] --> R["مقدار مؤثر<br/>ceph config show osd.3"]
+  end
+  L1 ~~~ L2

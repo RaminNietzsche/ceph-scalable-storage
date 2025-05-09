@@ -1,0 +1,22 @@
+{"title":"NVMe/TCP: هدر مشترک PDU و Command Capsule","sub":"struct nvme_tcp_hdr و nvme_tcp_cmd_pdu در include/linux/nvme-tcp.h؛ نمونه: نوشتن 4 KiB با داده‌ی درون‌کپسولی و بدون digest","cols":8,
+"fields":[
+{"row":"CH (8 بایت)"},
+{"n":"type","s":1,"t":"u8","v":"04 (cmd)","c":1},
+{"n":"flags","s":1,"t":"HDGST=b0، DDGST=b1","v":"00","c":6},
+{"n":"hlen","s":1,"t":"u8","v":"48 (=72)","c":2},
+{"n":"pdo","s":1,"t":"u8","v":"48 (=72)","c":2},
+{"n":"plen","s":4,"t":"u32 LE","v":"48 10 00 00 (=4168)","c":3},
+{"row":"PSH"},
+{"n":"nvme_command (SQE)","s":"var","t":"64 بایت","v":"opcode 01 (Write)، SGL درون‌کپسولی","c":0},
+{"row":"داده"},
+{"n":"in-capsule data","s":"var","t":"4096 بایت","v":"از pdo تا plen","c":4},
+{"row":"R2T (24)"},
+{"n":"CH: type 09","s":8,"t":"hlen=24","v":"وقتی داده بزرگ‌تر از in_capsule_data_size است","c":5},
+{"n":"command_id","s":2,"t":"u16","v":"","c":5},
+{"n":"ttag","s":2,"t":"u16","v":"","c":5},
+{"n":"r2t_offset","s":4,"t":"u32","v":"","c":5},
+{"n":"r2t_length","s":4,"t":"u32","v":"","c":5},
+{"n":"rsvd","s":4,"t":"","v":"","c":7}
+],
+"legend":{"1":"نوع PDU","2":"طول هدر و آفست داده","3":"طول کل PDU","0":"SQE","4":"داده","5":"PDU درخواست انتقال (R2T)","6":"پرچم digest","7":"رزرو"},
+"notes":["plen = hlen 72 + داده‌ی 4096 = 4168. با header digest و data digest (CRC32C) هرکدام 4 بایت اضافه می‌شود و pdo ممکن است با CPDA ترازبندی شود.","نوع‌ها: 0 ICReq، 1 ICResp، 2/3 TermReq، 4 Cmd، 5 Rsp، 6 H2CData، 7 C2HData، 9 R2T.","نوشتن 16 KiB وقتی in_capsule_data_size=8192 است: Cmd (plen 72) ⇒ R2T از هدف ⇒ H2CData با plen = 24 + 16384 = 16408 ⇒ Rsp."]}

@@ -1,0 +1,16 @@
+flowchart TB
+  subgraph R1["HEALTHY"]
+    direction LR
+    A["size=4، min_size=2<br/>(mon_stretch_pool_min_size)"] --> B["peering_crush_bucket_count=2<br/>mandatory_member=NONE"] --> C["acting باید هر دو<br/>datacenter را داشته باشد"]
+  end
+  subgraph R2["DEGRADED (یک سایت از دست رفت)"]
+    direction LR
+    D["degraded_stretch_mode=1"] --> E["bucket_count=1<br/>mandatory_member=سایت زنده"] --> F["min_size = min_size/2 = 1"]
+  end
+  subgraph R3["RECOVERY"]
+    direction LR
+    G["سهم OSDهای up بیش از<br/>mon_stretch_cluster_recovery_ratio=0.6<br/>و هیچ MON bucket مرده‌ای نیست"] --> H["recovering_stretch_mode=1"] --> I["دست‌کم 15s (mon_stretch_recovery_min_wait)<br/>و PG degraded/inactive/unknown = 0"]
+  end
+  R1 -->|"از دست رفتن یک سایت"| R2
+  R2 -->|"بازگشت OSDها"| R3
+  R3 -->|"trigger_healthy_stretch_mode"| R1

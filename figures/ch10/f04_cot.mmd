@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph A["مرحله‌ی ۱: آماده‌سازی"]
+    direction LR
+    S["OSD خراب یا<br/>PG گم‌شده"] --> STOP["توقف OSD<br/>orch daemon stop"] --> SH["cephadm shell<br/>--name osd.N"]
+  end
+  subgraph B["مرحله‌ی ۲: نجات PG"]
+    direction LR
+    L["--op list / info"] --> EX["--op export<br/>پشتیبان از PG"] --> IM["--op import<br/>روی OSD متوقف دیگر"] --> UP["راه‌اندازی و<br/>بررسی peering"]
+  end
+  A ~~~ B

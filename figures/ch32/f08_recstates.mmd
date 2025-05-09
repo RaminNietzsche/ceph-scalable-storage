@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph RC["مسیر recovery (log-based)"]
+    direction LR
+    r1["Activating"] --> r2["WaitLocalRecoveryReserved"] --> r3["WaitRemoteRecoveryReserved"] --> r4["Recovering"] --> r5["Recovered"]
+  end
+  subgraph BF["مسیر backfill"]
+    direction LR
+    b1["Recovered"] -->|"needs_backfill"| b2["WaitLocalBackfillReserved"] --> b3["WaitRemoteBackfillReserved"] --> b4["Backfilling"] --> b5["Clean"]
+  end
+  subgraph NB["حالت‌های انتظار و خطا"]
+    direction LR
+    n1["NotRecovering / NotBackfilling<br/>رزرو رد شد یا preempt"] --> n2["recovery_toofull / backfill_toofull<br/>هدف پر است"] --> n3["تلاش دوباره پس از<br/>osd_*_retry_interval = 30s"]
+  end
+  RC ~~~ BF ~~~ NB

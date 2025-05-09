@@ -1,0 +1,22 @@
+flowchart TB
+  subgraph R1["سمت connect"]
+    direction LR
+    A["START_CONNECT"] --> B["BANNER_CONNECTING"] --> C["HELLO_CONNECTING"] --> D["AUTH_CONNECTING<br/>AUTH_CONNECTING_SIGN"] --> E["COMPRESSION_CONNECTING"]
+  end
+  subgraph R2["جلسه"]
+    direction LR
+    F["SESSION_CONNECTING<br/>(جلسه‌ی تازه)"] --> G["SESSION_RECONNECTING<br/>(cookie قبلی)"] --> H["READY"]
+  end
+  subgraph R3["دریافت یک پیام در READY"]
+    direction LR
+    I["THROTTLE_MESSAGE<br/>(تعداد)"] --> J["THROTTLE_BYTES<br/>(policy throttler)"] --> K["THROTTLE_DISPATCH_QUEUE<br/>(100M)"] --> L["THROTTLE_DONE<br/>READ_MESSAGE_COMPLETE"]
+  end
+  subgraph R4["خطا و پایان"]
+    direction LR
+    M["خطای سوکت"] --> N["lossless: STANDBY<br/>یا reconnect با backoff"] --> O["lossy / mark_down:<br/>CLOSED"]
+  end
+  subgraph R5["سمت accept"]
+    direction LR
+    P["START_ACCEPT"] --> Q["BANNER_ACCEPTING"] --> R["HELLO_ACCEPTING"] --> S["AUTH_ACCEPTING(_MORE/_SIGN)"] --> T["COMPRESSION_ACCEPTING<br/>SESSION_ACCEPTING"]
+  end
+  R1 ~~~ R2 ~~~ R3 ~~~ R4 ~~~ R5

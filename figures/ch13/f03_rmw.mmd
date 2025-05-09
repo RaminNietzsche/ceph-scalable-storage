@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant C as کلاینت
+  participant P as primary (shard 0)
+  participant D as shardهای داده
+  participant Q as shardهای parity
+  C->>P: write 4K در وسط stripe
+  Note over P: قدیمی: خواندن کل stripe (RMW کامل)
+  P->>D: read بقیه‌ی داده‌ی stripe
+  D-->>P: داده
+  P->>P: encode دوباره‌ی کل stripe
+  P->>D: write shardهای تغییرکرده
+  P->>Q: write parity جدید
+  Note over P: FastEC: فقط shard تغییرکرده و parity<br/>(نوشتن جزئی، parity delta)
+  Q-->>P: ack
+  D-->>P: ack
+  P-->>C: ack

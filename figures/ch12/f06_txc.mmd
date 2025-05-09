@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["۱. مسیر داده"]
+    direction LR
+    A["PREPARE<br/>ساخت txc"] -->|"aio داده"| B["AIO_WAIT"] --> C["IO_DONE"]
+    A -->|"بدون aio"| C
+  end
+  subgraph R2["۲. commit فراداده در kv_sync_thread"]
+    direction LR
+    D["KV_QUEUED"] --> E["KV_SUBMITTED<br/>submit به RocksDB"] --> F["KV_DONE<br/>sync؛ on_commit به OSD"]
+  end
+  subgraph R3["۳. اعمال deferred و پایان"]
+    direction LR
+    G["DEFERRED_QUEUED<br/>aio روی block"] --> H["DEFERRED_CLEANUP<br/>حذف کلید L"] --> I["DEFERRED_DONE"] --> J["FINISHING"] --> K["DONE"]
+  end
+  R1 ~~~ R2 ~~~ R3

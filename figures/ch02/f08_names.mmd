@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph N1[" "]
+    direction LR
+    C["rbd create pool/vm01"] --> G["id = hex(rados instance id) + hex(random u32), keep last 14 chars"] --> E["example: 108b + 1d6e2f3a = 108b1d6e2f3a"]
+  end
+  subgraph N2[" "]
+    direction LR
+    I["rbd_id.vm01: holds the id"] --> DIR["rbd_directory omap: name_vm01 / id_108b1d6e2f3a"] --> H["rbd_header.108b1d6e2f3a: size, order, features, snaps (omap)"]
+  end
+  subgraph N3[" "]
+    direction LR
+    OM["rbd_object_map.108b1d6e2f3a (2 bits per object)"] --> DA["rbd_data.108b1d6e2f3a.0000000000000000 ... (created on first write)"] --> TR["rbd rm via trash: rbd_trash omap entry"]
+  end
+  N1 --> N2 --> N3

@@ -1,0 +1,14 @@
+flowchart LR
+  subgraph W1["روز صفر"]
+    direction TB
+    A1["bootstrap"] --> A2["افزودن میزبان<br/>و OSDها با spec"]
+  end
+  subgraph W2["روز یک"]
+    direction TB
+    B1["pool، RBD، CephFS، RGW"] --> B2["کاربران و نقش‌ها"]
+  end
+  subgraph W3["روز دو"]
+    direction TB
+    C1["پایش و هشدارها"] --> C2["ارتقا و نگهداری"]
+  end
+  W1 ~~~ W2 ~~~ W3

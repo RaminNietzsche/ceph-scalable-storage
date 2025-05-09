@@ -1,0 +1,6 @@
+flowchart LR
+  C["کلاینت‌ها"] -->|"دریافت نقشه‌ها<br/>و epochها"| MON["MONها با اجماع Paxos<br/>━━━━━━━━<br/>MonMap · OSDMap و CRUSH<br/>MgrMap · FSMap · ConfigDB · AuthDB"]
+  OSD["OSDها"] -->|"گزارش خرابی همتا<br/>boot و آمار"| MON
+  MON --> MGR["MGR<br/>آمار PGها (PGMap)<br/>داشبورد و ماژول‌ها"]
+  OSD -->|"آمار PG"| MGR
+  OSD <-->|"انتشار نقشه‌ی جدید<br/>بین همتاها"| OSD2["OSDهای دیگر"]

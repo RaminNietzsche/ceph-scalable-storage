@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph G1["نسل اول: ابزارهای جدا"]
+    direction LR
+    A["Calamari"] ~~~ B["VSM (Intel)<br/>آخرین نسخه v2.2.0، ۲۰۱۶"] ~~~ C["openATTIC (SUSE)"]
+  end
+  subgraph G2["نسل دوم: درون MGR"]
+    direction LR
+    D["Dashboard v1<br/>Luminous، فقط‌خواندنی"] --> E["Dashboard جدید<br/>بر پایه‌ی openATTIC<br/>Angular + REST API"] --> F["mgmt-gateway<br/>و oauth2-proxy (Tentacle)"]
+  end
+  G1 ~~~ G2

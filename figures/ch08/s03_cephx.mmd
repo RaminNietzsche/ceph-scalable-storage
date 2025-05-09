@@ -1,0 +1,12 @@
+sequenceDiagram
+  participant C as کلاینت (client.app)
+  participant M as MON (AuthMonitor)
+  participant O as OSD
+  C->>M: CEPHX_GET_AUTH_SESSION_KEY: نام + پاسخ challenge با کلید مشترک
+  M-->>C: session key (رمزشده با کلید کلاینت) + ticket احراز (رمزشده با کلید MON)
+  C->>M: CEPHX_GET_PRINCIPAL_SESSION_KEY: درخواست ticket سرویس osd
+  M-->>C: service ticket (رمزشده با rotating key سرویس osd) + session key سرویس
+  Note over M,O: OSD کلیدهای چرخشی را با CEPHX_GET_ROTATING_KEY از MON می‌گیرد
+  C->>O: authorizer = ticket + nonce رمزشده با session key سرویس
+  O->>O: رمزگشایی ticket با rotating key؛ بررسی انقضا و caps
+  O-->>C: پاسخ authorizer (اثبات دو طرفه)

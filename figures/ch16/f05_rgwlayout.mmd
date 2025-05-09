@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["شیء S3 بزرگ (10M) در storage class پیش‌فرض"]
+    direction LR
+    A["HEAD rados object<br/>xattr: manifest، acl، etag<br/>+ 4M اول (inline)"] --> B["tail 1: 4M<br/>(rgw_obj_stripe_size)"] --> C["tail 2: 2M"]
+  end
+  subgraph R2["پس از transition به COLD"]
+    direction LR
+    D["HEAD در pool پیش‌فرض<br/>(فقط فراداده، manifest جدید)"] --> E["tailها در data_pool<br/>مربوط به COLD (مثلاً EC روی HDD)"] --> F["داده‌ی قدیمی → GC"]
+  end
+  subgraph R3["placement target"]
+    direction LR
+    G["index_pool<br/>(ssd)"] --> H["data_extra_pool<br/>(multipart، non-EC)"] --> I["STANDARD → data_pool A<br/>COLD → data_pool B"]
+  end
+  R1 ~~~ R2 ~~~ R3

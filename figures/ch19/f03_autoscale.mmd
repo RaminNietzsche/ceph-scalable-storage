@@ -1,0 +1,16 @@
+flowchart TB
+  subgraph S1["۱. ظرفیت هر ریشه‌ی CRUSH"]
+    direction LR
+    A["تعداد OSDهای ریشه"] --> B["بودجه‌ی PG = OSDها × mon_target_pg_per_osd<br/>(Squid/Tentacle: 100، Umbrella: 200)"]
+  end
+  subgraph S2["۲. سهم هر pool"]
+    direction LR
+    C["capacity_ratio از مصرف واقعی<br/>یا target_size_ratio / target_size_bytes"] --> D["pg_target = سهم × بودجه × bias / size"] --> E["bulk: سهم کامل از ابتدا<br/>غیر bulk: حداقل لازم"]
+  end
+  subgraph S3["۳. گرد کردن و تصمیم"]
+    direction LR
+    F["گرد کردن به توان ۲<br/>(Umbrella: بهینه‌سازی knapsack)"] --> G{"تفاوت با pg_num فعلی<br/>بیش از threshold (۳)؟"}
+    G -- بله --> H["تنظیم pg_num_target<br/>تقسیم/ادغام تدریجی"]
+    G -- خیر --> I["بدون تغییر<br/>(جلوگیری از نوسان)"]
+  end
+  S1 ~~~ S2 ~~~ S3

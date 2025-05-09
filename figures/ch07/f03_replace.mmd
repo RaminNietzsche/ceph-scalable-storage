@@ -1,0 +1,9 @@
+flowchart TB
+  F["دیسک خراب: OSD.7 down"] --> W{"آیا داده بازیابی شده؟<br/>ceph -s"}
+  W -->|"خیر"| WAIT["صبر تا active+clean<br/>یا اولویت‌دهی recovery"]
+  WAIT --> W
+  W -->|"بله"| SAFE["ceph osd safe-to-destroy 7"]
+  SAFE --> RM["ceph orch osd rm 7 --replace --zap"]
+  RM --> HW["تعویض فیزیکی دیسک"]
+  HW --> AUTO["spec OSD دیسک تازه را می‌بیند<br/>و OSD.7 را با همان id می‌سازد"]
+  AUTO --> BF["backfill به OSD تازه"]

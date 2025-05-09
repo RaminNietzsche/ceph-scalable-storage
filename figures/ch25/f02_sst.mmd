@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["فایل SST (block-based table)"]
+    direction LR
+    A["data block 1<br/>(4K، کلیدهای پیشوندفشرده<br/>+ restart points)"] --> B["data block …"] --> C["filter block<br/>(bloom، 20 بیت/کلید)"] --> D["index block<br/>کلید آخر → BlockHandle"]
+  end
+  subgraph R2["انتهای فایل"]
+    direction LR
+    E["properties<br/>compression dict<br/>range-del"] --> F["metaindex block"] --> G["footer<br/>BlockHandleها + format_version<br/>magic 0x88e241b785f4cff7"]
+  end
+  subgraph R3["هر بلوک روی دیسک"]
+    direction LR
+    H["payload<br/>(LZ4 فشرده)"] --> I["trailer 5 بایت:<br/>نوع فشرده‌سازی (1) + checksum (4)"]
+  end
+  R1 ~~~ R2 ~~~ R3

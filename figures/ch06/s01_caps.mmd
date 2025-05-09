@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["ساختار یک cap: (پیشوند) + (بیت‌های عمومی) — include/ceph_fs.h"]
+    direction LR
+    p["p = PIN<br/>inode در کش کلاینت نگه داشته شود"] --- a["A = Auth<br/>(mode، uid، gid)"] --- l["L = Link<br/>(nlink)"] --- x["X = Xattr"] --- f["F = File<br/>(محتوا، اندازه، mtime)"]
+  end
+  subgraph R2["بیت‌های عمومی (shift روی هر پیشوند)"]
+    direction LR
+    s["s = SHARED (1)<br/>خواندن فراداده"] --- e["x = EXCL (2)<br/>تغییر محلی"] --- c["c = CACHE (4)<br/>کش خواندن"] --- r["r = RD (8)"] --- w["w = WR (16)"] --- b["b = BUFFER (32)<br/>بافر نوشتن"] --- ex["a = WREXTEND (64)<br/>l = LAZYIO (128)"]
+  end
+  subgraph R3["نمونه‌های نمادین (خروجی واقعی بسته به وضعیت متفاوت است)"]
+    direction LR
+    n1["pAsLsXsFs<br/>خواننده‌ی عادی"] --- n2["pAsLsXsFsxcrwb<br/>تنها نویسنده: کش + بافر کامل"] --- n3["pAsLsXsFrw<br/>دو نویسنده‌ی هم‌زمان:<br/>بدون c و b → I/O هم‌گام با OSD"]
+  end
+  R1 ~~~ R2 ~~~ R3

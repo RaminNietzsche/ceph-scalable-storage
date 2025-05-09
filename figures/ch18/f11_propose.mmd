@@ -1,0 +1,16 @@
+flowchart TB
+  subgraph E1[" "]
+    direction LR
+    P["PROPOSE from rank f with its ConnectionTracker"] --> T{"I am tiebreaker and f is marked down?"} -- "yes" --> IG["ignore"]
+    T -- "no" --> SC["my = score(me), from = score(f), lead = score(acked leader)"]
+  end
+  subgraph E2[" "]
+    direction LR
+    W{"my >= 0 and (my > from or (my == from and me < f))?"} -- "yes" --> MP["I propose myself"]
+    W -- "no" --> D{"from beats me and beats current acked leader?"} -- "yes" --> AK["defer: ACK f"]
+  end
+  subgraph E3[" "]
+    direction LR
+    N["score(r) = -1 if r in disallowed_leaders (stretch tiebreaker)"] --> M["ignore_propose_margin 0.0005: do not switch vote for tiny gains"]
+  end
+  E1 --> E2 --> E3

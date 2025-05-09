@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph S["ارسال: aio_submit در KernelDevice"]
+    direction LR
+    s1["ioring_queue_t::submit_batch<br/>قفل sq_mutex"] --> s2["برای هر aio_t:<br/>io_uring_get_sqe و init_sqe"] --> s3["prep_writev/readv<br/>IOSQE_FIXED_FILE"] --> s4["io_uring_submit<br/>(io_uring_enter یا SQPOLL)"]
+  end
+  subgraph K["هسته"]
+    direction LR
+    k1["خواندن SQ tail"] --> k2["blk-mq: bio و request"] --> k3["کامل شدن NVMe و IRQ"] --> k4["نوشتن CQE و افزایش CQ tail"]
+  end
+  subgraph C["برداشت: thread aio_thread در KernelDevice"]
+    direction LR
+    c1["get_next_completed<br/>قفل cq_mutex"] --> c2["io_uring_for_each_cqe<br/>تا max = bdev_aio_reap_max (16)، سپس cq_advance"] --> c3["اگر صفر بود: epoll_wait روی ring_fd<br/>با bdev_aio_poll_ms"] --> c4["aio_t.rval = cqe.res<br/>و فراخوانی aio_callback"]
+  end
+  S --> K --> C

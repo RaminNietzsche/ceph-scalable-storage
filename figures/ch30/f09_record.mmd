@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["سگمنت journal (SegmentedJournal)"]
+    direction LR
+    A["segment_header_t<br/>بلوک اول"] --> B["record group 1"] --> C["record group 2"] --> D["…"] --> E["segment_tail_t"]
+  end
+  subgraph R2["یک record group (یک نوشتن)"]
+    direction LR
+    F["record_group_header_t<br/>records، mdlength، dlength،<br/>segment_nonce، committed_to، data_crc"] --> G["record_header_t ×n<br/>type، #deltas، #extents، modify_time"] --> H["delta_info_t ×k<br/>(نوع، paddr/laddr، بایت‌های delta)"] --> I["extentهای inline<br/>(هم‌تراز بلوک)"]
+  end
+  subgraph R3["دسته‌بندی در RecordSubmitter"]
+    direction LR
+    J["تا 16 record در batch<br/>seastore_journal_batch_capacity"] --> K["iodepth journal ≤ 5<br/>seastore_journal_iodepth_limit"] --> L["committed_to:<br/>نقطه‌ی امن replay"]
+  end
+  R1 ~~~ R2 ~~~ R3

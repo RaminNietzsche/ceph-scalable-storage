@@ -1,0 +1,12 @@
+sequenceDiagram
+  participant C as Objecter (کلاینت)
+  participant O as OSD (primary)
+  C->>O: MOSDOp روی PG 3.15 (epoch 812)
+  O->>O: PG در peering یا شیء unfound
+  O->>C: MOSDBackoff BLOCK [begin,end) id=7
+  C->>O: MOSDBackoff ACK_BLOCK
+  C->>C: نگه‌داشتن opهای این بازه در session
+  O->>O: PG فعال می‌شود
+  O->>C: MOSDBackoff UNBLOCK id=7
+  C->>O: ارسال دوباره‌ی opهای نگه‌داشته
+  O-->>C: MOSDOpReply

@@ -1,0 +1,11 @@
+flowchart LR
+  subgraph FS["FileStore (منسوخ)"]
+    direction TB
+    A1["OSD"] --> A2["journal جدا<br/>(نوشتن دوباره)"] --> A3["فایل‌سیستم XFS"] --> A4["دیسک"]
+  end
+  subgraph BS["BlueStore"]
+    direction TB
+    B1["OSD"] --> B2["BlueStore<br/>داده مستقیم روی دستگاه خام"] --> B4["دیسک"]
+    B2 --> B3["RocksDB روی BlueFS<br/>فراداده"]
+  end
+  FS ~~~ BS

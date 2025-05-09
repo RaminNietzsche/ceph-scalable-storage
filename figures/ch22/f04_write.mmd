@@ -1,0 +1,20 @@
+sequenceDiagram
+  participant A as برنامه (librados)
+  participant O as Objecter
+  participant P as OSD primary
+  participant R as OSD replica
+  participant B as BlueStore
+  A->>O: IoCtx::operate(oid, WriteOp)
+  O->>O: op_submit → _op_submit → _calc_target (pg, CRUSH, acting)
+  O->>P: _send_op → MOSDOp روی msgr2
+  P->>P: ms_fast_dispatch → enqueue_op → OSDShard
+  P->>P: ShardedOpWQ::_process → dequeue_op → do_request → do_op
+  P->>P: execute_ctx → prepare_transaction → do_osd_ops
+  P->>R: issue_repop → submit_transaction → issue_op (MOSDRepOp)
+  P->>B: queue_transactions (تراکنش محلی + pg log)
+  R->>R: do_repop → queue_transactions
+  R-->>P: MOSDRepOpReply (commit)
+  B-->>P: on_commit (پس از kv commit)
+  P->>P: eval_repop: همه commit کردند
+  P-->>O: MOSDOpReply
+  O-->>A: completion (rval=0)

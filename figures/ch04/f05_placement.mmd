@@ -1,0 +1,5 @@
+flowchart LR
+  B["bucket<br/>placement: default-placement"] --> SC1["storage class STANDARD<br/>pool: data روی NVMe/HDD تکثیری"]
+  B --> SC2["storage class COLD<br/>pool: data-ec روی HDD با EC 8+3"]
+  LC["قاعده‌ی lifecycle<br/>پس از ۳۰ روز → COLD<br/>پس از ۳۶۵ روز → حذف"] --> B
+  SC2 -.->|"cloud transition"| CL["ذخیره‌سازی ابری بیرونی"]

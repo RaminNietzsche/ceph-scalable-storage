@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph A1["گام ۱: صفحه‌ی کنترل"]
+    direction LR
+    P["پیش‌بررسی<br/>HEALTH_OK"] --> M1["MGRها"] --> M2["MONها"] --> M3["crash و<br/>ceph-exporter"]
+  end
+  subgraph A2["گام ۲: داده و دروازه‌ها"]
+    direction LR
+    O["OSDها<br/>گره یا bucket به ترتیب"] --> MD["MDSها"] --> G["RGW، NFS،<br/>NVMe-oF"] --> F["پایش<br/>پس از ارتقا"]
+  end
+  A1 ~~~ A2

@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph R1["superblock → log"]
+    direction LR
+    S["bluefs_super_t<br/>log_fnode (ino 1)"] --> L["فایل لاگ BlueFS<br/>دنباله‌ای از bluefs_transaction_t<br/>(uuid, seq, op_bl, crc)"]
+  end
+  subgraph R2["opهای تراکنش"]
+    direction LR
+    O1["OP_INIT"] --> O2["OP_DIR_CREATE/LINK<br/>«db» «db.wal» «db.slow»"] --> O3["OP_FILE_UPDATE(_INC)<br/>fnode کامل/افزایشی"] --> O4["OP_FILE_REMOVE<br/>OP_JUMP(_SEQ)"]
+  end
+  subgraph R3["bluefs_fnode_t"]
+    direction LR
+    F1["ino, size, mtime"] --> F2["extents[]: {bdev, offset(lba), length(lowz)}"] --> F3["allocated<br/>encoding: PLAIN/ENVELOPE"]
+  end
+  subgraph R4["فشرده‌سازی لاگ"]
+    direction LR
+    C1["size ≥ 16M<br/>و ratio ≥ 5"] --> C2["dump متادیتای فعلی<br/>به لاگ جدید"] --> C3["superblock جدید<br/>با log_fnode تازه"] --> C4["آزادسازی extentهای<br/>لاگ قدیمی"]
+  end
+  R1 ~~~ R2 ~~~ R3 ~~~ R4

@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["سطح اتصال و شارد"]
+    direction LR
+    A["ConnectionPipeline<br/>AwaitActive → AwaitMap → GetPGMapping"] --> B["PerShardPipeline<br/>CreateOrWaitPG"]
+  end
+  subgraph R2["سطح PG (CommonPGPipeline)"]
+    direction LR
+    C["WaitPGReady<br/>(concurrent)"] --> D["OSDMap gate<br/>epoch کافی؟"] --> E["PGActivationBlocker<br/>PG فعال؟"] --> F["GetOBC<br/>(exclusive)"]
+  end
+  subgraph R3["سطح شیء (CommonOBCPipeline)"]
+    direction LR
+    G["Process<br/>(exclusive)"] --> H["PGScrubber<br/>آیا شیء زیر scrub است؟"] --> I["WaitRepop<br/>(concurrent)"] --> J["SendReply<br/>(exclusive، ترتیب حفظ)"]
+  end
+  R1 ~~~ R2 ~~~ R3

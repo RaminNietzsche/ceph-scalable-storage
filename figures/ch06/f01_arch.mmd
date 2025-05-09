@@ -1,0 +1,7 @@
+flowchart TB
+  C["کلاینت CephFS<br/>kernel یا FUSE"] -->|"فراداده: open، mkdir، stat، قفل و capability"| MDS["MDS فعال<br/>cache فراداده"]
+  C ==>|"داده: خواندن و نوشتن مستقیم اشیاء"| DP[("pool داده<br/>cephfs.fs01.data")]
+  MDS -->|"journal و inodeها"| MP[("pool فراداده<br/>cephfs.fs01.meta روی SSD")]
+  SB["MDS آماده‌به‌کار<br/>یا standby-replay"] -.->|"دنبال کردن journal"| MP
+  MON["MON: FSMap"] --> MDS
+  MON --> SB

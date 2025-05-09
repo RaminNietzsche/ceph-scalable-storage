@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant C1 as کلاینت ۱
+  participant C2 as کلاینت ۲
+  participant P as OSD primary (PG)
+  Note over C1,P: روش سمت کلاینت (بدون کلاس): دو رفت‌وبرگشت و خطر رقابت
+  C1->>P: read counter (v=10)
+  C2->>P: read counter (v=10)
+  C1->>P: write 11
+  C2->>P: write 11  (به‌روزرسانی گم شد)
+  Note over C1,P: روش کلاس: یک رفت‌وبرگشت، اجرای سریال در PG
+  C1->>P: CALL numops.add(key, 1)
+  P->>P: get_val → 11 → set_val 12 (زیر قفل PG)
+  C2->>P: CALL numops.add(key, 1)
+  P->>P: get_val → 12 → set_val 13
+  P-->>C1: 0
+  P-->>C2: 0

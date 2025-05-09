@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["مسیر نوشتن (هم‌گام)"]
+    direction LR
+    A["BlueStore txc<br/>KeyValueDB::Transaction"] --> B["rocksdb::WriteBatch<br/>(put/merge/delete روی چند CF)"] --> C["WAL (db.wal/*.log)<br/>رکوردهای 32K-block"] --> D["memtable فعال هر CF<br/>skiplist، 16M"]
+  end
+  subgraph R2["پس‌زمینه"]
+    direction LR
+    E["memtable پر → immutable<br/>تا 64 عدد"] --> F["flush پس از ادغام ≥ 6<br/>(min_write_buffer_number_to_merge)"] --> G["SST در L0"] --> H["compaction L0→L1→L2…<br/>max_background_jobs=4"]
+  end
+  subgraph R3["مسیر خواندن"]
+    direction LR
+    I["memtable"] --> J["immutableها"] --> K["L0 (همه‌ی فایل‌ها)"] --> L["L1..Ln (یک فایل در هر سطح<br/>با bloom filter)"]
+  end
+  R1 ~~~ R2 ~~~ R3

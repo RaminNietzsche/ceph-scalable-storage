@@ -1,0 +1,13 @@
+stateDiagram-v2
+  direction LR
+  NX: OBJECT_NONEXISTENT (0)
+  EX: OBJECT_EXISTS (1)
+  PD: OBJECT_PENDING (2)
+  CL: OBJECT_EXISTS_CLEAN (3)
+  [*] --> NX: ساخت image یا clone
+  NX --> EX: پیش از نخستین نوشتن (به‌روزرسانی map قبل از write)
+  CL --> EX: نوشتن پس از snapshot
+  EX --> CL: snap create، همه‌ی EXISTSها در HEAD
+  EX --> PD: discard یا remove شیء (پیش از حذف)
+  CL --> PD: discard یا remove شیء
+  PD --> NX: پس از موفقیت حذف

@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["مرزها (هر بار تغییر پیکربندی)"]
+    direction LR
+    A["osd_memory_target = 4096 MiB"] --> B["ltarget = (1 − 0.15) × target<br/>= 3481.6 MiB"] --> C["max = ltarget − base(768)<br/>= 2713.6 MiB"] --> D["min = osd_memory_cache_min<br/>= 128 MiB"]
+  end
+  subgraph R2["tune_memory (هر osd_memory_cache_resize_interval=1s)"]
+    direction LR
+    E["mapped (tcmalloc heap)<br/>&lt; target ؟"] -->|"بله"| F["new += (1 − mapped/target)<br/>× (max − new)"]
+    E -->|"خیر"| G["new −= (1 − target/mapped)<br/>× (new − min)"]
+  end
+  subgraph R3["تقسیم tuned_mem (هر bluestore_cache_autotune_interval=5s)"]
+    direction LR
+    H["اولویت‌ها PRI0 … PRI11"] --> I["kv (RocksDB block cache)<br/>kv_onode، meta (onode)، data"] --> J["هر cache سهم خود را<br/>commit می‌کند"]
+  end
+  R1 ~~~ R2 ~~~ R3

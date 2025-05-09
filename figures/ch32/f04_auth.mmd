@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph S1["ترتیب نامزدها"]
+    direction LR
+    a1["خود primary اول"] --> a2["سپس replicaها<br/>به ترتیب received_maps"]
+  end
+  subgraph S2["possible_auth_shard: رد شدن"]
+    direction LR
+    b1["read_error"] --> b2["stat_error ⇒ توقف بررسی"] --> b3["ec_hash_mismatch<br/>ec_size_mismatch"] --> b4["snapset یا object_info<br/>ناموجود یا خراب"]
+  end
+  subgraph S3["انتخاب از میان قابل‌استفاده‌ها"]
+    direction LR
+    c1["oi.version بزرگ‌تر برنده است"] --> c2["برابر بودن نسخه:<br/>dcount بیشتر (data_digest + omap_digest)"] --> c3["برابر بودن همه: اولی<br/>یعنی primary"]
+  end
+  S1 ~~~ S2 ~~~ S3

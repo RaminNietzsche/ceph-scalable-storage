@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["خواندن"]
+    direction LR
+    A["want = shardهای داده‌ی بازه"] --> B["minimum_to_decode(want, have)"] --> C["fast_read=false: فقط k shard لازم"] --> D["fast_read=true: همه را بخوان،<br/>با اولین k پاسخ decode"]
+  end
+  subgraph R2["recovery یک shard"]
+    direction LR
+    E["primary: missing set از pg log"] --> F["خواندن از k shard سالم<br/>(یا کمتر در LRC/CLAY)"] --> G["decode → فقط chunk گم‌شده"] --> H["push به OSD جدید"]
+  end
+  subgraph R3["min_size پیش‌فرض"]
+    direction LR
+    I["k + min(1, m−1)"] --> J["k=4,m=2 → 5"] --> K["k=2,m=1 → 2 (خطرناک)"]
+  end
+  R1 ~~~ R2 ~~~ R3

@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["GF(2^8) با چندجمله‌ای 0x11D"]
+    direction LR
+    A["جمع = XOR"] --> B["ضرب: shift و XOR با 0x1D<br/>اگر بیت 8 سرریز شود"] --> C["یا جدول log/exp:<br/>a·b = exp[(log a + log b) mod 255]"]
+  end
+  subgraph R2["ماتریس تولید (k=4, m=2) ISA-L Vandermonde"]
+    direction LR
+    I["I₄ (سیستماتیک)"] --> V0["سطر P0: 1 1 1 1"] --> V1["سطر P1: 1 2 4 8"]
+  end
+  subgraph R3["SIMD (ISA-L)"]
+    direction LR
+    T["ec_init_tables:<br/>برای هر ضریب دو جدول 16 خانه‌ای<br/>(nibble پایین و بالا)"] --> P["PSHUFB / VPSHUFB:<br/>32 یا 64 بایت در هر دستور"] --> X["XOR انباشتی<br/>ec_encode_data"]
+  end
+  R1 ~~~ R2 ~~~ R3

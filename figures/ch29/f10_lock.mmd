@@ -1,0 +1,21 @@
+sequenceDiagram
+  participant N as krbd روی میزبان N (تازه)
+  participant H as rbd_header روی OSD
+  participant O as مالک فعلی (میزبان O)
+  participant M as mon
+  N->>H: cls lock exclusive با cookie «auto N»
+  H-->>N: EBUSY
+  N->>H: get_lock_owner_info و list_watchers
+  alt مالک watcher زنده دارد
+    N->>O: notify REQUEST_LOCK (مهلت 5 s)
+    O-->>N: ack و سپس آزادسازی lock پس از flush
+    Note over N: اگر آزاد نشد، تلاش دوباره پس از 2 × 5 s
+    N->>H: lock exclusive
+    H-->>N: OK
+  else هیچ watcherی برای مالک نیست
+    N->>M: blocklist add آدرس مالک
+    M-->>N: OK
+    N->>H: break_lock مالک قبلی
+    N->>H: lock exclusive
+    H-->>N: OK
+  end

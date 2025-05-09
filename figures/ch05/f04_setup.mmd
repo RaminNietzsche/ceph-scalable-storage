@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant P as کلاستر اصلی
+  participant S as کلاستر ثانوی
+  P->>P: realm create · zonegroup create --master
+  P->>P: zone create --master · system user
+  P->>P: period update --commit
+  P->>P: استقرار RGW برای zone اصلی
+  S->>P: realm pull --url (با کلید system)
+  S->>S: zone create --rgw-zonegroup (ثانوی)
+  S->>P: period update --commit
+  S->>S: استقرار RGW برای zone ثانوی
+  P-->>S: همگام‌سازی کامل (full sync)
+  P-->>S: سپس همگام‌سازی افزایشی

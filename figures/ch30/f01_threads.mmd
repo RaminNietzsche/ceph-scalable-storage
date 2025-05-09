@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["OSD کلاسیک: thread poolها و قفل‌ها"]
+    direction LR
+    A["msgr-worker ×3<br/>(epoll)"] --> B["ShardedOpWQ<br/>N شارد × M thread"] --> C["قفل PG<br/>(mutex)"] --> D["BlueStore<br/>kv_sync / aio / finisher"]
+  end
+  subgraph R2["Crimson: یک reactor برای هر هسته (shared-nothing)"]
+    direction LR
+    E["هسته‌ی 0<br/>reactor: شبکه + PGهای A"] --- F["هسته‌ی 1<br/>reactor: شبکه + PGهای B"] --- G["هسته‌ی 2<br/>reactor: شبکه + PGهای C"] --- H["هسته‌ی N-1<br/>…"]
+  end
+  subgraph R3["ارتباط بین هسته‌ها"]
+    direction LR
+    I["بدون قفل مشترک"] --> J["پیام صریح:<br/>smp::submit_to / invoke_on"] --> K["future برمی‌گردد<br/>روی هسته‌ی مبدأ"]
+  end
+  R1 ~~~ R2 ~~~ R3

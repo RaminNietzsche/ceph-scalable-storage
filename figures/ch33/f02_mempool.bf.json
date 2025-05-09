@@ -1,0 +1,19 @@
+{"title":"mempool: یک shard_t، هم‌تراز با ۱۲۸ بایت","sub":"include/mempool.h در main: shard_t { stats_t pool[num_pools]; } با aligned(128). هر stats_t دو atomic<size_t> (items، bytes) یعنی ۱۶ بایت است. ۳۰ pool × ۱۶ = ۴۸۰ بایت که به ۵۱۲ بایت گرد می‌شود","cols":8,
+"fields":[
+{"row":"+0"},
+{"n":"bloom_filter.items","s":8,"t":"atomic<size_t>","v":"","c":5},
+{"row":"+8"},
+{"n":"bloom_filter.bytes","s":8,"t":"atomic<size_t>","v":"","c":5},
+{"row":"+16"},
+{"n":"bluestore_alloc.items","s":8,"t":"atomic<size_t>","v":"","c":0},
+{"row":"+24"},
+{"n":"bluestore_alloc.bytes","s":8,"t":"atomic<size_t>","v":"","c":0},
+{"row":"+32…+447"},
+{"n":"bluestore_cache_* … osd_pglog، osdmap، pgmap، mds_co","s":8,"t":"26 pool دیگر","v":"هرکدام 16 بایت","c":2},
+{"row":"+448"},
+{"n":"ec_extent_cache، unittest_1، unittest_2","s":8,"t":"3 pool آخر","v":"","c":3},
+{"row":"+480"},
+{"n":"padding","s":8,"t":"تا مرز 128","v":"32 بایت","c":7}
+],
+"legend":{"5":"pool اول","0":"bluestore_alloc","2":"poolهای میانی","3":"poolهای آخر","7":"padding"},
+"notes":["تعداد shardها: hardware_concurrency محدود به [1، 128] (با sched_getcpu)، منهای یک، سپس توان دو بعدی. ماشین ۶۴ رشته‌ای ⇒ 64 shard × 512 B = 32 KiB.","pick_a_shard_int: sched_getcpu() & (num_shards−1)؛ thread روی هسته‌ی 37 همیشه shard 37 را به‌روز می‌کند و cache line با هسته‌ی دیگری رفت و برگشت نمی‌کند.","فهرست poolها نسخه‌ای است: ec_extent_cache و bluefs_file_reader/writer را در نسخه‌ی خود بررسی کنید."]}

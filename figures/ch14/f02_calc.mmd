@@ -1,0 +1,8 @@
+flowchart LR
+  OP["Op: oid، oloc"] --> POOL{"pool وجود دارد؟<br/>get_pg_pool"}
+  POOL -->|"خیر"| DNE["POOL_DNE<br/>منتظر نقشه‌ی جدید"]
+  POOL -->|"بله"| PG["object_locator_to_pg<br/>hash → raw pg"]
+  PG --> UA["pg_to_up_acting_osds<br/>CRUSH + pg_temp + upmap"]
+  UA --> CMP{"هدف عوض شد؟<br/>(interval جدید)"}
+  CMP -->|"بله"| RS["ارسال دوباره به primary جدید"]
+  CMP -->|"خیر"| SEND["_send_op"]

@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["۱. جمع‌آوری نقشه‌ها از OSDها"]
+    direction LR
+    A["همه‌ی MONها از دست رفته‌اند<br/>OSDها سالم"] --> B["روی هر میزبان، برای هر OSD متوقف:<br/>ceph-objectstore-tool --op update-mon-db"] --> C["انتقال پوشه‌ی ms به میزبان بعدی<br/>(انباشت تدریجی نقشه‌ها)"]
+  end
+  subgraph R2["۲. بازسازی و راه‌اندازی"]
+    direction LR
+    D["ceph-monstore-tool ms rebuild<br/>--keyring admin --mon-ids a b c"] --> E["جایگزینی store.db<br/>روی همه‌ی MONها"] --> F["راه‌اندازی MONها؛<br/>بررسی و بازسازی keyringها و تنظیمات"]
+  end
+  R1 ~~~ R2

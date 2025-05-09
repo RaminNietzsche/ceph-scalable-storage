@@ -1,0 +1,5 @@
+flowchart LR
+  S["spec در Git<br/>cluster.yaml"] -->|"ceph orch apply -i"| M["MGR / cephadm<br/>وضعیت مطلوب"]
+  M -->|"مقایسه‌ی دوره‌ای"| R["وضعیت واقعی<br/>daemonها روی میزبان‌ها"]
+  R -->|"اختلاف؟ deploy یا remove"| M
+  M -->|"ls --export"| S

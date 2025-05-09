@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R["قانون msr_indep برای EC 4+2 روی سه host"]
+    direction LR
+    r1["step take default"] --> r2["step choosemsr 3 type host<br/>num_strides = 3"] --> r3["step choosemsr 2 type osd<br/>stride_length = 6/3 = 2"] --> r4["step emit"]
+  end
+  subgraph S["تقسیم خروجی به stride"]
+    direction LR
+    s0["stride 0: شاخص‌های 0، 1<br/>host-a: osd.1، osd.4"] --> s1["stride 1: شاخص‌های 2، 3<br/>host-c: osd.9، osd.7"] --> s2["stride 2: شاخص‌های 4، 5<br/>host-b: osd.5، osd.2"]
+  end
+  subgraph F["out شدن osd.7"]
+    direction LR
+    f1["شاخص 3 خالی می‌ماند<br/>(undo تا پایان دور)"] --> f2["دور بعد: retry با<br/>(descent × result_max + index) ≪ 16"] --> f3["host-c یا hostی که در stride دیگر<br/>استفاده نشده: osd.8"]
+  end
+  R ~~~ S ~~~ F

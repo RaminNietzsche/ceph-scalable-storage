@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["ceph::buffer::list (include/buffer.h)"]
+    direction LR
+    l["list<br/>_buffers: فهرست پیوندی ptr_node<br/>_carriage: ptr انتهایی برای append<br/>_len (کل بایت‌ها)، _num (تعداد ptr)"]
+  end
+  subgraph R2["ptr: پنجره روی یک raw"]
+    direction LR
+    p1["ptr #1<br/>_raw، _off=0، _len=4096"] --- p2["ptr #2<br/>_raw، _off=128، _len=512"] --- p3["ptr #3 (carriage)<br/>_raw، _off=0، _len=200"]
+  end
+  subgraph R3["raw: حافظه‌ی واقعی (include/buffer_raw.h)"]
+    direction LR
+    r1["raw_posix_aligned / raw_combined<br/>data، len، nref (شمارنده‌ی اتمیک)<br/>mempool، last_crc_offset/val"] --- r2["یک raw می‌تواند بین چند ptr<br/>و چند list مشترک باشد<br/>(بدون کپی؛ با افزایش nref)"]
+  end
+  R1 ~~~ R2 ~~~ R3

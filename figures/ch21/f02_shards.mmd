@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph S1["۱. ورود"]
+    direction LR
+    M["Messenger (msgr2)<br/>دریافت MOSDOp"] --> H["hash(pgid) mod num_shards<br/>انتخاب شارد"]
+  end
+  subgraph S2["۲. شاردها (OSDShard)"]
+    direction LR
+    Q0["شارد 0<br/>صف mClock"] ~~~ Q1["شارد 1<br/>صف mClock"] ~~~ QN["شارد N-1<br/>صف mClock"]
+  end
+  subgraph S3["۳. اجرا"]
+    direction LR
+    T["threadهای هر شارد<br/>(threads_per_shard)"] --> P["قفل PG و<br/>PrimaryLogPG::do_op"] --> B["BlueStore<br/>queue_transactions"]
+  end
+  S1 ~~~ S2 ~~~ S3

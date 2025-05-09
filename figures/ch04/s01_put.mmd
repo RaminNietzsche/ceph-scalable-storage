@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant C as کلاینت S3
+  participant G as radosgw
+  participant I as شارد index (.dir.<marker>.N)
+  participant D as pool داده
+  C->>G: PUT /bucket/photos/a.jpg
+  G->>G: hash(نام شیء) → شماره‌ی شارد
+  G->>I: cls rgw.bucket_prepare_op (PENDING_MODIFY، tag)
+  G->>D: نوشتن head (۴MiB اول + xattr manifest، ACL، etag)
+  G->>D: نوشتن tail stripes (<marker>__shadow_… هر ۴MiB)
+  G->>I: cls rgw.bucket_complete_op (COMPLETE، اندازه، etag، mtime)
+  I-->>G: ثبت در omap + bilog (برای multisite)
+  G-->>C: 200 OK + ETag
+  Note over G,I: اگر RGW بین prepare و complete بمیرد، ورودی pending بعداً با dir_suggest یا bucket check پاک می‌شود

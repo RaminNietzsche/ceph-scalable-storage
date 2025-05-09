@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph B1["upmap balancer (pybind/mgr/balancer)"]
+    direction LR
+    a["هر sleep_interval<br/>اگر کلاستر آرام است"] --> b["do_upmap برای poolها<br/>به ترتیب تصادفی"] --> c["OSDMap::calc_pg_upmaps<br/>max_deviation=5، max_optimizations=10"]
+  end
+  subgraph B2["درون calc_pg_upmaps (OSDMap.cc)"]
+    direction LR
+    d["شمارش PG هر OSD<br/>در مقابل مقدار هدف وزن‌دار"] --> e["انتخاب OSDهای پر و خالی<br/>با انحراف > max_deviation"] --> f["افزودن pg_upmap_items<br/>(جابه‌جایی پر → خالی با رعایت قانون CRUSH)"]
+  end
+  subgraph B3["اثر"]
+    direction LR
+    g["OSDMap جدید"] --> h["remapped + backfill<br/>فقط برای PGهای منتخب"] --> i["توزیع PG یکنواخت‌تر<br/>و پری متعادل"]
+  end
+  B1 ~~~ B2 ~~~ B3

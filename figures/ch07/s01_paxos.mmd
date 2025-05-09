@@ -1,0 +1,21 @@
+sequenceDiagram
+  participant L as Leader (کمترین rank در quorum)
+  participant P1 as Peon 1
+  participant P2 as Peon 2
+  Note over L,P2: بازیابی پس از انتخابات: collect / last
+  L->>P1: OP_COLLECT (pn جدید، first/last_committed)
+  L->>P2: OP_COLLECT
+  P1-->>L: OP_LAST (مقادیر پذیرفته‌ی ناتمام)
+  P2-->>L: OP_LAST
+  Note over L: اگر مقدار ناتمامی هست، دوباره پیشنهاد می‌شود (UPDATING_PREVIOUS)
+  Note over L,P2: هر تغییر نقشه: begin / accept / commit
+  L->>L: begin(v): ذخیره‌ی مقدار پیشنهادی (STATE_UPDATING)
+  L->>P1: OP_BEGIN (pn، نسخه‌ی last_committed+1، v)
+  L->>P2: OP_BEGIN
+  P1-->>L: OP_ACCEPT
+  P2-->>L: OP_ACCEPT
+  Note over L: پس از accept همه‌ی quorum: commit_start (STATE_WRITING)
+  L->>P1: OP_COMMIT
+  L->>P2: OP_COMMIT
+  L->>P1: OP_LEASE (اجازه‌ی خواندن تا now + mon_lease)
+  P1-->>L: OP_LEASE_ACK

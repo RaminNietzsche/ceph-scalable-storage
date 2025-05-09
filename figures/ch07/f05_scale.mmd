@@ -1,0 +1,10 @@
+flowchart LR
+  subgraph UP["scale-up: بزرگ‌تر کردن گره‌ها"]
+    direction TB
+    U1["۴ گره × ۱۲ دیسک"] --> U2["۴ گره × ۲۴ دیسک"]
+  end
+  subgraph OUT["scale-out: افزودن گره"]
+    direction TB
+    O1["۴ گره × ۱۲ دیسک"] --> O2["۸ گره × ۱۲ دیسک"]
+  end
+  UP ~~~ OUT

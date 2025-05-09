@@ -1,0 +1,25 @@
+flowchart TB
+  subgraph OS["OpenStack"]
+    direction LR
+    GL["Glance<br/>imageها"]
+    CI["Cinder<br/>volumeها"]
+    CB["Cinder Backup"]
+    NO["Nova<br/>دیسک موقت"]
+    MA["Manila<br/>اشتراک فایل"]
+    SW["Swift API / Keystone"]
+  end
+  subgraph CE["Ceph"]
+    direction LR
+    P1[("pool images")]
+    P2[("pool volumes")]
+    P3[("pool backups")]
+    P4[("pool vms")]
+    FS[("CephFS")]
+    RG["RGW"]
+  end
+  GL --> P1
+  CI --> P2
+  CB --> P3
+  NO --> P4
+  MA --> FS
+  SW --> RG

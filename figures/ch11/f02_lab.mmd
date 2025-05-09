@@ -1,0 +1,9 @@
+flowchart LR
+  H["میزبان آزمایشگاه<br/>KVM/libvirt"] --> N1["ceph-node1<br/>۲ vCPU، ۴ GiB<br/>۳ دیسک مجازی"]
+  H --> N2["ceph-node2"]
+  H --> N3["ceph-node3"]
+  H --> C["client-node1"]
+  N1 --- PUB(("شبکه‌ی public<br/>192.168.10.0/24"))
+  N2 --- PUB
+  N3 --- PUB
+  C --- PUB

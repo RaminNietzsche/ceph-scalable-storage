@@ -1,0 +1,12 @@
+{"title":"ورودی صف تکمیل NVMe (CQE): ۱۶ بایت","sub":"struct nvme_completion در include/linux/nvme.h؛ بیت 0 از فیلد status همان Phase Tag است که با هر دور چرخیدن صف وارونه می‌شود","cols":8,
+"fields":[
+{"row":"DW0-1"},
+{"n":"result","s":8,"t":"u64 (ویژه‌ی فرمان)","v":"0 برای Read/Write","c":7},
+{"row":"DW2-3"},
+{"n":"sq_head","s":2,"t":"u16","v":"1B 00 (=27)","c":0},
+{"n":"sq_id","s":2,"t":"u16","v":"03 00","c":1},
+{"n":"command_id","s":2,"t":"u16","v":"2A 00","c":2},
+{"n":"status","s":2,"t":"P=bit0، SC/SCT/DNR","v":"01 00 (P=1، موفق)","c":3}
+],
+"legend":{"0":"اشاره‌گر سر SQ (فضای قابل بازیافت)","1":"شناسه‌ی SQ","2":"شناسه‌ی فرمان","3":"وضعیت و Phase Tag","7":"نتیجه"},
+"notes":["میزبان CQE تازه را از روی Phase Tag تشخیص می‌دهد: اگر status&1 برابر cq_phase فعلی باشد، ورودی تازه است (nvme_cqe_pending).","sq_head به میزبان می‌گوید کنترلر تا کجای SQ را مصرف کرده است تا آن خانه‌ها دوباره پر شوند.","status=0x0001 یعنی Phase=1 و کد وضعیت 0 (Successful Completion)."]}

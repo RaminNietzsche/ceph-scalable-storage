@@ -1,0 +1,11 @@
+stateDiagram-v2
+  [*] --> STANDBY
+  STANDBY --> ACTIVE: مالک گروه ANA و در دسترس
+  STANDBY --> WAIT_BLOCKLIST_CMPL: کم‌بارترین درگاه برای failover انتخاب شد
+  WAIT_BLOCKLIST_CMPL --> ACTIVE: OSDMap با blocklist به درگاه رسید
+  WAIT_BLOCKLIST_CMPL --> STANDBY: تایمر 30 ثانیه یا خرابی
+  ACTIVE --> WAIT_FAILBACK_PREPARED: مالک برگشت (failback)
+  WAIT_FAILBACK_PREPARED --> STANDBY: تایمر تمام شد، مالک فعال شد
+  STANDBY --> OWNER_WAIT_FAILBACK_PREPARED: مالک منتظر تحویل
+  OWNER_WAIT_FAILBACK_PREPARED --> ACTIVE: انقضای تایمر failback
+  ACTIVE --> STANDBY: درگاه down (beacon_grace)

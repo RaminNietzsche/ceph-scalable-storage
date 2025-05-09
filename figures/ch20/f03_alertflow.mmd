@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph A1["۱. سیگنال"]
+    direction LR
+    a["ceph_health_detail{name=...}<br/>یک سری برای هر کد سلامت"] ~~~ b["ceph_osd_up، ceph_pg_active،<br/>ceph_pool_percent_used"] ~~~ c["latency از ceph-exporter<br/>و node-exporter"]
+  end
+  subgraph A2["۲. قاعده (Prometheus)"]
+    direction LR
+    d["expr + for: پایداری<br/>جلوگیری از هشدار گذرا"] --> e["labels: severity،<br/>cluster، oid (SNMP)"] --> f["annotations: summary،<br/>description، لینک runbook"]
+  end
+  subgraph A3["۳. تحویل (Alertmanager)"]
+    direction LR
+    g["group_by: alertname، cluster"] --> h["inhibit: خاموشی هشدارهای<br/>فرعی وقتی هشدار ریشه فعال است"] --> i["receiver: on-call"]
+  end
+  A1 ~~~ A2 ~~~ A3

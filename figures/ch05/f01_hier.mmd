@@ -1,0 +1,9 @@
+flowchart TB
+  R["realm: gold<br/>فضای نام سراسری · period"] --> ZG1["zonegroup: europe (master)<br/>فضای نام مشترک bucketها"]
+  R --> ZG2["zonegroup: asia"]
+  ZG1 --> Z1["zone: eu-1 (master)<br/>کلاستر Ceph الف"]
+  ZG1 --> Z2["zone: eu-2<br/>کلاستر Ceph ب"]
+  ZG2 --> Z3["zone: as-1 (master)<br/>کلاستر Ceph ج"]
+  Z1 --- G1["RGWهای eu-1"]
+  Z2 --- G2["RGWهای eu-2"]
+  Z3 --- G3["RGWهای as-1"]

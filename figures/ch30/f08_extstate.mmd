@@ -1,0 +1,19 @@
+flowchart TB
+  subgraph R1["extent تازه"]
+    direction LR
+    A["INITIAL_WRITE_PENDING<br/>در write_set تراکنش"] -->|"commit"| B["CLEAN<br/>هم‌خوان با دیسک، version=0"]
+  end
+  subgraph R2["تغییر extent موجود"]
+    direction LR
+    C["CLEAN یا DIRTY"] -->|"mutate در تراکنش"| D["MUTATION_PENDING<br/>نسخه‌ی کپی؛ prior_instance"] -->|"commit: delta در journal"| E["DIRTY<br/>pinned در حافظه، version>0"]
+  end
+  subgraph R3["extent موجود بدون فراداده‌ی ثبت‌شده"]
+    direction LR
+    F["EXIST_CLEAN"] -->|"mutate"| G["EXIST_MUTATION_PENDING"] -->|"commit"| H["DIRTY"]
+    F -->|"commit"| I["CLEAN"]
+  end
+  subgraph R4["پایان"]
+    direction LR
+    J["DIRTY"] -->|"بازنویسی توسط cleaner/trim"| K["CLEAN"] --> L["INVALID<br/>(retire / evict)"]
+  end
+  R1 ~~~ R2 ~~~ R3 ~~~ R4

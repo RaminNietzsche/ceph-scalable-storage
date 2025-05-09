@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph K["مسیر هسته: KernelDevice + libaio/io_uring"]
+    direction LR
+    K1["BlueStore<br/>aio_submit"] --> K2["syscall<br/>io_submit / io_uring_enter"] --> K3["blk-mq<br/>تگ و صف سخت‌افزاری"] --> K4["nvme_queue_rq<br/>کپی SQE + doorbell"] --> K5["وقفه‌ی MSI-X<br/>nvme_irq ⇒ nvme_poll_cq"]
+  end
+  subgraph S["مسیر SPDK: NVMEDevice (کاربری، polling)"]
+    direction LR
+    S1["BlueStore<br/>aio_submit"] --> S2["write_split<br/>تکه‌های 128 KiB"] --> S3["کپی به بافر DMA<br/>8 KiB × n"] --> S4["spdk_nvme_ns_cmd_writev<br/>SQE + doorbell از فضای کاربر"] --> S5["polling<br/>spdk_nvme_qpair_process_completions"]
+  end
+  subgraph H["سخت‌افزار مشترک"]
+    direction LR
+    H1["SQ در حافظه‌ی میزبان<br/>64 بایت در هر ورودی"] --> H2["کنترلر NVMe<br/>DMA و اجرا"] --> H3["CQ<br/>16 بایت، phase tag"]
+  end
+  K ~~~ S ~~~ H

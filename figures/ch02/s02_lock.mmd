@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant A as کلاینت A (مالک فعلی)
+  participant H as rbd_header (cls_lock + watch)
+  participant B as کلاینت B (نوشتن جدید)
+  B->>H: GET_LOCKER (قفل rbd_lock)
+  H-->>B: مالک = A (EBUSY)
+  B->>H: notify: REQUEST_LOCK
+  H->>A: watch-notify
+  alt A سالم است و policy اجازه می‌دهد
+    A->>A: flush و آزادسازی (PreRelease)
+    A->>H: unlock
+    B->>H: LOCK_IMAGE (cls_lock exclusive)
+  else A مرده است (watch ندارد)
+    B->>H: BREAK_LOCK (و blocklist آدرس A)
+    B->>H: LOCK_IMAGE
+  end
+  Note over B: PostAcquire: باز کردن object map و journal

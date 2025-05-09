@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["2Q buffer cache (bluestore_cache_type=2q)"]
+    direction LR
+    A["خواندن/نوشتن تازه"] --> W["warm_in (A1in)<br/>kin_ratio=0.5"] --> O["warm_out (A1out)<br/>فقط سرآیند، بدون داده"] --> H["hot (Am)<br/>اگر دوباره دیده شود"]
+  end
+  subgraph R2["autotune (هر 5 ثانیه)"]
+    direction LR
+    M["osd_memory_target<br/>(4G)"] --> P["PriorityCache<br/>اولویت‌بندی"] --> K["kv (RocksDB)"] --> N["meta (onode)"] --> D["data (buffer)"]
+  end
+  R1 ~~~ R2

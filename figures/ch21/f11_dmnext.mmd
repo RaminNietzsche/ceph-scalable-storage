@@ -1,0 +1,13 @@
+flowchart TB
+  subgraph S1[۱. ورود درخواست: محاسبه‌ی برچسب‌ها]
+    direction LR
+    a["R = max(t, R_prev + cost/res)"] --> b["P = max(t, P_prev + cost/wgt)"] --> c["L = max(t, L_prev + cost/lim)"]
+  end
+  subgraph S2[۲. do_next_request در زمان now]
+    direction LR
+    d{"کمترین R ≤ now؟"} -- بله --> e[سرویس در فاز reservation]
+    d -- خیر --> f["سرهایی با L ≤ now را ready کن"] --> g{"ready با P کمینه هست؟"}
+    g -- بله --> h["سرویس در فاز weight و R های بعدی همان کلاینت را cost/res کم کن"]
+    g -- خیر --> i["AtLimit::Wait در OSD: صبر تا کمینه‌ی R یا L بعدی"]
+  end
+  S1 --> S2

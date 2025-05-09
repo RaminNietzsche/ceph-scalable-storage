@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph C1["۱. برچسب‌گذاری هر درخواست (dmclock، tag_calc)"]
+    direction LR
+    A["درخواست از کلاس<br/>client / recovery / best-effort"] --> B["R = max(now, R_prev + (δ+cost)/reservation)<br/>P = max(now, P_prev + (δ+cost)/weight)<br/>L = max(now, L_prev + (δ+cost)/limit)"]
+  end
+  subgraph C2["۲. انتخاب برای اجرا"]
+    direction LR
+    D["مرحله‌ی رزرو: اگر کوچک‌ترین R ≤ now<br/>همان درخواست اجرا می‌شود"] --> E["مرحله‌ی وزن: در غیر این صورت، میان<br/>درخواست‌های با L ≤ now، کمترین P"]
+  end
+  subgraph C3["۳. صف بالادستی"]
+    direction LR
+    F["کلاس immediate و اولویت بالا<br/>(peering، زیرعملیات EC)"] --> G["پیش از صف mClock<br/>(با سازوکار جلوگیری از گرسنگی)"]
+  end
+  C1 ~~~ C2 ~~~ C3

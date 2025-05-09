@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant A as site-a
+  participant B as site-b
+  participant O as اپراتور
+  Note over A,B: حالت عادی: A اصلی، B ثانوی
+  O->>A: demote (در failover برنامه‌ریزی‌شده)
+  A-->>B: آخرین تغییرات همگام می‌شود
+  O->>B: promote
+  Note over B: کلاینت‌ها به B وصل می‌شوند
+  Note over A: سانحه: A از دسترس خارج است
+  O->>B: promote --force
+  O->>A: پس از بازگشت: demote
+  O->>A: resync
+  B-->>A: همگام‌سازی کامل
+  O->>B: demote
+  O->>A: promote (failback)

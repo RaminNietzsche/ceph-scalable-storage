@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["۱. نوشتن روی شیء فرزند"]
+    direction LR
+    w["write(objno, off, len)<br/>روی تصویر clone (مثلاً دیسک VM از Glance)"] --> e["آیا شیء فرزند<br/>وجود دارد؟"]
+    e -- بله --> d["نوشتن مستقیم<br/>(بدون والد)"]
+  end
+  subgraph R2["۲. خیر → CopyupRequest"]
+    direction LR
+    rp["read_from_parent<br/>خواندن کل محدوده‌ی شیء از<br/>snapshot والد"] --> dc["deep_copy<br/>(فقط اگر deep-flatten و snapshot فرزند)"] --> uo["update_object_maps<br/>حالت شیء در head و snapshotها"]
+  end
+  subgraph R3["۳. نوشتن اتمیک روی OSD"]
+    direction LR
+    cu["یک ObjectWriteOperation:<br/>cls rbd.copyup یا sparse_copyup<br/>(داده‌ی والد، فقط اگر شیء هنوز نیست)<br/>+ write کاربر"] --> fin["complete: اجرای<br/>درخواست‌های منتظر روی همان شیء"]
+  end
+  R1 ~~~ R2 ~~~ R3

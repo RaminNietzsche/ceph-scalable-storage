@@ -1,0 +1,6 @@
+flowchart LR
+  IMG["image: vm-db01<br/>اندازه‌ی منطقی ۱۰۰ گیگابایت"] --> H["rbd_header<br/>فراداده: اندازه، ویژگی‌ها، snapshotها"]
+  IMG --> ID["rbd_id و rbd_directory<br/>نام ← شناسه"]
+  IMG --> D["اشیای داده‌ی ۴ مگابایتی<br/>rbd_data.ID.0000…"]
+  D --> T["فقط بخش‌های نوشته‌شده<br/>شیء دارند (thin)"]
+  IMG --> OM["object map<br/>کدام اشیاء وجود دارند"]

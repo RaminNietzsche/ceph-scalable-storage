@@ -1,0 +1,20 @@
+{"title":"قاب KEEPALIVE2 در msgr2.1 (حالت crc)، بایت به بایت","sub":"preamble_block_t (۳۲ بایت، packed) + یک segment هشت‌بایتی + crc آن segment = ۴۴ بایت؛ زمان 1700000000.5 s",
+"fields":[
+{"row":"preamble"},
+{"n":"tag","s":1,"t":"u8","v":"12 (=18)","c":1},
+{"n":"num_seg","s":1,"t":"u8","v":"01","c":1},
+{"n":"seg0.len","s":4,"t":"le32","v":"08 00 00 00","c":0},
+{"n":"seg0.align","s":2,"t":"le16","v":"08 00","c":0},
+{"n":"seg1 (خالی)","s":6,"t":"segment_t","v":"00 ×6","c":6},
+{"n":"seg2 (خالی)","s":6,"t":"segment_t","v":"00 ×6","c":6},
+{"n":"seg3 (خالی)","s":6,"t":"segment_t","v":"00 ×6","c":6},
+{"n":"flags","s":1,"t":"u8","v":"00","c":3},
+{"n":"_reserved","s":1,"t":"u8","v":"00","c":3},
+{"n":"crc","s":4,"t":"le32 crc32c(seed 0)","v":"d8 d5 f5 99","c":2},
+{"row":"segment 0"},
+{"n":"utime.sec","s":4,"t":"le32","v":"00 f1 53 65","c":4},
+{"n":"utime.nsec","s":4,"t":"le32","v":"00 65 cd 1d","c":4},
+{"n":"seg0 crc","s":4,"t":"le32 crc32c(seed ~0)","v":"39 7f 34 4d","c":2}
+],
+"legend":{"1":"tag و تعداد segment","0":"توصیف segment (طول + هم‌ترازی)","6":"segmentهای استفاده‌نشده","2":"checksum","4":"payload"},
+"notes":["sizeof(preamble_block_t)=32 مضربی از CRYPTO_BLOCK_SIZE=16 است تا در حالت secure بدون padding رمز شود (static_assert در frames_v2.h).","در msgr2.1 قاب تک‌segmentی epilogue ندارد؛ crc همان segment بلافاصله پس از داده می‌آید.","crc پیش‌درآمد روی ۲۸ بایت اول با seed صفر و crc داده با seed 0xFFFFFFFF حساب می‌شود."]}

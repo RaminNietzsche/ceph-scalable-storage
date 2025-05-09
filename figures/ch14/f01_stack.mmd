@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph APPS["برنامه‌ها و کتابخانه‌های بالادستی"]
+    direction LR
+    A1["librbd"] ~~~ A2["RGW"] ~~~ A3["libcephfs / MDS"] ~~~ A4["برنامه‌ی شما<br/>C، C++، Python، Go، Rust"]
+  end
+  subgraph LR["librados"]
+    direction LR
+    L1["IoCtx<br/>pool + namespace"] ~~~ L2["Objecter<br/>محاسبه‌ی هدف و ارسال"] ~~~ L3["MonClient<br/>نقشه‌ها و احراز هویت"]
+  end
+  subgraph NET["messenger v2"]
+    direction LR
+    M1["اتصال به MONها"] ~~~ M2["اتصال مستقیم به OSDها"]
+  end
+  APPS ~~~ LR ~~~ NET

@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["تولید"]
+    direction LR
+    A["OSD: PerfCounters<br/>(مثلاً op_w_latency)"] --> B["admin socket:<br/>counter dump / counter schema"] --> C["ceph-exporter: فرمت Prometheus<br/>با برچسب ceph_daemon"]
+  end
+  subgraph R2["مصرف"]
+    direction LR
+    D["Prometheus: سری زمانی"] --> E["PromQL: rate، avg_over_time،<br/>topk"] --> F["قاعده‌ی هشدار<br/>یا پنل Grafana"]
+  end
+  R1 ~~~ R2

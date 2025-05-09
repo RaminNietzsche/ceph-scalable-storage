@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["از برنامه تا blk-mq"]
+    direction LR
+    A["write(2) / io_uring<br/>روی /dev/rbd0 یا FS روی آن"] --> B["page cache / O_DIRECT"] --> C["bio → request<br/>blk-mq (tag_set)"] --> D["rbd_queue_rq()<br/>queue_depth=BLKDEV_DEFAULT_RQ"]
+  end
+  subgraph R2["درون rbd.c"]
+    direction LR
+    E["rbd_img_request<br/>(workqueue)"] --> F["تقسیم به objectها<br/>(striper, object_size 4M)"] --> G["rbd_obj_request × N"] --> H["ceph_osd_request<br/>WRITE/WRITEFULL/ZERO/…"]
+  end
+  subgraph R3["libceph"]
+    direction LR
+    I["osd_client: calc_target<br/>(CRUSH در هسته)"] --> J["send_request<br/>→ ceph_connection"] --> K["messenger v1/v2<br/>(gcm(aes) در secure)"] --> L["TCP به primary OSD"]
+  end
+  R1 ~~~ R2 ~~~ R3

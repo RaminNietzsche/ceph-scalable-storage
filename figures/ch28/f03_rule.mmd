@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["قاعده‌ی replicated_rule"]
+    direction LR
+    A["TAKE default<br/>w = [root]"] --> B["CHOOSELEAF_FIRSTN 0 type host<br/>numrep = size"] --> C["EMIT<br/>result += w"]
+  end
+  subgraph R2["داخل chooseleaf_firstn برای هر rep"]
+    direction LR
+    D["r = rep + ftotal"] --> E["bucket_choose(root, x, r)<br/>→ host"] --> F["recursive: choose 1 osd<br/>در host (r′ با vary_r)"] --> G["تصادم یا out؟<br/>ftotal++ و تکرار"]
+  end
+  subgraph R3["is_out: وزن reweight"]
+    direction LR
+    H["w = weight[osd] (16.16)"] --> I["w=0x10000 → in"] --> J["w=0 → out"] --> K["بین آن‌ها:<br/>hash32_2(x, osd) & 0xFFFF < w"]
+  end
+  R1 ~~~ R2 ~~~ R3

@@ -1,0 +1,30 @@
+flowchart TB
+  subgraph C["مصرف‌کنندگان"]
+    direction LR
+    VM["ماشین مجازی / Kubernetes<br/>دیسک بلوکی"]
+    APP["برنامه‌ی وب / پشتیبان‌گیری<br/>S3 و Swift"]
+    HPC["سرور فایل / HPC<br/>فایل‌سیستم POSIX"]
+    DEV["برنامه‌ی سفارشی<br/>دسترسی مستقیم"]
+  end
+  subgraph G["رابط‌ها"]
+    direction LR
+    RBD["RBD<br/>librbd · krbd"]
+    RGW["RGW<br/>دروازه‌ی شیء"]
+    FS["CephFS<br/>MDS + کلاینت"]
+    LR2["librados<br/>C · C++ · Python"]
+  end
+  subgraph R["RADOS — لایه‌ی ذخیره‌سازی توزیع‌شده و خودترمیم"]
+    direction LR
+    MON["MON<br/>نقشه‌ها و اجماع"]
+    MGR["MGR<br/>پایش و ماژول‌ها"]
+    OSD["OSDها<br/>داده روی دیسک"]
+    MDS["MDS<br/>فراداده‌ی CephFS"]
+  end
+  VM --> RBD
+  APP --> RGW
+  HPC --> FS
+  DEV --> LR2
+  RBD --> OSD
+  RGW --> OSD
+  FS --> MDS
+  LR2 --> MON

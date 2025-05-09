@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["hybrid (پیش‌فرض)"]
+    direction LR
+    H1["AVL: درخت offset + درخت size<br/>first-fit / best-fit"] --> H2["سقف حافظه<br/>bluestore_hybrid_alloc_mem_cap=64M"] --> H3["سرریز به Bitmap<br/>(بیت برای هر واحد)"]
+  end
+  subgraph R2["freelist در RocksDB (prefix b)"]
+    direction LR
+    F1["کلید: offset شروع<br/>هر 128 واحد"] --> F2["مقدار: 128 بیت = 16 بایت"] --> F3["merge: bitwise_xor<br/>تخصیص/آزادسازی = XOR"]
+  end
+  subgraph R3["بدون freelist (حالت جدید)"]
+    direction LR
+    N1["shutdown تمیز:<br/>allocator در فایل BlueFS"] --> N2["crash:<br/>بازسازی از onodeها<br/>(recovery allocation)"]
+  end
+  R1 ~~~ R2 ~~~ R3

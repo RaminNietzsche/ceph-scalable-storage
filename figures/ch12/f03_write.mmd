@@ -1,0 +1,4 @@
+flowchart TB
+  W["نوشتن ورودی"] --> Q{"اندازه کوچک‌تر از<br/>آستانه‌ی deferred؟"}
+  Q -->|"بله"| D1["ثبت داده در WAL RocksDB<br/>و ack سریع"] --> D2["نوشتن بعدی روی block<br/>در پس‌زمینه"]
+  Q -->|"خیر"| N1["نوشتن داده در فضای تازه‌ی block<br/>(copy-on-write)"] --> N2["commit فراداده در RocksDB<br/>و ack"]

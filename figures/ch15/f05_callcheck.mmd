@@ -1,0 +1,21 @@
+flowchart TB
+  subgraph P["پیش از اجرا: OpInfo::set_from_op هنگام رسیدن MOSDOp"]
+    direction LR
+    p1["CEPH_OSD_OP_CALL<br/>cname، mname"] --> p2{"open_class(cname)"}
+    p2 -- "ENOENT" --> p3["EOPNOTSUPP"]
+    p2 -- "نه در load_list" --> p4["EPERM"]
+    p2 -- "باز شد" --> p5{"get_method_flags(mname)"}
+    p5 -- "نیست" --> p3
+  end
+  subgraph F["پرچم‌ها و مجوز"]
+    direction LR
+    f1["RD ⇒ CLASS_READ<br/>(در EC همچنین CLASS_READ_DATA)"] --> f2["WR ⇒ CLASS_WRITE"] --> f3["PROMOTE ⇒ promote در کش"] --> f4["add_class(name، rd، wr، allowed)<br/>⇒ بررسی OSDCap"]
+  end
+  subgraph E["اجرا: PrimaryLogPG::do_osd_ops"]
+    direction LR
+    e1["WR ⇒ user_modify = true"] --> e2["ثبت num_read و num_write<br/>پیش از exec"] --> e3["method->exec(ctx، in، out)"] --> e4{"خواند بی RD یا نوشت بی WR؟"}
+    e4 -- "بله" --> e5["EIO و derr"]
+    e4 -- "خیر" --> e6["outdata به پاسخ"]
+  end
+  P ~~~ F
+  F ~~~ E

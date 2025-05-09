@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Glance: pool images"]
+    direction LR
+    img["تصویر ubuntu-24.04<br/>rbd image"] --> snap["snapshot @snap<br/>(در clone v1 باید protect شود؛<br/>v2 نیازی ندارد)"]
+  end
+  subgraph R2["Cinder/Nova: pool volumes یا vms"]
+    direction LR
+    v1["volume-aaa<br/>clone از images/ubuntu@snap"] --- v2["volume-bbb<br/>clone از همان snapshot"] --- v3["… صدها VM<br/>بدون کپی داده"]
+  end
+  subgraph R3["پیامد عملیاتی"]
+    direction LR
+    p1["خواندن بلوک‌های نوشته‌نشده<br/>→ از والد"] --- p2["اولین نوشتن روی هر شیء<br/>→ copyup ۴MiB"] --- p3["rbd flatten: قطع وابستگی<br/>و مصرف کامل فضا"]
+  end
+  R1 ~~~ R2 ~~~ R3

@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph O["باز کردن دستگاه"]
+    direction LR
+    O1["NVMEDevice::open<br/>خواندن خط trid از فایل spdk:"] --> O2["NVMEManager::try_get<br/>قفل NVMEManager::lock"] --> O3["thread دی‌پی‌دی‌کی<br/>spdk_env_init + spdk_nvme_probe"] --> O4["register_ctrlr<br/>فقط namespace 1"]
+  end
+  subgraph W["نوشتن"]
+    direction LR
+    W1["aio_write<br/>write_split: تکه‌های 128 KiB"] --> W2["ioc_append_task<br/>فهرست پیوندی Task"] --> W3["aio_submit<br/>thread_local SharedDriverQueueData"] --> W4["_aio_handle<br/>alloc_buf_from_pool + writev"]
+  end
+  subgraph C["تکمیل"]
+    direction LR
+    C1["process_completions<br/>(همان thread، polling)"] --> C2["io_complete<br/>--current_queue_depth"] --> C3["release_segs<br/>بافرها به data_buf_list"] --> C4["aio_callback<br/>وقتی num_running به 0 برسد"]
+  end
+  O ~~~ W ~~~ C

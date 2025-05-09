@@ -1,0 +1,8 @@
+flowchart TB
+  subgraph K8S["کلاستر Kubernetes"]
+    direction TB
+    OP["Rook operator"] -->|"تطبیق CRDها"| P["podهای MON، MGR، OSD، MDS، RGW"]
+    CR["CRDها: CephCluster، CephBlockPool،<br/>CephFilesystem، CephObjectStore"] --> OP
+    CSI["ceph-csi<br/>RBD و CephFS"] --> P
+    APP["podهای برنامه<br/>PVC"] --> CSI
+  end

@@ -1,0 +1,20 @@
+flowchart TB
+  subgraph A["ScrubMachine سمت primary (scrub_machine.h)"]
+    direction LR
+    A1["NotActive"] -->|"StartScrub"| A2["PrimaryActive / PrimaryIdle"] -->|"زمان‌بندی + منابع محلی"| A3["Session / ReservingReplicas<br/>رزرو روی replicaها"] -->|"همه‌ی replicaها پذیرفتند"| A4["ActiveScrubbing"]
+  end
+  subgraph B["چرخه‌ی هر chunk درون ActiveScrubbing"]
+    direction LR
+    B1["PendingTimer<br/>osd_scrub_sleep"] --> B2["NewChunk<br/>select_range"] --> B3["WaitPushes<br/>منتظر pushهای در جریان"] --> B4["WaitLastUpdate<br/>نوشتن‌های در جریان"] --> B5["BuildMap<br/>نقشه‌ی محلی"]
+  end
+  subgraph C["ادامه‌ی chunk"]
+    direction LR
+    C1["WaitReplicas<br/>MOSDRepScrubMap"] --> C2["compare_smaps<br/>select_auth_object"] -->|"chunk بعدی"| C3["PendingTimer"]
+    C2 -->|"پایان PG"| C4["WaitDigestUpdate<br/>به‌روزرسانی digestها"] --> C5["پایان: stamps و stats"]
+    B2b["RangeBlocked<br/>محدوده قفل است"] -.-> C3
+  end
+  subgraph D["سمت replica"]
+    direction LR
+    D1["ReplicaActive / ReplicaIdle"] -->|"MOSDRepScrub"| D2["ReplicaWaitUpdates"] --> D3["ReplicaBuildingMap"] -->|"ارسال ScrubMap"| D1
+  end
+  A ~~~ B ~~~ C ~~~ D

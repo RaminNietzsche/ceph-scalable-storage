@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph OLD["دیروز"]
+    direction LR
+    A["ceph-deploy<br/>آرشیو شده"] ~~~ B["ceph-ansible<br/>نگهداری محدود؛ توصیه به مهاجرت"]
+  end
+  subgraph NEW["امروز"]
+    direction LR
+    C["cephadm<br/>سرورهای فیزیکی و VM"] ~~~ D["Rook<br/>درون Kubernetes"] ~~~ E["cephadm-ansible<br/>آماده‌سازی میزبان‌ها"]
+  end
+  OLD ~~~ NEW

@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant C as کلاینت (connect)
+  participant S as سرور (accept)
+  C->>S: banner «ceph v2\n» + len(16) + supported + required
+  S->>C: banner
+  C->>S: HELLO(entity_type, peer_addr)
+  S->>C: HELLO
+  C->>S: AUTH_REQUEST(method=cephx, preferred_modes, payload)
+  S->>C: AUTH_REPLY_MORE (challenge)
+  C->>S: AUTH_REQUEST_MORE
+  S->>C: AUTH_DONE(global_id, con_mode, payload)
+  Note over C,S: از اینجا: crc یا secure (AES-128-GCM)
+  C->>S: AUTH_SIGNATURE (HMAC روی بایت‌های تبادل‌شده)
+  S->>C: AUTH_SIGNATURE
+  C->>S: CLIENT_IDENT(addrs, target, gid, global_seq, features, flags, cookie)
+  S->>C: SERVER_IDENT
+  C->>S: MESSAGE / KEEPALIVE2 / ACK ...

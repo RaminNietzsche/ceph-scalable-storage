@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["شبکه: msg/async"]
+    direction LR
+    w["Worker × ms_async_op_threads (3)<br/>هر کدام یک EventCenter (epoll)"] --> fd["ms_fast_dispatch<br/>(در همان thread شبکه، بدون قفل سنگین)"]
+  end
+  subgraph R2["پردازش op: ShardedOpWQ"]
+    direction LR
+    q["OSDShard[i].scheduler<br/>i = hash(pgid) % shards"] --> tp["ShardedThreadPool:<br/>threads_per_shard thread برای هر شارد"] --> pr["dequeue_op → PG lock →<br/>do_request"]
+  end
+  subgraph R3["کمکی"]
+    direction LR
+    fin["Finisher: اجرای callbackها<br/>در thread جدا (on_commit و ...)"] --- tm["SafeTimer: رویدادهای زمان‌دار<br/>(tick، heartbeat)"] --- kvt["BlueStore: kv_sync_thread<br/>+ kv_finalize_thread"]
+  end
+  R1 ~~~ R2 ~~~ R3

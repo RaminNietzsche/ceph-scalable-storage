@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph S1["Primary — ScrubMachine (scrub_machine.h)"]
+    direction LR
+    PI["PrimaryIdle"] --> RR["ReservingReplicas<br/>osd_max_scrubs"] --> NC["NewChunk<br/>انتخاب بازه‌ی اشیا"] --> RB["RangeBlocked / WaitPushes<br/>/ WaitLastUpdate"] --> BM["BuildMap<br/>نقشه‌ی محلی"] --> WR["WaitReplicas<br/>دریافت نقشه‌ها"] --> WD["WaitDigestUpdate"]
+  end
+  subgraph S2["Replica"]
+    direction LR
+    RI["ReplicaIdle"] --> RWU["ReplicaWaitUpdates"] --> RBM["ReplicaBuildingMap<br/>ارسال ScrubMap"]
+  end
+  subgraph S3["مقایسه (scrub_backend)"]
+    direction LR
+    CMP["انتخاب نسخه‌ی معتبر و<br/>مقایسه‌ی اندازه، digest و attr"] --> INC["ثبت inconsistent در ScrubStore<br/>OSD_SCRUB_ERRORS / PG_DAMAGED"]
+  end
+  S1 ~~~ S2 ~~~ S3

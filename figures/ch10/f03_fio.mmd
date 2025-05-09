@@ -1,0 +1,7 @@
+flowchart LR
+  F["fio"] --> E1["ioengine=rbd<br/>librbd مستقیم"]
+  F --> E2["ioengine=libaio<br/>روی /dev/rbd0 یا vda"]
+  F --> E3["ioengine=libaio<br/>روی فایل در CephFS"]
+  E1 --> C[("کلاستر")]
+  E2 --> C
+  E3 --> C

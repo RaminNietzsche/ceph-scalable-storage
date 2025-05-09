@@ -1,0 +1,7 @@
+flowchart LR
+  REQ["allocate(want, unit)"] --> AVL{"AvlAllocator<br/>درخت بازه‌های آزاد<br/>تا سقف حافظه"}
+  AVL -->|"کافی است"| OK["برگرداندن extentها"]
+  AVL -->|"کافی نیست"| BM["BitmapAllocator<br/>بازه‌های سرریز‌شده"]
+  BM --> OK
+  REL["release(extents)"] --> AVL
+  AVL -.->|"سقف حافظه‌ی درخت پر شد:<br/>_spillover_range"| BM

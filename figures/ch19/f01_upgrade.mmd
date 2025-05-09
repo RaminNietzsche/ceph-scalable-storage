@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph U1["۱. آمادگی"]
+    direction LR
+    a["HEALTH_OK؟<br/>ceph -s"] --> b["خواندن release notes<br/>و یادداشت‌های ارتقا"] --> c["آزمون دسترسی میزبان‌ها<br/>به image در رجیستری"]
+  end
+  subgraph U2["۲. ترتیب cephadm"]
+    direction LR
+    m1["mgr<br/>(ابتدا standby)"] --> m2["mon<br/>یکی‌یکی با quorum"] --> m3["crash، osd<br/>با ok-to-stop / ok-to-upgrade"] --> m4["mds، rgw،<br/>rbd-mirror، سایر"]
+  end
+  subgraph U3["۳. پایان"]
+    direction LR
+    p["ceph versions<br/>همه یکسان"] --> q["ceph osd dump<br/>بررسی require_osd_release"] --> r["بررسی هشدارهای تازه"]
+  end
+  U1 ~~~ U2 ~~~ U3

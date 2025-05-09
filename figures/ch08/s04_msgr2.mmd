@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph F1["۱. preamble (اندازه‌ی ثابت، CRC جدا)"]
+    direction LR
+    t["tag<br/>HELLO، AUTH_REQUEST، MESSAGE، ..."] ~~~ n["num_segments ≤ 4"] ~~~ sg["برای هر segment:<br/>length و alignment"] ~~~ pc["crc32c preamble"]
+  end
+  subgraph F2["۲. segmentها"]
+    direction LR
+    s0["seg 0: header پیام"] ~~~ s1["seg 1: front"] ~~~ s2["seg 2: middle"] ~~~ s3["seg 3: data<br/>(هم‌تراز برای zero-copy)"]
+  end
+  subgraph F3["۳. epilogue و حالت‌ها"]
+    direction LR
+    e1["crc mode: crc32c هر segment"] ~~~ e2["secure mode: AES-GCM<br/>رمز و احراز صحت هر frame"] ~~~ e3["compression (اختیاری)<br/>پس از COMPRESSION_REQUEST"]
+  end
+  F1 ~~~ F2 ~~~ F3

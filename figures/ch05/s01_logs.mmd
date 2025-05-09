@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["zone مبدأ: هر نوشتن سه ردپا می‌گذارد"]
+    direction LR
+    w["PUT/DELETE شیء"] --> bi["bilog در شارد index<br/>(cls_rgw، همراه complete_op)"] --> dl["datalog: «شارد X از bucket B تغییر کرد»<br/>rgw_data_log_num_shards=128<br/>پنجره‌ی ادغام rgw_data_log_window=30s"]
+    md["ساخت bucket/کاربر"] --> ml["mdlog (meta.log.*)<br/>rgw_md_log_max_shards=64<br/>فقط master zone"]
+  end
+  subgraph R2["zone مقصد: سه لایه coroutine"]
+    direction LR
+    ms["meta sync<br/>خواندن mdlog از master"] --- ds["data sync: برای هر شارد datalog<br/>RGWDataSyncShardCR<br/>full → incremental"] --- bs["bucket sync: برای هر شارد bucket<br/>RGWBucketShardIncrementalSyncCR<br/>خواندن bilog و کپی شیء"]
+  end
+  subgraph R3["کپی خود داده"]
+    direction LR
+    f["fetch_remote_obj: GET شیء<br/>از endpoint مبدأ"] --> p["نوشتن محلی + ثبت در index مقصد<br/>(با حفظ zone مبدأ برای جلوگیری از حلقه)"] --> mk["به‌روزرسانی marker در<br/>شیء وضعیت sync (log pool)"]
+  end
+  R1 ~~~ R2 ~~~ R3

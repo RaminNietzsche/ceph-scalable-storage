@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["ورود درخواست"]
+    direction LR
+    f["frontend (beast)"] --> g["process_request<br/>→ rgw_process_authenticated"] --> h["RGWPutObj:<br/>verify_permission → pre_exec<br/>→ execute"]
+  end
+  subgraph R2["نوشتن داده و index"]
+    direction LR
+    i["rgw::sal Writer ←<br/>AtomicObjectProcessor<br/>prepare / process / complete"] --> w["RadosWriter::process<br/>(head + stripeهای tail)"] --> j["Object::Write::_do_write_meta<br/>UpdateIndex::prepare / complete<br/>(cls_rgw bucket_prepare/complete_op)"]
+  end
+  R1 ~~~ R2

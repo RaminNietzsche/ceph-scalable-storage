@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["CephadmServe.serve() — یک دور حلقه (pybind/mgr/cephadm/serve.py)"]
+    direction LR
+    a["_refresh_hosts_and_daemons<br/>(gather-facts، ls، ceph-volume inventory)"] --> b["_check_for_strays<br/>_update_paused_health"] --> c["_run_async_actions<br/>(restart/redeploy درخواستی)"]
+  end
+  subgraph R2["هم‌گرایی وضعیت مطلوب"]
+    direction LR
+    d["_apply_all_services<br/>→ _apply_service(spec) برای هر spec"] --> e["HostAssignment.place()<br/>(schedule.py): placement،<br/>count، label، host_pattern"] --> f["افزودن/حذف daemon:<br/>اجرای cephadm روی میزبان با SSH"]
+  end
+  subgraph R3["نگهداری و خواب"]
+    direction LR
+    g["_check_daemons<br/>_check_certificates"] --> h["_purge_deleted_services<br/>_check_for_moved_osds<br/>_retry_failed_operations"] --> i["_serve_sleep<br/>(بیدار با _kick_serve_loop<br/>پس از هر فرمان orch)"]
+  end
+  R1 ~~~ R2 ~~~ R3

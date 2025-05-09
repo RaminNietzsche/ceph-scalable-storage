@@ -1,0 +1,4 @@
+flowchart LR
+  A["تعریف هدف<br/>IOPS، تأخیر p99، پهنای باند"] --> B["خط پایه<br/>fio، rados bench، CBT"] --> C["یک تغییر"] --> D["سنجش دوباره<br/>همان بار و مدت"] --> E{"بهتر؟"}
+  E -- بله --> F["ثبت و حفظ<br/>(ceph config)"] --> C
+  E -- خیر --> G["بازگشت<br/>ceph config reset"] --> C

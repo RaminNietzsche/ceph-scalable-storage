@@ -1,0 +1,11 @@
+sequenceDiagram
+  participant C as کلاینت Swift
+  participant K as Keystone
+  participant G as radosgw
+  C->>K: احراز هویت (کاربر، رمز، پروژه)
+  K-->>C: توکن + catalog (endpoint: RGW)
+  C->>G: GET /swift/v1/AUTH_proj/container  X-Auth-Token
+  G->>K: اعتبارسنجی توکن (با کاربر سرویس)
+  K-->>G: پروژه و نقش‌ها
+  G->>G: ساخت خودکار کاربر RGW برای پروژه (اولین بار)
+  G-->>C: فهرست اشیاء

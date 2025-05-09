@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["۱. خارج کردن"]
+    direction LR
+    A["دیسک خراب<br/>osd.17 down"] --> B["ceph orch osd rm 17 --replace"] --> C["تخلیه‌ی PGها (اگر up)<br/>علامت destroyed؛ شناسه حفظ می‌شود"]
+  end
+  subgraph R2["۲. جایگزینی"]
+    direction LR
+    D["تعویض فیزیکی دیسک"] --> E["ceph orch device zap<br/>(اگر دیسک نو نیست)"] --> F["مشخصات سرویس OSD دیسک را می‌گیرد<br/>osd.17 با همان شناسه ساخته می‌شود"] --> G["backfill تا active+clean"]
+  end
+  R1 ~~~ R2

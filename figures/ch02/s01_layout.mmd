@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["فهرست‌های سطح pool"]
+    direction LR
+    d["rbd_directory<br/>omap: name_vm1 → id، id_… → name"] --- t["rbd_trash<br/>تصاویر حذف‌شده‌ی معلق"] --- c["rbd_children / rbd_info<br/>رابطه‌ی والد-فرزند، تنظیمات"]
+  end
+  subgraph R2["اشیای فراداده‌ی هر تصویر"]
+    direction LR
+    i["rbd_id.vm1<br/>محتوا: image id مثلاً 5e2a…"] --> h["rbd_header.5e2a…<br/>omap: size، order، features،<br/>object_prefix، snapshots، parent<br/>watchers: کلاینت‌های باز"] --> om["rbd_object_map.5e2a…<br/>۲ بیت برای هر شیء داده<br/>(+ .snapid برای هر snapshot)"]
+  end
+  subgraph R3["اشیای داده (در pool داده یا data-pool)"]
+    direction LR
+    o0["rbd_data.5e2a….0000000000000000<br/>بایت 0 تا 4MiB"] --- o1["rbd_data.5e2a….0000000000000001<br/>4MiB تا 8MiB"] --- on["… شماره‌ی ۱۶ رقمی hex<br/>فقط اشیای نوشته‌شده وجود دارند (thin)"]
+  end
+  R1 ~~~ R2 ~~~ R3

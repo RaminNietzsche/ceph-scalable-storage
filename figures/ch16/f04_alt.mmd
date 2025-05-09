@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph A1["لایه‌بندی در سطح pool با device class"]
+    direction LR
+    OSDS["OSDها: class hdd / ssd / nvme"] --> RULES["قانون‌های CRUSH جدا<br/>create-replicated ... class"] --> POOLS["pool سریع روی nvme<br/>pool ظرفیتی EC روی hdd"]
+  end
+  subgraph A2["لایه‌بندی درون OSD"]
+    direction LR
+    HDD["داده روی HDD"] --> DB["block.db / WAL روی NVMe<br/>(RocksDB و نوشتن‌های deferred)"]
+  end
+  subgraph A3["لایه‌بندی شیء در RGW"]
+    direction LR
+    STD["STANDARD: pool سریع"] --> LC["قانون lifecycle<br/>Transition پس از N روز"] --> COLD["STANDARD_IA / COLD: pool ظرفیتی<br/>یا cloud transition"]
+  end
+  A1 ~~~ A2 ~~~ A3

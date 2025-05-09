@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["queue_transactions → _txc_add_transaction → _write → _do_write"]
+    direction LR
+    p["STATE_PREPARE<br/>ساخت TransContext،<br/>تخصیص extent"] --> sm["_do_write_small<br/>(کمتر از min_alloc یا داخل blob)"] --- bg["_do_write_big<br/>(هم‌تراز با بلوک)"] --> aw["_do_alloc_write<br/>Allocator + checksum + فشرده‌سازی"]
+  end
+  subgraph R2["دو مسیر داده"]
+    direction LR
+    dir["مستقیم: aio به دستگاه<br/>STATE_AIO_WAIT → STATE_IO_DONE"] --- def["deferred: داده در WAL (پیشوند L)<br/>اندازه ≤ prefer_deferred_size<br/>(HDD 64K، SSD 0)"]
+  end
+  subgraph R3["commit"]
+    direction LR
+    kq["STATE_KV_QUEUED → kv_sync_thread:<br/>یک batch RocksDB + fsync"] --> ks["STATE_KV_SUBMITTED → STATE_KV_DONE<br/>(_txc_committed_kv → on_commit)"] --> dq["STATE_DEFERRED_QUEUED → DEFERRED_CLEANUP<br/>(نوشتن واقعی deferred بعداً)"] --> dn["STATE_FINISHING → STATE_DONE"]
+  end
+  R1 ~~~ R2 ~~~ R3

@@ -1,0 +1,17 @@
+flowchart TB
+  subgraph F1[" "]
+    direction LR
+    A["guest fstrim / blkdiscard / rbd sparsify"] --> B["ImageDiscardRequest: image extent -> object extents"] --> C{"skip_partial_discard true and no dirty cache?"}
+    C -- "no" --> C0["granularity 0: discard everything as asked"]
+  end
+  subgraph F2[" "]
+    direction LR
+    P["per object: offset roundup 64K, end align 64K"] --> Q{"offset >= end?"} -- "yes" --> S["drop extent (nothing freed)"]
+  end
+  subgraph F3[" "]
+    direction LR
+    R{"whole object?"} -- "yes" --> RM["remove (clone with parent: truncate or create+truncate)"]
+    R -- "no" --> T{"ends at object end?"} -- "yes" --> TT["truncate"]
+    T -- "no" --> Z["zero (BlueStore punches hole)"]
+  end
+  F1 --> F2 --> F3

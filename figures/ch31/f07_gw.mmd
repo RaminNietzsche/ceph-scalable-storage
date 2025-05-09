@@ -1,0 +1,17 @@
+flowchart TB
+  subgraph I["میزبان"]
+    direction LR
+    I1["nvme-cli / هسته<br/>nvme_tcp"] --> I2["ANA multipath<br/>مسیر optimized"]
+  end
+  subgraph G["درگاه NVMe-oF (کانتینر)"]
+    direction LR
+    G1["nvmf_tgt مربوط به SPDK<br/>TCP transport، reactorها"] --> G2["bdev_rbd<br/>rbd_aio_readv / writev"] --> G3["librbd + librados<br/>(threadهای خود Ceph)"]
+    G4["سرویس gRPC درگاه<br/>پیکربندی، وضعیت در omap"] --> G1
+    G5["NVMeofGwMonitorClient<br/>beacon به mon"] --> G4
+  end
+  subgraph C["خوشه"]
+    direction LR
+    C1["NVMeofGwMon در mon<br/>NVMeofGwMap: ANA و failover"] --> C2["OSDMap<br/>blocklist درگاه خراب"]
+    C3["OSDها<br/>تصاویر RBD"]
+  end
+  I --> G --> C

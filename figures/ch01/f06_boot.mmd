@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant A as مدیر
+  participant B as cephadm روی node1
+  participant M as MON + MGR
+  participant H as nodeهای دیگر
+  A->>B: cephadm bootstrap --mon-ip
+  B->>B: بررسی پیش‌نیازها، کشیدن image
+  B->>M: ساخت MON و MGR در کانتینر
+  B->>A: ceph.conf، keyring مدیر و کلید SSH
+  A->>H: ssh-copy-id با ceph.pub
+  A->>M: ceph orch host add
+  M->>H: استقرار daemonها از راه SSH
+  A->>M: ceph orch apply osd
+  M->>H: ceph-volume روی دیسک‌های آزاد

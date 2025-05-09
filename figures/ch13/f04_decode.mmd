@@ -1,0 +1,5 @@
+flowchart LR
+  R["read با shard 1 از دست رفته"] --> MTD["minimum_to_decode<br/>انتخاب k shard در دسترس"]
+  MTD --> RD["خواندن shardهای 0، 2، 3، 4"]
+  RD --> DEC["decode<br/>معکوس زیرماتریس"]
+  DEC --> OUT["بازسازی shard 1<br/>و برگرداندن داده"]

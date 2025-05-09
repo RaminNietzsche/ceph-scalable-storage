@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["بارگذاری کلاس"]
+    direction LR
+    A["نخستین CALL به کلاس X"] --> B{"X در osd_class_load_list؟"}
+    B -- خیر --> B2["رد: not permitted to load"]
+    B -- بله --> C["dlopen از osd_class_dir<br/>libcls_X.so"]
+    C --> D["اجرای __cls_init<br/>(CLS_INIT)"]
+  end
+  subgraph R2["ثبت متدها و مجوز"]
+    direction LR
+    E["cls_register + register_cxx_method<br/>نام، پرچم RD/WR/PROMOTE، تابع"] --> F{"X در osd_class_default_list؟"}
+    F -- بله --> G["allowed: برای caps عمومی مجاز"]
+    F -- خیر --> H["فقط با cap صریح class X"]
+  end
+  R1 ~~~ R2

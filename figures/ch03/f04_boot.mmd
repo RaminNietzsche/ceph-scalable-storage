@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant U as کاربر
+  participant N as Nova API
+  participant C as Cinder
+  participant R as Ceph RBD
+  participant H as nova-compute
+  U->>N: server create --boot-from-volume
+  N->>C: ساخت volume از image
+  C->>R: rbd clone images/img@snap volumes/vol
+  R-->>C: آماده (چند ثانیه)
+  N->>H: زمان‌بندی VM
+  H->>C: اطلاعات اتصال (rbd، pool، کاربر)
+  H->>H: XML libvirt با disk نوع network/rbd
+  H->>R: QEMU با librbd باز می‌کند

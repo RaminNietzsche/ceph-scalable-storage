@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["نوشتن جزئی 4K در EC قدیمی (overwrite)"]
+    direction LR
+    A["primary: خواندن کل stripe<br/>(k chunk)"] --> B["ادغام 4K جدید"] --> C["encode کامل<br/>m parity"] --> D["نوشتن 1 + m chunk"]
+  end
+  subgraph R2["EC بهینه (Tentacle، allow_ec_optimizations)"]
+    direction LR
+    E["خواندن فقط chunk قدیمی<br/>همان 4K"] --> F["delta = old ⊕ new"] --> G["parity' = parity ⊕ coef·delta<br/>(parity delta)"] --> H["نوشتن 1 + m chunk<br/>بدون خواندن بقیه"]
+  end
+  subgraph R3["خواندن کوچک"]
+    direction LR
+    I["قدیمی: خواندن از k shard<br/>و decode"] --> J["بهینه: خواندن مستقیم<br/>از یک shard داده"]
+  end
+  R1 ~~~ R2 ~~~ R3

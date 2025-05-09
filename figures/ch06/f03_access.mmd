@@ -1,0 +1,12 @@
+flowchart LR
+  subgraph CL["کلاینت‌ها"]
+    direction TB
+    K["لینوکس: kernel client<br/>mount -t ceph"]
+    F["لینوکس/مک: ceph-fuse<br/>libcephfs"]
+    N["هر سیستمی: NFS v4.1+"]
+    W["ویندوز/مک: SMB"]
+  end
+  K --> FS[("CephFS")]
+  F --> FS
+  N --> G["NFS-Ganesha<br/>ماژول nfs + ingress"] --> FS
+  W --> SM["Samba<br/>ماژول smb (Tentacle)"] --> FS

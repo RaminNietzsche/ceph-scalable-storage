@@ -1,0 +1,14 @@
+flowchart LR
+  subgraph A["zone eu-1"]
+    direction TB
+    CA["کلاینت: PUT"] --> RA["RGW"]
+    RA --> DA[("data")]
+    RA --> LA[("datalog + bilog<br/>در pool log")]
+  end
+  subgraph B["zone eu-2"]
+    direction TB
+    RB["RGW (sync)"] --> DB[("data")]
+  end
+  LA -->|"۱. خواندن تغییرات"| RB
+  RB -->|"۲. GET شیء از endpoint"| RA
+  MD["metadata log<br/>فقط در master zone"] -.->|"کاربران و bucketها"| RB

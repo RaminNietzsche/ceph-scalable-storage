@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["سطح کنترل"]
+    direction LR
+    A["ceph orch<br/>apply, ls, ps, rm"] --> B["cephadm در MGR<br/>تطبیق وضعیت مطلوب"]
+  end
+  subgraph R2["روی هر میزبان (از طریق SSH)"]
+    direction LR
+    C["cephadm روی میزبان<br/>deploy, logs"] --> D["systemd<br/>ceph-FSID@osd.3"] --> E["podman/docker<br/>کانتینر daemon"]
+  end
+  R1 ~~~ R2

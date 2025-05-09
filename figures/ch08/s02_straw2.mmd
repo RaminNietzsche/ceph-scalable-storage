@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph S1["۱. برای هر آیتم i در bucket"]
+    direction LR
+    a["u = hash(x, id_i, r) & 0xffff<br/>عدد شبه‌تصادفی در [0, 65535]"] --> b["ln = crush_ln(u) − 2^48<br/>تقریب ln(u/65536) ≤ 0 با جدول"] --> c["draw_i = ln / weight_i<br/>(وزن 16.16 ممیز ثابت)"]
+  end
+  subgraph S2["۲. انتخاب"]
+    direction LR
+    d["آیتم با بیشترین draw<br/>(نزدیک‌ترین به صفر)"] --> e["معادل کمینه‌ی (−ln U)/w:<br/>توزیع نمایی با نرخ w"] --> f["P(انتخاب i) = w_i / Σw"]
+  end
+  subgraph S3["۳. پیامد"]
+    direction LR
+    g["تغییر وزن یک آیتم فقط draw همان آیتم را عوض می‌کند"] --> h["جابه‌جایی داده فقط به/از همان آیتم<br/>(حداقل جابه‌جایی)"]
+  end
+  S1 ~~~ S2 ~~~ S3

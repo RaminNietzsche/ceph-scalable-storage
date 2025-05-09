@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["krbd / ceph.ko (هسته)"]
+    direction LR
+    A["libceph: messenger، osd_client،<br/>mon_client، CRUSH، auth_x"] --> B["بدون librados؛<br/>پیاده‌سازی جدا در C"] --> C["ویژگی‌ها محدود به RBD_FEATURES_SUPPORTED"]
+  end
+  subgraph R2["librbd / ceph-fuse (فضای کاربر)"]
+    direction LR
+    D["librados + Objecter + AsyncMessenger"] --> E["کش librbd، journaling،<br/>mirroring، QoS"] --> F["ارتقا بدون reboot"]
+  end
+  R1 ~~~ R2

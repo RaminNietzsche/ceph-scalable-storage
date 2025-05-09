@@ -1,0 +1,16 @@
+flowchart TB
+  subgraph R1[۱. نامزدها]
+    direction LR
+    a[get_candidates: hosts، label یا host_pattern] --> b[فیلتر شبکه و filter_new_host] --> c[sorted سپس shuffle با seed از sha1 نام سرویس]
+  end
+  subgraph R2[۲. گسترش و تطبیق]
+    direction LR
+    d["تعداد شکاف هر میزبان: count_per_host، یا ceil(count / n) وقتی هم‌مکانی مجاز است"] --> e[daemonهای موجود: active، رتبه‌دار، rank کم، نسل جدید] --> f[هر daemon موجود اولین شکاف سازگار را می‌گیرد وگرنه to_remove]
+  end
+  subgraph R3[۳. کمبود یا مازاد]
+    direction LR
+    g[need = count − موجود] --> h{need منفی؟}
+    h -- بله --> i[حذف از میزبان‌های بدون سرویس مرتبط، سپس بقیه]
+    h -- خیر --> j[اول میزبان‌های سرویس مرتبط، سپس others به ترتیب shuffle، بدون میزبان offline یا blocking]
+  end
+  R1 --> R2 --> R3

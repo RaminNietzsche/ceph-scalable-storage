@@ -1,0 +1,9 @@
+flowchart TB
+  OSD["OSD: تراکنش RADOS"] --> BS["BlueStore"]
+  BS -->|"داده"| ALLOC["Allocator<br/>فضای آزاد دستگاه block"]
+  BS -->|"فراداده: onode، extent، omap"| RDB["RocksDB"]
+  RDB --> BFS["BlueFS<br/>فایل‌سیستم کوچک مخصوص RocksDB"]
+  BFS --> WAL[("block.wal")]
+  BFS --> DB[("block.db")]
+  ALLOC --> BLK[("block (داده)")]
+  BFS -.->|"سرریز در صورت پر شدن DB"| BLK

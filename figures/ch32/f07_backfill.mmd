@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph L["primary: backfill_info (اسکن 64 تا 512 شیء)"]
+    direction LR
+    l1["obj A v10"] --> l2["obj B v12"] --> l3["obj D v7"] --> l4["obj E v20"]
+  end
+  subgraph R["هدف backfill: peer_backfill_info"]
+    direction LR
+    r1["obj A v10"] --> r2["obj B v9"] --> r3["obj C v3"] --> r4["(last_backfill = D)"]
+  end
+  subgraph O["خروجی ادغام مرتب (به ترتیب hobject)"]
+    direction LR
+    o1["A: نسخه برابر ⇒ keep"] --> o2["B: نسخه متفاوت ⇒ push"] --> o3["C: فقط روی هدف ⇒ remove"] --> o4["D، E: پس از last_backfill ⇒ push (missing_targs)"]
+  end
+  L ~~~ R ~~~ O

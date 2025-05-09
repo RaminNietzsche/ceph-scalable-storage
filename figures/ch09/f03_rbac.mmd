@@ -1,0 +1,7 @@
+flowchart TB
+  U1["کاربر: ops-alice"] --> R1["نقش: cluster-manager"]
+  U2["کاربر: dev-bob"] --> R2["نقش: block-manager"]
+  U3["کاربر: noc"] --> R3["نقش: read-only"]
+  R1 --> S1["scopeها: hosts، osd، monitor، manager، config-opt، log"]
+  R2 --> S2["scopeها: rbd-image، rbd-mirroring، iscsi، pool"]
+  R3 --> S3["خواندن همه‌ی scopeها<br/>به جز تنظیمات حساس"]
