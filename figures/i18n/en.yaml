@@ -1,0 +1,2785 @@
+# Mermaid label strings for the en edition; see tools/translate_figures.py
+ch01/f01_stack:
+  مصرف‌کنندگان: null
+  ماشین مجازی: null
+  دیسک بلوکی: null
+  برنامه‌ی وب: null
+  پشتیبان‌گیری: null
+  و: null
+  سرور فایل: null
+  فایل‌سیستم: null
+  برنامه‌ی سفارشی: null
+  دسترسی مستقیم: null
+  رابط‌ها: null
+  دروازه‌ی شیء: null
+  کلاینت: null
+  لایه‌ی ذخیره‌سازی توزیع‌شده و خودترمیم: null
+  نقشه‌ها و اجماع: null
+  پایش و ماژول‌ها: null
+  ها: null
+  داده روی دیسک: null
+  فراداده‌ی: null
+ch01/f02_raid:
+  سنتی: null
+  بازسازی چند به یک: null
+  دیسک ۱: null
+  دیسک یدک: null
+  گلوگاه نوشتن: null
+  دیسک ۲: null
+  دیسک ۳: null
+  دیسک خراب: null
+  بازیابی چند به چند: null
+  خراب: null
+  صدها: null
+  پخش‌شده: null
+  زمان بازسازی: null
+  ساعت‌ها تا روزها: null
+ch01/f03_daemons:
+  کلاینت: null
+  سرویس‌های کنترلی: null
+  فعال: null
+  آماده‌به‌کار: null
+  سرویس‌های داده: null
+  دریافت نقشه‌ها: null
+  خواندن و نوشتن مستقیم: null
+  تکثیر و: null
+  گزارش وضعیت: null
+ch01/f04_place:
+  شیء: null
+  نام: null
+  مثلاً: null
+  ، نقشه، قاعده: null
+  مجموعه‌ی عمل: null
+  اصلی: null
+ch01/f05_lab:
+  مرحله‌ی گسترش: null
+  شبکه‌ی عمومی: null
+  شبکه‌ی کلاستر: null
+  اختیاری: null
+ch01/f06_boot:
+  مدیر: null
+  روی: null
+  های دیگر: null
+  بررسی پیش‌نیازها، کشیدن: null
+  ساخت: null
+  و: null
+  در کانتینر: null
+  مدیر و کلید: null
+  با: null
+  استقرار: null
+  ها از راه: null
+  روی دیسک‌های آزاد: null
+ch01/f07_planning:
+  نیاز کسب‌وکار: null
+  نوع بار کاری؟: null
+  بالا، تأخیر کم: null
+  روی: null
+  تکثیر ۳تایی: null
+  حجم زیاد، دسترسی ترتیبی: null
+  یا: null
+  فایل اشتراکی: null
+  فراداده روی: null
+  دامنه‌ی خرابی: null
+  حداقل ۳ یا: null
+  میزبان: null
+  توزیع روی رک‌ها: null
+  شبکه: null
+  ۲۵ گیگ به بالا،: null
+  یکسان: null
+  ظرفیت: null
+  داده: null
+  سربار: null
+  نسبت پرشدگی هدف: null
+ch01/s01_layers:
+  لایه‌ی منطقی: null
+  شیء: null
+  مثلاً: null
+  لایه‌ی نگاشت: null
+  اثر دارد: null
+  لایه‌ی فیزیکی: null
+  روی هر: null
+  در: null
+  پیشوند: null
+  روی دیسک خام: null
+ch01/s02_kv:
+  داخل: null
+  پیشوندهای کلید: null
+  آمار: null
+  نام شیء: null
+  کلید: null
+  ادامه: null
+  نوشتن‌های کوچک در صف: null
+  های مشترک بین: null
+  در: null
+  شیء: null
+  تشخیص درخواست تکراری: null
+  برای: null
+ch02/f01_rbd_objects:
+  اندازه‌ی منطقی ۱۰۰ گیگابایت: null
+  فراداده: null
+  اندازه، ویژگی‌ها،: null
+  ها: null
+  و: null
+  نام: null
+  شناسه: null
+  اشیای داده‌ی ۴ مگابایتی: null
+  فقط بخش‌های نوشته‌شده: null
+  شیء دارند: null
+  کدام اشیاء وجود دارند: null
+ch02/f02_clients:
+  فضای کاربر: null
+  دروازه‌ی: null
+  هسته‌ی لینوکس: null
+  میزبان بدون: null
+  ، ویندوز: null
+ch02/f03_snapclone:
+  والد: null
+  روی والد: null
+  مستقل: null
+  بدون وابستگی: null
+ch02/f04_mirror_modes:
+  حالت: null
+  نوشتن کلاینت: null
+  در: null
+  محلی: null
+  راه دور: null
+  بازپخش رویدادها: null
+  زمان‌بندی‌شده: null
+  کپی تفاضل: null
+ch02/f05_mirror_topo:
+  اصلی: null
+  کلاینت‌ها: null
+  برای جهت معکوس: null
+  پشتیبان: null
+  خواندن تغییرات: null
+  پس از: null
+ch02/f06_failover:
+  اپراتور: null
+  حالت عادی: null
+  اصلی،: null
+  ثانوی: null
+  در: null
+  برنامه‌ریزی‌شده: null
+  آخرین تغییرات همگام می‌شود: null
+  کلاینت‌ها به: null
+  وصل می‌شوند: null
+  سانحه: null
+  از دسترس خارج است: null
+  پس از بازگشت: null
+  همگام‌سازی کامل: null
+ch02/s01_layout:
+  فهرست‌های سطح: null
+  تصاویر حذف‌شده‌ی معلق: null
+  رابطه‌ی والد: null
+  فرزند، تنظیمات: null
+  اشیای فراداده‌ی هر تصویر: null
+  محتوا: null
+  مثلاً: null
+  کلاینت‌های باز: null
+  ۲ بیت برای هر شیء داده: null
+  برای هر: null
+  اشیای داده: null
+  در: null
+  داده یا: null
+  بایت: null
+  تا: null
+  شماره‌ی ۱۶ رقمی: null
+  فقط اشیای نوشته‌شده وجود دارند: null
+ch02/s02_lock:
+  کلاینت: null
+  مالک فعلی: null
+  نوشتن جدید: null
+  قفل: null
+  مالک: null
+  سالم است و: null
+  اجازه می‌دهد: null
+  و آزادسازی: null
+  مرده است: null
+  ندارد: null
+  و: null
+  آدرس: null
+  باز کردن: null
+ch03/f01_map:
+  ها: null
+  دیسک موقت: null
+  اشتراک فایل: null
+ch03/f02_cow:
+  کاربر: null
+  ساخت: null
+  از: null
+  روی: null
+ch03/f03_auth:
+  گره کنترلی: null
+  گره محاسباتی: null
+  کلید: null
+ch03/f04_boot:
+  کاربر: null
+  ساخت: null
+  از: null
+  آماده: null
+  چند ثانیه: null
+  زمان‌بندی: null
+  اطلاعات اتصال: null
+  ، کاربر: null
+  با: null
+  نوع: null
+  باز می‌کند: null
+ch03/f07_omstates:
+  ساخت: null
+  یا: null
+  پیش از نخستین نوشتن: null
+  به‌روزرسانی: null
+  قبل از: null
+  نوشتن پس از: null
+  ، همه‌ی: null
+  ها در: null
+  شیء: null
+  پیش از حذف: null
+  پس از موفقیت حذف: null
+ch03/s01_copyup:
+  نوشتن روی شیء فرزند: null
+  روی تصویر: null
+  مثلاً دیسک: null
+  از: null
+  آیا شیء فرزند: null
+  وجود دارد؟: null
+  بله: null
+  نوشتن مستقیم: null
+  بدون والد: null
+  خیر: null
+  خواندن کل محدوده‌ی شیء از: null
+  والد: null
+  فقط اگر: null
+  و: null
+  فرزند: null
+  حالت شیء در: null
+  ها: null
+  نوشتن اتمیک روی: null
+  یک: null
+  یا: null
+  داده‌ی والد، فقط اگر شیء هنوز نیست: null
+  کاربر: null
+  اجرای: null
+  درخواست‌های منتظر روی همان شیء: null
+ch03/s02_openstack:
+  تصویر: null
+  در: null
+  باید: null
+  شود؛: null
+  نیازی ندارد: null
+  یا: null
+  از: null
+  از همان: null
+  صدها: null
+  بدون کپی داده: null
+  پیامد عملیاتی: null
+  خواندن بلوک‌های نوشته‌نشده: null
+  از والد: null
+  اولین نوشتن روی هر شیء: null
+  قطع وابستگی: null
+  و مصرف کامل فضا: null
+ch04/f01_arch:
+  سرویس: null
+  روی: null
+  تکثیری یا: null
+ch04/f02_object:
+  ۲۰ مگابایت: null
+  ۴ مگابایت اول: null
+  فراداده: null
+  ورودی: null
+  در: null
+  اندازه،: null
+  ، زمان: null
+ch04/f03_tenancy:
+  از: null
+  مالک منابع: null
+  قدیمی‌تر: null
+  فضای نام: null
+  ها: null
+  کلید: null
+ch04/f04_keystone:
+  کلاینت: null
+  احراز هویت: null
+  کاربر، رمز، پروژه: null
+  توکن: null
+  اعتبارسنجی توکن: null
+  با کاربر سرویس: null
+  پروژه و نقش‌ها: null
+  ساخت خودکار کاربر: null
+  برای پروژه: null
+  اولین بار: null
+  فهرست اشیاء: null
+ch04/f05_placement:
+  روی: null
+  تکثیری: null
+  با: null
+  قاعده‌ی: null
+  پس از ۳۰ روز: null
+  پس از ۳۶۵ روز: null
+  حذف: null
+  ذخیره‌سازی ابری بیرونی: null
+ch04/s01_put:
+  کلاینت: null
+  شارد: null
+  داده: null
+  نام شیء: null
+  شماره‌ی شارد: null
+  نوشتن: null
+  اول: null
+  هر ۴: null
+  ، اندازه،: null
+  ثبت در: null
+  برای: null
+  اگر: null
+  بین: null
+  و: null
+  بمیرد، ورودی: null
+  بعداً با: null
+  یا: null
+  پاک می‌شود: null
+ch04/s02_layout:
+  مثلاً: null
+  نام شیء: null
+  پیش‌فرض ۱۱: null
+  پویا بالای ۱۰۰٬۰۰۰ شیء در هر شارد: null
+  داده: null
+  تا: null
+  هر کدام: null
+  هر: null
+  یک شیء؛: null
+  فقط: null
+  می‌سازد: null
+  حذف: null
+  بازنویسی: null
+  به صف: null
+  با: null
+ch05/f01_hier:
+  فضای نام سراسری: null
+  فضای نام مشترک: null
+  ها: null
+  کلاستر: null
+  الف: null
+  ب: null
+  ج: null
+  های: null
+ch05/f02_evolution:
+  فرایند جداگانه،: null
+  فعال: null
+  فقط‌خواندنی: null
+  به بعد: null
+  همگام‌سازی درون: null
+  همه‌ی: null
+  ها نوشتنی: null
+  بازطراحی: null
+ch05/f03_sync:
+  کلاینت: null
+  در: null
+  خواندن تغییرات: null
+  شیء از: null
+  فقط در: null
+  کاربران و: null
+  ها: null
+ch05/f04_setup:
+  کلاستر اصلی: null
+  کلاستر ثانوی: null
+  استقرار: null
+  برای: null
+  اصلی: null
+  با کلید: null
+  ثانوی: null
+  همگام‌سازی کامل: null
+  سپس همگام‌سازی افزایشی: null
+ch05/f05_failover:
+  حالت عادی: null
+  فراداده: null
+  در دسترس نیست: null
+  خرابی کوتاه: null
+  صبر؛ نوشتن داده در: null
+  ادامه دارد: null
+  فقط ساخت: null
+  و: null
+  متوقف است: null
+  خرابی طولانی: null
+  در: null
+  بازگشت: null
+  و در صورت نیاز: null
+  را برگردانید: null
+ch05/s01_logs:
+  مبدأ: null
+  هر نوشتن سه ردپا می‌گذارد: null
+  شیء: null
+  در شارد: null
+  ، همراه: null
+  شارد: null
+  از: null
+  تغییر کرد»: null
+  پنجره‌ی ادغام: null
+  ساخت: null
+  کاربر: null
+  فقط: null
+  مقصد: null
+  سه لایه: null
+  خواندن: null
+  برای هر شارد: null
+  و کپی شیء: null
+  کپی خود داده: null
+  نوشتن محلی: null
+  ثبت در: null
+  با حفظ: null
+  مبدأ برای جلوگیری از حلقه: null
+  به‌روزرسانی: null
+  در: null
+  شیء وضعیت: null
+ch05/s02_states:
+  ساخت اشیای وضعیت هر شارد: null
+  فهرست کردن همه‌ی: null
+  های: null
+  مبدأ در: null
+  هر شارد مستقل جلو می‌رود: null
+  هر شارد: null
+  در: null
+  پیمایش: null
+  همگام‌سازی کامل هر: null
+  خواندن: null
+  از: null
+  هر: null
+  خطا: null
+  بعدی: null
+  هماهنگی بین چند: null
+  مقصد: null
+  روی شیء وضعیت: null
+  لاگ‌های مبدأ: null
+  تا کمترین: null
+  همه‌ی: null
+  ها: null
+ch06/f01_arch:
+  کلاینت: null
+  یا: null
+  فراداده: null
+  ، قفل و: null
+  فعال: null
+  داده: null
+  خواندن و نوشتن مستقیم اشیاء: null
+  و: null
+  ها: null
+  روی: null
+  آماده‌به‌کار: null
+  دنبال کردن: null
+ch06/f02_multi_mds:
+  توزیع‌شده: null
+  زیرپوشه‌ها بین: null
+  ها پخش: null
+ch06/f03_access:
+  کلاینت‌ها: null
+  لینوکس: null
+  مک: null
+  هر سیستمی: null
+  ویندوز: null
+  ماژول: null
+ch06/f04_subvol:
+  یک فایل‌سیستم: null
+  اختیاری: null
+  و: null
+ch06/f05_caps:
+  کلاینت: null
+  نوشتن: null
+  نوشتن در: null
+  محلی: null
+  فراخوانی: null
+  داده به: null
+  ها: null
+  آزاد کردن: null
+  خواندن: null
+ch06/s01_caps:
+  ساختار یک: null
+  پیشوند: null
+  بیت‌های عمومی: null
+  در کش کلاینت نگه داشته شود: null
+  محتوا، اندازه،: null
+  روی هر پیشوند: null
+  خواندن فراداده: null
+  تغییر محلی: null
+  کش خواندن: null
+  بافر نوشتن: null
+  نمونه‌های نمادین: null
+  خروجی واقعی بسته به وضعیت متفاوت است: null
+  خواننده‌ی عادی: null
+  تنها نویسنده: null
+  کش: null
+  بافر کامل: null
+  دو نویسنده‌ی هم‌زمان: null
+  بدون: null
+  و: null
+  هم‌گام با: null
+ch06/s02_journal:
+  درخواست فراداده: null
+  مثلاً: null
+  کلاینت: null
+  فعال: null
+  قفل‌ها: null
+  به‌روزرسانی کش: null
+  در: null
+  روی: null
+  پایداری: null
+  حداکثر: null
+  پاسخ: null
+  به کلاینت: null
+  پس از: null
+  نوشتن: null
+  ها در اشیای: null
+  شکست: null
+  دنبال: null
+  کلاینت‌ها: null
+  ها را دوباره اعلام می‌کنند: null
+ch07/f01_layers:
+  سطح کنترل: null
+  در: null
+  تطبیق وضعیت مطلوب: null
+  روی هر میزبان: null
+  از طریق: null
+  روی میزبان: null
+  کانتینر: null
+ch07/f02_config:
+  اولویت از کم به زیاد: null
+  پیش‌فرض کامپایل‌شده: null
+  پایگاه پیکربندی: null
+  محلی: null
+  حداقلی: null
+  ادامه: null
+  آرگومان خط فرمان: null
+  تغییر زمان اجرا: null
+  مقدار مؤثر: null
+ch07/f03_replace:
+  دیسک خراب: null
+  آیا داده بازیابی شده؟: null
+  خیر: null
+  صبر تا: null
+  یا اولویت‌دهی: null
+  بله: null
+  تعویض فیزیکی دیسک: null
+  دیسک تازه را می‌بیند: null
+  و: null
+  را با همان: null
+  می‌سازد: null
+  به: null
+  تازه: null
+ch07/f04_upgrade:
+  گام ۱: null
+  صفحه‌ی کنترل: null
+  پیش‌بررسی: null
+  ها: null
+  و: null
+  گام ۲: null
+  داده و دروازه‌ها: null
+  گره یا: null
+  به ترتیب: null
+  پایش: null
+  پس از ارتقا: null
+ch07/f05_scale:
+  بزرگ‌تر کردن گره‌ها: null
+  ۴ گره: null
+  ۱۲ دیسک: null
+  ۲۴ دیسک: null
+  افزودن گره: null
+  ۸ گره: null
+ch07/s01_paxos:
+  کمترین: null
+  در: null
+  بازیابی پس از انتخابات: null
+  جدید،: null
+  مقادیر پذیرفته‌ی ناتمام: null
+  اگر مقدار ناتمامی هست، دوباره پیشنهاد می‌شود: null
+  هر تغییر نقشه: null
+  ذخیره‌ی مقدار پیشنهادی: null
+  ، نسخه‌ی: null
+  پس از: null
+  همه‌ی: null
+  اجازه‌ی خواندن تا: null
+ch07/s02_service:
+  دریافت فرمان: null
+  فقط‌خواندنی؟: null
+  بله: null
+  پاسخ فوری: null
+  از نقشه‌ی فعلی: null
+  تغییر: null
+  اعمال روی: null
+  تأخیر: null
+  برای دسته‌بندی تغییرات: null
+  پس از: null
+  بارگذاری: null
+  جدید: null
+  انتشار: null
+  به مشترکان: null
+  ، کلاینت: null
+  پاسخ به فرمان‌دهنده: null
+ch08/f01_place:
+  شیء: null
+  مجموعه‌ی: null
+ch08/f03_maps:
+  کلاینت‌ها: null
+  دریافت نقشه‌ها: null
+  و: null
+  ها: null
+  ها با اجماع: null
+  گزارش خرابی همتا: null
+  و آمار: null
+  آمار: null
+  داشبورد و ماژول‌ها: null
+  انتشار نقشه‌ی جدید: null
+  بین همتاها: null
+  های دیگر: null
+ch08/f04_cephx:
+  کلاینت: null
+  درخواست احراز هویت: null
+  نام کاربر: null
+  چالش رمز‌شده با کلید مشترک: null
+  پاسخ صحیح به چالش: null
+  کلید جلسه: null
+  با زمان انقضا: null
+  درخواست: null
+  همراه: null
+  بررسی: null
+  با کلید سرویس: null
+  بدون تماس با: null
+  پاسخ: null
+ch08/f05_write:
+  کلاینت: null
+  اصلی: null
+  ثانویه ۱: null
+  ثانویه ۲: null
+  تکثیر موازی: null
+  تکرار نوشتن: null
+  در: null
+  پس از: null
+  همه‌ی نسخه‌ها: null
+ch08/f06_pgstates:
+  بازیابی: null
+  ، کپی کامل: null
+  نسخه‌ی کافی نیست: null
+  ناسازگاری: null
+ch08/s01_obj2osd:
+  شیء به: null
+  کلاینت،: null
+  نام شیء: null
+  یا: null
+  پیش‌فرض: null
+  به: null
+  پس‌پردازش: null
+  حذف: null
+  های: null
+  اعمال: null
+  و: null
+ch08/s02_straw2:
+  برای هر آیتم: null
+  در: null
+  عدد شبه‌تصادفی در: null
+  تقریب: null
+  با جدول: null
+  وزن: null
+  ممیز ثابت: null
+  انتخاب: null
+  آیتم با بیشترین: null
+  نزدیک‌ترین به صفر: null
+  معادل کمینه‌ی: null
+  توزیع نمایی با نرخ: null
+  پیامد: null
+  تغییر وزن یک آیتم فقط: null
+  همان آیتم را عوض می‌کند: null
+  جابه‌جایی داده فقط به: null
+  از همان آیتم: null
+  حداقل جابه‌جایی: null
+ch08/s03_cephx:
+  کلاینت: null
+  نام: null
+  پاسخ: null
+  با کلید مشترک: null
+  رمزشده با کلید کلاینت: null
+  احراز: null
+  رمزشده با کلید: null
+  درخواست: null
+  سرویس: null
+  رمزشده با: null
+  کلیدهای چرخشی را با: null
+  از: null
+  می‌گیرد: null
+  رمزگشایی: null
+  با: null
+  ؛ بررسی انقضا و: null
+  اثبات دو طرفه: null
+ch08/s04_msgr2:
+  اندازه‌ی ثابت،: null
+  جدا: null
+  برای هر: null
+  و: null
+  ها: null
+  پیام: null
+  هم‌تراز برای: null
+  و حالت‌ها: null
+  هر: null
+  رمز و احراز صحت هر: null
+  اختیاری: null
+  پس از: null
+ch09/f01_history:
+  نسل اول: null
+  ابزارهای جدا: null
+  آخرین نسخه: null
+  نسل دوم: null
+  درون: null
+  ، فقط‌خواندنی: null
+  جدید: null
+  بر پایه‌ی: null
+  و: null
+ch09/f02_arch:
+  مرورگر: null
+  اختیاری: null
+  با: null
+  ماژول: null
+  در: null
+  فعال: null
+  و: null
+  کلاستر: null
+ch09/f03_rbac:
+  کاربر: null
+  نقش: null
+  ها: null
+  خواندن همه‌ی: null
+  به جز تنظیمات حساس: null
+ch09/f04_workflow:
+  روز صفر: null
+  افزودن میزبان: null
+  و: null
+  ها با: null
+  روز یک: null
+  کاربران و نقش‌ها: null
+  روز دو: null
+  پایش و هشدارها: null
+  ارتقا و نگهداری: null
+ch09/f07_authz:
+  احراز هویت درخواست: null
+  سرآیند: null
+  یا کوکی: null
+  امضا و: null
+  معتبر؟: null
+  پیش‌فرض: null
+  خیر: null
+  بله: null
+  در: null
+  خروج قبلی: null
+  ؟: null
+  مجوز: null
+  کنترلر: null
+  مثلاً: null
+  متد: null
+  هیچ نقشی همه‌ی مجوزها را: null
+  یک‌جا ندارد: null
+  یک نقش کافی است: null
+  اجرای: null
+ch09/s01_mgr:
+  فرایند: null
+  به: null
+  ، انتظار برای: null
+  شدن: null
+  اشتراک نقشه‌ها: null
+  دریافت: null
+  از: null
+  و: null
+  میزبانی پایتون: null
+  کشف و بارگذاری ماژول‌ها: null
+  هر ماژول: null
+  یک: null
+  برای: null
+  ماژول پایتون: null
+  فرمان: null
+  حلقه‌ی پس‌زمینه: null
+  رویداد نقشه: null
+ch10/f01_layers:
+  لایه‌ی ۱: null
+  سخت‌افزار خام: null
+  روی دیسک خام: null
+  بین گره‌ها: null
+  لایه‌ی ۲: null
+  لایه‌ی ۳: null
+  رابط‌ها: null
+  و: null
+  با: null
+  یا: null
+  روی: null
+  لایه‌ی ۴: null
+  بار واقعی: null
+  بار برنامه یا: null
+ch10/f02_asok:
+  اپراتور: null
+  از هر جای کلاستر: null
+  شبکه: null
+  فقط روی همان میزبان: null
+ch10/f03_fio:
+  مستقیم: null
+  روی: null
+  یا: null
+  روی فایل در: null
+  کلاستر: null
+ch10/f04_cot:
+  مرحله‌ی ۱: null
+  آماده‌سازی: null
+  خراب یا: null
+  گم‌شده: null
+  توقف: null
+  مرحله‌ی ۲: null
+  نجات: null
+  پشتیبان از: null
+  روی: null
+  متوقف دیگر: null
+  راه‌اندازی و: null
+  بررسی: null
+ch10/s01_bench:
+  مسیر: null
+  فرمان: null
+  به: null
+  بررسی محدودیت‌ها: null
+  کوچک: null
+  بزرگ: null
+  روی: null
+  مستقیم به: null
+  بدون شبکه، بدون: null
+  ، بدون تکثیر: null
+  هم‌زمانی: null
+  پیش‌فرض: null
+  اشیای: null
+  متادیتا در: null
+  برای: null
+  بعدی؛ با: null
+  هر ثانیه: null
+  هنگام بوت: null
+  اگر: null
+  اجرای: null
+  کوتاه: null
+  مقایسه با آستانه‌ها: null
+  ثبت: null
+  در: null
+  با: null
+ch11/f01_tools:
+  دیروز: null
+  آرشیو شده: null
+  نگهداری محدود؛ توصیه به مهاجرت: null
+  امروز: null
+  سرورهای فیزیکی و: null
+  درون: null
+  آماده‌سازی میزبان‌ها: null
+ch11/f02_lab:
+  میزبان آزمایشگاه: null
+  ۳ دیسک مجازی: null
+  شبکه‌ی: null
+ch11/f03_loop:
+  در: null
+  وضعیت مطلوب: null
+  مقایسه‌ی دوره‌ای: null
+  وضعیت واقعی: null
+  ها روی میزبان‌ها: null
+  اختلاف؟: null
+  یا: null
+ch11/f04_rook:
+  کلاستر: null
+  تطبیق: null
+  ها: null
+  های: null
+  و: null
+  های برنامه: null
+ch11/f05_gitops:
+  تغییر: null
+  بازبینی همکار: null
+  و: null
+  اعمال: null
+  در پنجره‌ی تغییر: null
+  بررسی: null
+  و هشدارها: null
+ch11/f08_upgrade:
+  ، با: null
+  خود: null
+  ، دسته‌ای با: null
+  و حداکثر: null
+  ادامه‌ی: null
+  و ۳: null
+  پایش و ۵: null
+  های جداگانه: null
+ch11/f10_placeflow:
+  نامزدها: null
+  یا: null
+  فیلتر شبکه و: null
+  سپس: null
+  با: null
+  از: null
+  نام سرویس: null
+  گسترش و تطبیق: null
+  تعداد شکاف هر میزبان: null
+  ، یا: null
+  وقتی هم‌مکانی مجاز است: null
+  های موجود: null
+  ، رتبه‌دار،: null
+  کم، نسل جدید: null
+  هر: null
+  موجود اولین شکاف سازگار را می‌گیرد وگرنه: null
+  کمبود یا مازاد: null
+  موجود: null
+  منفی؟: null
+  بله: null
+  حذف از میزبان‌های بدون سرویس مرتبط، سپس بقیه: null
+  خیر: null
+  اول میزبان‌های سرویس مرتبط، سپس: null
+  به ترتیب: null
+  ، بدون میزبان: null
+ch11/s01_serve:
+  یک دور حلقه: null
+  درخواستی: null
+  هم‌گرایی وضعیت مطلوب: null
+  برای هر: null
+  افزودن: null
+  حذف: null
+  اجرای: null
+  روی میزبان با: null
+  نگهداری و خواب: null
+  بیدار با: null
+  پس از هر فرمان: null
+ch12/f01_stack:
+  منسوخ: null
+  جدا: null
+  نوشتن دوباره: null
+  فایل‌سیستم: null
+  دیسک: null
+  داده مستقیم روی دستگاه خام: null
+  روی: null
+  فراداده: null
+ch12/f02_internals:
+  تراکنش: null
+  داده: null
+  فضای آزاد دستگاه: null
+  فراداده: null
+  فایل‌سیستم کوچک مخصوص: null
+  سرریز در صورت پر شدن: null
+ch12/f03_write:
+  نوشتن ورودی: null
+  اندازه کوچک‌تر از: null
+  آستانه‌ی: null
+  ؟: null
+  بله: null
+  ثبت داده در: null
+  و: null
+  سریع: null
+  نوشتن بعدی روی: null
+  در پس‌زمینه: null
+  خیر: null
+  نوشتن داده در فضای تازه‌ی: null
+  فراداده در: null
+ch12/f04_devices:
+  گره با ۱۲: null
+  و ۲: null
+  برای: null
+  روی: null
+ch12/f05_migrate:
+  قدیمی: null
+  یا چیدمان نادرست: null
+  کردن و: null
+  تخلیه یا: null
+  دیسک: null
+  ساخت: null
+  تازه: null
+  با: null
+  جدید: null
+  و: null
+  بعدی: null
+ch12/f06_txc:
+  مسیر داده: null
+  ساخت: null
+  داده: null
+  بدون: null
+  فراداده در: null
+  به: null
+  ؛: null
+  اعمال: null
+  و پایان: null
+  روی: null
+  حذف کلید: null
+ch12/f07_kv:
+  فضای کلید: null
+  در: null
+  پیشوندها: null
+  ، نسخه،: null
+  نام شیء: null
+  های: null
+  کلاسیک،: null
+  مجموعه‌ی: null
+  نوار: null
+  فضای آزاد: null
+  برای: null
+  و: null
+  های پیش‌فرض: null
+ch12/f08_onode:
+  در حافظه: null
+  ، فشرده‌سازی: null
+  روی: null
+  در: null
+  مشترک: null
+ch12/f09_hybrid:
+  درخت بازه‌های آزاد: null
+  تا سقف حافظه: null
+  کافی است: null
+  برگرداندن: null
+  ها: null
+  کافی نیست: null
+  بازه‌های سرریز‌شده: null
+  سقف حافظه‌ی درخت پر شد: null
+ch13/f01_km:
+  شیء ۱۶: null
+  یک: null
+  با: null
+  و: null
+  داده: null
+  ماتریس: null
+ch13/f03_rmw:
+  کلاینت: null
+  های داده: null
+  های: null
+  در وسط: null
+  قدیمی: null
+  خواندن کل: null
+  کامل: null
+  بقیه‌ی داده‌ی: null
+  داده: null
+  دوباره‌ی کل: null
+  های تغییرکرده: null
+  جدید: null
+  فقط: null
+  تغییرکرده و: null
+  نوشتن جزئی،: null
+ch13/f04_decode:
+  با: null
+  از دست رفته: null
+  انتخاب: null
+  در دسترس: null
+  خواندن: null
+  های: null
+  معکوس زیرماتریس: null
+  بازسازی: null
+  و برگرداندن داده: null
+ch13/f05_plugins:
+  ؛ پیش‌فرض از: null
+  دیگر نگهداری نمی‌شود: null
+  محلی، بازیابی ارزان‌تر: null
+  بازیابی ارزان با هزینه‌ی دوام: null
+  کاهش ترافیک بازیابی با: null
+ch13/f06_pgtemp:
+  از دست رفته: null
+  های مجاز: null
+  جلو: null
+  که همیشه به‌روز است: null
+ch13/f07_ecwrite:
+  کلاینت: null
+  های: null
+  تقسیم به: null
+  ، تعیین: null
+  در صورت نیاز: null
+  خواندن: null
+  های قدیمی: null
+  داده‌ی قدیمی: null
+  هر: null
+  با: null
+  نوشتن: null
+  پس از: null
+  همه‌ی: null
+  اگر پیش از: null
+  همه خرابی رخ دهد: null
+  بازگردانده می‌شود: null
+ch13/f08_ecrecover:
+  خواندن: null
+  های داده‌ی بازه: null
+  فقط: null
+  لازم: null
+  همه را بخوان،: null
+  با اولین: null
+  پاسخ: null
+  یک: null
+  از: null
+  خواندن از: null
+  سالم: null
+  یا کمتر در: null
+  گم‌شده: null
+  به: null
+  جدید: null
+  پیش‌فرض: null
+  خطرناک: null
+ch14/f01_stack:
+  برنامه‌ها و کتابخانه‌های بالادستی: null
+  برنامه‌ی شما: null
+  محاسبه‌ی هدف و ارسال: null
+  نقشه‌ها و احراز هویت: null
+  اتصال به: null
+  ها: null
+  اتصال مستقیم به: null
+ch14/f02_calc:
+  وجود دارد؟: null
+  خیر: null
+  منتظر نقشه‌ی جدید: null
+  بله: null
+  هدف عوض شد؟: null
+  جدید: null
+  ارسال دوباره به: null
+ch14/f03_atomic:
+  کلاینت: null
+  موفق؛: null
+  نسخه عوض شده: null
+  دوباره: null
+  موفق: null
+ch14/f04_watch:
+  شیء: null
+  و نگه داشتن: null
+  پاسخ تجمیعی: null
+  ها: null
+  یا: null
+ch14/f05_compound:
+  ها: null
+  تغییرها: null
+  فراخوانی متد کلاس: null
+  یک تراکنش اتمی روی یک شیء: null
+  همه یا هیچ: null
+ch14/f06_mosdop:
+  یک: null
+  به ترتیب: null
+  شیء: null
+  ادامه: null
+  نام: null
+  ها در: null
+  همین: null
+  همه‌ی: null
+  ها: null
+  پشت سر هم: null
+  هم‌تراز: null
+ch14/f07_backoff:
+  کلاینت: null
+  روی: null
+  در: null
+  یا شیء: null
+  نگه‌داشتن: null
+  های این بازه در: null
+  فعال می‌شود: null
+  ارسال دوباره‌ی: null
+  های نگه‌داشته: null
+ch15/f01_flow:
+  کلاینت: null
+  برنامه: null
+  محاسبه‌ی: null
+  و: null
+  ارسال: null
+  با: null
+  نام کلاس،: null
+  نام متد،: null
+  نبود: null
+  اجرا و کنترل: null
+  مقایسه‌ی: null
+  با پرچم: null
+  ؛ نقض: null
+  تغییرات در همان تراکنش: null
+  و تکثیر به: null
+  ها: null
+ch15/f02_load:
+  بارگذاری کلاس: null
+  نخستین: null
+  به کلاس: null
+  در: null
+  ؟: null
+  خیر: null
+  رد: null
+  بله: null
+  از: null
+  اجرای: null
+  ثبت متدها و مجوز: null
+  نام، پرچم: null
+  ، تابع: null
+  برای: null
+  عمومی مجاز: null
+  فقط با: null
+  صریح: null
+ch15/f03_rmw:
+  کلاینت ۱: null
+  کلاینت ۲: null
+  روش سمت کلاینت: null
+  بدون کلاس: null
+  دو رفت‌وبرگشت و خطر رقابت: null
+  به‌روزرسانی گم شد: null
+  روش کلاس: null
+  یک رفت‌وبرگشت، اجرای سریال در: null
+  زیر قفل: null
+ch15/f04_users:
+  سرآیند تصویر،: null
+  ها،: null
+  شاخص: null
+  و: null
+  ، صف و: null
+  ابزار بازیابی: null
+  همه‌ی مصرف‌کنندگان: null
+  قفل مشورتی: null
+ch15/f05_callcheck:
+  پیش از اجرا: null
+  هنگام رسیدن: null
+  نه در: null
+  باز شد: null
+  نیست: null
+  پرچم‌ها و مجوز: null
+  در: null
+  همچنین: null
+  در کش: null
+  بررسی: null
+  اجرا: null
+  ثبت: null
+  و: null
+  پیش از: null
+  خواند بی: null
+  یا نوشت بی: null
+  ؟: null
+  بله: null
+  خیر: null
+  به پاسخ: null
+ch16/f01_tier:
+  مسیر کلاینت با: null
+  کلاینت: null
+  پایه: null
+  کش: null
+  ، تکثیری: null
+  درون: null
+  شیء در کش هست؟: null
+  بررسی: null
+  کپی از: null
+  عامل کش: null
+  نوشتن شیء: null
+  در: null
+  حذف شیء: null
+  سرد: null
+ch16/f02_modes:
+  حالت‌های: null
+  متناسب با فاصله: null
+  هدف: null
+  هر شیء: null
+  هیسترزیس: null
+  ورود: null
+  ، خروج: null
+ch16/f03_remove:
+  توقف: null
+  جدید: null
+  خالی است؟: null
+  خیر: null
+  بله: null
+  حذف یا بازاستفاده‌ی: null
+  کش: null
+ch16/f04_alt:
+  لایه‌بندی در سطح: null
+  با: null
+  ها: null
+  قانون‌های: null
+  جدا: null
+  سریع روی: null
+  ظرفیتی: null
+  روی: null
+  لایه‌بندی درون: null
+  داده روی: null
+  و نوشتن‌های: null
+  لایه‌بندی شیء در: null
+  سریع: null
+  قانون: null
+  پس از: null
+  روز: null
+  یا: null
+ch16/f05_rgwlayout:
+  شیء: null
+  بزرگ: null
+  در: null
+  پیش‌فرض: null
+  اول: null
+  پس از: null
+  به: null
+  فقط فراداده،: null
+  جدید: null
+  ها در: null
+  مربوط به: null
+  مثلاً: null
+  روی: null
+  داده‌ی قدیمی: null
+ch16/f06_lc:
+  زمان‌بندی: null
+  قفل هر: null
+  پردازش: null
+  هر: null
+  پیمایش: null
+  یا: null
+  ابزار: null
+ch16/f10_lcshard:
+  ثبت قانون: null
+  کلید: null
+  شیء: null
+  در: null
+  لاگ: null
+  بین: null
+  و: null
+  ورودی: null
+  با وضعیت: null
+  اجرا: null
+  در پنجره‌ی: null
+  هر: null
+  ها را به ترتیب تصادفی می‌گردد: null
+  قفل شیء: null
+  ورودی بعدی: null
+  و ثبت: null
+  با: null
+  برای هر نسخه‌ی شیء: null
+  حذف یا: null
+  کپی به: null
+  کلاس هدف: null
+  و به‌روزرسانی: null
+  پایان: null
+ch17/f01_method:
+  کدام لایه؟: null
+  کارایی: null
+  فرضیه: null
+  آزمون: null
+  اصلاح کوچک: null
+  ثبت در لاگ حادثه: null
+ch17/f02_peering:
+  جمع‌آوری: null
+  از: null
+  های: null
+  و: null
+  محاسبه‌ی: null
+  هر: null
+  ثبت: null
+  در: null
+  شاخه‌های شکست: null
+  های لازم: null
+  در دسترس نیستند: null
+  هیچ: null
+  کافی برای: null
+  قابل‌قبول نیست: null
+  درخواست شد: null
+ch17/f03_slowop:
+  ورود و صف: null
+  دریافت: null
+  صف شارد: null
+  گرفتن قفل: null
+  انتظارهای رایج: null
+  رویداد: null
+  هنوز فعال نیست: null
+  شیء در حال بازیابی: null
+  خواندن: null
+  اجرا و تکثیر: null
+  ارسال به: null
+  ها: null
+  هر: null
+  پاسخ به کلاینت: null
+ch17/f04_scrub:
+  انتخاب بازه‌ی اشیا: null
+  نقشه‌ی محلی: null
+  دریافت نقشه‌ها: null
+  ارسال: null
+  مقایسه: null
+  انتخاب نسخه‌ی معتبر و: null
+  مقایسه‌ی اندازه،: null
+  و: null
+  ثبت: null
+  در: null
+ch18/f01_layers:
+  درون یک کلاستر: null
+  خودکار: null
+  تکثیر: null
+  روی دامنه‌های خرابی: null
+  و: null
+  بین دو سایت با یک کلاستر: null
+  دو: null
+  داور: null
+  نوشتن هم‌زمان در هر دو سایت: null
+  بین کلاسترها: null
+  ناهم‌زمان: null
+  یا: null
+  فصل ۵: null
+  های دایرکتوری: null
+  نسخه‌ی پشتیبان مستقل: null
+  دوره‌ای: null
+  و نسخه‌گذاری: null
+  پشتیبان: null
+  ها: null
+ch18/f02_snapmirror:
+  سایت: null
+  تصویر: null
+  در سایت: null
+  زمان‌بندی: null
+  ایجاد: null
+  همگام‌شده: null
+  و: null
+  جدید: null
+  تفاوت: null
+  با: null
+  بلوک‌های تغییرکرده: null
+  نوشتن تفاوت، به‌روزرسانی: null
+  اندازه،: null
+  از: null
+  قابل حذف می‌شود: null
+ch18/f03_failover:
+  برنامه‌ریزی‌شده: null
+  هر دو سایت سالم: null
+  توقف برنامه در: null
+  در: null
+  انتظار همگام شدن: null
+  راه‌اندازی برنامه در: null
+  اضطراری: null
+  سایت: null
+  از دست رفته: null
+  پذیرش: null
+  بازگشت: null
+ch18/f04_stretch:
+  ها: null
+  ۲ نسخه از هر: null
+  داور: null
+  بدون داده: null
+  لینک بین سایت‌ها: null
+  نوشتن در هر دو سایت پیش از: null
+ch18/f05_monrebuild:
+  جمع‌آوری نقشه‌ها از: null
+  ها: null
+  همه‌ی: null
+  ها از دست رفته‌اند: null
+  ها سالم: null
+  روی هر میزبان، برای هر: null
+  متوقف: null
+  انتقال پوشه‌ی: null
+  به میزبان بعدی: null
+  انباشت تدریجی نقشه‌ها: null
+  بازسازی و راه‌اندازی: null
+  جایگزینی: null
+  روی همه‌ی: null
+  راه‌اندازی: null
+  ها؛: null
+  بررسی و بازسازی: null
+  ها و تنظیمات: null
+ch18/f06_journal:
+  سرآیند و قرارداد نام: null
+  فعال: null
+  اشیای: null
+  تا: null
+  ، هرکدام حداکثر: null
+  قالب هر: null
+  بایت: null
+  مصرف و: null
+  مقصد: null
+  پر شدن یک شیء: null
+  بعدی؛: null
+  های مصرف‌شده‌ی همه‌ی: null
+  ها حذف می‌شوند: null
+ch18/f07_stretchfsm:
+  باید هر دو: null
+  را داشته باشد: null
+  یک سایت از دست رفت: null
+  سایت زنده: null
+  سهم: null
+  های: null
+  بیش از: null
+  و هیچ: null
+  مرده‌ای نیست: null
+  دست‌کم: null
+  و: null
+  از دست رفتن یک سایت: null
+  بازگشت: null
+  ها: null
+ch19/f01_upgrade:
+  آمادگی: null
+  ؟: null
+  خواندن: null
+  و یادداشت‌های ارتقا: null
+  آزمون دسترسی میزبان‌ها: null
+  به: null
+  در رجیستری: null
+  ترتیب: null
+  ابتدا: null
+  یکی‌یکی با: null
+  با: null
+  ، سایر: null
+  پایان: null
+  همه یکسان: null
+  بررسی: null
+  بررسی هشدارهای تازه: null
+ch19/f02_replace:
+  خارج کردن: null
+  دیسک خراب: null
+  تخلیه‌ی: null
+  ها: null
+  اگر: null
+  علامت: null
+  ؛ شناسه حفظ می‌شود: null
+  جایگزینی: null
+  تعویض فیزیکی دیسک: null
+  اگر دیسک نو نیست: null
+  مشخصات سرویس: null
+  دیسک را می‌گیرد: null
+  با همان شناسه ساخته می‌شود: null
+  تا: null
+ch19/f03_autoscale:
+  ظرفیت هر ریشه‌ی: null
+  تعداد: null
+  های ریشه: null
+  بودجه‌ی: null
+  ها: null
+  سهم هر: null
+  از مصرف واقعی: null
+  یا: null
+  سهم: null
+  بودجه: null
+  سهم کامل از ابتدا: null
+  غیر: null
+  حداقل لازم: null
+  گرد کردن و تصمیم: null
+  گرد کردن به توان ۲: null
+  بهینه‌سازی: null
+  تفاوت با: null
+  فعلی: null
+  بیش از: null
+  ؟: null
+  بله: null
+  تنظیم: null
+  تقسیم: null
+  ادغام تدریجی: null
+  خیر: null
+  بدون تغییر: null
+  جلوگیری از نوسان: null
+ch19/f04_balancer:
+  هر: null
+  اگر کلاستر آرام است: null
+  برای: null
+  ها: null
+  به ترتیب تصادفی: null
+  درون: null
+  شمارش: null
+  در مقابل مقدار هدف وزن‌دار: null
+  انتخاب: null
+  های پر و خالی: null
+  با انحراف: null
+  افزودن: null
+  جابه‌جایی پر: null
+  خالی با رعایت قانون: null
+  اثر: null
+  جدید: null
+  فقط برای: null
+  های منتخب: null
+  توزیع: null
+  یکنواخت‌تر: null
+  و پری متعادل: null
+ch20/f01_stack:
+  هر میزبان: null
+  های: null
+  شمارنده‌های هر: null
+  ، دیسک، شبکه: null
+  فعال: null
+  ماژول: null
+  پورت: null
+  سلامت،: null
+  ، فراداده: null
+  ، پورت: null
+  پشته‌ی پایش: null
+  و قواعد هشدار: null
+  گروه‌بندی، سکوت: null
+  ایمیل: null
+  داشبوردهای: null
+ch20/f02_metric:
+  تولید: null
+  مثلاً: null
+  فرمت: null
+  با برچسب: null
+  مصرف: null
+  سری زمانی: null
+  قاعده‌ی هشدار: null
+  یا پنل: null
+ch20/f03_alertflow:
+  سیگنال: null
+  یک سری برای هر کد سلامت: null
+  از: null
+  و: null
+  قاعده: null
+  پایداری: null
+  جلوگیری از هشدار گذرا: null
+  ، لینک: null
+  تحویل: null
+  خاموشی هشدارهای: null
+  فرعی وقتی هشدار ریشه فعال است: null
+ch20/f04_gateway:
+  ورودی واحد: null
+  کاربر: null
+  مرورگر: null
+  بیرونی، اختیاری: null
+  سرویس‌های پشت: null
+ch20/f05_asok:
+  کلاینت: null
+  در: null
+  سپس بایت: null
+  یا: null
+  خواندن بایت‌به‌بایت تا: null
+  بایت اول: null
+  یعنی پروتکل قدیمی: null
+  بایتی: null
+  ثبت‌شده: null
+  طول پاسخ: null
+  ، در خطا با: null
+  شروع می‌شود: null
+  اتصال بسته می‌شود، هر فرمان یک اتصال: null
+ch20/f06_pcpath:
+  داخل: null
+  کد: null
+  ؛: null
+  مسیر: null
+  هر: null
+  فقط: null
+  ماژول: null
+  هر میزبان: null
+  نام‌ها: null
+  و: null
+  برای: null
+ch21/f01_layers:
+  سخت‌افزار و شبکه: null
+  شبکه‌ی: null
+  و: null
+  ، تأخیر: null
+  فرکانس،: null
+  سیستم‌عامل: null
+  زمان‌بند: null
+  برای: null
+  شبکه: null
+  بافرهای: null
+  کش: null
+  شاردها و: null
+  ها: null
+  پروفایل و: null
+  ظرفیت: null
+  و کلاینت: null
+  تعداد: null
+  یا: null
+  های: null
+ch21/f02_shards:
+  ورود: null
+  دریافت: null
+  انتخاب شارد: null
+  شاردها: null
+  شارد: null
+  صف: null
+  اجرا: null
+  های هر شارد: null
+  قفل: null
+  و: null
+ch21/f03_mclock:
+  برچسب‌گذاری هر درخواست: null
+  درخواست از کلاس: null
+  انتخاب برای اجرا: null
+  مرحله‌ی رزرو: null
+  اگر کوچک‌ترین: null
+  همان درخواست اجرا می‌شود: null
+  مرحله‌ی وزن: null
+  در غیر این صورت، میان: null
+  درخواست‌های با: null
+  ، کمترین: null
+  صف بالادستی: null
+  کلاس: null
+  و اولویت بالا: null
+  ، زیرعملیات: null
+  پیش از صف: null
+  با سازوکار جلوگیری از گرسنگی: null
+ch21/f04_method:
+  تعریف هدف: null
+  ، تأخیر: null
+  ، پهنای باند: null
+  خط پایه: null
+  یک تغییر: null
+  سنجش دوباره: null
+  همان بار و مدت: null
+  بهتر؟: null
+  بله: null
+  ثبت و حفظ: null
+  خیر: null
+  بازگشت: null
+ch21/f05_memtune:
+  مرزها: null
+  هر بار تغییر پیکربندی: null
+  هر: null
+  ؟: null
+  بله: null
+  خیر: null
+  تقسیم: null
+  اولویت‌ها: null
+  سهم خود را: null
+  می‌کند: null
+ch21/f06_throttle:
+  هزینه‌ی هر تراکنش: null
+  کامیت: null
+  تعداد: null
+  داده: null
+  سقف: null
+  نوشتن: null
+  چند تراکنش هم‌زمان در صف: null
+  جا می‌شود؟: null
+  مستقیم: null
+  پیامد: null
+  صف کوتاه در: null
+  انتظار بیشتر در صف: null
+  جایی که اولویت‌بندی ممکن است: null
+ch21/f11_dmnext:
+  ورود درخواست: null
+  محاسبه‌ی برچسب‌ها: null
+  در زمان: null
+  کمترین: null
+  ؟: null
+  بله: null
+  سرویس در فاز: null
+  خیر: null
+  سرهایی با: null
+  را: null
+  کن: null
+  با: null
+  کمینه هست؟: null
+  و: null
+  های بعدی همان کلاینت را: null
+  کم کن: null
+  در: null
+  صبر تا کمینه‌ی: null
+  یا: null
+  بعدی: null
+ch22/f01_repo:
+  پایه و مشترک: null
+  انواع پایه،: null
+  کلاینت و کتابخانه‌ها: null
+  کلاینت: null
+  و: null
+  کلاس‌های سمت: null
+  ها: null
+  دیگر: null
+  نسل بعد روی: null
+  پایتون: null
+ch22/f02_classes:
+  سمت کلاینت: null
+  مالک: null
+  برای هر: null
+  سمت: null
+  شامل: null
+  نگاشت: null
+  ذخیره‌سازی: null
+  انتزاعی: null
+ch22/f03_threads:
+  شبکه: null
+  هر کدام یک: null
+  در همان: null
+  شبکه، بدون قفل سنگین: null
+  پردازش: null
+  برای هر شارد: null
+  کمکی: null
+  اجرای: null
+  ها: null
+  در: null
+  جدا: null
+  و: null
+  رویدادهای زمان‌دار: null
+ch22/f04_write:
+  برنامه: null
+  روی: null
+  تراکنش محلی: null
+  پس از: null
+  همه: null
+  کردند: null
+ch22/f05_txc:
+  ساخت: null
+  تخصیص: null
+  کمتر از: null
+  یا داخل: null
+  هم‌تراز با بلوک: null
+  فشرده‌سازی: null
+  دو مسیر داده: null
+  مستقیم: null
+  به دستگاه: null
+  داده در: null
+  پیشوند: null
+  اندازه: null
+  یک: null
+  نوشتن واقعی: null
+  بعداً: null
+ch22/f06_rbd:
+  لایه‌ی تصویر: null
+  اشیا: null
+  لایه‌ی شیء: null
+  در صورت: null
+  در: null
+ch22/f07_rgw:
+  ورود درخواست: null
+  نوشتن داده و: null
+  های: null
+ch22/f08_cephfs:
+  فراداده: null
+  از طریق: null
+  پاسخ همراه: null
+  مثلاً: null
+  برای تنها نویسنده: null
+  داده: null
+  مستقیم به: null
+  با: null
+  بافر در: null
+  بدون: null
+  نوشتن هم‌گام: null
+  ها: null
+  در مسیر داده نیست: null
+ch23/f01_stack:
+  فضای کاربر: null
+  هم‌تراز: null
+  فهرست: null
+  مرز: null
+  یا: null
+  باز شده با: null
+  یک: null
+  برای هر: null
+  هسته: null
+  ، صف سخت‌افزاری: null
+  درایور: null
+  مستقیم از صفحه‌های کاربر: null
+  تکمیل: null
+ch23/f02_aio:
+  تراکنش: null
+  فقط در: null
+  ثبت می‌شود: null
+  تا: null
+  تعداد ثبت‌شده: null
+  با تأخیر: null
+  هر: null
+  یا رویداد: null
+  تکمیل‌شده: null
+  کاهش: null
+  وقتی همه‌ی: null
+  های: null
+  تمام شد: null
+ch23/f03_bl:
+  فهرست پیوندی: null
+  انتهایی برای: null
+  کل بایت‌ها: null
+  تعداد: null
+  پنجره روی یک: null
+  حافظه‌ی واقعی: null
+  شمارنده‌ی اتمیک: null
+  یک: null
+  می‌تواند بین چند: null
+  و چند: null
+  مشترک باشد: null
+  بدون کپی؛ با افزایش: null
+ch23/f04_crc:
+  یک بار در بارگذاری: null
+  با: null
+  و نسخه‌ی: null
+  نسخه‌های مخصوص: null
+  در غیر این صورت: null
+  جدولی، نرم‌افزاری: null
+  استفاده‌ها: null
+  هر: null
+  در حالت: null
+  و: null
+  با کش: null
+  روی: null
+ch23/f08_uring:
+  ارسال: null
+  در: null
+  قفل: null
+  برای هر: null
+  و: null
+  یا: null
+  هسته: null
+  خواندن: null
+  کامل شدن: null
+  نوشتن: null
+  و افزایش: null
+  برداشت: null
+  تا: null
+  ، سپس: null
+  اگر صفر بود: null
+  روی: null
+  با: null
+  و فراخوانی: null
+ch23/f10_crczeros:
+  با: null
+  بزرگ‌تر از: null
+  برای هر بیت: null
+  در: null
+  ماتریس: null
+  یعنی جهش: null
+  بایت صفر: null
+  بایت آخر: null
+  با مسیر معمولی: null
+  مثال: null
+  بایت صفر و: null
+  پس: null
+  یک ضرب ماتریس: null
+  حداکثر: null
+  نتیجه: null
+  برابر محاسبه‌ی مستقیم: null
+  تطبیق: null
+  ذخیره‌شده در: null
+  کش دارد: null
+  درخواست با: null
+  دیگر: null
+  صفرها،: null
+  بدون خواندن دوباره‌ی داده: null
+ch24/f01_layout:
+  دستگاه: null
+  با: null
+  هم‌دستگاه: null
+  فضای مشترک: null
+  های: null
+  داده‌ی: null
+  ها: null
+  کپی‌های: null
+  اگر دستگاه به اندازه‌ی کافی بزرگ باشد: null
+  جدا: null
+  از: null
+ch24/f02_bluefs:
+  فایل لاگ: null
+  دنباله‌ای از: null
+  های تراکنش: null
+  کامل: null
+  افزایشی: null
+  فشرده‌سازی لاگ: null
+  و: null
+  متادیتای فعلی: null
+  به لاگ جدید: null
+  جدید: null
+  با: null
+  تازه: null
+  آزادسازی: null
+  های: null
+  لاگ قدیمی: null
+ch24/f03_onode:
+  کلید: null
+  مقدار: null
+  جدا: null
+  اگر: null
+  بزرگ شود: null
+  لیست: null
+  ها: null
+  های محلی: null
+  های: null
+  در خود: null
+ch24/f04_alloc:
+  پیش‌فرض: null
+  درخت: null
+  سقف حافظه: null
+  سرریز به: null
+  بیت برای هر واحد: null
+  در: null
+  کلید: null
+  شروع: null
+  هر: null
+  واحد: null
+  مقدار: null
+  بیت: null
+  بایت: null
+  تخصیص: null
+  آزادسازی: null
+  بدون: null
+  حالت جدید: null
+  تمیز: null
+  در فایل: null
+  بازسازی از: null
+  ها: null
+ch24/f05_cache:
+  خواندن: null
+  نوشتن تازه: null
+  فقط سرآیند، بدون داده: null
+  اگر دوباره دیده شود: null
+  هر: null
+  ثانیه: null
+  اولویت‌بندی: null
+ch24/f08_hybrid:
+  درج یک بازه‌ی آزاد: null
+  بازه‌ی آزاد: null
+  تعداد بازه‌ها کمتر از: null
+  ؟: null
+  بله: null
+  درج در دو درخت: null
+  بر پایه‌ی: null
+  و بر پایه‌ی اندازه: null
+  خیر: null
+  بزرگ‌تر از کوچک‌ترین بازه‌ی درخت؟: null
+  درج و انتقال کوچک‌ترین بازه: null
+  به: null
+  مستقیم به: null
+  تخصیص: null
+  خالی نیست و: null
+  کمتر از کوچک‌ترین بازه‌ی: null
+  اول از: null
+  کسری از دیگری؛: null
+  اگر هیچ: null
+ch25/f01_write:
+  مسیر نوشتن: null
+  هم‌گام: null
+  روی چند: null
+  رکوردهای: null
+  فعال هر: null
+  پس‌زمینه: null
+  پر: null
+  تا: null
+  عدد: null
+  پس از ادغام: null
+  در: null
+  مسیر خواندن: null
+  ها: null
+  همه‌ی فایل‌ها: null
+  یک فایل در هر سطح: null
+  با: null
+ch25/f02_sst:
+  فایل: null
+  ، کلیدهای پیشوندفشرده: null
+  بیت: null
+  کلید: null
+  کلید آخر: null
+  انتهای فایل: null
+  ها: null
+  هر بلوک روی دیسک: null
+  فشرده: null
+  بایت: null
+  نوع فشرده‌سازی: null
+ch25/f03_cf:
+  پیش‌فرض: null
+  روی بایت: null
+  جدا: null
+  و: null
+  انتخاب: null
+  برای یک کلید: null
+  بازه‌ی بایت: null
+  از کلید: null
+  بقیه: null
+ch25/f04_levels:
+  اندازه‌ی سطوح با پیش‌فرض‌ها: null
+  فایل تا: null
+  جای‌گذاری: null
+  سطوحی که جا می‌شوند: null
+  فضای اضافه‌ی: null
+  برای بخشی از سطح بعدی: null
+  باقی: null
+  هشدار: null
+ch25/f10_wgroup:
+  روی: null
+  صف خالی بود، پس: null
+  رهبر می‌شود: null
+  و انتظار روی: null
+  ، یا اندازه‌ی رهبر: null
+  اگر رهبر: null
+  گروه: null
+  اگر: null
+  و: null
+  سازگار باشند: null
+  یک: null
+  برای: null
+  ادغام‌شده: null
+  اگر هر عضو: null
+  خواسته باشد: null
+  درج: null
+  ها با: null
+  پیوسته: null
+ch26/f01_hs:
+  کلاینت: null
+  سرور: null
+  از اینجا: null
+  یا: null
+  روی بایت‌های تبادل‌شده: null
+ch26/f02_frame:
+  بایت: null
+  روی: null
+  حالت: null
+  اولین: null
+  بقیه‌ی: null
+  ها: null
+  به: null
+  پیام: null
+ch26/f03_state:
+  سمت: null
+  جلسه: null
+  جلسه‌ی تازه: null
+  قبلی: null
+  دریافت یک پیام در: null
+  تعداد: null
+  خطا و پایان: null
+  خطای سوکت: null
+  یا: null
+  با: null
+ch26/f04_event:
+  حلقه‌ی هر: null
+  زمان‌سنج‌ها: null
+  های: null
+  از: null
+  های دیگر: null
+  بیدار کردن: null
+  دیگر: null
+  صف: null
+  یا: null
+  بیدار می‌شود: null
+ch26/f08_evloop:
+  محاسبه‌ی مهلت در: null
+  اگر نخستین: null
+  زودتر است: null
+  مهلت: null
+  تا آن زمان: null
+  کف مهلت: null
+  اگر: null
+  یا رویداد خارجی هست: null
+  انتظار و رویدادهای فایل: null
+  با مهلت: null
+  برای هر: null
+  آماده: null
+  در صورت: null
+  اگر با: null
+  یکی نباشد: null
+  زمان‌دار و خارجی: null
+  مرتب بر حسب زمان: null
+  زیر: null
+  روی هر رویداد: null
+  مثلاً ارسال پیام از: null
+  دیگر: null
+  بیدار کردن از: null
+  در: null
+  و: null
+  بیدار می‌شود: null
+ch26/f09_reconnect:
+  کلاینت: null
+  پیام‌های: null
+  بی: null
+  قطع: null
+  یعنی: null
+  و: null
+  به سر صف: null
+  با: null
+  سمت کلاینت: null
+  یعنی بررسی: null
+  دور ریخته می‌شود و: null
+ch27/f01_stripe:
+  شیء: null
+  چیدمان یک: null
+  روی: null
+  ها: null
+  روی هر: null
+  با: null
+  اندازه: null
+  هر: null
+  در: null
+ch27/f02_gf:
+  با چندجمله‌ای: null
+  جمع: null
+  ضرب: null
+  و: null
+  با: null
+  اگر بیت: null
+  سرریز شود: null
+  یا جدول: null
+  ماتریس تولید: null
+  سیستماتیک: null
+  سطر: null
+  برای هر ضریب دو جدول: null
+  خانه‌ای: null
+  پایین و بالا: null
+  یا: null
+  بایت در هر دستور: null
+  انباشتی: null
+ch27/f03_rmw:
+  نوشتن جزئی: null
+  در: null
+  قدیمی: null
+  خواندن کل: null
+  ادغام: null
+  جدید: null
+  کامل: null
+  نوشتن: null
+  بهینه: null
+  خواندن فقط: null
+  همان: null
+  بدون خواندن بقیه: null
+  خواندن کوچک: null
+  خواندن از: null
+  و: null
+  خواندن مستقیم: null
+  از یک: null
+  داده: null
+ch27/f04_repair:
+  بازسازی یک: null
+  خواندن: null
+  کامل: null
+  ترافیک: null
+  گروه محلی: null
+  محلی: null
+  از همان گروه: null
+  هر: null
+  به: null
+  از: null
+  ، کسری: null
+  ها روی زیرمجموعه‌ای: null
+  از دادهها: null
+  بازسازی تک‌خرابی: null
+  با خواندن کمتر از: null
+ch27/f07_pshufb:
+  ورودی: null
+  ۳۲ بایت داده در یک ثبات: null
+  دو جست‌وجوی موازی با: null
+  انباشت در: null
+  تا: null
+  ذخیره‌ی ۳۲ بایت: null
+ch27/f08_delta:
+  کلاینت: null
+  در آفست درون: null
+  فقط همان: null
+  همان بازه: null
+  یعنی: null
+  و: null
+ch27/f09_lrc:
+  ورودی پروفایل: null
+  داده و: null
+  در هر گروه: null
+  هر گروه: null
+  کل: null
+  رشته‌های تولیدشده در: null
+  لایه‌ی سراسری: null
+  لایه‌ی محلی ۱: null
+  لایه‌ی محلی ۲: null
+  ترمیم یک: null
+  از گروه ۱: null
+  از دست رفت: null
+  خواندن: null
+  سه: null
+  به جای چهار: null
+  و ترافیک درون: null
+  قانون: null
+  با: null
+ch28/f01_pipe:
+  نام شیء: null
+  ورودی: null
+  ها: null
+  نگاشت نهایی: null
+  حذف: null
+ch28/f02_straw2:
+  ، سه: null
+  تصادم با انتخاب‌های قبلی: null
+  پس از: null
+  تلاش ناموفق؛: null
+ch28/f03_rule:
+  قاعده‌ی: null
+  داخل: null
+  برای هر: null
+  در: null
+  با: null
+  تصادم یا: null
+  ؟: null
+  و تکرار: null
+  وزن: null
+  بین آن‌ها: null
+ch28/f04_adjust:
+  سه ابزار اصلاح توزیع: null
+  احتمالی: null
+  جابه‌جایی گسترده: null
+  وزن جایگزین در هر: null
+  جایگزینی صریح: null
+  ترتیب اعمال در: null
+  و: null
+  با: null
+  حذف: null
+  های ناموجود: null
+  کل لیست: null
+  جفت‌ها: null
+ch28/f05_uniform:
+  شماره‌ی: null
+  با چهار: null
+  و: null
+  آغازین: null
+  جابه‌جایی: null
+  با: null
+  خروجی برای: null
+ch28/f06_list:
+  شماره‌ی: null
+  ؛: null
+  شروع از آخر: null
+  رد: null
+  انتخاب: null
+  و: null
+ch28/f07_tree:
+  ریشه: null
+  وزن: null
+  راست: null
+  چپ: null
+ch28/f09_upmap:
+  آماده‌سازی: null
+  های هر: null
+  و وزن‌ها: null
+  وزن: null
+  اگر: null
+  پایان: null
+  هر دور: null
+  تا: null
+  تغییر: null
+  پرترین: null
+  اول: null
+  یک جفت: null
+  آزمون تغییر: null
+  دوباره: null
+  بدتر شد: null
+  رد و پرش از: null
+  بهتر شد: null
+  اعمال در: null
+ch28/f10_msr:
+  قانون: null
+  برای: null
+  روی سه: null
+  تقسیم خروجی به: null
+  شاخص‌های: null
+  شدن: null
+  شاخص: null
+  خالی می‌ماند: null
+  تا پایان دور: null
+  دور بعد: null
+  با: null
+  یا: null
+  ی که در: null
+  دیگر: null
+  استفاده نشده: null
+ch29/f01_krbd:
+  از برنامه تا: null
+  روی: null
+  یا: null
+  روی آن: null
+  درون: null
+  تقسیم به: null
+  ها: null
+  در هسته: null
+  در: null
+  به: null
+ch29/f02_objsm:
+  اگر: null
+  فعال باشد: null
+  انتظار برای همه‌ی: null
+  ها: null
+  تکمیل: null
+  در: null
+  علامت: null
+  نوشتن روی: null
+  و: null
+  دارد: null
+ch29/f03_caps:
+  کلاینت: null
+  درخواست: null
+  تنها نویسنده: null
+  صفحات: null
+  به: null
+  ها: null
+  بدون: null
+  بدون کش: null
+  مستقیم از: null
+ch29/f04_cmp:
+  هسته: null
+  بدون: null
+  ؛: null
+  پیاده‌سازی جدا در: null
+  ویژگی‌ها محدود به: null
+  فضای کاربر: null
+  کش: null
+  ارتقا بدون: null
+ch29/f05_striping:
+  مثال: null
+  خواندن: null
+  از آفست: null
+  شیء: null
+  طول: null
+  نام شیء: null
+ch29/f06_target:
+  در: null
+  ارسال و تغییر نقشه: null
+  به: null
+  ارسال: null
+  جدید: null
+  تغییر: null
+  ارسال دوباره: null
+  در دسترس نیست: null
+  تا نقشه‌ی بعدی: null
+ch29/f09_calctarget:
+  ورودی: null
+  نقشه‌ی تازه‌ی: null
+  برای هر درخواست: null
+  هنوز هست؟: null
+  نه: null
+  بزرگ‌تر شد؟: null
+  تازه و: null
+  با: null
+  و: null
+  سنجش تغییر: null
+  پرچم: null
+  یا پری: null
+  یا کلاستر: null
+  عوض شد: null
+  یا: null
+  بیشتر شد: null
+  نتیجه: null
+  به: null
+  تازه: null
+  در غیر این صورت: null
+ch29/f10_lock:
+  روی میزبان: null
+  تازه: null
+  روی: null
+  مالک فعلی: null
+  میزبان: null
+  با: null
+  و: null
+  مالک: null
+  زنده دارد: null
+  مهلت: null
+  و سپس آزادسازی: null
+  پس از: null
+  اگر آزاد نشد، تلاش دوباره پس از: null
+  هیچ: null
+  ی برای مالک نیست: null
+  آدرس مالک: null
+  مالک قبلی: null
+ch30/f01_threads:
+  کلاسیک: null
+  ها و قفل‌ها: null
+  شارد: null
+  قفل: null
+  یک: null
+  برای هر هسته: null
+  هسته‌ی: null
+  شبکه: null
+  های: null
+  ارتباط بین هسته‌ها: null
+  بدون قفل مشترک: null
+  پیام صریح: null
+  برمی‌گردد: null
+  روی هسته‌ی مبدأ: null
+ch30/f02_future:
+  هسته‌ی: null
+  شبکه: null
+  داده‌ی پیام رسید: null
+  بدون بلوکه شدن؛: null
+  بعدی در صف اجرا می‌شود: null
+  سقف هر: null
+  در صف: null
+  ساخت: null
+  ارسال پاسخ: null
+ch30/f03_pgmap:
+  درخواست برای: null
+  تازه روی هسته‌ی: null
+  در نقشه‌ی محلی نیست: null
+  پرسش از هسته‌ی: null
+  هسته‌ی: null
+  نقشه‌ی اصلی: null
+  نیست: null
+  کم‌بارترین هسته: null
+  ؛ انتخاب: null
+  هست: null
+  همان هسته: null
+  پخش و ادامه: null
+  به‌روزرسانی نقشه‌ی همه‌ی هسته‌ها: null
+  پیام به هسته‌ی مقصد منتقل می‌شود: null
+  همه‌ی کارهای آن: null
+  فقط روی همان هسته: null
+ch30/f04_pipeline:
+  سطح اتصال و شارد: null
+  سطح: null
+  کافی؟: null
+  فعال؟: null
+  سطح شیء: null
+  آیا شیء زیر: null
+  است؟: null
+  ، ترتیب حفظ: null
+ch30/f05_backends:
+  رابط: null
+  پشتیبان‌های بومی: null
+  روی: null
+  ، تراکنشی: null
+  در حافظه، داده ذخیره نمی‌شود: null
+  پشتیبان‌های غیربومی: null
+  کد کلاسیک: null
+  نتیجه به هسته‌ی مبدأ: null
+ch30/f06_seastore:
+  لایه‌ی منطقی: null
+  آدرس منطقی: null
+  بازه‌ی: null
+  داده: null
+  در قالب: null
+  یک: null
+  اتمیک: null
+  لایه‌ی فیزیکی: null
+  زیرلایه: null
+  یا: null
+  سگمنت‌ها: null
+  دستگاه‌ها: null
+ch30/f08_extstate:
+  تازه: null
+  در: null
+  تراکنش: null
+  هم‌خوان با دیسک،: null
+  تغییر: null
+  موجود: null
+  یا: null
+  در تراکنش: null
+  نسخه‌ی کپی؛: null
+  در حافظه،: null
+  موجود بدون فراداده‌ی ثبت‌شده: null
+  پایان: null
+  بازنویسی توسط: null
+ch30/f09_record:
+  سگمنت: null
+  بلوک اول: null
+  یک: null
+  یک نوشتن: null
+  نوع،: null
+  ، بایت‌های: null
+  های: null
+  هم‌تراز بلوک: null
+  دسته‌بندی در: null
+  تا: null
+  در: null
+  نقطه‌ی امن: null
+ch31/f01_paths:
+  مسیر هسته: null
+  تگ و صف سخت‌افزاری: null
+  کپی: null
+  وقفه‌ی: null
+  مسیر: null
+  کاربری،: null
+  تکه‌های: null
+  کپی به بافر: null
+  از فضای کاربر: null
+  سخت‌افزار مشترک: null
+  در حافظه‌ی میزبان: null
+  بایت در هر ورودی: null
+  کنترلر: null
+  و اجرا: null
+  بایت،: null
+ch31/f04_rings:
+  درایور: null
+  هسته یا: null
+  در حافظه: null
+  کنترلر: null
+  نوشتن: null
+  در خانه‌ی: null
+  بایت: null
+  به: null
+  آفست: null
+  واکشی: null
+  با: null
+  اجرای فرمان و: null
+  داده به: null
+  از: null
+  فعلی: null
+  وقفه‌ی: null
+  یا بدون وقفه در: null
+  تا وقتی: null
+  پردازش: null
+  ، در انتهای صف: null
+  و: null
+ch31/f05_nvmedev:
+  باز کردن دستگاه: null
+  خواندن خط: null
+  از فایل: null
+  قفل: null
+  دی‌پی‌دی‌کی: null
+  فقط: null
+  نوشتن: null
+  تکه‌های: null
+  فهرست پیوندی: null
+  تکمیل: null
+  همان: null
+  بافرها به: null
+  وقتی: null
+  به: null
+  برسد: null
+ch31/f07_gw:
+  میزبان: null
+  هسته: null
+  مسیر: null
+  درگاه: null
+  کانتینر: null
+  مربوط به: null
+  ها: null
+  های خود: null
+  سرویس: null
+  پیکربندی، وضعیت در: null
+  به: null
+  خوشه: null
+  در: null
+  و: null
+  درگاه خراب: null
+  تصاویر: null
+ch31/f08_anafsm:
+  مالک گروه: null
+  و در دسترس: null
+  کم‌بارترین درگاه برای: null
+  انتخاب شد: null
+  با: null
+  به درگاه رسید: null
+  تایمر: null
+  ثانیه یا خرابی: null
+  مالک برگشت: null
+  تایمر تمام شد، مالک فعال شد: null
+  مالک منتظر تحویل: null
+  انقضای تایمر: null
+  درگاه: null
+ch31/f09_failover:
+  درگاه: null
+  مالک گروه: null
+  میزبان: null
+  ها قطع شد: null
+  پس از: null
+  ثانیه: null
+  کم‌بارترین درگاه در همان: null
+  نشانی‌های: null
+  نقشه: null
+  گروه: null
+  تایمر: null
+  با: null
+  مربوط به: null
+  تازه: null
+  تغییر: null
+  مسیر: null
+  برای گروه: null
+  ادامه‌ی: null
+ch32/f01_scrubfsm:
+  سمت: null
+  زمان‌بندی: null
+  منابع محلی: null
+  رزرو روی: null
+  ها: null
+  همه‌ی: null
+  ها پذیرفتند: null
+  چرخه‌ی هر: null
+  درون: null
+  منتظر: null
+  های در جریان: null
+  نوشتن‌های در جریان: null
+  نقشه‌ی محلی: null
+  ادامه‌ی: null
+  بعدی: null
+  پایان: null
+  به‌روزرسانی: null
+  و: null
+  محدوده قفل است: null
+  ارسال: null
+ch32/f02_chunkseq:
+  فهرست: null
+  ها و: null
+  جابه‌جایی: null
+  تا: null
+  و: null
+  در یک: null
+  باشند: null
+  ؟ در غیر این صورت: null
+  خواندن داده در گام‌های: null
+  در: null
+  اندازه،: null
+  داده و: null
+  برای هر شیء: null
+  ناسازگاری‌ها: null
+  اگر نوشتن مشتری در محدوده رسید: null
+  بیشینه‌ی: null
+  نصف می‌شود: null
+ch32/f04_auth:
+  ترتیب نامزدها: null
+  خود: null
+  اول: null
+  سپس: null
+  ها: null
+  به ترتیب: null
+  رد شدن: null
+  توقف بررسی: null
+  یا: null
+  ناموجود یا خراب: null
+  انتخاب از میان قابل‌استفاده‌ها: null
+  بزرگ‌تر برنده است: null
+  برابر بودن نسخه: null
+  بیشتر: null
+  برابر بودن همه: null
+  اولی: null
+  یعنی: null
+ch32/f06_reserve:
+  از: null
+  صف: null
+  پس از آزاد شدن خانه: null
+  درخواست با: null
+  می‌رسد: null
+  رزرو: null
+  پس گرفته می‌شود: null
+  از نو: null
+ch32/f07_backfill:
+  اسکن: null
+  تا: null
+  شیء: null
+  هدف: null
+  خروجی ادغام مرتب: null
+  به ترتیب: null
+  نسخه برابر: null
+  نسخه متفاوت: null
+  فقط روی هدف: null
+  پس از: null
+ch32/f08_recstates:
+  مسیر: null
+  حالت‌های انتظار و خطا: null
+  رزرو رد شد یا: null
+  هدف پر است: null
+  تلاش دوباره پس از: null
+ch32/f09_repair:
+  اپراتور: null
+  خراب: null
+  همه‌ی: null
+  ها: null
+  سالم: null
+  افزودن به: null
+  و: null
+  فقط با منبع سالم: null
+  از روی نسخه‌ی: null
+  علامت: null
+  ، به‌روزرسانی: null
+ch33/f01_threads:
+  شبکه: null
+  تجزیه‌ی پیام،: null
+  یا: null
+  صف: null
+  قفل: null
+  تکمیل: null
+  دسته‌ی: null
+  در: null
+  آزادسازی: null
+  پس‌زمینه: null
+  هر: null
+  ثانیه: null
+  و: null
+ch33/f05_shards:
+  های: null
+  روی: null
+  نتیجه: null
+  چهار: null
+  یک: null
+  های دیگر بی‌کار: null
+ch33/f06_numa:
+  هسته‌های: null
+  حافظه‌ی محلی: null
+  روی: null
+  و: null
+  تصمیم: null
+  برای: null
+  از: null
+  هر سه برابر؟: null
+ch33/f07_tcmalloc:
+  سطح: null
+  در: null
+  کلاس اندازه: null
+  یا: null
+  بدون قفل: null
+  سطح مرکزی: null
+  برای هر: null
+  ها: null
+  سیستم‌عامل: null
+ch33/f08_tools:
+  درون: null
+  بایت هر: null
+  هسته و: null
+  نمونه‌برداری: null
+  توابع کاربر: null
+  با: null
+  یا: null
+  پشته‌ی همه‌ی: null
+  ها: null
