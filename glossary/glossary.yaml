@@ -1,0 +1,258 @@
+# Bilingual glossary: single source for both editions.
+# term: English term (index key); fa: Persian equivalent/definition; en: English definition.
+- term: SPDK
+  fa: کیت توسعه‌ی کارایی ذخیره‌سازی؛ راه‌انداز NVMe در فضای کاربر با polling که BlueStore و Crimson می‌توانند به‌جای هسته به کار ببرند
+- term: NVMe-oF
+  fa: دسترسی به فضاهای نام NVMe روی شبکه (TCP یا RDMA)؛ درگاه NVMe-oF در Ceph تصاویر RBD را به این شکل صادر می‌کند
+- term: ANA
+  fa: وضعیت دسترسی نامتقارن فضای نام در NVMe-oF که مسیر بهینه را به میزبان اعلام می‌کند
+- term: SeaStore
+  fa: ObjectStore تازه‌ی Crimson که برای دستگاه‌های سریع و مدل تک‌هسته‌ای طراحی شده است
+- term: Crimson
+  fa: بازنویسی OSD بر پایه‌ی Seastar با مدل shard به ازای هر هسته و بدون قفل مشترک
+- term: Seastar
+  fa: چارچوب C++ ناهمگام با future/promise و یک thread به ازای هر هسته که Crimson بر آن بنا شده است
+- term: MSR
+  fa: قاعده‌ی چندمرحله‌ای CRUSH (multi-step retry) برای جای‌گذاری EC در چند دامنه‌ی خطا، از Squid
+- term: GFNI
+  fa: دستورهای میدان گالوا در پردازنده‌های x86 که ضرب GF(2^8) را سخت‌افزاری می‌کنند
+- term: PSHUFB
+  fa: دستور جابه‌جایی بایت SSSE3 که ISA-L با جدول ۱۶تایی برای ضرب GF(2^8) به کار می‌برد
+- term: Skiplist
+  fa: فهرست پیوندی چندسطحی احتمالاتی؛ ساختار پیش‌فرض memtable در RocksDB
+- term: Bloom filter
+  fa: ساختار احتمالاتی عضویت با مثبت کاذب ولی بدون منفی کاذب؛ در RocksDB و HitSet به کار می‌رود
+- term: libaio
+  fa: رابط قدیمی‌تر AIO لینوکس (io_submit و io_getevents) که پیش‌فرض KernelDevice در BlueStore است
+- term: HitSet
+  fa: مجموعه‌ی اشیای دسترسی‌شده در یک بازه‌ی زمانی برای تعیین دمای شیء در cache tiering
+- term: Volume selector
+  fa: سیاست BlueFS برای انتخاب دستگاه WAL، DB یا کند برای هر فایل RocksDB
+- term: Knapsack
+  fa: مسئله‌ی کوله‌پشتی؛ autoscaler در Umbrella با آن تصمیم می‌گیرد کدام pool به توان دو بالاتر گرد شود
+- term: cls_lock
+  fa: کلاس RADOS برای قفل مشورتی انحصاری یا اشتراکی با انقضا، ذخیره در xattr
+- term: Acting set
+  fa: مجموعه‌ی OSDهایی که در عمل یک PG را سرویس می‌دهند؛ ممکن است به‌طور موقت با up set فرق کند
+- term: Admin socket
+  fa: سوکت مدیریتی محلی هر daemon برای فرمان مستقیم (ceph daemon)
+- term: Allocator
+  fa: تخصیص‌دهنده‌ی فضای خام در BlueStore (پیش‌فرض hybrid)
+- term: Backfill
+  fa: بازسازی کامل PG روی OSD جدید با پیمایش همه‌ی اشیا
+- term: Balancer
+  fa: ماژول mgr برای یکنواخت کردن توزیع PG (حالت upmap)
+- term: Blob
+  fa: واحد checksum و فشرده‌سازی در BlueStore که به pextentها اشاره می‌کند
+- term: Blocklist
+  fa: فهرست سیاه کلاینت‌ها در OSDMap برای جلوگیری از نوشتن‌های دیررسیده
+- term: BlueFS
+  fa: سامانه‌فایل کوچک داخلی BlueStore برای RocksDB
+- term: BlueStore
+  fa: backend پیش‌فرض ذخیره‌سازی OSD که مستقیم روی دستگاه خام می‌نویسد
+- term: Bucket index
+  fa: فهرست اشیای یک bucket در RGW که در omap شاردها نگه داشته می‌شود
+- term: Cache tiering
+  fa: لایه‌بندی کش بین دو pool؛ از Reef منسوخ شده است
+- term: Capability (cap)
+  fa: مجوز کش و تغییر که MDS به کلاینت CephFS برای هر inode می‌دهد
+- term: cephadm
+  fa: ابزار و ماژول mgr برای استقرار و مدیریت چرخه‌ی عمر کلاستر با کانتینر
+- term: Cephx
+  fa: پروتکل احراز هویت مبتنی بر کلید مشترک و بلیت در Ceph
+- term: ceph-volume
+  fa: ابزار آماده‌سازی دیسک و ساخت OSD (LVM)
+- term: Clone
+  fa: تصویر RBD قابل نوشتن که از snapshot یک تصویر والد ساخته می‌شود
+- term: Collection
+  fa: گروه اشیای یک PG در ObjectStore
+- term: Copy-on-write
+  fa: کپی در زمان نوشتن؛ داده‌ی والد فقط هنگام اولین تغییر کپی می‌شود
+- term: Copyup
+  fa: کپی کل شیء والد به فرزند در اولین نوشتن روی clone
+- term: CRUSH
+  fa: الگوریتم جای‌گذاری شبه‌تصادفی و قطعی داده روی OSDها بر اساس سلسله‌مراتب
+- term: CRUSH rule
+  fa: قاعده‌ی انتخاب OSD برای pool (دامنه‌ی خرابی، نوع دستگاه)
+- term: Datalog
+  fa: لاگ تغییر شاردهای bucket برای همگام‌سازی multisite
+- term: Deep scrub
+  fa: بررسی کامل داده با خواندن و مقایسه‌ی checksum
+- term: Deferred write
+  fa: نوشتن کوچک که ابتدا در WAL ثبت و بعداً روی دستگاه اعمال می‌شود
+- term: Dirfrag
+  fa: تکه‌ای از یک دایرکتوری CephFS که واحد تقسیم و جابه‌جایی بین MDSها است
+- term: Dynamic resharding
+  fa: افزایش خودکار شارد index یک bucket بزرگ در RGW
+- term: Erasure coding
+  fa: کد پاک‌سازی؛ تقسیم داده به k قطعه‌ی داده و m قطعه‌ی parity
+- term: Exclusive lock
+  fa: قفل همکارانه‌ی RBD برای داشتن یک نویسنده‌ی فعال
+- term: Failure domain
+  fa: دامنه‌ی خرابی؛ سطحی از سلسله‌مراتب (host، rack) که نسخه‌ها بین آن پخش می‌شوند
+- term: Fast-diff
+  fa: قابلیت RBD برای محاسبه‌ی سریع تفاوت با استفاده از object map
+- term: Flatten
+  fa: جدا کردن clone از والد با کپی همه‌ی داده
+- term: Full ratio
+  fa: آستانه‌ی پر شدن OSD که بالاتر از آن نوشتن متوقف می‌شود
+- term: Incremental map
+  fa: تفاوت دو epoch متوالی نقشه که به مشترکان ارسال می‌شود
+- term: Journal (RBD)
+  fa: ثبت ترتیبی تغییرات تصویر برای mirroring مبتنی بر journal
+- term: Lease
+  fa: اجازه‌ی محدود زمانی که رهبر MON برای خواندن به peonها می‌دهد
+- term: librados
+  fa: کتابخانه‌ی کلاینت بومی RADOS
+- term: librbd
+  fa: کتابخانه‌ی کلاینت دستگاه بلوکی RBD در فضای کاربر
+- term: Manifest
+  fa: نقشه‌ی بخش‌های یک شیء RGW (head و tail)
+- term: MDS
+  fa: سرویس فراداده‌ی CephFS
+- term: mClock
+  fa: زمان‌بند QoS پیش‌فرض OSD بر پایه‌ی reservation، weight و limit
+- term: Mgr
+  fa: daemon مدیر که ماژول‌های پایتون مثل dashboard و prometheus را اجرا می‌کند
+- term: min_size
+  fa: کمترین تعداد نسخه‌ی در دسترس برای پذیرش I/O در یک pool
+- term: Mirroring
+  fa: تکثیر ناهمگام تصاویر RBD یا CephFS به کلاستر دیگر
+- term: MON
+  fa: مانیتور؛ نگه‌دارنده‌ی نقشه‌های کلاستر با اجماع Paxos
+- term: msgr2
+  fa: نسخه‌ی ۲ پروتکل شبکه‌ی Ceph با رمزنگاری اختیاری (پورت 3300)
+- term: Multisite
+  fa: ساختار realm، zonegroup و zone برای تکثیر RGW بین سایت‌ها
+- term: Object map
+  fa: بیت‌مپ وضعیت وجود اشیای یک تصویر RBD
+- term: ObjectStore
+  fa: رابط انتزاعی ذخیره‌سازی محلی OSD
+- term: Objecter
+  fa: مؤلفه‌ی کلاینت که op را به OSD درست می‌فرستد و retry می‌کند
+- term: omap
+  fa: ذخیره‌ی کلید-مقدار وابسته به هر شیء RADOS
+- term: Onode
+  fa: ساختار فراداده‌ی یک شیء در BlueStore
+- term: OSD
+  fa: daemon ذخیره‌سازی شیء؛ معمولاً یکی برای هر دیسک
+- term: OSDMap
+  fa: نقشه‌ی وضعیت OSDها، poolها و استثناهای جای‌گذاری
+- term: Paxos
+  fa: الگوریتم اجماع مورد استفاده‌ی MONها
+- term: Peering
+  fa: فرایند توافق OSDهای یک PG روی وضعیت و تاریخچه‌ی آن
+- term: PG (Placement Group)
+  fa: گروه جای‌گذاری؛ واحد منطقی توزیع و بازیابی اشیا
+- term: pg_autoscaler
+  fa: ماژول mgr برای تنظیم خودکار تعداد PG هر pool
+- term: PG log
+  fa: تاریخچه‌ی اخیر تغییرات هر PG برای recovery سریع
+- term: pg_temp
+  fa: نگاشت موقت acting set در OSDMap هنگام backfill
+- term: Pool
+  fa: فضای منطقی با سیاست تکثیر، قاعده‌ی CRUSH و تعداد PG مستقل
+- term: Primary OSD
+  fa: OSD نخست acting set که درخواست‌های کلاینت را هماهنگ می‌کند
+- term: Primary affinity
+  fa: ضریب تمایل یک OSD برای primary شدن
+- term: Quorum
+  fa: اکثریت MONهای در دسترس که می‌توانند تصمیم بگیرند
+- term: RADOS
+  fa: لایه‌ی پایه‌ی ذخیره‌ی شیء توزیع‌شده و خودترمیم Ceph
+- term: RBD
+  fa: دستگاه بلوکی Ceph
+- term: Recovery
+  fa: بازگرداندن نسخه‌های گم‌شده‌ی اشیا بر اساس PG log
+- term: Replication
+  fa: تکثیر کامل داده در چند نسخه
+- term: Reweight
+  fa: ضریب موقت کاهش داده‌ی یک OSD (۰ تا ۱)
+- term: RGW
+  fa: دروازه‌ی شیء سازگار با S3 و Swift
+- term: Rook
+  fa: اپراتور Kubernetes برای استقرار و مدیریت Ceph
+- term: Scrub
+  fa: بررسی دوره‌ای سازگاری فراداده‌ی نسخه‌های یک PG
+- term: Shard
+  fa: یک بخش از داده‌ی تقسیم‌شده؛ مثلاً شارد index، شارد EC یا شارد صف OSD
+- term: Snapshot
+  fa: تصویر فقط‌خواندنی یک نقطه‌ی زمانی
+- term: Stretch mode
+  fa: حالت کلاستر کشیده بین دو مرکز داده همراه یک MON داور
+- term: Striping
+  fa: تقسیم داده‌ی پیوسته روی چند شیء
+- term: Tiebreaker
+  fa: MON داور در stretch mode برای شکستن تساوی quorum
+- term: Upmap
+  fa: استثنای صریح جای‌گذاری PG در OSDMap برای توازن
+- term: Up set
+  fa: مجموعه‌ی OSDهای محاسبه‌شده با CRUSH پیش از اعمال pg_temp
+- term: vstart.sh
+  fa: اسکریپت راه‌اندازی کلاستر توسعه‌ی محلی از درخت ساخت
+- term: WAL
+  fa: لاگ پیش‌نویس RocksDB در BlueStore
+- term: Zone
+  fa: یک استقرار RGW با poolهای خودش در multisite
+- term: Zonegroup
+  fa: گروه zoneها که داده را بین خود تکثیر می‌کنند
+- term: AES-GCM
+  fa: رمزنگاری احرازشده‌ی msgr2 در حالت secure (کلید ۱۶، IV ۱۲ و tag ۱۶ بایتی)
+- term: Banner
+  fa: رشته‌ی آغازین اتصال msgr2 («ceph v2») همراه با ویژگی‌های پشتیبانی‌شده و الزامی
+- term: bufferlist
+  fa: زنجیره‌ای از bufferptrها روی bufferهای شمارش‌ارجاع‌دار؛ واحد اصلی داده در کد Ceph
+- term: crc32c
+  fa: checksum با چندجمله‌ای Castagnoli که BlueStore، msgr2 و journal از آن استفاده می‌کنند
+- term: Envelope mode (BlueFS)
+  fa: قالب تازه‌ی ثبت فایل‌های BlueFS که در Tentacle و بالاتر وجود دارد
+- term: Frame preamble
+  fa: سرآیند ۳۲ بایتی هر قاب msgr2 با tag، طول segmentها و crc
+- term: GF(2^8)
+  fa: میدان متناهی ۲۵۶ عضوی که ضرب و جمع (XOR) در کدهای Reed-Solomon در آن انجام می‌شود
+- term: io_uring
+  fa: رابط ورودی و خروجی ناهم‌گام هسته‌ی لینوکس؛ در BlueStore جایگزین اختیاری libaio
+- term: krbd
+  fa: درایور هسته‌ای RBD (rbd.ko) که تصویر را به‌صورت دستگاه بلوکی /dev/rbdN نشان می‌دهد
+- term: Label (BlueStore)
+  fa: بلوک ۴۰۹۶ بایتی آغاز دستگاه با uuid، اندازه و فراداده‌ی OSD
+- term: libceph
+  fa: کتابخانه‌ی مشترک هسته‌ی لینوکس برای messenger، monclient، osd_client و CRUSH
+- term: Linger request
+  fa: درخواست ماندگار libceph یا Objecter برای watch و notify که با هر نقشه دوباره ارزیابی می‌شود
+- term: LSM tree
+  fa: ساختار درخت ادغام ساخت‌یافته در لاگ که RocksDB بر آن بنا شده است
+- term: memtable
+  fa: جدول درون‌حافظه‌ای RocksDB پیش از flush شدن به SST
+- term: mempool
+  fa: شمارش حافظه بر حسب نوع داده در Ceph؛ با dump_mempools دیده می‌شود
+- term: MMgrReport
+  fa: پیام دوره‌ای daemonها به mgr حاوی perf counterها
+- term: MOSDOp
+  fa: پیام درخواست عملیات کلاینت به OSD
+- term: O_DIRECT
+  fa: باز کردن دستگاه بدون page cache؛ BlueStore داده را این‌گونه می‌نویسد
+- term: Perf counter
+  fa: شمارنده‌ی کارایی درون daemon (u64، time، avg یا histogram)
+- term: PriorityCache
+  fa: مدیر بودجه‌ی حافظه که cacheهای BlueStore و RocksDB را با osd_memory_target تنظیم می‌کند
+- term: Reed-Solomon
+  fa: کد پاک‌سازی MDS که با k تکه‌ی داده و m تکه‌ی parity هر m خرابی را تحمل می‌کند
+- term: Rjenkins hash
+  fa: تابع hash باب جنکینز که برای نام شیء و ورودی CRUSH استفاده می‌شود
+- term: SST
+  fa: فایل جدول مرتب و تغییرناپذیر RocksDB
+- term: stable_mod
+  fa: نگاشت seed به PG که با رشد pg_num فقط بخشی از اشیا را جابه‌جا می‌کند
+- term: straw2
+  fa: الگوریتم انتخاب bucket در CRUSH با کشیدن «نی» به‌صورت ln(hash)/weight
+- term: Storage class
+  fa: کلاس ذخیره‌سازی در RGW که به data_pool جداگانه در placement target نگاشت می‌شود
+- term: Superblock (BlueFS)
+  fa: سرآیند BlueFS در آفست 4096 دستگاه با log_fnode و نسخه
+- term: Throttle (BlueStore)
+  fa: محدودیت هزینه‌ی تراکنش‌های در جریان بر حسب بایت معادل
+- term: WriteBatch
+  fa: دسته‌ی اتمیک عملیات Put و Delete در RocksDB
+- term: Lifecycle (RGW)
+  fa: قواعد انقضا و انتقال اشیا که LCWorkerها در پنجره‌ی زمانی اجرا می‌کنند

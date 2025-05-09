@@ -1,0 +1,167 @@
+[
+  {
+    "id": "official-docs-1",
+    "type": "webpage",
+    "title": "مستندات اصلی Ceph",
+    "URL": "https://docs.ceph.com/en/latest/",
+    "custom": {
+      "group": "official-docs",
+      "title-fa": "مستندات اصلی Ceph",
+      "title-en": "Ceph documentation"
+    }
+  },
+  {
+    "id": "official-docs-2",
+    "type": "webpage",
+    "title": "نسخه‌ها و چرخه‌ی انتشار",
+    "URL": "https://docs.ceph.com/en/latest/releases/",
+    "custom": {
+      "group": "official-docs",
+      "title-fa": "نسخه‌ها و چرخه‌ی انتشار",
+      "title-en": "Releases and release cycle"
+    }
+  },
+  {
+    "id": "official-docs-3",
+    "type": "webpage",
+    "title": "RADOS: پیکربندی و عملیات",
+    "URL": "https://docs.ceph.com/en/latest/rados/",
+    "custom": {
+      "group": "official-docs",
+      "title-fa": "RADOS: پیکربندی و عملیات",
+      "title-en": "RADOS: configuration and operations"
+    }
+  },
+  {
+    "id": "official-docs-4",
+    "type": "webpage",
+    "title": "RBD",
+    "URL": "https://docs.ceph.com/en/latest/rbd/",
+    "custom": {
+      "group": "official-docs",
+      "title-fa": "RBD",
+      "title-en": "RBD"
+    }
+  },
+  {
+    "id": "official-docs-5",
+    "type": "webpage",
+    "title": "RGW",
+    "URL": "https://docs.ceph.com/en/latest/radosgw/",
+    "custom": {
+      "group": "official-docs",
+      "title-fa": "RGW",
+      "title-en": "RGW"
+    }
+  },
+  {
+    "id": "official-docs-6",
+    "type": "webpage",
+    "title": "CephFS",
+    "URL": "https://docs.ceph.com/en/latest/cephfs/",
+    "custom": {
+      "group": "official-docs",
+      "title-fa": "CephFS",
+      "title-en": "CephFS"
+    }
+  },
+  {
+    "id": "official-docs-7",
+    "type": "webpage",
+    "title": "cephadm",
+    "URL": "https://docs.ceph.com/en/latest/cephadm/",
+    "custom": {
+      "group": "official-docs",
+      "title-fa": "cephadm",
+      "title-en": "cephadm"
+    }
+  },
+  {
+    "id": "official-docs-8",
+    "type": "webpage",
+    "title": "راهنمای توسعه‌دهنده",
+    "URL": "https://docs.ceph.com/en/latest/dev/developer_guide/",
+    "custom": {
+      "group": "official-docs",
+      "title-fa": "راهنمای توسعه‌دهنده",
+      "title-en": "Developer guide"
+    }
+  },
+  {
+    "id": "code-community-1",
+    "type": "webpage",
+    "title": "مخزن کد Ceph",
+    "URL": "https://github.com/ceph/ceph",
+    "custom": {
+      "group": "code-community",
+      "title-fa": "مخزن کد Ceph",
+      "title-en": "Ceph source repository"
+    }
+  },
+  {
+    "id": "code-community-2",
+    "type": "webpage",
+    "title": "Rook",
+    "URL": "https://rook.io/docs/rook/latest/",
+    "custom": {
+      "group": "code-community",
+      "title-fa": "Rook",
+      "title-en": "Rook"
+    }
+  },
+  {
+    "id": "code-community-3",
+    "type": "webpage",
+    "title": "وبلاگ Ceph",
+    "URL": "https://ceph.io/en/news/blog/",
+    "custom": {
+      "group": "code-community",
+      "title-fa": "وبلاگ Ceph",
+      "title-en": "Ceph blog"
+    }
+  },
+  {
+    "id": "papers-1",
+    "type": "article-journal",
+    "title": "Weil و همکاران، Ceph، OSDI 2006",
+    "URL": "https://www.usenix.org/legacy/event/osdi06/tech/full_papers/weil/weil.pdf",
+    "custom": {
+      "group": "papers",
+      "title-fa": "Weil و همکاران، Ceph، OSDI 2006",
+      "title-en": "Weil et al., Ceph, OSDI 2006"
+    }
+  },
+  {
+    "id": "papers-2",
+    "type": "article-journal",
+    "title": "Weil و همکاران، CRUSH، SC 2006",
+    "URL": "https://ceph.io/assets/pdfs/weil-crush-sc06.pdf",
+    "custom": {
+      "group": "papers",
+      "title-fa": "Weil و همکاران، CRUSH، SC 2006",
+      "title-en": "Weil et al., CRUSH, SC 2006"
+    }
+  },
+  {
+    "id": "papers-3",
+    "type": "article-journal",
+    "title": "Weil و همکاران، RADOS، PDSW 2007",
+    "URL": "https://ceph.io/assets/pdfs/weil-rados-pdsw07.pdf",
+    "custom": {
+      "group": "papers",
+      "title-fa": "Weil و همکاران، RADOS، PDSW 2007",
+      "title-en": "Weil et al., RADOS, PDSW 2007"
+    }
+  },
+  {
+    "id": "papers-4",
+    "type": "article-journal",
+    "title": "Aghayev و همکاران، File Systems Unfit as Distributed Storage Backends (BlueStore)، SOSP 2019",
+    "URL": "https://www.pdl.cmu.edu/PDL-FTP/Storage/ceph-exp-sosp19.pdf",
+    "custom": {
+      "group": "papers",
+      "title-fa": "Aghayev و همکاران، File Systems Unfit as Distributed Storage Backends (BlueStore)، SOSP 2019",
+      "title-en": "Aghayev et al., File Systems Unfit as Distributed Storage Backends (BlueStore), SOSP 2019"
+    }
+  }
+]
