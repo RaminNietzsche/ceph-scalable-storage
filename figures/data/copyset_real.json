@@ -1,0 +1,101 @@
+{
+ "256": {
+  "distinct": 256,
+  "p_loss": 0.000911551061102407,
+  "lost_frac": 3.5607463324312774e-06,
+  "fan_min": 2,
+  "fan_avg": 11.816666666666666,
+  "fan_max": 27,
+  "pg_per_osd_min": 1,
+  "pg_per_osd_max": 17,
+  "pg_per_osd_avg": 6.4
+ },
+ "512": {
+  "distinct": 511,
+  "p_loss": 0.001819541375872383,
+  "lost_frac": 3.5607463324312774e-06,
+  "fan_min": 6,
+  "fan_avg": 22.483333333333334,
+  "fan_max": 40,
+  "pg_per_osd_min": 3,
+  "pg_per_osd_max": 28,
+  "pg_per_osd_avg": 12.8
+ },
+ "1024": {
+  "distinct": 1021,
+  "p_loss": 0.0036355220054123346,
+  "lost_frac": 3.5607463324312774e-06,
+  "fan_min": 21,
+  "fan_avg": 40.4,
+  "fan_max": 57,
+  "pg_per_osd_min": 13,
+  "pg_per_osd_max": 42,
+  "pg_per_osd_avg": 25.6
+ },
+ "2048": {
+  "distinct": 2033,
+  "p_loss": 0.007238997293832788,
+  "lost_frac": 3.5607463324312774e-06,
+  "fan_min": 53,
+  "fan_avg": 66.03333333333333,
+  "fan_max": 81,
+  "pg_per_osd_min": 35,
+  "pg_per_osd_max": 71,
+  "pg_per_osd_avg": 51.2
+ },
+ "4096": {
+  "distinct": 4050,
+  "p_loss": 0.014421022646346674,
+  "lost_frac": 3.5607463324312774e-06,
+  "fan_min": 83,
+  "fan_avg": 91.78333333333333,
+  "fan_max": 101,
+  "pg_per_osd_min": 76,
+  "pg_per_osd_max": 135,
+  "pg_per_osd_avg": 102.4
+ },
+ "8192": {
+  "distinct": 8037,
+  "p_loss": 0.02861771827375018,
+  "lost_frac": 3.5607463324312774e-06,
+  "fan_min": 102,
+  "fan_avg": 105.88333333333334,
+  "fan_max": 108,
+  "pg_per_osd_min": 172,
+  "pg_per_osd_max": 234,
+  "pg_per_osd_avg": 204.8
+ },
+ "16384": {
+  "distinct": 15751,
+  "p_loss": 0.05608531548212505,
+  "lost_frac": 3.5607463324312774e-06,
+  "fan_min": 107,
+  "fan_avg": 107.96666666666667,
+  "fan_max": 108,
+  "pg_per_osd_min": 360,
+  "pg_per_osd_max": 469,
+  "pg_per_osd_avg": 409.6
+ },
+ "32768": {
+  "distinct": 30267,
+  "p_loss": 0.10777310924369748,
+  "lost_frac": 3.5607463324312774e-06,
+  "fan_min": 108,
+  "fan_avg": 108.0,
+  "fan_max": 108,
+  "pg_per_osd_min": 749,
+  "pg_per_osd_max": 887,
+  "pg_per_osd_avg": 819.2
+ },
+ "65536": {
+  "distinct": 56246,
+  "p_loss": 0.20027773821392963,
+  "lost_frac": 3.5607463324312774e-06,
+  "fan_min": 108,
+  "fan_avg": 108.0,
+  "fan_max": 108,
+  "pg_per_osd_min": 1533,
+  "pg_per_osd_max": 1750,
+  "pg_per_osd_avg": 1638.4
+ }
+}

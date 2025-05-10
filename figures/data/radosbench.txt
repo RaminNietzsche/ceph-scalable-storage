@@ -1,0 +1,7 @@
+t=1 Bandwidth (MB/sec):     6.2326 Average IOPS:           1595 Average Latency(s):     0.000624999 Stddev Latency(s):      0.000204935 Max latency(s):         0.00642579 
+t=2 Bandwidth (MB/sec):     10.6035 Average IOPS:           2714 Average Latency(s):     0.000734531 Stddev Latency(s):      0.000813415 Max latency(s):         0.0502448 
+t=4 Bandwidth (MB/sec):     17.8588 Average IOPS:           4571 Average Latency(s):     0.000872531 Stddev Latency(s):      0.000842572 Max latency(s):         0.0536616 
+t=8 Bandwidth (MB/sec):     25.7727 Average IOPS:           6597 Average Latency(s):     0.00121056 Stddev Latency(s):      0.000771563 Max latency(s):         0.0395449 
+t=16 Bandwidth (MB/sec):     37.1744 Average IOPS:           9516 Average Latency(s):     0.00167977 Stddev Latency(s):      0.00156059 Max latency(s):         0.088143 
+t=32 Bandwidth (MB/sec):     48.422 Average IOPS:           12396 Average Latency(s):     0.00258018 Stddev Latency(s):      0.00136251 Max latency(s):         0.0406234 
+t=64 Bandwidth (MB/sec):     61.431 Average IOPS:           15726 Average Latency(s):     0.00406775 Stddev Latency(s):      0.00220291 Max latency(s):         0.0680781 

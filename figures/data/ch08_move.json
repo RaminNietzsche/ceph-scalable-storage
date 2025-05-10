@@ -1,0 +1,72 @@
+{
+ "straw2": {
+  "add_host": {
+   "moved": 2512,
+   "to_new": 2184,
+   "total": 24576,
+   "ideal": 2234.181818181818
+  },
+  "reweight": {
+   "0.5": {
+    "moved": 214,
+    "involving_osd5": 114,
+    "collateral": 100
+   },
+   "0.8": {
+    "moved": 84,
+    "involving_osd5": 42,
+    "collateral": 42
+   },
+   "1.2": {
+    "moved": 93,
+    "involving_osd5": 46,
+    "collateral": 47
+   },
+   "1.5": {
+    "moved": 216,
+    "involving_osd5": 113,
+    "collateral": 103
+   },
+   "2.0": {
+    "moved": 411,
+    "involving_osd5": 214,
+    "collateral": 197
+   }
+  }
+ },
+ "straw": {
+  "add_host": {
+   "moved": 2512,
+   "to_new": 2184,
+   "total": 24576,
+   "ideal": 2234.181818181818
+  },
+  "reweight": {
+   "0.5": {
+    "moved": 214,
+    "involving_osd5": 111,
+    "collateral": 103
+   },
+   "0.8": {
+    "moved": 85,
+    "involving_osd5": 44,
+    "collateral": 41
+   },
+   "1.2": {
+    "moved": 96,
+    "involving_osd5": 46,
+    "collateral": 50
+   },
+   "1.5": {
+    "moved": 212,
+    "involving_osd5": 105,
+    "collateral": 107
+   },
+   "2.0": {
+    "moved": 400,
+    "involving_osd5": 216,
+    "collateral": 184
+   }
+  }
+ }
+}

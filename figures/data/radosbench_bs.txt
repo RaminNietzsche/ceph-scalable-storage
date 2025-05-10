@@ -1,0 +1,6 @@
+b=4096 Bandwidth (MB/sec):     34.1147 Average IOPS:           8733 Average Latency(s):     0.00183049 
+b=16384 Bandwidth (MB/sec):     98.2193 Average IOPS:           6286 Average Latency(s):     0.00254346 
+b=65536 Bandwidth (MB/sec):     402.694 Average IOPS:           6443 Average Latency(s):     0.00248138 
+b=262144 Bandwidth (MB/sec):     647.152 Average IOPS:           2588 Average Latency(s):     0.00617855 
+b=1048576 Bandwidth (MB/sec):     646.644 Average IOPS:           646 Average Latency(s):     0.0247361 
+b=4194304 Bandwidth (MB/sec):     658.361 Average IOPS:           164 Average Latency(s):     0.0970968 

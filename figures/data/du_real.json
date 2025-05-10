@@ -1,0 +1,26 @@
+{
+ "A_100x1K": {
+  "default": 419430400,
+  "exact": 102400,
+  "features": 61,
+  "objs": 100
+ },
+ "B_1000x1K": {
+  "default": 4194304000,
+  "exact": 1024000,
+  "features": 61,
+  "objs": 1000
+ },
+ "C_seq256M": {
+  "default": 268435456,
+  "exact": 268435456,
+  "features": 61,
+  "objs": 64
+ },
+ "D_2000x4K_rand2G": {
+  "default": 2109734912,
+  "exact": 1624887296,
+  "features": 61,
+  "objs": 503
+ }
+}

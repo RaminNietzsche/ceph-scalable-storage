@@ -1,0 +1,56 @@
+{
+ "straw2": {
+  "0.5": {
+   "osd5": 114,
+   "host0_other": 94,
+   "unrelated": 6
+  },
+  "0.8": {
+   "osd5": 42,
+   "host0_other": 40,
+   "unrelated": 2
+  },
+  "1.2": {
+   "osd5": 46,
+   "host0_other": 38,
+   "unrelated": 9
+  },
+  "1.5": {
+   "osd5": 113,
+   "host0_other": 86,
+   "unrelated": 17
+  },
+  "2.0": {
+   "osd5": 214,
+   "host0_other": 169,
+   "unrelated": 28
+  }
+ },
+ "straw": {
+  "0.5": {
+   "osd5": 111,
+   "host0_other": 95,
+   "unrelated": 8
+  },
+  "0.8": {
+   "osd5": 44,
+   "host0_other": 39,
+   "unrelated": 2
+  },
+  "1.2": {
+   "osd5": 46,
+   "host0_other": 41,
+   "unrelated": 9
+  },
+  "1.5": {
+   "osd5": 105,
+   "host0_other": 94,
+   "unrelated": 13
+  },
+  "2.0": {
+   "osd5": 216,
+   "host0_other": 162,
+   "unrelated": 22
+  }
+ }
+}
