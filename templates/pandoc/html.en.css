@@ -1,0 +1,13 @@
+/* Stylesheet for the Pandoc HTML/EPUB output (en, ltr). */
+html { direction: ltr; }
+body { font-family: "Source Serif Pro", "Source Serif 4", Georgia, serif; line-height: 1.7; max-width: 46em; margin: 0 auto; padding: 1em; color: #1d1d1f; }
+code, pre { font-family: "JetBrains Mono", monospace; direction: ltr; unicode-bidi: embed; }
+pre { background: #f6f7f9; border: 1px solid #c9ced6; border-left: 4px solid #c0392b; padding: .6em .8em; overflow-x: auto; text-align: left; }
+figure { margin: 1.2em 0; text-align: center; } figure img { max-width: 100%; }
+figcaption { font-size: .9em; color: #444; }
+table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #c5cfe0; padding: .3em .5em; vertical-align: top; } th { background: #1f3864; color: #fff; }
+div.tip, div.warn, div.note, div.try, div.deep, div.debug, div.algo, div.summary, div.box { border-left: 5px solid #888; padding: .4em .9em; margin: 1em 0; background: #f4f4f4; }
+div.tip { border-color: #2e7d32; background: #e8f5e9; } div.warn { border-color: #c62828; background: #fdecea; }
+div.note { border-color: #e0a800; background: #fff8e1; } div.try { border-color: #1565c0; background: #e3f2fd; }
+div.deep { border-color: #6a1b9a; background: #f3e5f5; } div.debug { border-color: #455a64; background: #eceff1; }
+div.algo { border-color: #00796b; background: #e0f2f1; } div.summary { border-color: #2f5496; background: #f4f7fd; }
