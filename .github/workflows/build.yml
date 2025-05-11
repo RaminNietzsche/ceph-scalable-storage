@@ -1,0 +1,91 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install tools
+        run: |
+          pip install -r requirements.txt
+          npm install --no-audit --no-fund
+          echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Checks (lint, spell, refs, links, parity)
+        run: make check
+
+  pdf:
+    needs: check
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [fa, en]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: System packages and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 fonts-dejavu-core
+          tools/install_fonts.sh
+      - name: Python packages
+        run: pip install -r requirements.txt
+      - name: Build PDF (figures are committed; only changed sources re-render)
+        run: |
+          mkdir -p build && touch build/.figures.stamp
+          make pdf LANG=${{ matrix.lang }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ceph-scalable-storage-${{ matrix.lang }}-pdf
+          path: build/${{ matrix.lang }}/ceph-scalable-storage-${{ matrix.lang }}.pdf
+          if-no-files-found: error
+
+  ebooks:
+    needs: check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Pandoc
+        run: |
+          curl -fsSL -o pandoc.deb https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-1-amd64.deb
+          sudo dpkg -i pandoc.deb
+      - run: pip install -r requirements.txt
+      - name: HTML / EPUB / DOCX for both editions
+        run: |
+          mkdir -p build && touch build/.figures.stamp
+          for l in fa en; do make LANG=$l html epub docx; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ceph-scalable-storage-ebooks
+          path: |
+            build/*/ceph-scalable-storage-*.html
+            build/*/ceph-scalable-storage-*.epub
+            build/*/ceph-scalable-storage-*.docx

@@ -1,0 +1,134 @@
+# Ceph: Scalable Storage — bilingual book build
+#
+#   make                 # PDF of the default edition (LANG=fa)
+#   make pdf LANG=en     # PDF of the English edition
+#   make all             # pdf + html + epub + docx for fa and en
+#   make check           # lint, spell, refs, links (offline), parity
+#   make help            # list targets
+#
+# LANG selects the edition and must be fa or en. A locale value inherited from
+# the environment (e.g. LANG=en_US.UTF-8) is ignored and the default fa is used.
+
+SHELL       := /bin/bash
+.SHELLFLAGS := -eu -o pipefail -c
+.DEFAULT_GOAL := pdf
+MAKEFLAGS   += --no-builtin-rules --warn-undefined-variables
+
+EDITIONS    := fa en
+BOOK_LANG   := $(if $(filter $(EDITIONS),$(LANG)),$(LANG),fa)
+L           := $(BOOK_LANG)
+unexport LANG
+export LC_ALL     := C.UTF-8
+export PYTHONUTF8 := 1
+export PYTHONDONTWRITEBYTECODE := 1
+
+PYTHON      ?= python3
+PANDOC      ?= pandoc
+MDLINT      ?= $(shell command -v markdownlint-cli2 || echo node_modules/.bin/markdownlint-cli2)
+NAME        := ceph-scalable-storage
+VERSION     := $(shell sed -n 's/^version: *"\(.*\)"/\1/p' content/fa/metadata.yaml)
+B           := build/$(L)
+DIST        := dist
+
+# ---- dependency sets -------------------------------------------------------
+TOOLS       := $(wildcard tools/*.py tools/booklib/*.py)
+CONTENT     := $(shell find content/$(L) -type f) glossary/glossary.yaml references/references.json
+TEMPLATES   := $(wildcard templates/html/*.$(L).html templates/css/book.$(L).css templates/cover/cover.$(L).yaml)
+PANDOC_TPL  := $(wildcard templates/pandoc/*)
+FIG_SRC     := $(wildcard figures/ch*/*.mmd figures/ch*/*.bf.json) $(wildcard figures/i18n/*.yaml)
+FIG_STAMP   := build/.figures.stamp
+COVER       := assets/cover.$(L).png assets/back.$(L).png
+
+PDF         := $(B)/$(NAME)-$(L).pdf
+BOOK_HTML   := $(B)/book.html
+HTML        := $(B)/$(NAME)-$(L).html
+EPUB        := $(B)/$(NAME)-$(L).epub
+DOCX        := $(B)/$(NAME)-$(L).docx
+
+.PHONY: help all pdf html epub docx book figures cover lint markdownlint spell \
+        check check-links check-links-online check-refs check-parity \
+        sync-translations stats clean distclean dist
+
+help: ## show this help
+	@grep -hE '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | \
+	  awk -F':.*## ' '{printf "  %-20s %s\n", $$1, $$2}'
+	@echo "  LANG=fa|en (current: $(L)); version $(VERSION)"
+
+all: ## every format for both editions
+	@for l in $(EDITIONS); do $(MAKE) --no-print-directory LANG=$$l pdf html epub docx; done
+
+pdf: $(PDF) ## print PDF (WeasyPrint, two-pass index) for LANG
+html: $(HTML) ## single-file HTML (Pandoc, embedded resources) for LANG
+epub: $(EPUB) ## EPUB 3 for LANG
+docx: $(DOCX) ## Word document for LANG
+book: $(BOOK_HTML) ## intermediate print HTML only
+
+# ---- figures ---------------------------------------------------------------
+figures: $(FIG_STAMP) ## render changed Mermaid / byte-layout figures (+ en label variants)
+$(FIG_STAMP): $(FIG_SRC) tools/render_figures.py tools/render_bytefig.py tools/translate_figures.py
+	$(PYTHON) tools/translate_figures.py --lang en
+	$(PYTHON) tools/render_figures.py
+	@mkdir -p $(@D) && touch $@
+
+cover: ## regenerate the cover/back images for LANG into assets/
+	$(PYTHON) tools/render_cover.py --lang $(L) --out $(B)/cover
+	cp $(B)/cover/cover.png assets/cover.$(L).png
+	cp $(B)/cover/back.png assets/back.$(L).png
+
+# ---- print book (identical renderer to v1.4) ------------------------------
+$(BOOK_HTML): $(CONTENT) $(TEMPLATES) $(COVER) $(TOOLS) $(FIG_STAMP)
+	$(PYTHON) tools/build_book.py --lang $(L) --out $(B)
+
+$(PDF): $(BOOK_HTML) tools/render_pdf.py
+	$(PYTHON) tools/render_pdf.py --lang $(L) --build $(B) --out $@
+
+# ---- Pandoc exports --------------------------------------------------------
+$(B)/$(NAME)-$(L).%: $(CONTENT) $(PANDOC_TPL) tools/export_pandoc.py $(FIG_STAMP)
+	PANDOC=$(PANDOC) $(PYTHON) tools/export_pandoc.py --lang $(L) --format $* --out $@
+
+# ---- quality gates ----------------------------------------------------------
+lint: markdownlint ## markdownlint + prose/orthography lint (both editions)
+	$(PYTHON) tools/lint_prose.py --lang all
+
+markdownlint:
+	$(MDLINT) "content/**/*.md" "*.md" "figures/scripts/README.md"
+
+spell: ## codespell (en + tooling) and Persian orthography rules (fa)
+	$(PYTHON) tools/lint_prose.py --lang fa
+	$(PYTHON) tools/lint_prose.py --lang en
+	codespell --ignore-words .codespell-ignore README.md CONTRIBUTING.md CHANGELOG.md tools figures/scripts
+
+check-links: ## URL syntax/https check (offline)
+	$(PYTHON) tools/check_links.py --lang all
+
+check-links-online: ## also fetch every URL (network)
+	$(PYTHON) tools/check_links.py --lang all --online
+
+check-refs: ## figure/ALGO/section/answer cross-references resolve
+	$(PYTHON) tools/check_refs.py --lang all
+
+check-parity: ## fa and en have the same chapters, figure ids, ALGO ids, anchors
+	$(PYTHON) tools/check_parity.py
+
+check: lint spell check-refs check-links check-parity ## all offline checks
+
+sync-translations: ## create/refresh en placeholders for new fa files
+	$(PYTHON) tools/sync_translations.py --lang en
+
+stats: $(BOOK_HTML) ## print counts (figures, ALGO, references) for LANG
+	@cat $(B)/stats.json; echo
+
+# ---- housekeeping ----------------------------------------------------------
+clean: ## remove build outputs for every edition
+	rm -rf build
+	find . -name __pycache__ -type d -prune -exec rm -rf {} +
+
+distclean: clean ## also remove dist/ and node_modules/
+	rm -rf $(DIST) node_modules
+
+dist: ## build/fa+en outputs into dist/ and a source archive (git archive)
+	$(MAKE) --no-print-directory all
+	mkdir -p $(DIST)
+	for l in $(EDITIONS); do cp build/$$l/$(NAME)-$$l.{pdf,html,epub,docx} $(DIST)/; done
+	git archive --format=tar.gz --prefix=$(NAME)-$(VERSION)/ -o $(DIST)/$(NAME)-$(VERSION)-src.tar.gz HEAD
+	cd $(DIST) && sha256sum * > SHA256SUMS
