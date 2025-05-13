@@ -1,0 +1,74 @@
+# UI strings for the English edition (used by tools/build_book.py)
+digits: latin
+book: "The Comprehensive Ceph Guide"
+chapter_word: "Chapter"
+special_word: "Special Part"
+lower_word: "Lower Layers · Chapter"
+in_this_chapter: "In this chapter"
+figure: "Figure"
+appendix_fig_prefix: "A"
+algorithm: "Algorithm"
+algo_src: "Source in code"
+algo_complexity: "Complexity"
+callouts:
+  tip: "Tip"
+  warn: "Warning"
+  note: "Note"
+  try: "Try it"
+  deep: "Deeper"
+  debug: "Troubleshooting"
+summary_default: "In this section"
+review_questions: "Review questions"
+chapter_sources: "Sources for this chapter"
+answers_ref: "Answers to these questions are in <b>Appendix E: Answers to Review Questions</b>."
+answers_ref_md: "(Answers in Appendix E)"
+page_range: "Corresponds to pages {a}–{b} of the original book"
+part_low_toc: "Part III: Lower Layers (Chapters 23–33)"
+part_low_word: "Part III"
+part_low_title: "Lower Layers"
+part_low_desc: "The eleven chapters of this part do not exist in the original book. They revisit Ceph from the lowest layer up: the block device, bufferlist and crc32c; the BlueStore and BlueFS on-disk format; RocksDB; msgr2 at the byte level; erasure-coding mathematics; CRUSH at the bit level; the Linux kernel clients; Crimson and SeaStore; SPDK and NVMe; scrub, recovery and backfill at code level; and memory and CPU inside the OSD. Every numeric example was recomputed with independent code or with compiled Ceph code."
+part_low_md: "Chapters 23–33 do not exist in the original book; they revisit Ceph from the lowest layer up."
+appendix: "Appendix"
+app:
+  glossary: ["A", "English Glossary", "Glossary"]
+  cheatsheet: ["B", "Command Cheat Sheet", "Command Cheat Sheet"]
+  troubleshooting: ["C", "Troubleshooting Guide: From Symptom to Action", "Troubleshooting Guide"]
+  versions: ["D", "Ceph Release Table", "Release Table"]
+  answers: ["E", "Answers to Review Questions", "Answers"]
+  bibliography: ["F", "Bibliography and Official Sources", "Bibliography"]
+  algorithms: ["G", "List of Algorithms", "List of Algorithms"]
+toc_app:
+  glossary: "Appendix A: English Glossary"
+  cheatsheet: "Appendix B: Command Cheat Sheet"
+  troubleshooting: "Appendix C: Troubleshooting Guide"
+  versions: "Appendix D: Ceph Release Table"
+  answers: "Appendix E: Answers to Review Questions"
+  bibliography: "Appendix F: Bibliography and Official Sources"
+  algorithms: "Appendix G: List of Algorithms"
+index: "Index"
+glossary_intro: "Key terms used in the book, in English alphabetical order, each with a short definition. Use the index at the end of the book to find where each term is used."
+glossary_cols: ["Term", "Definition"]
+cheatsheet_intro: "Every command that appears in a code block of a chapter is collected here, grouped by tool and subcommand, so you can find it quickly during day-to-day work. The right-hand column shows the chapter of first use; go back to that chapter for the full explanation. Before running state-changing commands on a real cluster, make sure you are connected to the right cluster (<code>ceph fsid</code>) and record the current state with <code>ceph -s</code>."
+answers_intro: "The answers below are short and indicative; for full explanations go back to the corresponding chapter."
+bib_intro: "This bibliography gathers every source listed in the chapters' “Sources” sections, together with general references. All links were checked in November 2026. Official project documentation is always the most current source; read the documentation for your own version before using any feature in production."
+bib_general: "General sources"
+bib_chapters: "Sources by chapter"
+ref_groups:
+  official-docs: "Official Ceph documentation"
+  code-community: "Code and community"
+  papers: "Foundational papers"
+algo_list_intro: "This appendix lists all {n} “Algorithm” boxes of the book in chapter order. Each box comes with an explanation, pseudocode, complexity, a worked numeric example and at least one figure. The “Source” column names the file and function the algorithm was extracted from and checked against. The page column links to the box itself."
+algo_cols: ["#", "Algorithm", "Source in code", "Chapter", "Page"]
+index_note: "Numbers refer to pages where the term is used in the chapter text; for frequent terms, the first pages of use in each chapter are listed."
+index_md_note: "(term → chapters where it is used)"
+preface: "Preface"
+toc: "Contents"
+lof: "List of Figures"
+list_sep: ", "
+chapter_ref: "Ch. {n}"
+pending_note: "The English translation of this chapter is in progress. The Persian edition contains the full text; this placeholder keeps chapter, figure and algorithm numbering identical across both editions."
+md_title_line: "**An English translation of the original Persian study guide organised after the table of contents of Ceph: Designing and Implementing Scalable Storage Systems (2019)**"
+md_byline: "Written by Ramin Najarbashi · version {version} · {date}"
+md_about_title: "About this work"
+md_about: "This book is an independent study guide and is not a translation of the original book. Only the original's public table of contents was used to order the topics; the text, examples, commands, exercises and figures were written for this guide. The English edition is a translation of the original Persian text.\n\nOriginal book: Vikhyat Umrao, Karan Singh, Nick Fisk, Anthony D'Atri, Vaibhav Bhembre, *Ceph: Designing and Implementing Scalable Storage Systems*, 2019. All rights to the original book remain with its authors and publisher. Short excerpts of Ceph code are quoted with their paths from github.com/ceph/ceph (LGPL)."
+md_toc_apps: "- Appendix A: English Glossary\n- Appendix B: Command Cheat Sheet\n- Appendix C: Troubleshooting Guide\n- Appendix D: Ceph Release Table\n- Appendix E: Answers\n- Appendix F: Bibliography\n- Appendix G: List of Algorithms\n- Index\n"

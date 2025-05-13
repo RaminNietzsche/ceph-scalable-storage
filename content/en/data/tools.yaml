@@ -1,0 +1,16 @@
+ceph: main cluster command line
+rados: direct work with RADOS objects
+rbd: RBD image management
+radosgw-admin: RGW administration
+cephadm: deployment and management with cephadm
+ceph-volume: disk and OSD preparation
+ceph-bluestore-tool: BlueStore inspection and repair
+ceph-objectstore-tool: offline PG and object inspection
+osdmaptool: offline OSDMap work
+crushtool: compile and test CRUSH maps
+ceph-dencoder: decode binary structures
+kubectl: Kubernetes (Rook)
+ceph-mon: monitor daemon
+monmaptool: MonMap work
+cephfs-journal-tool: CephFS journal tool
+ceph-kvstore-tool: RocksDB inspection
