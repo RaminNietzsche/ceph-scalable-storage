@@ -46,3 +46,19 @@ def skeleton(path):
         if l.startswith('|') and k + 1 < len(lines) and re.match(r'^\|?\s*:?-{3,}', lines[k + 1]):
             sk['tables'] += 1
     return sk
+
+
+def canonical_counts(root):
+    """Figure and ALGO counts of the canonical (fa) edition.
+
+    The editions are structurally identical (check_parity), so the preface of any
+    edition quotes these numbers even while chapters are still pending translation.
+    """
+    import glob
+    import os
+    algos = figs = 0
+    for p in glob.glob(os.path.join(root, 'content', 'fa', 'chapters', '*.md')):
+        sk = skeleton(p)
+        algos += len(sk['algos'])
+        figs += len(sk['figures'])
+    return algos, figs

@@ -1,22 +1,21 @@
 ---
 id: versions
 lang: en
-translation: pending
 ---
 
-جدول زیر نسخه‌های اصلی Ceph را از زمان انتشار کتاب اصلی (۲۰۱۹) تا امروز نشان می‌دهد. تاریخ‌های نسخه‌های فعال از صفحه‌ی رسمی نسخه‌ها (docs.ceph.com/en/latest/releases، آبان ۱۴۰۵) گرفته شده‌اند.
+The table below shows the major Ceph releases from the publication of the original book (2019) to today. Dates for active releases were taken from the official releases page (docs.ceph.com/en/latest/releases, November 2026).
 
-| نام | شماره | وضعیت (آبان ۱۴۰۵) | نکته‌های مرتبط با این کتاب |
+| Name | Number | Status (November 2026) | Notes relevant to this book |
 |---|---|---|---|
-| Nautilus | ۱۴.۲ | بایگانی | نسخه‌ی هم‌زمان با انتشار کتاب اصلی؛ msgr2، pg_autoscaler، ادغام PG |
-| Octopus | ۱۵.۲ | بایگانی | معرفی cephadm |
-| Pacific | ۱۶.۲ | بایگانی | `bluestore_min_alloc_size_hdd` به 4K کاهش یافت؛ RocksDB شاردشده در BlueStore |
-| Quincy | ۱۷.۲ | بایگانی | mClock به‌عنوان زمان‌بند پیش‌فرض OSD |
-| Reef | ۱۸.۲ | بایگانی | cache tiering منسوخ شد؛ بهبودهای RGW multisite |
-| Squid | ۱۹.۲ | فعال؛ آغاز ۲۰۲۴-۰۹-۲۶، پایان تخمینی ۲۰۲۶-۱۲-۰۲ | یکی از مبناهای این کتاب |
-| Tentacle | ۲۰.۲ | فعال؛ آغاز ۲۰۲۵-۱۱-۱۸، پایان تخمینی ۲۰۲۷-۰۶-۰۱ | تغییر پیش‌فرض شارد و thread mClock برای HDD (۱ شارد، ۵ thread) |
-| Umbrella | ۲۱.۲ | فعال؛ آغاز ۲۰۲۶-۱۰-۲۸، پایان تخمینی ۲۰۲۸-۰۶-۰۱ | `mon_target_pg_per_osd` برابر ۲۰۰؛ API تایپ‌شده‌ی cls |
+| Nautilus | 14.2 | Archived | Current when the original book was published; msgr2, pg_autoscaler, PG merging |
+| Octopus | 15.2 | Archived | Introduced cephadm |
+| Pacific | 16.2 | Archived | `bluestore_min_alloc_size_hdd` reduced to 4K; sharded RocksDB in BlueStore |
+| Quincy | 17.2 | Archived | mClock as the default OSD scheduler |
+| Reef | 18.2 | Archived | Cache tiering deprecated; RGW multisite improvements |
+| Squid | 19.2 | Active; started 2024-09-26, estimated end 2026-12-02 | One of the bases of this book |
+| Tentacle | 20.2 | Active; started 2025-11-18, estimated end 2027-06-01 | New default mClock shard and thread count for HDD (1 shard, 5 threads) |
+| Umbrella | 21.2 | Active; started 2026-10-28, estimated end 2028-06-01 | `mon_target_pg_per_osd` set to 200; typed cls API |
 
 ::: {.note}
-برای ارتقا هر بار حداکثر دو نسخه‌ی اصلی جلو بروید. یادداشت‌های انتشار نسخه‌ی مقصد را کامل بخوانید و `require_osd_release` را فقط پس از ارتقای همه‌ی OSDها تنظیم کنید (فصل ۱۹).
+When upgrading, move forward at most two major releases at a time. Read the release notes of the target release in full, and set `require_osd_release` only after every OSD has been upgraded (chapter 19).
 :::

@@ -1,39 +1,38 @@
 ---
 id: troubleshooting
 lang: en
-translation: pending
 ---
 
-این پیوست راهنمای فشرده‌ی برخورد با رایج‌ترین وضعیت‌های ناسالم است. هر ردیف از «نشانه» شروع می‌شود و به اولین فرمان‌های تشخیصی و جهت اصلاح می‌رسد. توضیح کامل هر مورد در فصل ذکرشده آمده است.
+This appendix is a compact guide to handling the most common unhealthy states. Each row starts from a "symptom" and leads to the first diagnostic commands and the direction of the fix. The full explanation of each case is in the chapter listed.
 
-# اصل کلی
+# General principles
 
-1. پیش از هر اقدام، وضعیت را ثبت کنید: `ceph -s`، `ceph health detail` و `ceph osd tree`.
-2. پرچم‌های پیشگیری را بشناسید: `noout` برای کارهای کوتاه نگهداری، و `norebalance` و `nobackfill` فقط با دلیل روشن. پس از پایان کار آن‌ها را بردارید.
-3. هرگز چند تغییر را هم‌زمان انجام ندهید. هر تغییر را با یک فرمان بازگشت یادداشت کنید.
+1. Before any action, record the state: `ceph -s`, `ceph health detail` and `ceph osd tree`.
+2. Know the protective flags: `noout` for short maintenance work, and `norebalance` and `nobackfill` only for a clear reason. Remove them when the work is done.
+3. Never make several changes at the same time. Note each change together with the command that reverts it.
 
-# جدول نشانه → اقدام
+# Symptom → action table
 
-| نشانه (هشدار) | اولین فرمان‌ها | جهت اصلاح | فصل |
+| Symptom (health warning) | First commands | Direction of the fix | Chapter |
 |---|---|---|---|
-| `OSD_DOWN` / `OSD_HOST_DOWN` | `ceph osd tree down`، `journalctl -u ceph-*@osd.N`، `ceph orch ps --daemon-type osd` | بررسی دیسک، شبکه و حافظه؛ راه‌اندازی دوباره؛ اگر دیسک خراب است، `ceph orch osd rm N --replace` | ۱۷، ۱۹ |
-| `PG_AVAILABILITY` (inactive، peering گیرکرده) | `ceph pg dump_stuck inactive`، `ceph pg <pgid> query \| jq .recovery_state` | یافتن OSD مسدودکننده (`blocked_by`، `down_osds_we_would_probe`) و بازگرداندن آن | ۸، ۱۷ |
-| `PG_DEGRADED` / `undersized` | `ceph pg ls degraded`، `ceph osd df tree` | صبر برای recovery؛ بررسی کافی بودن دامنه‌ی خرابی برای size | ۸ |
-| `OBJECT_UNFOUND` | `ceph pg <pgid> list_unfound` | ابتدا همه‌ی OSDهای قبلی را بالا بیاورید؛ فقط در آخر `mark_unfound_lost revert` | ۱۷ |
-| `OSD_SCRUB_ERRORS` / `PG_DAMAGED` (inconsistent) | `rados list-inconsistent-obj <pgid> --format=json-pretty` | یافتن نسخه‌ی خراب (خطای خواندن دیسک، checksum)؛ سپس `ceph pg repair <pgid>` | ۱۷ |
-| `OSD_NEARFULL` / `OSD_BACKFILLFULL` / `OSD_FULL` | `ceph osd df`، `ceph df detail` | افزودن ظرفیت، حذف داده، balancer؛ افزایش موقت `full_ratio` فقط برای خروج اضطراری | ۱۹، ۲۱ |
-| `SLOW_OPS` | `ceph daemon osd.N dump_ops_in_flight`، `dump_historic_ops`، `ceph osd perf` | پیدا کردن رویدادی که op در آن مانده است (queued_for_pg، waiting for subops، commit)؛ بررسی دیسک کند یا شبکه | ۱۷، ۲۱ |
-| `MON_DOWN` / quorum ازدست‌رفته | `ceph quorum_status` (اگر پاسخ دهد)، `ceph daemon mon.X mon_status` روی میزبان | بازگرداندن اکثریت؛ در بدترین حالت استخراج و تزریق monmap | ۷، ۱۸ |
-| `MON_CLOCK_SKEW` | `chronyc tracking`، `ceph time-sync-status` | اصلاح NTP/chrony روی همه‌ی میزبان‌های MON | ۷ |
-| `MON_DISK_LOW` / رشد store | `du -sh /var/lib/ceph/*/mon.*` | رفع علت عدم trim (PG ناسالم طولانی)؛ `ceph tell mon.X compact` | ۷ |
-| `LARGE_OMAP_OBJECTS` | `ceph health detail`، لاگ cluster برای نام شیء | RGW: resharding یا trim لاگ‌های multisite؛ CephFS: بررسی دایرکتوری بسیار بزرگ | ۴، ۵ |
-| `BLUEFS_SPILLOVER` | `ceph daemon osd.N bluefs stats`، `ceph osd metadata N` | افزایش اندازه‌ی DB یا انتقال آن به دستگاه سریع‌تر؛ compaction | ۱۲ |
-| `MDS_SLOW_REQUEST` / `MDS_CLIENT_LATE_RELEASE` | `ceph tell mds.X dump_ops_in_flight`، `session ls` | یافتن کلاینتی که cap را پس نمی‌دهد؛ evict کنترل‌شده | ۶ |
-| `MDS_TRIM_BEHIND` / `MDS_CACHE_OVERSIZED` | `ceph tell mds.X cache status`، `perf dump mds_log` | افزایش `mds_cache_memory_limit` یا کاهش بار؛ pinning | ۶ |
-| `RECENT_CRASH` | `ceph crash ls-new`، `ceph crash info <id>` | تحلیل backtrace؛ سپس `ceph crash archive <id>` | ۱۷ |
-| `MGR_MODULE_ERROR` | `ceph mgr module ls`، لاگ mgr | غیرفعال و فعال کردن دوباره‌ی ماژول؛ `ceph mgr fail` | ۹ |
-| `CEPHADM_*` (مثلاً HOST_CHECK_FAILED) | `ceph orch host ls`، `ceph cephadm check-host <host>` | SSH، زمان، پکیج‌ها و podman/docker روی میزبان | ۱۱ |
+| `OSD_DOWN` / `OSD_HOST_DOWN` | `ceph osd tree down`, `journalctl -u ceph-*@osd.N`, `ceph orch ps --daemon-type osd` | Check the disk, network and memory; restart; if the disk has failed, `ceph orch osd rm N --replace` | 17, 19 |
+| `PG_AVAILABILITY` (inactive, stuck peering) | `ceph pg dump_stuck inactive`, `ceph pg <pgid> query \| jq .recovery_state` | Find the blocking OSD (`blocked_by`, `down_osds_we_would_probe`) and bring it back | 8, 17 |
+| `PG_DEGRADED` / `undersized` | `ceph pg ls degraded`, `ceph osd df tree` | Wait for recovery; check that there are enough failure domains for size | 8 |
+| `OBJECT_UNFOUND` | `ceph pg <pgid> list_unfound` | First bring up every previous OSD; use `mark_unfound_lost revert` only as the last resort | 17 |
+| `OSD_SCRUB_ERRORS` / `PG_DAMAGED` (inconsistent) | `rados list-inconsistent-obj <pgid> --format=json-pretty` | Find the damaged copy (disk read error, checksum); then `ceph pg repair <pgid>` | 17 |
+| `OSD_NEARFULL` / `OSD_BACKFILLFULL` / `OSD_FULL` | `ceph osd df`, `ceph df detail` | Add capacity, delete data, use the balancer; raise `full_ratio` temporarily only for an emergency exit | 19, 21 |
+| `SLOW_OPS` | `ceph daemon osd.N dump_ops_in_flight`, `dump_historic_ops`, `ceph osd perf` | Find the event where the op is stuck (queued_for_pg, waiting for subops, commit); look for a slow disk or network | 17, 21 |
+| `MON_DOWN` / lost quorum | `ceph quorum_status` (if it answers), `ceph daemon mon.X mon_status` on the host | Restore the majority; in the worst case, extract and inject the monmap | 7, 18 |
+| `MON_CLOCK_SKEW` | `chronyc tracking`, `ceph time-sync-status` | Fix NTP/chrony on all MON hosts | 7 |
+| `MON_DISK_LOW` / store growth | `du -sh /var/lib/ceph/*/mon.*` | Fix the reason trimming is not happening (a long-unhealthy PG); `ceph tell mon.X compact` | 7 |
+| `LARGE_OMAP_OBJECTS` | `ceph health detail`, the cluster log for the object name | RGW: reshard, or trim the multisite logs; CephFS: look for a very large directory | 4, 5 |
+| `BLUEFS_SPILLOVER` | `ceph daemon osd.N bluefs stats`, `ceph osd metadata N` | Enlarge the DB or move it to a faster device; compaction | 12 |
+| `MDS_SLOW_REQUEST` / `MDS_CLIENT_LATE_RELEASE` | `ceph tell mds.X dump_ops_in_flight`, `session ls` | Find the client that does not release its cap; evict it in a controlled way | 6 |
+| `MDS_TRIM_BEHIND` / `MDS_CACHE_OVERSIZED` | `ceph tell mds.X cache status`, `perf dump mds_log` | Raise `mds_cache_memory_limit` or reduce the load; pinning | 6 |
+| `RECENT_CRASH` | `ceph crash ls-new`, `ceph crash info <id>` | Analyse the backtrace; then `ceph crash archive <id>` | 17 |
+| `MGR_MODULE_ERROR` | `ceph mgr module ls`, the mgr log | Disable and re-enable the module; `ceph mgr fail` | 9 |
+| `CEPHADM_*` (e.g. HOST_CHECK_FAILED) | `ceph orch host ls`, `ceph cephadm check-host <host>` | SSH, time, packages and podman/docker on the host | 11 |
 
 ::: {.warn}
-فرمان‌هایی مثل `mark_unfound_lost delete`، `osd lost`، `ceph-objectstore-tool --op remove` و `osd force-create-pg` داده را به‌طور دائم حذف می‌کنند. فقط پس از خروج همه‌ی گزینه‌های دیگر، با پشتیبان و با تأیید فرد دوم اجرا شوند.
+Commands such as `mark_unfound_lost delete`, `osd lost`, `ceph-objectstore-tool --op remove` and `osd force-create-pg` remove data permanently. Run them only when every other option has been exhausted, with a backup, and with a second person's approval.
 :::

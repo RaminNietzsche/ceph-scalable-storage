@@ -520,7 +520,9 @@ pref_md = []
 pfm, PREF = load_md(os.path.join(C, 'front', 'preface.md'))
 if pfm.get('translation') == 'pending':
     PREF = ['!NOTE ' + UI['pending_note']]
-pref = render([x.replace('@NALGO@', fa(len(ALGOS))).replace('@NFIG@', fa(len(figs))) for x in PREF], md=pref_md)
+from booklib.structure import canonical_counts  # noqa: E402
+N_ALGO, N_FIG = (len(ALGOS), len(figs)) if LANG == 'fa' else canonical_counts(ROOT)
+pref = render([x.replace('@NALGO@', fa(N_ALGO)).replace('@NFIG@', fa(N_FIG)) for x in PREF], md=pref_md)
 toc_html = []
 for lvl, hid, num, txt, ch in toc:
     if lvl == 1 and hid == 'part-low':

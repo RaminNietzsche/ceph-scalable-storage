@@ -24,6 +24,7 @@ import yaml
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 from booklib.mdlower import split_front_matter  # noqa: E402
+from booklib.structure import canonical_counts  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--lang', default='fa', choices=['fa', 'en'])
@@ -67,9 +68,16 @@ def body_of(path, shift=1, pending_title=None):
     return fm, res
 
 
+N_ALGO, N_FIG = canonical_counts(ROOT)
+
+
+def num(n):
+    return str(n).translate(str.maketrans('0123456789', '۰۱۲۳۴۵۶۷۸۹')) if a.lang == 'fa' else str(n)
+
+
 parts = []
 fm, pre = body_of(os.path.join(C, 'front', 'preface.md'))
-parts += [f'# {UI["preface"]} {{#preface .unnumbered}}', ''] + [x.replace('@NALGO@', '').replace('@NFIG@', '') for x in pre]
+parts += [f'# {UI["preface"]} {{#preface .unnumbered}}', ''] + [x.replace('@NALGO@', num(N_ALGO)).replace('@NFIG@', num(N_FIG)) for x in pre]
 for path in sorted(glob.glob(os.path.join(C, 'chapters', '[0-9][0-9]-*.md'))):
     fm, lines = body_of(path)
     n = int(fm['chapter'])
