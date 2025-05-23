@@ -1,119 +1,153 @@
 # Mermaid label strings for the en edition; see tools/translate_figures.py
 ch01/f01_stack:
-  مصرف‌کنندگان: null
-  ماشین مجازی: null
-  دیسک بلوکی: null
-  برنامه‌ی وب: null
-  پشتیبان‌گیری: null
-  و: null
-  سرور فایل: null
-  فایل‌سیستم: null
-  برنامه‌ی سفارشی: null
-  دسترسی مستقیم: null
-  رابط‌ها: null
-  دروازه‌ی شیء: null
-  کلاینت: null
-  لایه‌ی ذخیره‌سازی توزیع‌شده و خودترمیم: null
-  نقشه‌ها و اجماع: null
-  پایش و ماژول‌ها: null
-  ها: null
-  داده روی دیسک: null
-  فراداده‌ی: null
+  مصرف‌کنندگان: Consumers
+  ماشین مجازی: Virtual machine
+  دیسک بلوکی: block disk
+  برنامه‌ی وب: Web application
+  پشتیبان‌گیری: backup
+  و: and
+  سرور فایل: File server
+  فایل‌سیستم: file system
+  برنامه‌ی سفارشی: Custom application
+  دسترسی مستقیم: direct access
+  رابط‌ها: Interfaces
+  دروازه‌ی شیء: object gateway
+  کلاینت: client
+  لایه‌ی ذخیره‌سازی توزیع‌شده و خودترمیم: distributed, self-healing storage layer
+  نقشه‌ها و اجماع: maps and consensus
+  پایش و ماژول‌ها: monitoring and modules
+  ها: s
+  داده روی دیسک: data on disk
+  فراداده‌ی: metadata
+  فایل‌سیستم POSIX: POSIX file system
+  فراداده‌ی CephFS: CephFS metadata
 ch01/f02_raid:
-  سنتی: null
-  بازسازی چند به یک: null
-  دیسک ۱: null
-  دیسک یدک: null
-  گلوگاه نوشتن: null
-  دیسک ۲: null
-  دیسک ۳: null
-  دیسک خراب: null
-  بازیابی چند به چند: null
-  خراب: null
-  صدها: null
-  پخش‌شده: null
-  زمان بازسازی: null
-  ساعت‌ها تا روزها: null
+  'RAID سنتی: بازسازی چند به یک': 'Traditional RAID: many-to-one rebuild'
+  'Ceph: بازیابی چند به چند': 'Ceph: many-to-many recovery'
+  OSD خراب: Failed OSD
+  سنتی: traditional
+  بازسازی چند به یک: many-to-one rebuild
+  دیسک ۱: Disk 1
+  دیسک یدک: Spare disk
+  گلوگاه نوشتن: write bottleneck
+  دیسک ۲: Disk 2
+  دیسک ۳: Disk 3
+  دیسک خراب: Failed disk
+  بازیابی چند به چند: many-to-many recovery
+  خراب: failed
+  صدها: hundreds of
+  پخش‌شده: spread out
+  زمان بازسازی: Rebuild time
+  ساعت‌ها تا روزها: hours to days
 ch01/f03_daemons:
-  کلاینت: null
-  سرویس‌های کنترلی: null
-  فعال: null
-  آماده‌به‌کار: null
-  سرویس‌های داده: null
-  دریافت نقشه‌ها: null
-  خواندن و نوشتن مستقیم: null
-  تکثیر و: null
-  گزارش وضعیت: null
+  MGR فعال + آماده‌به‌کار: MGR active + standby
+  کلاینت: Client
+  سرویس‌های کنترلی: Control services
+  فعال: active
+  آماده‌به‌کار: standby
+  سرویس‌های داده: Data services
+  دریافت نقشه‌ها: get the maps
+  خواندن و نوشتن مستقیم: direct reads and writes
+  تکثیر و: replication and
+  گزارش وضعیت: status reports
 ch01/f04_place:
-  شیء: null
-  نام: null
-  مثلاً: null
-  ، نقشه، قاعده: null
-  مجموعه‌ی عمل: null
-  اصلی: null
+  شیء: Object
+  نام: name
+  مثلاً: e.g.
+  ، نقشه، قاعده: ', map, rule'
+  مجموعه‌ی عمل: Acting set
+  اصلی: primary
+  مجموعه‌ی عمل<br/>Acting set: Acting set
 ch01/f05_lab:
-  مرحله‌ی گسترش: null
-  شبکه‌ی عمومی: null
-  شبکه‌ی کلاستر: null
-  اختیاری: null
+  مرحله‌ی گسترش: expansion stage
+  شبکه‌ی عمومی: Public network
+  شبکه‌ی کلاستر: Cluster network
+  اختیاری: optional
 ch01/f06_boot:
-  مدیر: null
-  روی: null
-  های دیگر: null
-  بررسی پیش‌نیازها، کشیدن: null
-  ساخت: null
-  و: null
-  در کانتینر: null
-  مدیر و کلید: null
-  با: null
-  استقرار: null
-  ها از راه: null
-  روی دیسک‌های آزاد: null
+  cephadm روی node1: cephadm on node1
+  nodeهای دیگر: other nodes
+  بررسی پیش‌نیازها، کشیدن image: check prerequisites, pull the image
+  ساخت MON و MGR در کانتینر: create MON and MGR in containers
+  ceph.conf، keyring مدیر و کلید SSH: ceph.conf, admin keyring and SSH key
+  ssh-copy-id با ceph.pub: ssh-copy-id with ceph.pub
+  استقرار daemonها از راه SSH: deploy daemons over SSH
+  ceph-volume روی دیسک‌های آزاد: ceph-volume on the free disks
+  مدیر: Admin
+  روی: 'on'
+  های دیگر: s (others)
+  بررسی پیش‌نیازها، کشیدن: check prerequisites, pull
+  ساخت: create
+  و: and
+  در کانتینر: in containers
+  مدیر و کلید: admin and key
+  با: with
+  استقرار: deploy
+  ها از راه: s via
+  روی دیسک‌های آزاد: on the free disks
 ch01/f07_planning:
-  نیاز کسب‌وکار: null
-  نوع بار کاری؟: null
-  بالا، تأخیر کم: null
-  روی: null
-  تکثیر ۳تایی: null
-  حجم زیاد، دسترسی ترتیبی: null
-  یا: null
-  فایل اشتراکی: null
-  فراداده روی: null
-  دامنه‌ی خرابی: null
-  حداقل ۳ یا: null
-  میزبان: null
-  توزیع روی رک‌ها: null
-  شبکه: null
-  ۲۵ گیگ به بالا،: null
-  یکسان: null
-  ظرفیت: null
-  داده: null
-  سربار: null
-  نسبت پرشدگی هدف: null
+  IOPS بالا، تأخیر کم: high IOPS, low latency
+  RBD روی NVMe: RBD on NVMe
+  RGW روی HDD: RGW on HDD
+  EC 4+2 یا 8+3: EC 4+2 or 8+3
+  فراداده روی SSD: metadata on SSD
+  'host: حداقل ۳ یا k+m+1 میزبان': 'host: at least 3 or k+m+1 hosts'
+  'شبکه: ۲۵ گیگ به بالا، MTU یکسان': 'network: 25 Gb or more, same MTU'
+  'ظرفیت: داده × سربار ÷ نسبت پرشدگی هدف': 'capacity: data × overhead ÷ target fill ratio'
+  نیاز کسب‌وکار: Business need
+  نوع بار کاری؟: Workload type?
+  بالا، تأخیر کم: high, low latency
+  روی: 'on'
+  تکثیر ۳تایی: 3-way replication
+  حجم زیاد، دسترسی ترتیبی: large volume, sequential access
+  یا: or
+  فایل اشتراکی: shared files
+  فراداده روی: metadata on
+  دامنه‌ی خرابی: Failure domain
+  حداقل ۳ یا: at least 3 or
+  میزبان: hosts
+  توزیع روی رک‌ها: spread across racks
+  شبکه: network
+  ۲۵ گیگ به بالا،: 25 Gb or more,
+  یکسان: same
+  ظرفیت: capacity
+  داده: data
+  سربار: overhead
+  نسبت پرشدگی هدف: target fill ratio
 ch01/s01_layers:
-  لایه‌ی منطقی: null
-  شیء: null
-  مثلاً: null
-  لایه‌ی نگاشت: null
-  اثر دارد: null
-  لایه‌ی فیزیکی: null
-  روی هر: null
-  در: null
-  پیشوند: null
-  روی دیسک خام: null
+  onode در RocksDB (پیشوند O): onode in RocksDB (prefix O)
+  offset/length روی دیسک خام: offset/length on the raw disk
+  لایه‌ی نگاشت (OSDMap): Mapping layer (OSDMap)
+  لایه‌ی فیزیکی (روی هر OSD): Physical layer (on each OSD)
+  primary affinity اثر دارد: primary affinity applies
+  لایه‌ی منطقی: Logical layer
+  شیء: object
+  مثلاً: e.g.
+  لایه‌ی نگاشت: Mapping layer
+  اثر دارد: applies
+  لایه‌ی فیزیکی: Physical layer
+  روی هر: on each
+  در: in
+  پیشوند: prefix
+  روی دیسک خام: on the raw disk
 ch01/s02_kv:
-  داخل: null
-  پیشوندهای کلید: null
-  آمار: null
-  نام شیء: null
-  کلید: null
-  ادامه: null
-  نوشتن‌های کوچک در صف: null
-  های مشترک بین: null
-  در: null
-  شیء: null
-  تشخیص درخواست تکراری: null
-  برای: null
+  'RocksDB داخل BlueStore: پیشوندهای کلید (BlueStore.cc)': 'RocksDB inside BlueStore: key prefixes (BlueStore.cc)'
+  'O: نام شیء → onode_t': 'O: object name → onode_t'
+  'M: omap (u64 + کلید)': 'M: omap (u64 + key)'
+  blobهای مشترک بین clone: blobs shared between clones
+  pg_log_entry_t (osd_types.h) — در omap شیء pgmeta: pg_log_entry_t (osd_types.h) — in the omap of the pgmeta object
+  mod_desc (rollback برای EC): mod_desc (rollback for EC)
+  داخل: inside
+  پیشوندهای کلید: key prefixes
+  آمار: statistics
+  نام شیء: object name
+  کلید: key
+  ادامه: continued
+  نوشتن‌های کوچک در صف: queued small writes
+  های مشترک بین: s shared between
+  در: in
+  شیء: object
+  تشخیص درخواست تکراری: duplicate request detection
+  برای: for
 ch02/f01_rbd_objects:
   اندازه‌ی منطقی ۱۰۰ گیگابایت: null
   فراداده: null

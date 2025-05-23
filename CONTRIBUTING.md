@@ -52,7 +52,8 @@ placeholders for new Persian files.
 To translate a file:
 
 1. Translate the prose **from our Persian text**, faithfully and completely.
-   Keep commands, code blocks, identifiers, numbers and URLs byte-identical.
+   Keep commands, identifiers, numbers and URLs byte-identical. Inside code
+   blocks, translate only the `#` comments and leave the commands untouched.
 2. Keep every id unchanged: `{#sec-…}`, `{#fig-…}`, `{#alg-…}`. Keep the same
    number and order of sections, figures and algorithm boxes.
 3. Use these exact headings for the two fixed sections, because the build

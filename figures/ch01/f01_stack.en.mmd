@@ -1,0 +1,30 @@
+flowchart TB
+  subgraph C["Consumers"]
+    direction LR
+    VM["Virtual machine / Kubernetes<br/>block disk"]
+    APP["Web application / backup<br/>S3 and Swift"]
+    HPC["File server / HPC<br/>POSIX file system"]
+    DEV["Custom application<br/>direct access"]
+  end
+  subgraph G["Interfaces"]
+    direction LR
+    RBD["RBD<br/>librbd · krbd"]
+    RGW["RGW<br/>object gateway"]
+    FS["CephFS<br/>MDS + client"]
+    LR2["librados<br/>C · C++ · Python"]
+  end
+  subgraph R["RADOS — distributed, self-healing storage layer"]
+    direction LR
+    MON["MON<br/>maps and consensus"]
+    MGR["MGR<br/>monitoring and modules"]
+    OSD["OSDs<br/>data on disk"]
+    MDS["MDS<br/>CephFS metadata"]
+  end
+  VM --> RBD
+  APP --> RGW
+  HPC --> FS
+  DEV --> LR2
+  RBD --> OSD
+  RGW --> OSD
+  FS --> MDS
+  LR2 --> MON

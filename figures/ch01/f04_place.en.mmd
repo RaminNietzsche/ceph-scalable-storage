@@ -1,0 +1,6 @@
+flowchart LR
+  OBJ["Object<br/>name: vm-disk.0001"] -->|"hash(name) mod pg_num"| PG["Placement Group<br/>e.g. 3.1a"]
+  PG -->|"CRUSH(PG, map, rule)"| SET["Acting set"]
+  SET --> P["OSD.12 — primary<br/>rack-a"]
+  SET --> S1["OSD.37<br/>rack-b"]
+  SET --> S2["OSD.58<br/>rack-c"]

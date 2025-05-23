@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant A as Admin
+  participant B as cephadm on node1
+  participant M as MON + MGR
+  participant H as other nodes
+  A->>B: cephadm bootstrap --mon-ip
+  B->>B: check prerequisites, pull the image
+  B->>M: create MON and MGR in containers
+  B->>A: ceph.conf, admin keyring and SSH key
+  A->>H: ssh-copy-id with ceph.pub
+  A->>M: ceph orch host add
+  M->>H: deploy daemons over SSH
+  A->>M: ceph orch apply osd
+  M->>H: ceph-volume on the free disks

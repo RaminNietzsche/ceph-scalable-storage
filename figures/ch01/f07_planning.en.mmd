@@ -1,0 +1,13 @@
+flowchart LR
+  Q["Business need"] --> W{"Workload type?"}
+  W -->|"high IOPS, low latency"| B1["RBD on NVMe<br/>3-way replication"]
+  W -->|"large volume, sequential access"| B2["RGW on HDD<br/>EC 4+2 or 8+3"]
+  W -->|"shared files"| B3["CephFS<br/>metadata on SSD"]
+  B1 --> F{"Failure domain"}
+  B2 --> F
+  B3 --> F
+  F --> H["host: at least 3 or k+m+1 hosts"]
+  F --> RK["rack: spread across racks"]
+  H --> N["network: 25 Gb or more, same MTU"]
+  RK --> N
+  N --> C["capacity: data × overhead ÷ target fill ratio"]

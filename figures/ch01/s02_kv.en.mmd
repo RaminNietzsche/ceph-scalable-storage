@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["RocksDB inside BlueStore: key prefixes (BlueStore.cc)"]
+    direction LR
+    S["S: superblock"] --- T["T: statistics"] --- C["C: collection → cnode_t"] --- O["O: object name → onode_t"] --- M["M: omap (u64 + key)"]
+  end
+  subgraph R2["continued"]
+    direction LR
+    L["L: deferred_transaction_t<br/>(queued small writes)"] --- B["B: freelist<br/>offset → length"] --- X["X: shared_blob_t<br/>(blobs shared between clones)"]
+  end
+  subgraph R3["pg_log_entry_t (osd_types.h) — in the omap of the pgmeta object"]
+    direction LR
+    e1["op, soid, version, prior_version"] --- e2["reqid + extra_reqids<br/>(duplicate request detection)"] --- e3["user_version, mtime, return_code<br/>mod_desc (rollback for EC)"]
+  end
+  R1 ~~~ R2 ~~~ R3

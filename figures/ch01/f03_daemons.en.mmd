@@ -1,0 +1,23 @@
+flowchart TB
+  CL["Client<br/>librados"]
+  subgraph CP["Control services"]
+    direction LR
+    M1["MON a"]
+    M2["MON b"]
+    M3["MON c"]
+    MG["MGR active + standby<br/>dashboard · prometheus · orchestrator"]
+  end
+  subgraph DP["Data services"]
+    direction LR
+    O1["OSD.0<br/>BlueStore"]
+    O2["OSD.1<br/>BlueStore"]
+    O3["OSD.2<br/>BlueStore"]
+    O4["OSD.n ..."]
+  end
+  CL -->|"1. get the maps (cluster map)"| CP
+  CL ==>|"2. direct reads and writes"| DP
+  O1 <-.->|"replication and heartbeat"| O2
+  O2 <-.-> O3
+  DP -->|"status reports"| CP
+  M1 <--> M2
+  M2 <--> M3

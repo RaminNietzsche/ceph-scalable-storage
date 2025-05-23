@@ -1,0 +1,17 @@
+flowchart LR
+  subgraph A["Traditional RAID: many-to-one rebuild"]
+    direction TB
+    D1["Disk 1"] --> SP["Spare disk<br/>write bottleneck"]
+    D2["Disk 2"] --> SP
+    D3["Disk 3"] --> SP
+    DX["Failed disk ✖"]
+  end
+  subgraph B["Ceph: many-to-many recovery"]
+    direction TB
+    O1["OSD 1"] --> O5["OSD 5"]
+    O2["OSD 2"] --> O6["OSD 6"]
+    O3["OSD 3"] --> O7["OSD 7"]
+    O4["OSD 4"] --> O8["OSD 8"]
+    OX["Failed OSD ✖<br/>hundreds of PG spread out"]
+  end
+  A -.->|"Rebuild time: hours to days"| B
