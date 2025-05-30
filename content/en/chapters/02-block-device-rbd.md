@@ -5,76 +5,75 @@ title: Working with the Ceph Block Device (RBD)
 part: main
 original_heading: Working with Ceph Block Device
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-02-1}
+# Before you start {#sec-02-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-02-1-1}
+## What questions does this chapter answer? {#sec-02-1-1}
 
-RBD (RADOS Block Device) پرکاربردترین رابط Ceph است. بیشتر کلاسترهای Ceph دنیا، دیسک ماشین‌های مجازی OpenStack، Proxmox و CloudStack یا volumeهای پایدار Kubernetes را از همین رابط تأمین می‌کنند. در این فصل یاد می‌گیریم:
+RBD (RADOS Block Device) is Ceph's most widely used interface. Most Ceph clusters in the world supply the disks of OpenStack, Proxmox and CloudStack virtual machines, or Kubernetes persistent volumes, through this interface. In this chapter we learn:
 
-- یک image در RBD واقعاً چیست و چطور روی اشیای RADOS نگاشت می‌شود؟
-- چطور یک کلاینت را با دسترسی حداقلی پیکربندی کنیم و image را بسازیم، map کنیم و تغییر اندازه دهیم؟
-- snapshot و clone چطور کار می‌کنند و چرا اساس «قالب طلایی» ماشین‌های مجازی‌اند؟
-- RBD mirroring چیست، دو حالت journal و snapshot چه فرقی دارند و چطور تکثیر یک‌طرفه و دوطرفه را برقرار کنیم؟
-- هنگام سانحه چطور سایت پشتیبان را ارتقا دهیم و بعد از بازگشت سایت اصلی، داده را برگردانیم؟
+- What an RBD image really is, and how it maps onto RADOS objects.
+- How to configure a client with least-privilege access, and how to create, map and resize an image.
+- How snapshots and clones work, and why they are the basis of virtual-machine "golden images".
+- What RBD mirroring is, how its journal and snapshot modes differ, and how to set up one-way and two-way replication.
+- How to promote the backup site during a disaster and, once the primary site is back, return the data to it.
 
-## پیش‌نیاز {#sec-02-1-2}
+## Prerequisites {#sec-02-1-2}
 
-کلاستر آزمایشی فصل ۱ با یک pool به نام `rbd` و ماشین `client-node1`. برای بخش mirroring به یک کلاستر دوم نیاز دارید؛ ساده‌ترین راه، bootstrap یک کلاستر تک‌نودی دیگر با cephadm است (با `--single-host-defaults`).
+The test cluster from chapter 1, with a pool called `rbd` and the `client-node1` machine. For the mirroring section you need a second cluster; the simplest way is to bootstrap another single-node cluster with cephadm (with `--single-host-defaults`).
 
-# RBD از درون {#sec-02-2}
+# RBD from the inside {#sec-02-2}
 
-## image، شیء و striping {#sec-02-2-1}
+## Images, objects and striping {#sec-02-2-1}
 
-یک **image** در RBD دیسکی مجازی با اندازه‌ی ثابت است که روی اشیای RADOS پخش می‌شود. به‌طور پیش‌فرض هر شیء ۴ مگابایت است (`--object-size`)، پس یک image صد گیگابایتی حداکثر ۲۵٬۶۰۰ شیء دارد. اما RBD **thin provisioned** است: شیئی که هنوز در آن نوشته نشده اصلاً وجود ندارد و فضایی مصرف نمی‌کند.
+An RBD **image** is a fixed-size virtual disk spread over RADOS objects. By default each object is 4 MB (`--object-size`), so a 100 GB image has at most 25,600 objects. But RBD is **thin provisioned**: an object that has not been written to yet does not exist at all and consumes no space.
 
-![ساختار یک image در RADOS: شیء header برای فراداده و اشیای داده‌ی ۴ مگابایتی که فقط پس از نوشتن ساخته می‌شوند](figures/ch02/f01_rbd_objects.png){#fig-02-f01_rbd_objects}
+![The structure of an image in RADOS: a header object for metadata and 4 MB data objects that are created only after they are written](figures/ch02/f01_rbd_objects.png){#fig-02-f01_rbd_objects}
 
-برای هر image (در قالب ۲ که از سال‌ها پیش پیش‌فرض است) این اشیاء در pool وجود دارند:
+For each image (in format 2, which has been the default for years) these objects exist in the pool:
 
-| شیء | محتوا |
+| Object | Contents |
 |---|---|
-| `rbd_directory` | نگاشت نام imageها به شناسه‌شان در pool |
-| `rbd_id.<name>` | شناسه‌ی یکتای image |
-| `rbd_header.<id>` | فراداده: اندازه، ترتیب شیء، ویژگی‌ها، فهرست snapshotها، والد (برای clone) |
-| `rbd_data.<id>.<offset>` | داده‌ی واقعی؛ شماره‌ی hex نشان‌دهنده‌ی جای شیء در image |
-| `rbd_object_map.<id>` | نقشه‌ی وجود اشیاء (اگر ویژگی object-map فعال باشد) |
+| `rbd_directory` | Maps image names to their ids in the pool |
+| `rbd_id.<name>` | The image's unique id |
+| `rbd_header.<id>` | Metadata: size, object order, features, snapshot list, parent (for clones) |
+| `rbd_data.<id>.<offset>` | The actual data; the hex number shows the object's position in the image |
+| `rbd_object_map.<id>` | A map of which objects exist (if the object-map feature is enabled) |
 
 ::: {.deep}
-چون هر شیء ۴ مگابایتی با CRUSH مستقلاً روی OSDها جای‌گذاری می‌شود، یک image بزرگ عملاً روی همه‌ی OSDهای pool پخش است. این همان دلیلی است که RBD در I/O موازی (مثلاً عمق صف بالا) خیلی خوب مقیاس می‌گیرد، اما در I/O تک‌رشته‌ای با عمق صف ۱ تأخیر یک رفت‌وبرگشت شبکه و تکثیر را تمام و کمال می‌پردازد. striping سفارشی (`--stripe-unit` و `--stripe-count`) می‌تواند برای بارهای ترتیبی بزرگ مفید باشد، اما krbd فقط برخی ترکیب‌ها را پشتیبانی می‌کند؛ پیش‌فرض را بی‌دلیل تغییر ندهید.
+Because each 4 MB object is placed on the OSDs independently by CRUSH, a large image is effectively spread over every OSD in the pool. This is why RBD scales very well for parallel I/O (for example at a high queue depth), but for single-threaded I/O at queue depth 1 it pays the full latency of a network round trip plus replication. Custom striping (`--stripe-unit` and `--stripe-count`) can help large sequential workloads, but krbd supports only some combinations; do not change the default without a reason.
 :::
 
-## ویژگی‌های image {#sec-02-2-2}
+## Image features {#sec-02-2-2}
 
-هر image مجموعه‌ای از **ویژگی‌ها** (features) دارد که هنگام ساخت تعیین می‌شود و برخی بعداً قابل روشن یا خاموش کردن است:
+Each image has a set of **features**, chosen at creation time; some of them can be enabled or disabled later:
 
-| ویژگی | کاربرد | وابستگی |
+| Feature | Purpose | Depends on |
 |---|---|---|
-| layering | پشتیبانی از clone | — |
-| exclusive-lock | تنها یک کلاینت در هر لحظه می‌تواند بنویسد؛ پیش‌نیاز ویژگی‌های پیشرفته | — |
-| object-map | ردیابی اشیای موجود؛ سرعت دادن به du، diff، export و حذف | exclusive-lock |
-| fast-diff | محاسبه‌ی سریع تفاضل بین snapshotها | object-map |
-| deep-flatten | امکان flatten کردن clone همراه با snapshotهایش | — |
-| journaling | ثبت همه‌ی تغییرات در journal برای mirroring حالت journal | exclusive-lock |
+| layering | Clone support | — |
+| exclusive-lock | Only one client can write at a time; a prerequisite for the advanced features | — |
+| object-map | Tracks which objects exist; speeds up du, diff, export and deletion | exclusive-lock |
+| fast-diff | Fast computation of the difference between snapshots | object-map |
+| deep-flatten | Allows flattening a clone together with its snapshots | — |
+| journaling | Records every change in a journal, for journal-mode mirroring | exclusive-lock |
 
-پیش‌فرض نسخه‌های جدید `layering, exclusive-lock, object-map, fast-diff, deep-flatten` است. ماژول هسته (krbd) در نسخه‌های جدید لینوکس همه‌ی این‌ها به‌جز journaling را پشتیبانی می‌کند؛ روی هسته‌های قدیمی ممکن است هنگام map خطای «image uses unsupported features» بگیرید.
+The default in recent releases is `layering, exclusive-lock, object-map, fast-diff, deep-flatten`. The kernel module (krbd) in recent Linux versions supports all of these except journaling; on old kernels you may get an "image uses unsupported features" error at map time.
 
-## مسیرهای دسترسی کلاینت {#sec-02-2-3}
+## Client access paths {#sec-02-2-3}
 
-![راه‌های دسترسی به RBD: librbd در فضای کاربر (QEMU، rbd-nbd، دروازه‌ی NVMe-oF) و krbd در هسته](figures/ch02/f02_clients.png){#fig-02-f02_clients}
+![Ways of accessing RBD: librbd in user space (QEMU, rbd-nbd, the NVMe-oF gateway) and krbd in the kernel](figures/ch02/f02_clients.png){#fig-02-f02_clients}
 
-- **librbd:** کتابخانه‌ی فضای کاربر. QEMU/KVM، libvirt، OpenStack و بسیاری از ابزارها از آن استفاده می‌کنند. همه‌ی ویژگی‌ها، از جمله journaling و cache سمت کلاینت، را پشتیبانی می‌کند.
-- **krbd:** راه‌انداز هسته‌ی لینوکس که image را به‌صورت `/dev/rbdX` نشان می‌دهد. سریع و بدون وابستگی به بسته‌های فضای کاربر برای مسیر داده، اما مجموعه‌ی ویژگی‌هایش به نسخه‌ی هسته بستگی دارد. Ceph CSI در Kubernetes به‌طور پیش‌فرض از آن استفاده می‌کند.
-- **rbd-nbd:** پلی بین librbd و دستگاه NBD هسته؛ وقتی ویژگی‌ای لازم است که krbd ندارد.
-- **دروازه‌ی NVMe-oF:** برای میزبان‌هایی که Ceph بومی ندارند (مثلاً VMware ESXi یا ویندوز). image از طریق پروتکل NVMe/TCP صادر می‌شود. این دروازه جانشین عملی دروازه‌ی iSCSI است؛ طبق مستندات رسمی، دروازه‌ی iSCSI از نوامبر ۲۰۲۲ در حالت «فقط نگه‌داری» است و قابلیت تازه‌ای نمی‌گیرد.
+- **librbd:** the user-space library. QEMU/KVM, libvirt, OpenStack and many tools use it. It supports every feature, including journaling and the client-side cache.
+- **krbd:** the Linux kernel driver, which exposes the image as `/dev/rbdX`. It is fast and has no dependency on user-space packages in the data path, but its feature set depends on the kernel version. Ceph CSI on Kubernetes uses it by default.
+- **rbd-nbd:** a bridge between librbd and the kernel's NBD device; for when you need a feature that krbd lacks.
+- **NVMe-oF gateway:** for hosts that have no native Ceph support (for example VMware ESXi or Windows). The image is exported over the NVMe/TCP protocol. This gateway is the practical successor of the iSCSI gateway; according to the official documentation, the iSCSI gateway has been in "maintenance only" mode since November 2022 and receives no new features.
 
-# پیکربندی کلاینت Ceph {#sec-02-3}
+# Configuring a Ceph client {#sec-02-3}
 
-## ساختن کاربر با دسترسی حداقلی {#sec-02-3-1}
+## Creating a least-privilege user {#sec-02-3-1}
 
-برای کلاینت هرگز از `client.admin` استفاده نکنید. Ceph **profileهای** آماده‌ای برای RBD دارد که دقیقاً همان مجوزهای لازم را می‌دهند:
+Never use `client.admin` for a client. Ceph has ready-made **profiles** for RBD that grant exactly the permissions needed:
 
 ```bash
 ceph auth get-or-create client.rbd-lab \
@@ -86,31 +85,31 @@ ceph auth get client.rbd-lab
 ```
 
 ::: {.tip}
-برای کلاینتی که فقط باید بخواند (مثلاً سرور پشتیبان‌گیری که از snapshotها export می‌گیرد) از `profile rbd-read-only` استفاده کنید. برای جداسازی مستاجرها در یک pool هم می‌توانید از **namespace** استفاده کنید: `rbd namespace create rbd/tenant-a` و سپس `osd 'profile rbd pool=rbd namespace=tenant-a'`.
+For a client that only needs to read (for example a backup server that exports from snapshots), use `profile rbd-read-only`. To isolate tenants within one pool you can also use a **namespace**: `rbd namespace create rbd/tenant-a` and then `osd 'profile rbd pool=rbd namespace=tenant-a'`.
 :::
 
-## انتقال پیکربندی به کلاینت {#sec-02-3-2}
+## Moving the configuration to the client {#sec-02-3-2}
 
-کلاینت به دو چیز نیاز دارد: فایل پیکربندی حداقلی (برای یافتن MONها) و keyring کاربر خودش.
+The client needs two things: a minimal configuration file (to find the MONs) and its own user's keyring.
 
 ```bash
-# روی یک میزبان مدیریتی
+# On an administrative host
 ceph config generate-minimal-conf > /tmp/ceph.conf
 scp /tmp/ceph.conf client-node1:/etc/ceph/ceph.conf
 scp /etc/ceph/ceph.client.rbd-lab.keyring client-node1:/etc/ceph/
-# روی client-node1
-sudo dnf install -y ceph-common     # یا apt install ceph-common
+# On client-node1
+sudo dnf install -y ceph-common     # or apt install ceph-common
 rbd --id rbd-lab ls rbd
-ceph --id rbd-lab -s                # profile rbd اجازه‌ی خواندن وضعیت را می‌دهد
+ceph --id rbd-lab -s                # profile rbd allows reading the status
 ```
 
 ::: {.warn}
-نسخه‌ی بسته‌های `ceph-common` کلاینت را با نسخه‌ی کلاستر نزدیک نگه دارید. کلاینت‌های خیلی قدیمی ممکن است ویژگی‌های جدید (مثلاً قالب clone نسخه‌ی ۲ یا msgr2) را نشناسند. با `ceph features` می‌توانید نسخه‌ی کلاینت‌های متصل را ببینید و پیش از روشن کردن ویژگی‌هایی که `set-require-min-compat-client` لازم دارند، مطمئن شوید هیچ کلاینت قدیمی‌ای وصل نیست.
+Keep the version of the client's `ceph-common` packages close to the cluster's version. Very old clients may not understand new features (for example the version 2 clone format or msgr2). With `ceph features` you can see the versions of connected clients, and before enabling features that require `set-require-min-compat-client`, make sure no old client is connected.
 :::
 
-# ساختن، map کردن و تغییر اندازه {#sec-02-4}
+# Creating, mapping and resizing {#sec-02-4}
 
-## ساختن image {#sec-02-4-1}
+## Creating an image {#sec-02-4-1}
 
 ```bash
 rbd --id rbd-lab create rbd/disk01 --size 10G
@@ -118,9 +117,9 @@ rbd --id rbd-lab ls -l rbd
 rbd --id rbd-lab info rbd/disk01
 ```
 
-خروجی `rbd info` شامل اندازه، تعداد اشیاء، `order 22` (یعنی اشیای 2^22 بایتی = ۴ مگابایت)، پیشوند نام اشیای داده (`block_name_prefix`) و فهرست ویژگی‌هاست.
+The output of `rbd info` includes the size, the number of objects, `order 22` (that is, 2^22-byte objects = 4 MB), the name prefix of the data objects (`block_name_prefix`) and the list of features.
 
-## map کردن با krbd {#sec-02-4-2}
+## Mapping with krbd {#sec-02-4-2}
 
 ```bash
 sudo rbd --id rbd-lab device map rbd/disk01      # /dev/rbd0
@@ -130,7 +129,7 @@ sudo mkdir -p /mnt/disk01 && sudo mount /dev/rbd0 /mnt/disk01
 df -h /mnt/disk01
 ```
 
-برای map خودکار پس از راه‌اندازی مجدد، سرویس `rbdmap` را به کار ببرید:
+To map automatically after a reboot, use the `rbdmap` service:
 
 ```bash
 echo "rbd/disk01 id=rbd-lab,keyring=/etc/ceph/ceph.client.rbd-lab.keyring" | sudo tee -a /etc/ceph/rbdmap
@@ -139,83 +138,83 @@ sudo systemctl enable --now rbdmap
 ```
 
 ::: {.warn}
-گزینه‌ی `_netdev` در fstab را فراموش نکنید. بدون آن، سیستم ممکن است در زمان بوت پیش از بالا آمدن شبکه سعی کند فایل‌سیستم را mount کند و بوت متوقف شود. در خاموش کردن هم ترتیب اهمیت دارد: اول umount، بعد unmap، بعد قطع شبکه.
+Do not forget the `_netdev` option in fstab. Without it, the system may try to mount the file system at boot before the network is up, and the boot hangs. Order matters at shutdown too: first umount, then unmap, then take the network down.
 :::
 
 ::: {.debug}
-اگر `rbd map` با خطای `RBD image feature set mismatch` یا `unsupported features` شکست خورد، پیام `dmesg` را ببینید. ویژگی ناسازگار را خاموش کنید (`rbd feature disable rbd/disk01 journaling`) یا از `rbd-nbd` استفاده کنید. اگر map معطل ماند، دسترسی کلاینت به پورت‌های MON (۳۳۰۰ و ۶۷۸۹) و بازه‌ی پورت OSDها (۶۸۰۰ تا ۷۳۰۰) را با فایروال بررسی کنید.
+If `rbd map` fails with `RBD image feature set mismatch` or `unsupported features`, look at the `dmesg` message. Disable the incompatible feature (`rbd feature disable rbd/disk01 journaling`) or use `rbd-nbd`. If the map hangs, check with the firewall that the client can reach the MON ports (3300 and 6789) and the OSD port range (6800 to 7300).
 :::
 
-## تغییر اندازه {#sec-02-4-3}
+## Resizing {#sec-02-4-3}
 
-بزرگ کردن یک image در Ceph فوری است، چون فقط فراداده تغییر می‌کند. بعد باید فایل‌سیستم را هم بزرگ کرد:
+Growing an image in Ceph is instant, because only the metadata changes. Afterwards the file system has to be grown too:
 
 ```bash
 rbd --id rbd-lab resize rbd/disk01 --size 20G
-sudo xfs_growfs /mnt/disk01          # برای ext4: sudo resize2fs /dev/rbd0
+sudo xfs_growfs /mnt/disk01          # for ext4: sudo resize2fs /dev/rbd0
 lsblk /dev/rbd0
 ```
 
-کوچک کردن خطرناک است و Ceph بدون پرچم صریح اجازه نمی‌دهد:
+Shrinking is dangerous, and Ceph does not allow it without an explicit flag:
 
 ```bash
 rbd resize rbd/disk01 --size 5G --allow-shrink
 ```
 
 ::: {.warn}
-پیش از کوچک کردن image، **اول** فایل‌سیستم را کوچک کنید (XFS اصلاً کوچک شدن را پشتیبانی نمی‌کند). کوچک کردن image زیر اندازه‌ی فایل‌سیستم یعنی بریدن انتهای فایل‌سیستم و از دست رفتن داده. در عمل، برای کاهش فضا ساختن image جدید و کپی داده امن‌تر است.
+Before shrinking an image, shrink the file system **first** (XFS does not support shrinking at all). Shrinking the image below the size of the file system means cutting off the end of the file system and losing data. In practice it is safer to create a new image and copy the data when you need to reduce space.
 :::
 
-## فضای واقعی و آزادسازی {#sec-02-4-4}
+## Real usage and reclaiming space {#sec-02-4-4}
 
-چون RBD thin است، `rbd du` فضای واقعاً مصرف‌شده را نشان می‌دهد. وقتی فایل‌ها را در فایل‌سیستم حذف می‌کنید، فضا تنها وقتی به Ceph برمی‌گردد که فایل‌سیستم دستور **discard** بفرستد:
+Because RBD is thin, `rbd du` shows the space actually consumed. When you delete files in the file system, the space returns to Ceph only when the file system sends a **discard** command:
 
 ```bash
 rbd du rbd/disk01
-sudo fstrim -v /mnt/disk01        # یا فعال کردن fstrim.timer
+sudo fstrim -v /mnt/disk01        # or enable fstrim.timer
 ```
 
-در ماشین‌های مجازی QEMU هم برای رسیدن discard به Ceph باید دیسک با `discard=unmap` و کنترلر virtio-scsi (یا virtio-blk در نسخه‌های جدید) تعریف شده باشد.
+In QEMU virtual machines, for discards to reach Ceph the disk must also be defined with `discard=unmap` and a virtio-scsi controller (or virtio-blk in recent versions).
 
-# snapshot و clone {#sec-02-5}
+# Snapshots and clones {#sec-02-5}
 
-## snapshot: تصویر لحظه‌ای فقط‌خواندنی {#sec-02-5-1}
+## Snapshot: a read-only point-in-time image {#sec-02-5-1}
 
-**snapshot** در RBD نسخه‌ی فقط‌خواندنی image در یک لحظه‌ی مشخص است. ساختنش تقریباً آنی است، چون Ceph داده را کپی نمی‌کند. از آن لحظه به بعد، هر شیئی که تغییر کند، OSD نسخه‌ی قبلی‌اش را به‌عنوان «clone شیء» نگه می‌دارد (copy-on-write در سطح شیء RADOS).
+An RBD **snapshot** is a read-only copy of an image at a specific moment. Creating it is almost instant, because Ceph does not copy the data. From that moment on, for every object that changes, the OSD keeps its previous version as an "object clone" (copy-on-write at the level of the RADOS object).
 
 ```bash
 rbd snap create rbd/disk01@before-upgrade
 rbd snap ls rbd/disk01
-rbd du rbd/disk01                     # سهم هر snapshot از فضا
-# بازگرداندن کل image به snapshot (image باید map نشده یا بی‌استفاده باشد)
+rbd du rbd/disk01                     # each snapshot's share of the space
+# Roll the whole image back to the snapshot (the image must be unmapped or unused)
 rbd snap rollback rbd/disk01@before-upgrade
 rbd snap rm rbd/disk01@before-upgrade
-rbd snap purge rbd/disk01             # حذف همه‌ی snapshotها
+rbd snap purge rbd/disk01             # delete all snapshots
 ```
 
 ::: {.warn}
-snapshot RBD در سطح بلوک گرفته می‌شود و از فایل‌سیستم داخل image خبر ندارد. اگر روی image در حال استفاده snapshot بگیرید، نتیجه فقط **crash-consistent** است، یعنی مثل قطع ناگهانی برق. برای سازگاری بهتر پیش از snapshot فایل‌سیستم را با `fsfreeze -f /mnt/disk01` منجمد و بعد با `fsfreeze -u` آزاد کنید. در ماشین‌های مجازی QEMU guest agent همین کار را انجام می‌دهد. برای پایگاه داده‌ها از سازوکار خود پایگاه داده (مثلاً حالت backup) استفاده کنید.
+An RBD snapshot is taken at the block level and knows nothing about the file system inside the image. If you snapshot an image that is in use, the result is only **crash-consistent**, as if the power had been cut suddenly. For better consistency, freeze the file system with `fsfreeze -f /mnt/disk01` before the snapshot and release it afterwards with `fsfreeze -u`. In virtual machines the QEMU guest agent does this. For databases, use the database's own mechanism (for example its backup mode).
 :::
 
 ::: {.note}
-`rbd snap rollback` کل داده‌ی image را بازنویسی می‌کند و برای imageهای بزرگ کند است. اگر فقط چند فایل لازم است، بهتر است از snapshot یک clone بسازید، آن را map کنید و فایل‌ها را کپی کنید.
+`rbd snap rollback` rewrites all of the image's data and is slow for large images. If you only need a few files, it is better to create a clone from the snapshot, map it and copy the files.
 :::
 
-## زمان‌بندی snapshot {#sec-02-5-2}
+## Scheduling snapshots {#sec-02-5-2}
 
-از نسخه‌ی Octopus، ماژول MGR به نام `rbd_support` امکان زمان‌بندی snapshot را برای mirroring فراهم می‌کند. برای snapshotهای پشتیبان‌گیری عمومی معمولاً از ابزار بیرونی (cron، Velero، Backy2/Benji یا ابزار پلتفرم مجازی‌سازی) استفاده می‌شود.
+Since Octopus, the MGR module called `rbd_support` can schedule snapshots for mirroring. For general backup snapshots an external tool is usually used (cron, Velero, Backy2/Benji or the virtualisation platform's own tool).
 
-## clone: نوشتنی و ارزان {#sec-02-5-3}
+## Clone: writable and cheap {#sec-02-5-3}
 
-**clone** imageی نوشتنی است که بر پایه‌ی یک snapshot ساخته می‌شود. تا وقتی clone در شیئی ننوشته، خواندن آن شیء از والد انجام می‌شود. این همان سازوکاری است که ساختن صدها ماشین مجازی از یک «image طلایی» را در چند ثانیه ممکن می‌کند.
+A **clone** is a writable image built on top of a snapshot. Until the clone writes to an object, reads of that object are served from the parent. This is the mechanism that makes it possible to create hundreds of virtual machines from one "golden image" in a few seconds.
 
-![زنجیره‌ی image والد، snapshot و clone؛ flatten وابستگی clone به والد را قطع می‌کند](figures/ch02/f03_snapclone.png){#fig-02-f03_snapclone}
+![The chain of parent image, snapshot and clone; flatten cuts the clone's dependency on the parent](figures/ch02/f03_snapclone.png){#fig-02-f03_snapclone}
 
 ```bash
 rbd create rbd/golden-os --size 20G
-# ... نصب سیستم‌عامل روی golden-os ...
+# ... install the operating system on golden-os ...
 rbd snap create rbd/golden-os@v1
-# در قالب clone نسخه‌ی ۱ لازم بود snapshot محافظت شود:
+# In clone format version 1 the snapshot had to be protected:
 rbd snap protect rbd/golden-os@v1
 rbd clone rbd/golden-os@v1 rbd/vm01
 rbd clone rbd/golden-os@v1 rbd/vm02
@@ -224,157 +223,157 @@ rbd info rbd/vm01 | grep parent
 ```
 
 ::: {.deep}
-از Mimic به بعد **قالب clone نسخه‌ی ۲** وجود دارد که دیگر نیازی به `snap protect` ندارد. در این قالب، اگر snapshot والدی را که هنوز فرزند دارد حذف کنید، Ceph آن را به «سطل زباله‌ی snapshot» منتقل می‌کند و وقتی آخرین فرزند flatten یا حذف شد، واقعاً پاکش می‌کند. شرط استفاده این است که کلاستر حداقل نسخه‌ی کلاینت سازگار را دست‌کم Mimic اعلام کرده باشد (`ceph osd set-require-min-compat-client mimic`). گزینه‌ی `rbd_default_clone_format` (با مقدار پیش‌فرض `auto`) تعیین می‌کند کدام قالب استفاده شود.
+Since Mimic there is **clone format version 2**, which no longer needs `snap protect`. In this format, if you delete a parent snapshot that still has children, Ceph moves it to the "snapshot trash" and really removes it once the last child has been flattened or deleted. The condition for using it is that the cluster has declared the minimum compatible client version to be at least Mimic (`ceph osd set-require-min-compat-client mimic`). The `rbd_default_clone_format` option (default value `auto`) determines which format is used.
 :::
 
-## flatten: بریدن بند ناف {#sec-02-5-4}
+## Flatten: cutting the cord {#sec-02-5-4}
 
-clone تا وقتی والدش وجود دارد به آن وابسته است. اگر بخواهید image طلایی را حذف کنید یا clone را به pool دیگری مهاجرت دهید، باید آن را **flatten** کنید: همه‌ی اشیایی که clone هنوز از والد می‌خواند، در خود clone کپی می‌شوند.
+A clone depends on its parent for as long as the parent exists. If you want to delete the golden image or migrate the clone to another pool, you must **flatten** it: every object that the clone still reads from the parent is copied into the clone itself.
 
 ```bash
 rbd flatten rbd/vm02
-rbd info rbd/vm02 | grep parent      # دیگر parent ندارد
-rbd snap unprotect rbd/golden-os@v1  # فقط اگر قالب ۱ و دیگر فرزندی نمانده باشد
+rbd info rbd/vm02 | grep parent      # it no longer has a parent
+rbd snap unprotect rbd/golden-os@v1  # only for format 1, and only if no children remain
 ```
 
 ::: {.tip}
-زنجیره‌های clone عمیق (clone از clone از clone) کارایی خواندن را کم می‌کنند، چون خواندن شیء نانوشته باید از چند سطح والد عبور کند. OpenStack و پلتفرم‌های مشابه معمولاً فقط یک سطح clone می‌سازند. اگر زنجیره عمیق شد، flatten کنید.
+Deep clone chains (a clone of a clone of a clone) reduce read performance, because reading an unwritten object has to go through several parent levels. OpenStack and similar platforms usually create only one level of clones. If a chain gets deep, flatten it.
 :::
 
-## سطل زباله و حذف امن {#sec-02-5-5}
+## Trash and safe deletion {#sec-02-5-5}
 
-RBD یک **trash** دارد. به‌جای حذف فوری، image را به آن منتقل کنید تا در صورت اشتباه قابل بازیابی باشد:
+RBD has a **trash**. Instead of deleting an image immediately, move it there so that it can be recovered if it was a mistake:
 
 ```bash
 rbd trash mv rbd/vm01 --expires-at "2026-12-01"
 rbd trash ls rbd
 rbd trash restore rbd/<image-id>
-rbd trash purge rbd                  # حذف همه‌ی imageهای منقضی‌شده
+rbd trash purge rbd                  # delete all expired images
 ```
 
-## مهاجرت زنده {#sec-02-5-6}
+## Live migration {#sec-02-5-6}
 
-`rbd migration` امکان انتقال image به pool دیگر (مثلاً از HDD به NVMe یا از تکثیری به EC) را با کمترین قطعی فراهم می‌کند. کلاینت فقط در لحظه‌ی prepare باید image را رها کند و بعد می‌تواند روی image مقصد کارش را ادامه دهد، در حالی که داده در پس‌زمینه کپی می‌شود:
+`rbd migration` moves an image to another pool (for example from HDD to NVMe, or from replicated to EC) with minimal downtime. The client only has to release the image at the moment of prepare; afterwards it can carry on working on the target image while the data is copied in the background:
 
 ```bash
 rbd migration prepare rbd/disk01 fast-nvme/disk01
-# کلاینت حالا می‌تواند fast-nvme/disk01 را باز کند
+# The client can now open fast-nvme/disk01
 rbd migration execute fast-nvme/disk01
 rbd migration commit fast-nvme/disk01
 ```
 
-در Tentacle امکان وارد کردن آنی image از یک کلاستر Ceph دیگر یا از منابع و قالب‌های بیرونی هم به مهاجرت زنده اضافه شده است.
+In Tentacle, live migration also gained the ability to import an image instantly from another Ceph cluster or from external sources and formats.
 
-# بازیابی از سانحه با RBD mirroring {#sec-02-6}
+# Disaster recovery with RBD mirroring {#sec-02-6}
 
-## مفهوم و دو حالت آن {#sec-02-6-1}
+## The concept and its two modes {#sec-02-6-1}
 
-**RBD mirroring** تکثیر ناهمگام imageها بین دو (یا چند) کلاستر Ceph مستقل است. یک daemon به نام **rbd-mirror** در کلاستر مقصد اجرا می‌شود، تغییرات را از کلاستر مبدأ می‌خواند و روی نسخه‌ی محلی اعمال می‌کند. هر image در هر لحظه فقط در یک کلاستر **primary** (نوشتنی) است و در بقیه **non-primary** (فقط‌خواندنی).
+**RBD mirroring** is asynchronous replication of images between two (or more) independent Ceph clusters. A daemon called **rbd-mirror** runs in the target cluster, reads the changes from the source cluster and applies them to the local copy. At any moment each image is **primary** (writable) in only one cluster and **non-primary** (read-only) in the others.
 
-![دو حالت mirroring: در حالت journal همه‌ی نوشتن‌ها ثبت و بازپخش می‌شوند؛ در حالت snapshot تفاضل snapshotهای دوره‌ای منتقل می‌شود](figures/ch02/f04_mirror_modes.png){#fig-02-f04_mirror_modes}
+![The two mirroring modes: in journal mode every write is recorded and replayed; in snapshot mode the difference between periodic snapshots is transferred](figures/ch02/f04_mirror_modes.png){#fig-02-f04_mirror_modes}
 
-| جنبه | حالت journal | حالت snapshot |
+| Aspect | Journal mode | Snapshot mode |
 |---|---|---|
-| سازوکار | هر نوشتن اول در journal درون RADOS ثبت و سپس روی image اعمال می‌شود | snapshotهای mirror به‌صورت دوره‌ای ساخته و تفاضل آن‌ها منتقل می‌شود |
-| RPO | ثانیه‌ها (وابسته به تأخیر بازپخش) | برابر فاصله‌ی زمان‌بندی (مثلاً ۵ دقیقه یا ۱ ساعت) |
-| سربار نوشتن | تقریباً دو برابر (journal + داده) | کم؛ فقط در زمان snapshot |
-| پشتیبانی krbd | ندارد (journaling پشتیبانی نمی‌شود) | دارد |
-| ترتیب نوشتن | حفظ می‌شود (point-in-time consistent) | crash-consistent در لحظه‌ی snapshot |
-| توصیه‌ی امروز | برای RPO بسیار کم و کلاینت librbd | انتخاب پیش‌فرض برای بیشتر کاربردها |
+| Mechanism | Every write is first recorded in a journal inside RADOS and then applied to the image | Mirror snapshots are created periodically and their difference is transferred |
+| RPO | Seconds (depends on the replay lag) | Equal to the schedule interval (for example 5 minutes or 1 hour) |
+| Write overhead | About double (journal + data) | Low; only at snapshot time |
+| krbd support | No (journaling is not supported) | Yes |
+| Write ordering | Preserved (point-in-time consistent) | Crash-consistent at the moment of the snapshot |
+| Recommendation today | For very low RPO and librbd clients | The default choice for most uses |
 
-## حالت‌های pool {#sec-02-6-2}
+## Pool modes {#sec-02-6-2}
 
-mirroring در سطح pool با یکی از این حالت‌ها فعال می‌شود:
+Mirroring is enabled at the pool level in one of these modes:
 
-- **image:** هر image باید جداگانه و صریحاً برای mirroring فعال شود. انعطاف بیشتر و تنها حالت ممکن برای mirroring نوع snapshot.
-- **pool:** همه‌ی imageهایی که ویژگی journaling دارند خودکار mirror می‌شوند (فقط حالت journal).
-- **init-only:** pool برای mirroring آماده می‌شود اما خود pool mirror نمی‌شود؛ برای حالتی که فقط namespaceها mirror شوند.
+- **image:** each image must be enabled for mirroring separately and explicitly. More flexible, and the only possible mode for snapshot-based mirroring.
+- **pool:** every image that has the journaling feature is mirrored automatically (journal mode only).
+- **init-only:** the pool is prepared for mirroring but the pool itself is not mirrored; for the case where only namespaces are mirrored.
 
-## استقرار rbd-mirror {#sec-02-6-3}
+## Deploying rbd-mirror {#sec-02-6-3}
 
 ```bash
-# روی کلاستر مقصد (و برای دوطرفه، روی هر دو کلاستر)
+# On the target cluster (and, for two-way, on both clusters)
 ceph orch apply rbd-mirror --placement="2 ceph-node2 ceph-node3"
 ceph orch ps --daemon-type rbd-mirror
 ```
 
 ::: {.tip}
-دو نمونه‌ی rbd-mirror در هر کلاستر اجرا کنید. نمونه‌ها کار را بین خودشان تقسیم می‌کنند و خرابی یکی، تکثیر را متوقف نمی‌کند. rbd-mirror پهنای باند و CPU قابل‌توجهی مصرف می‌کند؛ آن را روی میزبانی بگذارید که هم به شبکه‌ی عمومی محلی و هم به کلاستر راه دور دسترسی خوب دارد.
+Run two rbd-mirror instances in each cluster. The instances share the work between them, and the failure of one does not stop replication. rbd-mirror uses considerable bandwidth and CPU; put it on a host with good access both to the local public network and to the remote cluster.
 :::
 
-## پیکربندی تکثیر یک‌طرفه {#sec-02-6-4}
+## Configuring one-way replication {#sec-02-6-4}
 
-فرض کنید دو کلاستر `site-a` (اصلی) و `site-b` (پشتیبان) داریم و pool به نام `vms` در هر دو با همین نام ساخته شده است.
+Suppose we have two clusters, `site-a` (primary) and `site-b` (backup), and a pool called `vms` has been created in both with the same name.
 
-![توپولوژی mirroring: rbd-mirror در site-b تغییرات را از site-a می‌خواند؛ برای failback به rbd-mirror در site-a هم نیاز است](figures/ch02/f05_mirror_topo.png){#fig-02-f05_mirror_topo}
+![Mirroring topology: rbd-mirror in site-b reads the changes from site-a; failback also needs rbd-mirror in site-a](figures/ch02/f05_mirror_topo.png){#fig-02-f05_mirror_topo}
 
 ```bash
-# روی هر دو کلاستر
+# On both clusters
 ceph osd pool create vms && rbd pool init vms
 # site-a
 rbd mirror pool enable --site-name site-a vms image
 # site-b
 rbd mirror pool enable --site-name site-b vms image
-# site-a: ساختن توکن bootstrap (شامل fsid، کاربر و نشانی MONها)
+# site-a: create the bootstrap token (contains the fsid, the user and the MON addresses)
 rbd mirror pool peer bootstrap create --site-name site-a vms > /root/vms-token
-# انتقال امن توکن به site-b و وارد کردن آن
+# Transfer the token securely to site-b and import it
 rbd mirror pool peer bootstrap import --site-name site-b --direction rx-only vms /root/vms-token
 rbd mirror pool info vms
 ```
 
 ::: {.warn}
-توکن bootstrap حاوی کلید یک کاربر Ceph با دسترسی به pool است. آن را مثل رمز عبور منتقل کنید (scp از کانال امن)، در تیکت یا چت قرار ندهید و پس از import پاکش کنید.
+The bootstrap token contains the key of a Ceph user with access to the pool. Transfer it like a password (scp over a secure channel), never put it in a ticket or a chat, and delete it after the import.
 :::
 
-## فعال کردن mirroring برای imageها {#sec-02-6-5}
+## Enabling mirroring for images {#sec-02-6-5}
 
 ```bash
-# حالت snapshot (پیشنهادی)
+# Snapshot mode (recommended)
 rbd create vms/db01 --size 50G
 rbd mirror image enable vms/db01 snapshot
-# زمان‌بندی snapshotهای mirror برای کل pool یا یک image
+# Schedule mirror snapshots for the whole pool or for one image
 rbd mirror snapshot schedule add --pool vms 15m
 rbd mirror snapshot schedule ls --pool vms --recursive
-# حالت journal (فقط برای کلاینت librbd)
+# Journal mode (librbd clients only)
 rbd create vms/app01 --size 20G --image-feature exclusive-lock,journaling
 rbd mirror image enable vms/app01 journal
 ```
 
-## بررسی وضعیت همگام‌سازی {#sec-02-6-6}
+## Checking the synchronisation status {#sec-02-6-6}
 
 ```bash
 rbd mirror pool status vms --verbose
 rbd mirror image status vms/db01
 ```
 
-وضعیت سالم برای یک image non-primary در حالت snapshot معمولاً `up+replaying` است و توضیح آن نشان می‌دهد آخرین snapshot همگام‌شده کدام است و چقدر از آن گذشته. در حالت journal، فاصله‌ی ورودی‌های journal (`entries_behind_primary`) معیار عقب‌ماندگی است.
+The healthy state for a non-primary image in snapshot mode is usually `up+replaying`, and its description shows which snapshot was synchronised last and how long ago. In journal mode, the gap in journal entries (`entries_behind_primary`) measures how far behind it is.
 
 ::: {.debug}
-وضعیت `down+unknown` یعنی rbd-mirror در کلاستر مقصد اجرا نمی‌شود یا نمی‌تواند به کلاستر راه دور برسد. `ceph orch ps --daemon-type rbd-mirror`، لاگ daemon و دسترسی شبکه به MONها و OSDهای راه دور را بررسی کنید. وضعیت `up+error` همراه با `split-brain` یعنی image در هر دو طرف primary شده است (بخش بعد را ببینید).
+The state `down+unknown` means rbd-mirror is not running in the target cluster or cannot reach the remote cluster. Check `ceph orch ps --daemon-type rbd-mirror`, the daemon log, and network access to the remote MONs and OSDs. The state `up+error` together with `split-brain` means the image has become primary on both sides (see the next section).
 :::
 
-## تکثیر دوطرفه {#sec-02-6-7}
+## Two-way replication {#sec-02-6-7}
 
-در حالت دوطرفه هر کلاستر هم مبدأ برخی imageها و هم مقصد برخی دیگر است. کافی است rbd-mirror را روی هر دو کلاستر مستقر کنید و توکن را با جهت `rx-tx` (پیش‌فرض) وارد کنید:
+In two-way mode each cluster is the source for some images and the target for others. You only need to deploy rbd-mirror on both clusters and import the token with the `rx-tx` direction (the default):
 
 ```bash
 rbd mirror pool peer bootstrap import --site-name site-b --direction rx-tx vms /root/vms-token
 ```
 
-دوطرفه بودن به این معنی **نیست** که یک image در هر دو طرف هم‌زمان نوشتنی است. معنایش این است که imageهای primary در site-a به site-b و imageهای primary در site-b به site-a تکثیر می‌شوند، و پس از failover جهت تکثیر بدون پیکربندی دوباره برعکس می‌شود.
+Two-way does **not** mean that an image is writable on both sides at the same time. It means that images that are primary in site-a are replicated to site-b and images that are primary in site-b are replicated to site-a, and that after a failover the direction of replication reverses without reconfiguration.
 
-# از درون کد: چیدمان اشیای RBD، object map و exclusive lock {#sec-02-7}
+# From the code: RBD object layout, object map and exclusive lock {#sec-02-7}
 
-## یک تصویر RBD روی RADOS چگونه ذخیره می‌شود {#sec-02-7-1}
+## How an RBD image is stored on RADOS {#sec-02-7-1}
 
-تصویر RBD در RADOS هیچ «فایل» یکپارچه‌ای نیست. librbd آن را به مجموعه‌ای از اشیای جدا تبدیل می‌کند. پیشوندها در `src/include/rbd_types.h` تعریف شده‌اند: `rbd_id.`، `rbd_header.`، `rbd_object_map.`، `rbd_data.` و اشیای سطح pool یعنی `rbd_directory` و `rbd_trash`.
+An RBD image is not a single "file" in RADOS. librbd turns it into a set of separate objects. The prefixes are defined in `src/include/rbd_types.h`: `rbd_id.`, `rbd_header.`, `rbd_object_map.`, `rbd_data.`, and the pool-level objects `rbd_directory` and `rbd_trash`.
 
-![چیدمان یک تصویر فرمت ۲ در RADOS. ردیف بالا فهرست‌های سطح pool را نشان می‌دهد: در omap شیء rbd_directory کلیدهای name_ و id_ نام و شناسه را به هم نگاشت می‌کنند. ردیف میانی اشیای فراداده‌ی هر تصویر است: rbd_id.<name> شناسه را نگه می‌دارد، و rbd_header.<id> اندازه، order، features، object_prefix، snapshotها و والد را در omap ذخیره می‌کند و watcherها روی همین شیء ثبت می‌شوند. object map برای هر شیء داده دو بیت حالت دارد. ردیف پایین اشیای داده است که نامشان از object_prefix و یک عدد hex شانزده‌رقمی ساخته می‌شود؛ فقط اشیایی ساخته می‌شوند که واقعاً نوشته شده باشند (thin provisioning)](figures/ch02/s01_layout.png){#fig-02-s01_layout}
+![The layout of a format 2 image in RADOS. The top row shows the pool-level lists: in the omap of the rbd_directory object, the name_ and id_ keys map names and ids to each other. The middle row is each image's metadata objects: rbd_id.<name> holds the id, and rbd_header.<id> stores the size, order, features, object_prefix, snapshots and parent in its omap; watchers register on this same object. The object map has two state bits for each data object. The bottom row is the data objects, whose names are built from object_prefix and a sixteen-digit hex number; only objects that have actually been written are created (thin provisioning)](figures/ch02/s01_layout.png){#fig-02-s01_layout}
 
-فرمول یافتن شیء برای یک offset، بدون striping سفارشی (stripe_unit = اندازه‌ی شیء):
+The formula for finding the object for an offset, without custom striping (stripe_unit = object size):
 
 ```text
-pseudocode (خلاصه‌ی این کتاب از ImageCtx/Striper)
+pseudocode (this book's summary of ImageCtx/Striper)
   object_size = 1 << order                 # order=22 → 4 MiB
   objno       = offset // object_size
   obj_off     = offset %  object_size
@@ -385,224 +384,224 @@ pseudocode (خلاصه‌ی این کتاب از ImageCtx/Striper)
 rbd info rbd/vm1 | grep -E 'block_name_prefix|order|features'
 rados -p rbd listomapvals rbd_directory | head
 rados -p rbd listomapkeys rbd_header.$(rados -p rbd get rbd_id.vm1 - | strings)
-rados -p rbd ls | grep -c "^rbd_data.<id>"    # تعداد اشیای واقعاً تخصیص‌یافته
-rbd du rbd/vm1                                  # با fast-diff سریع است
+rados -p rbd ls | grep -c "^rbd_data.<id>"    # number of objects actually allocated
+rbd du rbd/vm1                                  # fast with fast-diff
 ```
 
 ::: {.tip}
-اگر `rbd du` روی تصویری بزرگ ثانیه‌ها یا دقیقه‌ها طول می‌کشد، احتمالاً object map/fast-diff غیرفعال یا نامعتبر است. `rbd info` را برای flags نگاه کنید (`object map invalid`) و با `rbd object-map rebuild` بازسازی کنید.
+If `rbd du` on a large image takes seconds or minutes, the object map/fast-diff is probably disabled or invalid. Look at the flags in `rbd info` (`object map invalid`) and rebuild it with `rbd object-map rebuild`.
 :::
 
-## object map: دو بیت که I/O را سریع می‌کنند {#sec-02-7-2}
+## The object map: two bits that make I/O fast {#sec-02-7-2}
 
-ثابت‌های `src/include/rbd/object_map_types.h`:
+The constants of `src/include/rbd/object_map_types.h`:
 
-| مقدار | نام | معنا |
+| Value | Name | Meaning |
 |---|---|---|
-| 0 | OBJECT_NONEXISTENT | شیء وجود ندارد؛ خواندن صفر برمی‌گرداند و نیازی به رفتن به OSD نیست |
-| 1 | OBJECT_EXISTS | شیء وجود دارد و پس از آخرین snapshot تغییر کرده است |
-| 2 | OBJECT_PENDING | حذف/discard در جریان است |
-| 3 | OBJECT_EXISTS_CLEAN | شیء وجود دارد ولی از آخرین snapshot تغییر نکرده است (پایه‌ی fast-diff) |
+| 0 | OBJECT_NONEXISTENT | The object does not exist; a read returns zeros without going to the OSD |
+| 1 | OBJECT_EXISTS | The object exists and has changed since the last snapshot |
+| 2 | OBJECT_PENDING | A removal/discard is in progress |
+| 3 | OBJECT_EXISTS_CLEAN | The object exists but has not changed since the last snapshot (the basis of fast-diff) |
 
-object map فقط زمانی قابل اعتماد است که **یک** نویسنده داشته باشد. به همین دلیل feature `object-map` به `exclusive-lock` وابسته است. سقف تعداد اشیای پوشش‌داده‌شده در `cls_rbd_types.h` برابر `MAX_OBJECT_MAP_OBJECT_COUNT = 256000000` است؛ با اشیای 4MiB، این حدود 976 TiB می‌شود.
+The object map can be trusted only when there is **one** writer. That is why the `object-map` feature depends on `exclusive-lock`. The maximum number of objects covered is `MAX_OBJECT_MAP_OBJECT_COUNT = 256000000` in `cls_rbd_types.h`; with 4 MiB objects that is about 976 TiB.
 
 ```text
-pseudocode: نوشتن با object map (خلاصه‌ی این کتاب)
+pseudocode: writing with the object map (this book's summary)
   write(objno, data):
      if objmap[objno] in {NONEXISTENT, EXISTS_CLEAN}:
-         objmap_update(objno, EXISTS)        # ابتدا به‌روزرسانی شیء rbd_object_map (cls_rbd)
+         objmap_update(objno, EXISTS)        # first update the rbd_object_map object (cls_rbd)
      send write to rbd_data.<id>.<objno>
   discard(objno):
      objmap_update(objno, PENDING) → remove object → objmap_update(objno, NONEXISTENT)
 ```
 
-## exclusive lock و ManagedLock {#sec-02-7-3}
+## Exclusive lock and ManagedLock {#sec-02-7-3}
 
-پیش‌فرض `rbd_default_features` در `rbd.yaml.in` برابر `layering,exclusive-lock,object-map,fast-diff,deep-flatten` است. قفل با کلاس `cls_lock` و نام `rbd_lock` (`RBD_LOCK_NAME`) روی شیء header گرفته می‌شود. ماشین حالت `librbd/managed_lock/AcquireRequest` سه گام اصلی دارد: `GET_LOCKER`، `LOCK_IMAGE` و در صورت مرده بودن مالک، `BREAK_LOCK`.
+The default of `rbd_default_features` in `rbd.yaml.in` is `layering,exclusive-lock,object-map,fast-diff,deep-flatten`. The lock is taken on the header object with the `cls_lock` class under the name `rbd_lock` (`RBD_LOCK_NAME`). The `librbd/managed_lock/AcquireRequest` state machine has three main steps: `GET_LOCKER`, `LOCK_IMAGE` and, if the owner is dead, `BREAK_LOCK`.
 
-![انتقال exclusive lock بین دو کلاینت. B ابتدا مالک فعلی را می‌خواند و اگر قفل گرفته شده باشد، از طریق watch/notify روی header درخواست قفل می‌فرستد. اگر A سالم باشد، طبق policy (پیش‌فرض: آزادسازی خودکار) کش را flush و قفل را رها می‌کند. اگر A دیگر watch نداشته باشد، B قفل را می‌شکند و با rbd_blocklist_on_break_lock=true (پیش‌فرض) آدرس A را blocklist می‌کند تا نوشتن‌های دیررسیده‌ی A پذیرفته نشوند. سپس B قفل را می‌گیرد و در PostAcquire، object map و journal را باز می‌کند](figures/ch02/s02_lock.png){#fig-02-s02_lock}
+![Handing the exclusive lock over between two clients. B first reads the current owner and, if the lock is held, sends a lock request through watch/notify on the header. If A is healthy, it flushes its cache and releases the lock according to the policy (default: automatic release). If A no longer has a watch, B breaks the lock and, with rbd_blocklist_on_break_lock=true (the default), blocklists A's address so that A's late writes are not accepted. B then takes the lock and, in PostAcquire, opens the object map and the journal](figures/ch02/s02_lock.png){#fig-02-s02_lock}
 
 ::: {.warn}
-exclusive lock **سازوکار حفاظت از چند نویسنده‌ی هم‌زمان نیست**. این قفل به‌صورت همکارانه بین کلاینت‌ها دست‌به‌دست می‌شود. اگر یک تصویر را روی دو VM هم‌زمان mount کنید (مثلاً با ext4)، داده خراب می‌شود. برای جلوگیری سخت، `rbd map --exclusive` (krbd) یا قفل‌های سطح orchestrator لازم است.
+The exclusive lock is **not a mechanism for protecting against several simultaneous writers**. The lock is passed cooperatively between clients. If you mount one image on two VMs at the same time (for example with ext4), the data will be corrupted. For hard prevention you need `rbd map --exclusive` (krbd) or orchestrator-level locks.
 :::
 
 ::: {.debug}
-دستورهای عیب‌یابی قفل و watcher:
+Commands for troubleshooting locks and watchers:
 :::
 
 ```bash
-rbd status rbd/vm1                  # watcherها
-rbd lock ls rbd/vm1                 # قفل‌های مشورتی و مالک
-ceph osd blocklist ls               # آیا کلاینت قبلی blocklist شده است؟
-rbd feature disable rbd/vm1 fast-diff object-map   # ترتیب: وابسته‌ها اول
+rbd status rbd/vm1                  # watchers
+rbd lock ls rbd/vm1                 # advisory locks and their owner
+ceph osd blocklist ls               # has the previous client been blocklisted?
+rbd feature disable rbd/vm1 fast-diff object-map   # order: dependents first
 ```
 
-# RBD با عدد: شناسه‌ی image، discard و rbd du {#sec-02-8}
+# RBD by the numbers: image id, discard and rbd du {#sec-02-8}
 
-این بخش سه الگوریتم کوچک librbd را بررسی می‌کند که در کار روزمره زیاد دیده می‌شوند: نام‌گذاری شیءهای یک image، تبدیل discard به عملیات شیء، و چگونگی شمارش فضای مصرفی در `rbd du`. ارجاع‌ها به main در نوامبر 2026 است. striping و object map در فصل 3 آمده‌اند.
+This section examines three small librbd algorithms that come up often in daily work: the naming of an image's objects, the translation of a discard into object operations, and how `rbd du` counts the space used. References are to main as of November 2026. Striping and the object map are covered in chapter 3.
 
-## شناسه و شیءهای یک image {#sec-02-8-1}
+## The id and objects of an image {#sec-02-8-1}
 
-::: {.algo #alg-02-1 title="ساخت شناسه‌ی image و نام شیءهای آن (قالب 2)" src="src/librbd/Utils.cc :: generate_image_id؛ src/include/rbd_types.h (پیشوندها)؛ src/cls/rbd/cls_rbd.cc :: dir_add_image" complexity="O(1)"}
+::: {.algo #alg-02-1 title="Building an image id and the names of its objects (format 2)" src="src/librbd/Utils.cc :: generate_image_id; src/include/rbd_types.h (prefixes); src/cls/rbd/cls_rbd.cc :: dir_add_image" complexity="O(1)"}
 :::
 
 ```text
 pseudocode
-bid   = rados.get_instance_id()          # شناسه‌ی سراسری این اتصال به کلاستر
-extra = عدد تصادفی 32 بیتی
-id    = hex(bid) + hex(extra)            # بدون صفر پیشرو؛ اگر > 14 نویسه: 14 نویسه‌ی آخر
+bid   = rados.get_instance_id()          # the global id of this connection to the cluster
+extra = a random 32-bit number
+id    = hex(bid) + hex(extra)            # no leading zeros; if > 14 characters: the last 14 characters
 rbd_id.<name>           ← id
-rbd_directory (omap)    ← name_<name> = id ، id_<id> = name
-rbd_header.<id>         ← size، order، features، snapshotها، parent (omap)
-rbd_object_map.<id>     ← 2 بیت برای هر شیء (اگر object-map فعال باشد)
-rbd_data.<id>.%016x     ← شیء داده با شماره‌ی hex شانزده‌رقمی، فقط پس از اولین نوشتن
+rbd_directory (omap)    ← name_<name> = id , id_<id> = name
+rbd_header.<id>         ← size, order, features, snapshots, parent (omap)
+rbd_object_map.<id>     ← 2 bits per object (if object-map is enabled)
+rbd_data.<id>.%016x     ← a data object with a sixteen-digit hex number, only after the first write
 ```
 
-**مثال نمادین.** اگر instance id برابر 4235 (0x108b) و عدد تصادفی 0x1d6e2f3a باشد، id برابر `108b1d6e2f3a` (12 نویسه) است و شیء سوم داده `rbd_data.108b1d6e2f3a.0000000000000002` نام دارد. سقف 14 نویسه (RBD_MAX_IMAGE_ID_LENGTH) از RBD_MAX_BLOCK_NAME_SIZE برابر 24 می‌آید: «rbd_data.» (9 نویسه)، 14 نویسه‌ی id و نویسه‌ی پایان. چون شیءهای داده فقط پس از اولین نوشتن ساخته می‌شوند، `rbd create --size 10T` در کسری از ثانیه تمام می‌شود و هیچ فضایی مصرف نمی‌کند. برای دیدن شیءهای موجود، `rados -p <pool> ls | grep 108b1d6e2f3a` را اجرا کنید.
+**A symbolic example.** If the instance id is 4235 (0x108b) and the random number is 0x1d6e2f3a, the id is `108b1d6e2f3a` (12 characters), and the third data object is named `rbd_data.108b1d6e2f3a.0000000000000002`. The 14-character limit (RBD_MAX_IMAGE_ID_LENGTH) comes from RBD_MAX_BLOCK_NAME_SIZE being 24: "rbd_data." (9 characters), 14 characters of id and the terminating character. Because data objects are created only after their first write, `rbd create --size 10T` finishes in a fraction of a second and consumes no space. To see the existing objects, run `rados -p <pool> ls | grep 108b1d6e2f3a`.
 
-![زنجیره‌ی شیءهای یک image با قالب 2. ردیف اول ساختن id از instance id و یک عدد تصادفی است. ردیف دوم نگاشت نام به id در rbd_id و rbd_directory، و سرآیند image است. ردیف سوم object map، شیءهای داده‌ای که با اولین نوشتن ساخته می‌شوند، و ورودی trash هنگام حذف است. id نمونه نمادین است](figures/ch02/f08_names.png){#fig-02-f08_names}
+![The chain of objects of a format 2 image. The first row is building the id from the instance id and a random number. The second row is the name-to-id mapping in rbd_id and rbd_directory, and the image header. The third row is the object map, the data objects created by the first write, and the trash entry on deletion. The sample id is symbolic](figures/ch02/f08_names.png){#fig-02-f08_names}
 
-## discard: از محدوده‌ی image تا remove، truncate یا zero {#sec-02-8-2}
+## Discard: from an image range to remove, truncate or zero {#sec-02-8-2}
 
-::: {.algo #alg-02-2 title="هرس و انتخاب عمل discard" src="src/librbd/io/ImageRequest.cc :: ImageDiscardRequest::prune_object_extents؛ src/librbd/io/ObjectRequest.h :: ObjectDiscardRequest؛ src/librbd/ImageCtx.cc (skip_partial_discard)" complexity="O(تعداد شیءهای درگیر)"}
+::: {.algo #alg-02-2 title="Pruning a discard and choosing its operation" src="src/librbd/io/ImageRequest.cc :: ImageDiscardRequest::prune_object_extents; src/librbd/io/ObjectRequest.h :: ObjectDiscardRequest; src/librbd/ImageCtx.cc (skip_partial_discard)" complexity="O(number of objects involved)"}
 :::
 
 ```text
 pseudocode
-g = rbd_skip_partial_discard (true) و بدون dirty cache ? rbd_discard_granularity_bytes (64K) : 0
+g = rbd_skip_partial_discard (true) and no dirty cache ? rbd_discard_granularity_bytes (64K) : 0
 g = min(g, object_size)
-برای هر extent شیء (off, len):
-    if g > 0: off = roundup(off, g) ; end = align(off + len, g) ; if off ≥ end: حذف extent
-    if کل شیء: REMOVE    (clone با parent: TRUNCATE یا create+truncate تا parent پنهان شود)
-    elif به انتهای شیء می‌رسد: TRUNCATE
+for each object extent (off, len):
+    if g > 0: off = roundup(off, g) ; end = align(off + len, g) ; if off ≥ end: drop the extent
+    if the whole object: REMOVE    (clone with a parent: TRUNCATE or create+truncate so the parent is hidden)
+    elif it reaches the end of the object: TRUNCATE
     else: ZERO
 ```
 
-**مثال عددی (شیء 4 MiB).** discard ‏10 KiB در offset ‏100 KiB به بازه‌ی [128K, 64K) گرد می‌شود که خالی است، پس کاری انجام نمی‌شود. discard ‏200 KiB در offset ‏100 KiB به zero در بازه‌ی 128K تا 256K تبدیل می‌شود. discard ‏1 MiB در offset ‏3.5 MiB دو عمل می‌سازد: truncate شیء 0 در 3584K و zero بازه‌ی 0 تا 512K در شیء 1. discard ‏4 MiB در offset ‏2 MiB، شیء 0 را از 2 MiB به بعد truncate و نیمه‌ی اول شیء 1 را zero می‌کند. discard ‏8 MiB در offset ‏4 MiB شیءهای 1 و 2 را کامل حذف می‌کند. پس `fstrim` روی فایل‌سیستمی که بلوک‌های کوچک پراکنده آزاد می‌کند، تقریباً هیچ فضایی پس نمی‌دهد. چیزی که فضا را واقعاً آزاد می‌کند truncate یا remove شیء است، یا zero در BlueStore که اگر هم‌تراز با min_alloc_size باشد، آن بلوک‌ها را آزاد می‌کند.
+**Numeric example (a 4 MiB object).** A 10 KiB discard at offset 100 KiB is rounded to the range [128K, 64K), which is empty, so nothing is done. A 200 KiB discard at offset 100 KiB becomes a zero of the range 128K to 256K. A 1 MiB discard at offset 3.5 MiB produces two operations: a truncate of object 0 at 3584K and a zero of the range 0 to 512K in object 1. A 4 MiB discard at offset 2 MiB truncates object 0 from 2 MiB onwards and zeroes the first half of object 1. An 8 MiB discard at offset 4 MiB removes objects 1 and 2 completely. So `fstrim` on a file system that frees small, scattered blocks gives back almost no space. What really frees space is a truncate or remove of the object, or a zero in BlueStore, which frees those blocks if it is aligned to min_alloc_size.
 
-![پنج درخواست discard روی سه شیء چهارمگابایتی. نوار خاکستری بالای هر ردیف بازه‌ی درخواستی است. قرمز remove، نارنجی truncate، آبی zero و هاشور «رد شده» است. گرد شدن به 64 KiB باعث می‌شود discardهای کوچک‌تر از یک واحد کامل حذف شوند](figures/ch02/f09_discard.png){#fig-02-f09_discard}
+![Five discard requests on three 4 MB objects. The grey bar above each row is the requested range. Red is remove, orange is truncate, blue is zero, and hatching is "skipped". Rounding to 64 KiB causes discards smaller than one full unit to be dropped](figures/ch02/f09_discard.png){#fig-02-f09_discard}
 
-![مسیر تصمیم discard در librbd: تبدیل به extentهای شیء، هرس با واحد 64 KiB (مگر اینکه skip_partial_discard خاموش باشد یا cache کثیف وجود داشته باشد) و انتخاب remove، truncate یا zero. برای clone با parent، حذف کامل به truncate تبدیل می‌شود تا داده‌ی parent دوباره پیدا نشود](figures/ch02/f11_discardflow.png){#fig-02-f11_discardflow}
+![The discard decision path in librbd: conversion to object extents, pruning with a 64 KiB unit (unless skip_partial_discard is off or there is a dirty cache), and the choice of remove, truncate or zero. For a clone with a parent, a full removal becomes a truncate so that the parent's data does not reappear](figures/ch02/f11_discardflow.png){#fig-02-f11_discardflow}
 
-## rbd du: کل شیء یا extent دقیق؟ {#sec-02-8-3}
+## rbd du: whole objects or exact extents? {#sec-02-8-3}
 
-::: {.algo #alg-02-3 title="شمارش فضای مصرفی در rbd du" src="src/tools/rbd/action/DiskUsage.cc :: get_image_disk_usage (diff_iterate2 با whole_object = !exact)؛ src/librbd/api/DiffIterate.cc" complexity="با fast-diff: O(تعداد شیء) از object map؛ با --exact: O(تعداد شیء) فراخوانی list-snaps"}
+::: {.algo #alg-02-3 title="Counting the space used in rbd du" src="src/tools/rbd/action/DiskUsage.cc :: get_image_disk_usage (diff_iterate2 with whole_object = !exact); src/librbd/api/DiffIterate.cc" complexity="With fast-diff: O(number of objects) from the object map; with --exact: O(number of objects) list-snaps calls"}
 :::
 
 ```text
 pseudocode
 whole_object = not --exact
 diff_iterate2(from_snap, 0, size, include_parent=false, whole_object, cb)
-    if whole_object و fast-diff معتبر: از object map، هر شیء EXISTS یا EXISTS_CLEAN = یک بازه‌ی کامل
-    else: برای هر شیء list-snaps ← calc_snap_set_diff
-          # بدون snapshot: بازه‌ی [0, size شیء)، نه extentهای پراکنده‌ی نوشته‌شده
-USED = Σ طول بازه‌ها                      # PROVISIONED = اندازه‌ی image
-اگر fast-diff نامعتبر یا غیرفعال باشد: هشدار و کندی (پیمایش همه‌ی شیءها)
+    if whole_object and fast-diff is valid: from the object map, each EXISTS or EXISTS_CLEAN object = one full range
+    else: for each object list-snaps ← calc_snap_set_diff
+          # without a snapshot: the range [0, object size), not the scattered written extents
+USED = Σ range lengths                      # PROVISIONED = image size
+if fast-diff is invalid or disabled: a warning and slowness (walking every object)
 ```
 
-**اندازه‌گیری واقعی.** این چهار بار کاری را روی یک کلاستر آزمایشی سه‌OSDی با Ceph 18.2.7 (Reef، بسته‌های Debian) و imageهای ده گیگابایتی با شیء 4 MiB و featureهای پیش‌فرض (61، یعنی layering، exclusive-lock، object-map، fast-diff و deep-flatten) اجرا کردیم:
+**A real measurement.** We ran these four workloads on a three-OSD test cluster with Ceph 18.2.7 (Reef, Debian packages), using 10 GB images with 4 MiB objects and the default features (61, that is layering, exclusive-lock, object-map, fast-diff and deep-flatten):
 
-| بار کاری | بایت نوشته‌شده | rbd du --exact | rbd du پیش‌فرض |
+| Workload | Bytes written | rbd du --exact | rbd du default |
 |---|---|---|---|
-| A: صد نوشتن 1 KiB در آفست 0 صد شیء | 100 KiB | 100 KiB | 400 MiB |
-| B: هزار نوشتن 1 KiB در آفست 0 هزار شیء | 1000 KiB | 1000 KiB | 4000 MiB |
-| C: 256 MiB ترتیبی | 256 MiB | 256 MiB | 256 MiB |
-| D: دوهزار نوشتن 4 KiB تصادفی در 2 GiB نخست (503 شیء) | 7.8 MiB | 1.51 GiB | 1.96 GiB |
+| A: one hundred 1 KiB writes at offset 0 of a hundred objects | 100 KiB | 100 KiB | 400 MiB |
+| B: one thousand 1 KiB writes at offset 0 of a thousand objects | 1000 KiB | 1000 KiB | 4000 MiB |
+| C: 256 MiB sequential | 256 MiB | 256 MiB | 256 MiB |
+| D: two thousand random 4 KiB writes in the first 2 GiB (503 objects) | 7.8 MiB | 1.51 GiB | 1.96 GiB |
 
-سطر D نکته‌ای را نشان می‌دهد که از نام `--exact` برنمی‌آید. در `calc_snap_set_diff` (فایل src/librados/snap_set_diff.cc) اگر شیء در snapshot آغاز وجود نداشته باشد، diff برابر کل بازه‌ی `[0, size)` شیء گذاشته می‌شود. اندازه‌ی یک شیء RADOS بالاترین بایت نوشته‌شده در آن است. پس `--exact` تا آخرین بایت هر شیء را می‌شمارد، نه extentهای پراکنده را. نوشتن 4 KiB در انتهای یک شیء آن را 4 MiB حساب می‌کند. در D هر شیء به‌طور میانگین حدود چهار نوشتن تصادفی دارد. امید بیشینه‌ی چهار نقطه‌ی یکنواخت 4/5 طول است و همین 503 × 4 MiB × 0.8 ≈ 1.57 GiB را پیش‌بینی می‌کند که به 1.51 GiB اندازه‌گیری‌شده نزدیک است. `--exact` فقط وقتی به داده‌ی واقعاً نوشته‌شده نزدیک است که نوشتن‌ها از ابتدای شیء پیوسته باشند (A، B و C). هیچ‌کدام از دو عدد مصرف خام را نشان نمی‌دهد. مصرف خام به size یا k+m و به min_alloc_size ‏BlueStore (4 KiB در نسخه‌های اخیر) هم بستگی دارد و BlueStore بخش‌های نانوشته را تخصیص نمی‌دهد. برای ظرفیت‌سنجی از `ceph df detail` استفاده کنید و rbd du را فقط برای مقایسه‌ی imageها به کار ببرید.
+Row D shows something that the name `--exact` does not suggest. In `calc_snap_set_diff` (file src/librados/snap_set_diff.cc), if the object did not exist in the starting snapshot, the diff is set to the object's whole range `[0, size)`. The size of a RADOS object is the highest byte written in it. So `--exact` counts up to the last byte of each object, not the scattered extents. A 4 KiB write at the end of an object counts it as 4 MiB. In D each object has on average about four random writes. The expected maximum of four uniform points is 4/5 of the length, which predicts 503 × 4 MiB × 0.8 ≈ 1.57 GiB, close to the measured 1.51 GiB. `--exact` is close to the data actually written only when the writes are contiguous from the start of the object (A, B and C). Neither number shows raw usage. Raw usage also depends on size or k+m and on the BlueStore min_alloc_size (4 KiB in recent releases), and BlueStore does not allocate unwritten parts. Use `ceph df detail` for capacity planning, and use rbd du only to compare images.
 
-![USED اندازه‌گیری‌شده روی کلاستر آزمایشی Ceph 18.2.7 برای چهار بار کاری. خاکستری بایت‌های واقعاً نوشته‌شده است، آبی `rbd du --exact` و نارنجی `rbd du` پیش‌فرض (شمارش کل شیء از object map). محور عمودی لگاریتمی است. در بار تصادفی D، ‏`--exact` هم حدود دویست برابر داده‌ی نوشته‌شده را نشان می‌دهد، چون هر شیء را از بایت 0 تا بالاترین بایت نوشته‌شده می‌شمارد](figures/ch02/f10_du.png){#fig-02-f10_du}
+![USED measured on a Ceph 18.2.7 test cluster for four workloads. Grey is the bytes actually written, blue is `rbd du --exact`, and orange is the default `rbd du` (counting whole objects from the object map). The vertical axis is logarithmic. In the random workload D, even `--exact` shows about two hundred times the data written, because it counts each object from byte 0 to the highest byte written](figures/ch02/f10_du.png){#fig-02-f10_du}
 
-# بازگشت از سانحه {#sec-02-9}
+# Recovering from a disaster {#sec-02-9}
 
-## سه سناریو {#sec-02-9-1}
+## Three scenarios {#sec-02-9-1}
 
-در عمل با سه موقعیت متفاوت روبه‌رو می‌شویم و روش هر کدام فرق دارد:
+In practice we face three different situations, and each has its own procedure:
 
-| سناریو | وضعیت site-a | اقدام | از دست رفتن داده |
+| Scenario | State of site-a | Action | Data loss |
 |---|---|---|---|
-| جابه‌جایی برنامه‌ریزی‌شده (switchover) | سالم | demote در A، صبر تا همگام شدن، promote در B | صفر |
-| سانحه (failover) | در دسترس نیست | promote --force در B | به اندازه‌ی RPO |
-| بازگشت (failback) | دوباره سالم شده | demote و resync در A، سپس switchover معکوس | صفر (پس از resync) |
+| Planned switchover | Healthy | demote in A, wait until synchronised, promote in B | Zero |
+| Disaster (failover) | Unavailable | promote --force in B | Up to the RPO |
+| Return (failback) | Healthy again | demote and resync in A, then a reverse switchover | Zero (after the resync) |
 
-![ترتیب گام‌های switchover، failover اجباری و failback](figures/ch02/f06_failover.png){#fig-02-f06_failover}
+![The order of steps in a switchover, a forced failover and a failback](figures/ch02/f06_failover.png){#fig-02-f06_failover}
 
-## جابه‌جایی برنامه‌ریزی‌شده {#sec-02-9-2}
+## Planned switchover {#sec-02-9-2}
 
 ```bash
-# ۱. توقف برنامه‌ها و umount در site-a
-# ۲. تنزل image در site-a
+# 1. Stop the applications and umount in site-a
+# 2. Demote the image in site-a
 rbd --cluster site-a mirror image demote vms/db01
-# ۳. صبر تا site-b آخرین snapshot را دریافت کند
+# 3. Wait until site-b has received the last snapshot
 rbd --cluster site-b mirror image status vms/db01
-# ۴. ارتقا در site-b و راه‌اندازی برنامه‌ها آن‌جا
+# 4. Promote in site-b and start the applications there
 rbd --cluster site-b mirror image promote vms/db01
 ```
 
-برای کل pool هم دستورهای `rbd mirror pool demote vms` و `rbd mirror pool promote vms` وجود دارند.
+For a whole pool there are also the commands `rbd mirror pool demote vms` and `rbd mirror pool promote vms`.
 
-## failover اجباری {#sec-02-9-3}
+## Forced failover {#sec-02-9-3}
 
-وقتی site-a در دسترس نیست، demote ممکن نیست. image را در site-b به‌اجبار ارتقا می‌دهیم:
+When site-a is unavailable, a demote is impossible. We force-promote the image in site-b:
 
 ```bash
 rbd --cluster site-b mirror image promote --force vms/db01
 ```
 
 ::: {.warn}
-promote اجباری یعنی پذیرفتن از دست رفتن تغییراتی که هنوز به site-b نرسیده بودند. پیش از آن مطمئن شوید site-a واقعاً از کار افتاده یا کاملاً ایزوله شده است. اگر site-a فقط از دید شما قطع است اما برنامه‌هایش هنوز روی image می‌نویسند، با promote اجباری **split-brain** ساخته‌اید: دو نسخه‌ی primary با تاریخچه‌های متفاوت. Fencing (قطع دسترسی کلاینت‌های قدیمی) بخشی جدایی‌ناپذیر از هر runbook بازیابی از سانحه است.
+A forced promote means accepting the loss of changes that had not yet reached site-b. Before doing it, make sure site-a has really failed or is completely isolated. If site-a is only cut off from your point of view while its applications are still writing to the image, a forced promote creates a **split-brain**: two primary copies with different histories. Fencing (cutting off the old clients' access) is an inseparable part of every disaster-recovery runbook.
 :::
 
-## failback {#sec-02-9-4}
+## Failback {#sec-02-9-4}
 
-وقتی site-a برگشت، image آن‌جا هنوز خودش را primary می‌داند. باید آن را تنزل دهیم و دوباره همگامش کنیم:
+When site-a comes back, its image still considers itself primary. We must demote it and resynchronise it:
 
 ```bash
 rbd --cluster site-a mirror image demote vms/db01
 rbd --cluster site-a mirror image resync vms/db01
-rbd --cluster site-a mirror image status vms/db01   # تا up+replaying
-# پس از همگام شدن، switchover معکوس:
+rbd --cluster site-a mirror image status vms/db01   # until up+replaying
+# After synchronisation, the reverse switchover:
 rbd --cluster site-b mirror image demote vms/db01
 rbd --cluster site-a mirror image promote vms/db01
 ```
 
-`resync` نسخه‌ی محلی را دور می‌ریزد و از نسخه‌ی primary فعلی دوباره می‌سازد. برای imageهای بزرگ این یعنی انتقال کامل داده؛ پهنای باند و زمان لازم را در برنامه‌ریزی RTO در نظر بگیرید.
+`resync` throws away the local copy and rebuilds it from the current primary. For large images this means a full data transfer; take the bandwidth and time needed into account when planning the RTO.
 
 ::: {.try}
-در آزمایشگاه، یک image را با حالت snapshot و زمان‌بندی یک دقیقه‌ای mirror کنید، داخلش فایلی بنویسید، دو دقیقه صبر کنید، سپس rbd-mirror کلاستر مقصد را متوقف کنید و فایل دیگری بنویسید. حالا با promote اجباری در مقصد ببینید کدام فایل‌ها آن‌جا هستند. این آزمایش ساده مفهوم RPO را ملموس می‌کند.
+In the lab, mirror an image in snapshot mode with a one-minute schedule, write a file into it, wait two minutes, then stop rbd-mirror on the target cluster and write another file. Now do a forced promote on the target and see which files are there. This simple experiment makes the concept of RPO tangible.
 :::
 
-## ملاحظات طراحی DR {#sec-02-9-5}
+## DR design considerations {#sec-02-9-5}
 
-- **نام poolها** در دو طرف باید یکسان باشد (یا از remap namespace در نسخه‌های جدید استفاده کنید).
-- **ظرفیت مقصد** باید برای همه‌ی imageهای mirror‌شده به‌علاوه‌ی snapshotهای mirror کافی باشد.
-- **پهنای باند بین‌سایتی:** نرخ تغییر روزانه‌ی داده (نه اندازه‌ی کل) تعیین‌کننده است. با `rbd mirror image status` و آمار rbd-mirror در Prometheus، عقب‌ماندگی را پایش کنید.
-- **پایش و هشدار:** هشدار برای imageهایی که بیش از دو برابر فاصله‌ی زمان‌بندی از آخرین همگام‌سازی‌شان گذشته است.
-- **آزمون دوره‌ای:** runbook بازیابی از سانحه‌ای که آزموده نشده، فقط یک سند امیدوارکننده است. دست‌کم هر فصل یک‌بار switchover واقعی انجام دهید.
+- **Pool names** must be the same on both sides (or use namespace remapping in recent releases).
+- **Target capacity** must be enough for all mirrored images plus the mirror snapshots.
+- **Inter-site bandwidth:** the daily rate of data change (not the total size) is what matters. Monitor the lag with `rbd mirror image status` and the rbd-mirror statistics in Prometheus.
+- **Monitoring and alerts:** alert on images whose last synchronisation is more than twice the schedule interval ago.
+- **Periodic testing:** a disaster-recovery runbook that has not been tested is just a hopeful document. Do a real switchover at least once a quarter.
 
-# تکمیلی و به‌روز {#sec-02-10}
+# Supplementary and up to date {#sec-02-10}
 
-## دروازه‌ی NVMe-oF {#sec-02-10-1}
+## The NVMe-oF gateway {#sec-02-10-1}
 
-از Squid به بعد دروازه‌ی **NVMe over Fabrics** (روی TCP) راه رسمی ارائه‌ی RBD به میزبان‌هایی است که کلاینت Ceph ندارند. این دروازه بر پایه‌ی SPDK ساخته شده و با cephadm مستقر می‌شود. دروازه‌ها در **gateway group** سازمان می‌یابند. طبق مستندات، هر گروه در حال حاضر تا هشت دروازه را پشتیبانی می‌کند و دسترس‌پذیری بالا به‌صورت فعال/آماده‌به‌کار برای هر namespace کار می‌کند: هر namespace به یک load-balancing group تعلق دارد و با خرابی یک دروازه، دروازه‌ی دیگری مسئولیتش را بر عهده می‌گیرد. برای HA دست‌کم دو دروازه لازم است. داشبورد Ceph از Tentacle مدیریت گروه‌ها و namespaceهای متعدد NVMe-oF را پشتیبانی می‌کند و در Umbrella امکاناتی مثل TLS/mTLS، احراز هویت DHCHAP و KMIP به آن افزوده شده است.
+Since Squid, the **NVMe over Fabrics** gateway (over TCP) has been the official way to serve RBD to hosts that have no Ceph client. The gateway is built on SPDK and deployed with cephadm. Gateways are organised in a **gateway group**. According to the documentation, each group currently supports up to eight gateways, and high availability works as active/standby per namespace: each namespace belongs to a load-balancing group, and when a gateway fails another gateway takes over its responsibility. At least two gateways are needed for HA. The Ceph dashboard supports managing multiple NVMe-oF groups and namespaces since Tentacle, and Umbrella added features such as TLS/mTLS, DHCHAP authentication and KMIP.
 
 ```bash
 ceph osd pool create nvmeof-pool && rbd pool init nvmeof-pool
 ceph orch apply nvmeof nvmeof-pool group1 --placement="ceph-node2,ceph-node3"
 ```
 
-## رمزنگاری سطح image {#sec-02-10-2}
+## Image-level encryption {#sec-02-10-2}
 
-RBD از نسخه‌ی Pacific می‌تواند image را با قالب LUKS1 یا LUKS2 در خود librbd رمزنگاری کند (`rbd encryption format`). کلید رمزنگاری با passphrase کاربر محافظت می‌شود و هیچ‌گاه ذخیره نمی‌شود. این قابلیت با librbd و rbd-nbd کار می‌کند. برای krbd، رمزنگاری معمول با dm-crypt روی دستگاه `/dev/rbdX` انجام می‌شود (روشی که Ceph CSI هم برای volumeهای رمزنگاری‌شده به کار می‌برد).
+Since Pacific, RBD can encrypt an image in LUKS1 or LUKS2 format inside librbd itself (`rbd encryption format`). The encryption key is protected by the user's passphrase and is never stored. This feature works with librbd and rbd-nbd. For krbd, encryption is usually done with dm-crypt on the `/dev/rbdX` device (the method Ceph CSI also uses for encrypted volumes).
 
 ```bash
 rbd encryption format rbd/secure01 luks2 /root/passphrase.bin
 rbd-nbd map rbd/secure01 -o encryption-format=luks2,encryption-passphrase-file=/root/passphrase.bin
 ```
 
-## کیفیت سرویس (QoS) {#sec-02-10-3}
+## Quality of service (QoS) {#sec-02-10-3}
 
-librbd محدودیت‌های QoS سمت کلاینت دارد که می‌توان آن‌ها را در سطح pool یا image تعیین کرد، مثل `rbd_qos_iops_limit` و `rbd_qos_bps_limit`:
+librbd has client-side QoS limits that can be set at the pool or image level, such as `rbd_qos_iops_limit` and `rbd_qos_bps_limit`:
 
 ```bash
 rbd config image set rbd/vm01 rbd_qos_iops_limit 2000
@@ -610,73 +609,73 @@ rbd config pool set rbd rbd_qos_bps_limit 209715200   # 200 MiB/s
 rbd config image ls rbd/vm01 | grep qos
 ```
 
-این محدودیت‌ها فقط روی librbd اعمال می‌شوند، نه krbd. برای کلاینت‌های krbd، کنترل باید در لایه‌ی cgroup میزبان انجام شود.
+These limits apply only to librbd, not krbd. For krbd clients, control must happen in the host's cgroup layer.
 
-## تغییرات دیگر از زمان کتاب {#sec-02-10-4}
+## Other changes since the book {#sec-02-10-4}
 
-- **snapshot گروهی:** `rbd group` امکان گرفتن snapshot سازگار از چند image هم‌زمان را می‌دهد؛ برای برنامه‌هایی که داده‌شان روی چند دیسک است (مثلاً داده و لاگ پایگاه داده). در Tentacle دستورهای مربوط به اطلاعات گروه و snapshot گروهی گسترش یافته‌اند.
-- **remap namespace در mirroring:** در Tentacle امکان mirror کردن یک namespace به namespace با نام دیگر در کلاستر مقابل اضافه شده است.
-- **پیش‌فرض msgr2 برای krbd:** از Tentacle، `rbd device map` به‌طور پیش‌فرض از پروتکل msgr2 استفاده می‌کند.
-- **diff-iterate محلی:** در Squid، `diff-iterate` می‌تواند محلی اجرا شود که کارایی همگام‌سازی زنده‌ی دیسک در QEMU و ابزارهای پشتیبان‌گیری مبتنی بر تفاضل را به‌شدت بهتر کرده است.
-- **دروازه‌ی iSCSI:** در حالت نگه‌داری است؛ برای استقرار تازه NVMe-oF را انتخاب کنید.
+- **Group snapshots:** `rbd group` takes a consistent snapshot of several images at once; for applications whose data lives on several disks (for example a database's data and log). In Tentacle the commands for group information and group snapshots were extended.
+- **Namespace remapping in mirroring:** Tentacle added the ability to mirror a namespace to a namespace with a different name in the peer cluster.
+- **msgr2 by default for krbd:** since Tentacle, `rbd device map` uses the msgr2 protocol by default.
+- **Local diff-iterate:** in Squid, `diff-iterate` can run locally, which has greatly improved the performance of live disk synchronisation in QEMU and of diff-based backup tools.
+- **The iSCSI gateway:** is in maintenance mode; choose NVMe-oF for new deployments.
 
-# جمع‌بندی و مرور {#sec-02-11}
+# Summary and review {#sec-02-11}
 
-## خلاصه‌ی فصل {#sec-02-11-1}
+## Chapter summary {#sec-02-11-1}
 
-::: {.summary title="نکته‌های کلیدی"}
+::: {.summary title="Key points"}
 
-- image در RBD روی اشیای ۴ مگابایتی RADOS نگاشت می‌شود، thin است و روی همه‌ی OSDهای pool پخش می‌شود.
-- کلاینت باید کاربر اختصاصی با `profile rbd` داشته باشد، نه `client.admin`.
-- krbd سریع و بدون وابستگی است اما همه‌ی ویژگی‌ها را ندارد؛ librbd کامل‌ترین مسیر است.
-- snapshot فوری و COW است؛ clone نوشتنی و ارزان است و flatten وابستگی آن را قطع می‌کند. snapshot بدون freeze فقط crash-consistent است.
-- RBD mirroring در دو حالت journal (RPO ثانیه‌ای، سربار بالا) و snapshot (RPO برابر زمان‌بندی، سربار کم) کار می‌کند و با promote و demote جهت آن عوض می‌شود.
-- promote اجباری بدون fencing یعنی خطر split-brain.
+- An RBD image maps onto 4 MB RADOS objects, is thin, and is spread over every OSD in the pool.
+- A client should have a dedicated user with `profile rbd`, not `client.admin`.
+- krbd is fast and has no dependencies, but it lacks some features; librbd is the most complete path.
+- A snapshot is instant and COW; a clone is writable and cheap, and flatten cuts its dependency. A snapshot without a freeze is only crash-consistent.
+- RBD mirroring works in two modes, journal (RPO in seconds, high overhead) and snapshot (RPO equal to the schedule, low overhead), and promote and demote change its direction.
+- A forced promote without fencing means a risk of split-brain.
 
 :::
 
-## اشتباهات رایج {#sec-02-11-2}
+## Common mistakes {#sec-02-11-2}
 
-- استفاده از `client.admin` روی همه‌ی hypervisorها.
-- فراموش کردن `_netdev` و ترتیب خاموش شدن، و گیر کردن بوت یا خاموش شدن میزبان.
-- کوچک کردن image بدون کوچک کردن فایل‌سیستم.
-- فعال نکردن discard و پر شدن تدریجی کلاستر با فضای حذف‌شده‌ی داخل ماشین‌های مجازی.
-- نگه داشتن صدها snapshot قدیمی که هر نوشتن را گران‌تر و scrub را سنگین‌تر می‌کنند.
-- فعال کردن journaling روی imageهایی که با krbd map می‌شوند.
-- نداشتن runbook آزموده‌شده برای failover و failback.
+- Using `client.admin` on every hypervisor.
+- Forgetting `_netdev` and the shutdown order, so that the host hangs at boot or shutdown.
+- Shrinking an image without shrinking the file system.
+- Not enabling discard, so that the cluster slowly fills up with space deleted inside the virtual machines.
+- Keeping hundreds of old snapshots that make every write more expensive and scrubbing heavier.
+- Enabling journaling on images that are mapped with krbd.
+- Having no tested runbook for failover and failback.
 
-## تمرین عملی {#sec-02-11-3}
+## Hands-on exercise {#sec-02-11-3}
 
-1. یک کاربر با `profile rbd` محدود به namespace بسازید و نشان دهید نمی‌تواند imageهای namespace دیگر را ببیند.
-2. یک image بسازید، map و فرمت کنید، ۱ گیگابایت داده بنویسید و `rbd du` را ببینید. سپس فایل‌ها را حذف کنید، `fstrim` بزنید و دوباره `rbd du` را مقایسه کنید.
-3. یک image طلایی با snapshot بسازید، ده clone از آن ایجاد کنید و زمان ساخت را اندازه بگیرید. یکی از clone‌ها را flatten کنید و فضای مصرفی را مقایسه کنید.
-4. دو کلاستر تک‌نودی بسازید و mirroring حالت snapshot با زمان‌بندی ۵ دقیقه‌ای برقرار کنید. یک switchover کامل و یک failover اجباری با failback انجام دهید و همه‌ی گام‌ها را به شکل runbook بنویسید.
-5. با `rbd bench --io-type write --io-size 4K --io-threads 16 rbd/disk01` و سپس با `--io-size 4M` کارایی را بسنجید و تفاوت IOPS و توان را توضیح دهید.
+1. Create a user with `profile rbd` restricted to a namespace, and show that it cannot see the images of another namespace.
+2. Create an image, map and format it, write 1 GB of data and look at `rbd du`. Then delete the files, run `fstrim` and compare `rbd du` again.
+3. Build a golden image with a snapshot, create ten clones from it and measure the creation time. Flatten one of the clones and compare the space used.
+4. Build two single-node clusters and set up snapshot-mode mirroring with a 5-minute schedule. Do a full switchover and a forced failover with failback, and write all the steps down as a runbook.
+5. Measure performance with `rbd bench --io-type write --io-size 4K --io-threads 16 rbd/disk01` and then with `--io-size 4M`, and explain the difference in IOPS and throughput.
 
-## پرسش‌های مرور {#sec-02-11-4}
+## Review questions {#sec-02-11-4}
 
-1. یک image صد گیگابایتی تازه‌ساخته‌شده که هنوز در آن نوشته نشده، چند شیء در RADOS دارد؟ چرا؟
-2. تفاوت krbd، librbd و rbd-nbd چیست و هر کدام کجا مناسب است؟
-3. چرا ویژگی object-map به exclusive-lock وابسته است؟
-4. snapshot crash-consistent با application-consistent چه فرقی دارد و چطور دومی را به دست می‌آوریم؟
-5. در قالب clone نسخه‌ی ۲ چه چیزی نسبت به نسخه‌ی ۱ عوض شده است؟
-6. حالت‌های journal و snapshot در mirroring را از نظر RPO، سربار و سازگاری با krbd مقایسه کنید.
-7. تفاوت `--direction rx-only` و `rx-tx` در bootstrap import چیست؟
-8. چرا promote اجباری بدون fencing خطرناک است؟
-9. گام‌های failback پس از بازگشت سایت اصلی کدام‌اند؟
-10. برای میزبان VMware که کلاینت Ceph ندارد، امروز کدام راه برای استفاده از RBD توصیه می‌شود؟
+1. How many RADOS objects does a newly created 100 GB image that has not been written to yet have? Why?
+2. What is the difference between krbd, librbd and rbd-nbd, and where is each one appropriate?
+3. Why does the object-map feature depend on exclusive-lock?
+4. How does a crash-consistent snapshot differ from an application-consistent one, and how do we get the latter?
+5. What changed in clone format version 2 compared with version 1?
+6. Compare the journal and snapshot mirroring modes in terms of RPO, overhead and compatibility with krbd.
+7. What is the difference between `--direction rx-only` and `rx-tx` in bootstrap import?
+8. Why is a forced promote without fencing dangerous?
+9. What are the failback steps after the primary site comes back?
+10. For a VMware host that has no Ceph client, which way of using RBD is recommended today?
 
-## منابع این فصل {#sec-02-11-5}
+## Sources for this chapter {#sec-02-11-5}
 
-- مستندات Ceph — Ceph Block Device: https://docs.ceph.com/en/latest/rbd/
-- مستندات Ceph — دستورهای پایه‌ی RBD: https://docs.ceph.com/en/latest/rbd/rados-rbd-cmds/
-- مستندات Ceph — snapshotهای RBD و clone: https://docs.ceph.com/en/latest/rbd/rbd-snapshot/
-- مستندات Ceph — RBD mirroring: https://docs.ceph.com/en/latest/rbd/rbd-mirroring/
-- مستندات Ceph — مهاجرت زنده‌ی image: https://docs.ceph.com/en/latest/rbd/rbd-live-migration/
-- مستندات Ceph — رمزنگاری image: https://docs.ceph.com/en/latest/rbd/rbd-encryption/
-- مستندات Ceph — مرجع پیکربندی librbd و QoS: https://docs.ceph.com/en/latest/rbd/rbd-config-ref/
-- مستندات Ceph — دروازه‌ی NVMe-oF: https://docs.ceph.com/en/latest/rbd/nvmeof-overview/
-- مستندات Ceph — دروازه‌ی iSCSI (وضعیت نگه‌داری): https://docs.ceph.com/en/latest/rbd/iscsi-overview/
-- مستندات Ceph — krbd: https://docs.ceph.com/en/latest/rbd/rbd-ko/
-- مستندات cephadm — استقرار rbd-mirror: https://docs.ceph.com/en/latest/rbd/rbd-mirroring/
-- یادداشت‌های انتشار Squid: https://docs.ceph.com/en/latest/releases/squid/
+- Ceph documentation — Ceph Block Device: https://docs.ceph.com/en/latest/rbd/
+- Ceph documentation — Basic RBD commands: https://docs.ceph.com/en/latest/rbd/rados-rbd-cmds/
+- Ceph documentation — RBD snapshots and clones: https://docs.ceph.com/en/latest/rbd/rbd-snapshot/
+- Ceph documentation — RBD mirroring: https://docs.ceph.com/en/latest/rbd/rbd-mirroring/
+- Ceph documentation — Image live migration: https://docs.ceph.com/en/latest/rbd/rbd-live-migration/
+- Ceph documentation — Image encryption: https://docs.ceph.com/en/latest/rbd/rbd-encryption/
+- Ceph documentation — librbd configuration reference and QoS: https://docs.ceph.com/en/latest/rbd/rbd-config-ref/
+- Ceph documentation — The NVMe-oF gateway: https://docs.ceph.com/en/latest/rbd/nvmeof-overview/
+- Ceph documentation — The iSCSI gateway (maintenance status): https://docs.ceph.com/en/latest/rbd/iscsi-overview/
+- Ceph documentation — krbd: https://docs.ceph.com/en/latest/rbd/rbd-ko/
+- cephadm documentation — Deploying rbd-mirror: https://docs.ceph.com/en/latest/rbd/rbd-mirroring/
+- Squid release notes: https://docs.ceph.com/en/latest/releases/squid/

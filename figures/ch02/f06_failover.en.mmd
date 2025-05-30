@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant A as site-a
+  participant B as site-b
+  participant O as operator
+  Note over A,B: normal state: A primary, B secondary
+  O->>A: demote (in a planned failover)
+  A-->>B: last changes are synchronised
+  O->>B: promote
+  Note over B: clients connect to B
+  Note over A: disaster: A is unavailable
+  O->>B: promote --force
+  O->>A: after it returns: demote
+  O->>A: resync
+  B-->>A: full synchronisation
+  O->>B: demote
+  O->>A: promote (failback)

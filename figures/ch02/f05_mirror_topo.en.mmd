@@ -1,0 +1,12 @@
+flowchart LR
+  subgraph A["site-a (primary)"]
+    direction TB
+    CA["clients"] --> PA[("pool: vms<br/>images: primary")]
+    MA["rbd-mirror<br/>(for the reverse direction)"]
+  end
+  subgraph B["site-b (backup)"]
+    direction TB
+    MB["rbd-mirror"] --> PB[("pool: vms<br/>images: non-primary")]
+  end
+  PA -.->|"reads changes"| MB
+  PB -.->|"after failback"| MA

@@ -60,14 +60,14 @@ for d in dirs:
         if base.count('.') > 1:
             continue
         key = os.path.relpath(src, FIG)[:-4]
-        text = open(src, encoding='utf-8').read()
+        text = orig = open(src, encoding='utf-8').read()
         local = tr.get(key) or {}
         # phrase keys (containing Latin text) are whole-label overrides applied first,
         # for labels whose English word order differs from the Persian
         for k in sorted((k for k in local if re.search('[A-Za-z]', k) and local[k]), key=len, reverse=True):
             text = text.replace(k, local[k])
         runs = list(dict.fromkeys(m.group(0).strip() for m in RUN.finditer(text)))
-        if not runs:
+        if not runs and text == orig:
             continue
         missing = [r for r in runs if lookup(local, r) is None]
         if a.extract:

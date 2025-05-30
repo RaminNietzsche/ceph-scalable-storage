@@ -1,0 +1,6 @@
+flowchart LR
+  IMG["image: vm-db01<br/>logical size 100 GB"] --> H["rbd_header<br/>metadata: size, features, snapshots"]
+  IMG --> ID["rbd_id and rbd_directory<br/>name → id"]
+  IMG --> D["4 MB data objects<br/>rbd_data.ID.0000…"]
+  D --> T["only written parts<br/>have objects (thin)"]
+  IMG --> OM["object map<br/>which objects exist"]

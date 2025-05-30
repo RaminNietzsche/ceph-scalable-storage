@@ -1,0 +1,13 @@
+flowchart TB
+  subgraph J["journal mode"]
+    direction LR
+    W1["client write"] --> JR["journal in RADOS"] --> IM1["local image"]
+    JR -->|"remote rbd-mirror<br/>replays events"| R1["remote image"]
+  end
+  subgraph S["snapshot mode"]
+    direction LR
+    W2["client write"] --> IM2["local image"]
+    IM2 -->|"scheduled snapshot"| MS["mirror snapshot"]
+    MS -->|"remote rbd-mirror<br/>copies the diff"| R2["remote image"]
+  end
+  J ~~~ S

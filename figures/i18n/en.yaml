@@ -149,90 +149,72 @@ ch01/s02_kv:
   تشخیص درخواست تکراری: duplicate request detection
   برای: for
 ch02/f01_rbd_objects:
-  اندازه‌ی منطقی ۱۰۰ گیگابایت: null
-  فراداده: null
-  اندازه، ویژگی‌ها،: null
-  ها: null
-  و: null
-  نام: null
-  شناسه: null
-  اشیای داده‌ی ۴ مگابایتی: null
-  فقط بخش‌های نوشته‌شده: null
-  شیء دارند: null
-  کدام اشیاء وجود دارند: null
+  'image: vm-db01<br/>اندازه‌ی منطقی ۱۰۰ گیگابایت': 'image: vm-db01<br/>logical size 100 GB'
+  'rbd_header<br/>فراداده: اندازه، ویژگی‌ها، snapshotها': 'rbd_header<br/>metadata: size, features, snapshots'
+  rbd_id و rbd_directory<br/>نام ← شناسه: rbd_id and rbd_directory<br/>name → id
+  اشیای داده‌ی ۴ مگابایتی<br/>rbd_data: 4 MB data objects<br/>rbd_data
+  فقط بخش‌های نوشته‌شده<br/>شیء دارند (thin): only written parts<br/>have objects (thin)
+  object map<br/>کدام اشیاء وجود دارند: object map<br/>which objects exist
 ch02/f02_clients:
-  فضای کاربر: null
-  دروازه‌ی: null
-  هسته‌ی لینوکس: null
-  میزبان بدون: null
-  ، ویندوز: null
+  دروازه‌ی NVMe-oF: NVMe-oF gateway
+  میزبان بدون Ceph<br/>(VMware، ویندوز): Host without Ceph<br/>(VMware, Windows)
+  فضای کاربر: User space
+  هسته‌ی لینوکس: Linux kernel
 ch02/f03_snapclone:
-  والد: null
-  روی والد: null
-  مستقل: null
-  بدون وابستگی: null
+  image والد<br/>golden-os: parent image<br/>golden-os
+  'clone: vm01<br/>COW روی والد': 'clone: vm01<br/>COW on the parent'
+  image مستقل<br/>بدون وابستگی: independent image<br/>no dependency
 ch02/f04_mirror_modes:
-  حالت: null
-  نوشتن کلاینت: null
-  در: null
-  محلی: null
-  راه دور: null
-  بازپخش رویدادها: null
-  زمان‌بندی‌شده: null
-  کپی تفاضل: null
+  حالت journal: journal mode
+  حالت snapshot: snapshot mode
+  journal در RADOS: journal in RADOS
+  image محلی: local image
+  image راه دور: remote image
+  rbd-mirror راه دور<br/>بازپخش رویدادها: remote rbd-mirror<br/>replays events
+  snapshot زمان‌بندی‌شده: scheduled snapshot
+  rbd-mirror راه دور<br/>کپی تفاضل: remote rbd-mirror<br/>copies the diff
+  نوشتن کلاینت: client write
 ch02/f05_mirror_topo:
-  اصلی: null
-  کلاینت‌ها: null
-  برای جهت معکوس: null
-  پشتیبان: null
-  خواندن تغییرات: null
-  پس از: null
+  site-a (اصلی): site-a (primary)
+  rbd-mirror<br/>(برای جهت معکوس): rbd-mirror<br/>(for the reverse direction)
+  site-b (پشتیبان): site-b (backup)
+  '"پس از failback"': '"after failback"'
+  کلاینت‌ها: clients
+  خواندن تغییرات: reads changes
 ch02/f06_failover:
-  اپراتور: null
-  حالت عادی: null
-  اصلی،: null
-  ثانوی: null
-  در: null
-  برنامه‌ریزی‌شده: null
-  آخرین تغییرات همگام می‌شود: null
-  کلاینت‌ها به: null
-  وصل می‌شوند: null
-  سانحه: null
-  از دسترس خارج است: null
-  پس از بازگشت: null
-  همگام‌سازی کامل: null
+  as اپراتور: as operator
+  'حالت عادی: A اصلی، B ثانوی': 'normal state: A primary, B secondary'
+  demote (در failover برنامه‌ریزی‌شده): demote (in a planned failover)
+  آخرین تغییرات همگام می‌شود: last changes are synchronised
+  کلاینت‌ها به B وصل می‌شوند: clients connect to B
+  'سانحه: A از دسترس خارج است': 'disaster: A is unavailable'
+  'پس از بازگشت: demote': 'after it returns: demote'
+  همگام‌سازی کامل: full synchronisation
 ch02/s01_layout:
-  فهرست‌های سطح: null
-  تصاویر حذف‌شده‌ی معلق: null
-  رابطه‌ی والد: null
-  فرزند، تنظیمات: null
-  اشیای فراداده‌ی هر تصویر: null
-  محتوا: null
-  مثلاً: null
-  کلاینت‌های باز: null
-  ۲ بیت برای هر شیء داده: null
-  برای هر: null
-  اشیای داده: null
-  در: null
-  داده یا: null
-  بایت: null
-  تا: null
-  شماره‌ی ۱۶ رقمی: null
-  فقط اشیای نوشته‌شده وجود دارند: null
+  فهرست‌های سطح pool: pool-level lists
+  name_vm1 → id، id_… → name: name_vm1 → id, id_… → name
+  rbd_trash<br/>تصاویر حذف‌شده‌ی معلق: rbd_trash<br/>pending deleted images
+  rbd_children / rbd_info<br/>رابطه‌ی والد-فرزند، تنظیمات: rbd_children / rbd_info<br/>parent-child relation, settings
+  اشیای فراداده‌ی هر تصویر: per-image metadata objects
+  'محتوا: image id مثلاً 5e2a…': 'content: image id e.g. 5e2a…'
+  'omap: size، order، features،': 'omap: size, order, features,'
+  object_prefix، snapshots، parent: object_prefix, snapshots, parent
+  'watchers: کلاینت‌های باز': 'watchers: open clients'
+  ۲ بیت برای هر شیء داده<br/>(+ .snapid برای هر snapshot): 2 bits per data object<br/>(+ .snapid per snapshot)
+  اشیای داده (در pool داده یا data-pool): data objects (in the data pool or data-pool)
+  بایت 0 تا 4MiB: bytes 0 to 4MiB
+  4MiB تا 8MiB: 4MiB to 8MiB
+  … شماره‌ی ۱۶ رقمی hex<br/>فقط اشیای نوشته‌شده وجود دارند (thin): … 16-digit hex number<br/>only written objects exist (thin)
 ch02/s02_lock:
-  کلاینت: null
-  مالک فعلی: null
-  نوشتن جدید: null
-  قفل: null
-  مالک: null
-  سالم است و: null
-  اجازه می‌دهد: null
-  و آزادسازی: null
-  مرده است: null
-  ندارد: null
-  و: null
-  آدرس: null
-  باز کردن: null
+  کلاینت A (مالک فعلی): client A (current owner)
+  کلاینت B (نوشتن جدید): client B (new writer)
+  GET_LOCKER (قفل rbd_lock): GET_LOCKER (lock rbd_lock)
+  مالک = A (EBUSY): owner = A (EBUSY)
+  A سالم است و policy اجازه می‌دهد: A is healthy and the policy allows it
+  flush و آزادسازی (PreRelease): flush and release (PreRelease)
+  A مرده است (watch ندارد): A is dead (no watch)
+  BREAK_LOCK (و blocklist آدرس A): BREAK_LOCK (and blocklist A's address)
+  'PostAcquire: باز کردن object map و journal': 'PostAcquire: open the object map and journal'
 ch03/f01_map:
   ها: null
   دیسک موقت: null

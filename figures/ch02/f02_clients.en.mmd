@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph U["User space"]
+    direction LR
+    Q["QEMU/KVM<br/>librbd"]
+    N["rbd-nbd<br/>librbd + NBD"]
+    G["NVMe-oF gateway<br/>SPDK + librbd"]
+  end
+  subgraph K["Linux kernel"]
+    KR["krbd<br/>/dev/rbdX"]
+  end
+  Q --> RADOS[("RADOS")]
+  N --> RADOS
+  G --> RADOS
+  KR --> RADOS
+  H["Host without Ceph<br/>(VMware, Windows)"] -->|"NVMe/TCP"| G

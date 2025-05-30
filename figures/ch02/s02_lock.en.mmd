@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant A as client A (current owner)
+  participant H as rbd_header (cls_lock + watch)
+  participant B as client B (new writer)
+  B->>H: GET_LOCKER (lock rbd_lock)
+  H-->>B: owner = A (EBUSY)
+  B->>H: notify: REQUEST_LOCK
+  H->>A: watch-notify
+  alt A is healthy and the policy allows it
+    A->>A: flush and release (PreRelease)
+    A->>H: unlock
+    B->>H: LOCK_IMAGE (cls_lock exclusive)
+  else A is dead (no watch)
+    B->>H: BREAK_LOCK (and blocklist A's address)
+    B->>H: LOCK_IMAGE
+  end
+  Note over B: PostAcquire: open the object map and journal

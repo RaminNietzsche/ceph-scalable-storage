@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["pool-level lists"]
+    direction LR
+    d["rbd_directory<br/>omap: name_vm1 → id, id_… → name"] --- t["rbd_trash<br/>pending deleted images"] --- c["rbd_children / rbd_info<br/>parent-child relation, settings"]
+  end
+  subgraph R2["per-image metadata objects"]
+    direction LR
+    i["rbd_id.vm1<br/>content: image id e.g. 5e2a…"] --> h["rbd_header.5e2a…<br/>omap: size, order, features,<br/>object_prefix, snapshots, parent<br/>watchers: open clients"] --> om["rbd_object_map.5e2a…<br/>2 bits per data object<br/>(+ .snapid per snapshot)"]
+  end
+  subgraph R3["data objects (in the data pool or data-pool)"]
+    direction LR
+    o0["rbd_data.5e2a….0000000000000000<br/>bytes 0 to 4MiB"] --- o1["rbd_data.5e2a….0000000000000001<br/>4MiB to 8MiB"] --- on["… 16-digit hex number<br/>only written objects exist (thin)"]
+  end
+  R1 ~~~ R2 ~~~ R3

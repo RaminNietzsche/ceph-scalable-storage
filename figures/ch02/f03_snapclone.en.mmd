@@ -1,0 +1,6 @@
+flowchart LR
+  P["parent image<br/>golden-os"] --> S["snapshot<br/>golden-os@v1"]
+  S --> C1["clone: vm01<br/>COW on the parent"]
+  S --> C2["clone: vm02"]
+  S --> C3["clone: vm03"]
+  C2 -->|"rbd flatten"| F["independent image<br/>no dependency"]
