@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant U as user
+  participant N as Nova API
+  participant C as Cinder
+  participant R as Ceph RBD
+  participant H as nova-compute
+  U->>N: server create --boot-from-volume
+  N->>C: create a volume from the image
+  C->>R: rbd clone images/img@snap volumes/vol
+  R-->>C: ready (a few seconds)
+  N->>H: schedule the VM
+  H->>C: connection info (rbd, pool, user)
+  H->>H: libvirt XML with a network/rbd disk
+  H->>R: QEMU opens it with librbd

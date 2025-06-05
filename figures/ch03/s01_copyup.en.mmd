@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["1. write to the child object"]
+    direction LR
+    w["write(objno, off, len)<br/>on a cloned image (e.g. a VM disk from Glance)"] --> e["does the child object<br/>exist?"]
+    e -- yes --> d["direct write<br/>(no parent)"]
+  end
+  subgraph R2["2. no → CopyupRequest"]
+    direction LR
+    rp["read_from_parent<br/>read the whole object range from<br/>the parent snapshot"] --> dc["deep_copy<br/>(only with deep-flatten and child snapshots)"] --> uo["update_object_maps<br/>object state in head and snapshots"]
+  end
+  subgraph R3["3. atomic write on the OSD"]
+    direction LR
+    cu["one ObjectWriteOperation:<br/>cls rbd.copyup or sparse_copyup<br/>(parent data, only if the object does not exist yet)<br/>+ the user write"] --> fin["complete: run<br/>requests waiting on the same object"]
+  end
+  R1 ~~~ R2 ~~~ R3

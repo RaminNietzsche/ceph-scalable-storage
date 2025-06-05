@@ -9,7 +9,8 @@ Labels live in figures/i18n/<lang>.yaml:
       "مصرف‌کنندگان": "Consumers"
 
 Every maximal run of Persian words in a .mmd file is a translatable string.
-Keys that contain Latin letters are whole-phrase overrides (applied first), for
+Keys that are not a single Persian run (Latin text, <br/>, punctuation) are whole-phrase
+overrides (applied first), for
 labels whose English word order differs, e.g. "keyring مدیر": "admin keyring".
 A variant <name>.<lang>.mmd is written only when *all* runs are translated;
 otherwise the build falls back to the Persian figure and the gap is reported.
@@ -64,7 +65,7 @@ for d in dirs:
         local = tr.get(key) or {}
         # phrase keys (containing Latin text) are whole-label overrides applied first,
         # for labels whose English word order differs from the Persian
-        for k in sorted((k for k in local if re.search('[A-Za-z]', k) and local[k]), key=len, reverse=True):
+        for k in sorted((k for k in local if not RUN.fullmatch(k) and local[k]), key=len, reverse=True):
             text = text.replace(k, local[k])
         runs = list(dict.fromkeys(m.group(0).strip() for m in RUN.finditer(text)))
         if not runs and text == orig:

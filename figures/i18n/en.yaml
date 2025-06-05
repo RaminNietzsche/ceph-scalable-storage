@@ -216,84 +216,58 @@ ch02/s02_lock:
   BREAK_LOCK (و blocklist آدرس A): BREAK_LOCK (and blocklist A's address)
   'PostAcquire: باز کردن object map و journal': 'PostAcquire: open the object map and journal'
 ch03/f01_map:
-  ها: null
-  دیسک موقت: null
-  اشتراک فایل: null
+  Glance<br/>imageها: Glance<br/>images
+  Cinder<br/>volumeها: Cinder<br/>volumes
+  Nova<br/>دیسک موقت: Nova<br/>ephemeral disk
+  Manila<br/>اشتراک فایل: Manila<br/>file shares
 ch03/f02_cow:
-  کاربر: null
-  ساخت: null
-  از: null
-  روی: null
+  'کاربر: ساخت VM از image': 'user: create a VM from an image'
+  QEMU/libvirt روی compute<br/>librbd: QEMU/libvirt on the compute node<br/>librbd
 ch03/f03_auth:
-  گره کنترلی: null
-  گره محاسباتی: null
-  کلید: null
+  گره کنترلی: control node
+  گره محاسباتی: compute node
+  UUID ← کلید client.cinder: UUID → client.cinder key
 ch03/f04_boot:
-  کاربر: null
-  ساخت: null
-  از: null
-  آماده: null
-  چند ثانیه: null
-  زمان‌بندی: null
-  اطلاعات اتصال: null
-  ، کاربر: null
-  با: null
-  نوع: null
-  باز می‌کند: null
+  as کاربر: as user
+  ساخت volume از image: create a volume from the image
+  آماده (چند ثانیه): ready (a few seconds)
+  زمان‌بندی VM: schedule the VM
+  اطلاعات اتصال (rbd، pool، کاربر): connection info (rbd, pool, user)
+  XML libvirt با disk نوع network/rbd: libvirt XML with a network/rbd disk
+  QEMU با librbd باز می‌کند: QEMU opens it with librbd
 ch03/f07_omstates:
-  ساخت: null
-  یا: null
-  پیش از نخستین نوشتن: null
-  به‌روزرسانی: null
-  قبل از: null
-  نوشتن پس از: null
-  ، همه‌ی: null
-  ها در: null
-  شیء: null
-  پیش از حذف: null
-  پس از موفقیت حذف: null
+  ساخت image یا clone: image or clone created
+  پیش از نخستین نوشتن (به‌روزرسانی map قبل از write): before the first write (map updated before the write)
+  نوشتن پس از snapshot: write after a snapshot
+  snap create، همه‌ی EXISTSها در HEAD: snap create, every EXISTS in HEAD
+  discard یا remove شیء (پیش از حذف): object discard or remove (before removal)
+  discard یا remove شیء: object discard or remove
+  پس از موفقیت حذف: after a successful removal
 ch03/s01_copyup:
-  نوشتن روی شیء فرزند: null
-  روی تصویر: null
-  مثلاً دیسک: null
-  از: null
-  آیا شیء فرزند: null
-  وجود دارد؟: null
-  بله: null
-  نوشتن مستقیم: null
-  بدون والد: null
-  خیر: null
-  خواندن کل محدوده‌ی شیء از: null
-  والد: null
-  فقط اگر: null
-  و: null
-  فرزند: null
-  حالت شیء در: null
-  ها: null
-  نوشتن اتمیک روی: null
-  یک: null
-  یا: null
-  داده‌ی والد، فقط اگر شیء هنوز نیست: null
-  کاربر: null
-  اجرای: null
-  درخواست‌های منتظر روی همان شیء: null
+  ۱. نوشتن روی شیء فرزند: 1. write to the child object
+  روی تصویر clone (مثلاً دیسک VM از Glance): on a cloned image (e.g. a VM disk from Glance)
+  آیا شیء فرزند<br/>وجود دارد؟: does the child object<br/>exist?
+  بله: 'yes'
+  نوشتن مستقیم<br/>(بدون والد): direct write<br/>(no parent)
+  ۲. خیر → CopyupRequest: 2. no → CopyupRequest
+  خواندن کل محدوده‌ی شیء از<br/>snapshot والد: read the whole object range from<br/>the parent snapshot
+  (فقط اگر deep-flatten و snapshot فرزند): (only with deep-flatten and child snapshots)
+  حالت شیء در head و snapshotها: object state in head and snapshots
+  ۳. نوشتن اتمیک روی OSD: 3. atomic write on the OSD
+  یک ObjectWriteOperation:<br/>cls rbd.copyup یا sparse_copyup<br/>(داده‌ی والد، فقط اگر شیء هنوز نیست)<br/>+ write کاربر: one ObjectWriteOperation:<br/>cls rbd.copyup or sparse_copyup<br/>(parent data,
+    only if the object does not exist yet)<br/>+ the user write
+  'complete: اجرای<br/>درخواست‌های منتظر روی همان شیء': 'complete: run<br/>requests waiting on the same object'
 ch03/s02_openstack:
-  تصویر: null
-  در: null
-  باید: null
-  شود؛: null
-  نیازی ندارد: null
-  یا: null
-  از: null
-  از همان: null
-  صدها: null
-  بدون کپی داده: null
-  پیامد عملیاتی: null
-  خواندن بلوک‌های نوشته‌نشده: null
-  از والد: null
-  اولین نوشتن روی هر شیء: null
-  قطع وابستگی: null
-  و مصرف کامل فضا: null
+  تصویر ubuntu-24.04<br/>rbd image: image ubuntu-24.04<br/>rbd image
+  (در clone v1 باید protect شود؛<br/>v2 نیازی ندارد): (must be protected in clone v1;<br/>v2 does not need it)
+  'Cinder/Nova: pool volumes یا vms': 'Cinder/Nova: pool volumes or vms'
+  clone از images/ubuntu@snap: clone of images/ubuntu@snap
+  clone از همان snapshot: clone of the same snapshot
+  … صدها VM<br/>بدون کپی داده: … hundreds of VMs<br/>with no data copy
+  پیامد عملیاتی: operational consequences
+  خواندن بلوک‌های نوشته‌نشده<br/>→ از والد: reads of unwritten blocks<br/>→ from the parent
+  اولین نوشتن روی هر شیء<br/>→ copyup ۴MiB: first write to each object<br/>→ 4MiB copyup
+  'rbd flatten: قطع وابستگی<br/>و مصرف کامل فضا': 'rbd flatten: cuts the dependency<br/>and uses the full space'
 ch04/f01_arch:
   سرویس: null
   روی: null

@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Glance: pool images"]
+    direction LR
+    img["image ubuntu-24.04<br/>rbd image"] --> snap["snapshot @snap<br/>(must be protected in clone v1;<br/>v2 does not need it)"]
+  end
+  subgraph R2["Cinder/Nova: pool volumes or vms"]
+    direction LR
+    v1["volume-aaa<br/>clone of images/ubuntu@snap"] --- v2["volume-bbb<br/>clone of the same snapshot"] --- v3["… hundreds of VMs<br/>with no data copy"]
+  end
+  subgraph R3["operational consequences"]
+    direction LR
+    p1["reads of unwritten blocks<br/>→ from the parent"] --- p2["first write to each object<br/>→ 4MiB copyup"] --- p3["rbd flatten: cuts the dependency<br/>and uses the full space"]
+  end
+  R1 ~~~ R2 ~~~ R3

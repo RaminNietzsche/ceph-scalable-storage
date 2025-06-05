@@ -1,0 +1,13 @@
+stateDiagram-v2
+  direction LR
+  NX: OBJECT_NONEXISTENT (0)
+  EX: OBJECT_EXISTS (1)
+  PD: OBJECT_PENDING (2)
+  CL: OBJECT_EXISTS_CLEAN (3)
+  [*] --> NX: image or clone created
+  NX --> EX: before the first write (map updated before the write)
+  CL --> EX: write after a snapshot
+  EX --> CL: snap create, every EXISTS in HEAD
+  EX --> PD: object discard or remove (before removal)
+  CL --> PD: object discard or remove
+  PD --> NX: after a successful removal

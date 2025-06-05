@@ -1,0 +1,6 @@
+flowchart LR
+  U["user: create a VM from an image"] --> G["Glance<br/>images/ubuntu@snap"]
+  G -->|"rbd clone (COW)"| V["Cinder<br/>volumes/volume-uuid"]
+  G -->|"rbd clone (COW)"| N["Nova<br/>vms/uuid_disk"]
+  V --> Q["QEMU/libvirt on the compute node<br/>librbd"]
+  N --> Q
