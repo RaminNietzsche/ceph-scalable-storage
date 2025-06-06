@@ -1,0 +1,6 @@
+flowchart LR
+  PUT["PUT /photos/cat.jpg<br/>20 MB"] --> RGW["radosgw"]
+  RGW --> H["head object<br/>first 4 MB + metadata + manifest"]
+  RGW --> T1["tail 1<br/>__shadow_…_1"]
+  RGW --> T2["tail 2 … 4"]
+  RGW --> IX["index entry in a shard<br/>omap: cat.jpg → size, etag, time"]

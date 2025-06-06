@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant C as S3 client
+  participant G as radosgw
+  participant I as index shard (.dir.<marker>.N)
+  participant D as data pool
+  C->>G: PUT /bucket/photos/a.jpg
+  G->>G: hash(object name) → shard number
+  G->>I: cls rgw.bucket_prepare_op (PENDING_MODIFY, tag)
+  G->>D: write head (first 4MiB + xattr manifest, ACL, etag)
+  G->>D: write tail stripes (<marker>__shadow_… every 4MiB)
+  G->>I: cls rgw.bucket_complete_op (COMPLETE, size, etag, mtime)
+  I-->>G: record in omap + bilog (for multisite)
+  G-->>C: 200 OK + ETag
+  Note over G,I: if RGW dies between prepare and complete, the pending entry is later cleaned by dir_suggest or bucket check

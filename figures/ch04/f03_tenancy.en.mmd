@@ -1,0 +1,10 @@
+flowchart TB
+  A["account (since Squid)<br/>owner of IAM resources"] --> U1["user: alice"]
+  A --> U2["user: ci-bot"]
+  A --> R["role / policy"]
+  T["tenant (older)<br/>bucket namespace"] --> U3["user: tenant1$bob"]
+  U1 --> B1["bucket: photos"]
+  U2 --> B2["bucket: artifacts"]
+  U3 --> B3["bucket: tenant1:logs"]
+  U1 --> K["S3 key<br/>access + secret"]
+  U3 --> SU["subuser: bob:swift<br/>Swift key"]

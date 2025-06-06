@@ -269,80 +269,57 @@ ch03/s02_openstack:
   اولین نوشتن روی هر شیء<br/>→ copyup ۴MiB: first write to each object<br/>→ 4MiB copyup
   'rbd flatten: قطع وابستگی<br/>و مصرف کامل فضا': 'rbd flatten: cuts the dependency<br/>and uses the full space'
 ch04/f01_arch:
-  سرویس: null
-  روی: null
-  تکثیری یا: null
+  (سرویس ingress): (ingress service)
+  radosgw ۱<br/>Beast: radosgw 1<br/>Beast
+  radosgw ۲<br/>Beast: radosgw 2<br/>Beast
+  radosgw ۳<br/>Beast: radosgw 3<br/>Beast
+  omap روی SSD: omap on SSD
+  تکثیری یا EC: replicated or EC
 ch04/f02_object:
-  ۲۰ مگابایت: null
-  ۴ مگابایت اول: null
-  فراداده: null
-  ورودی: null
-  در: null
-  اندازه،: null
-  ، زمان: null
+  PUT /photos/cat.jpg<br/>۲۰ مگابایت: PUT /photos/cat.jpg<br/>20 MB
+  head object<br/>۴ مگابایت اول + فراداده + manifest: head object<br/>first 4 MB + metadata + manifest
+  tail ۱<br/>: tail 1<br/>
+  tail ۲ … ۴: tail 2 … 4
+  'ورودی index در shard<br/>omap: cat.jpg → اندازه، etag، زمان': 'index entry in a shard<br/>omap: cat.jpg → size, etag, time'
 ch04/f03_tenancy:
-  از: null
-  مالک منابع: null
-  قدیمی‌تر: null
-  فضای نام: null
-  ها: null
-  کلید: null
+  account (از Squid)<br/>مالک منابع IAM: account (since Squid)<br/>owner of IAM resources
+  tenant (قدیمی‌تر)<br/>فضای نام bucketها: tenant (older)<br/>bucket namespace
+  کلید S3<br/>access + secret: S3 key<br/>access + secret
+  'subuser: bob:swift<br/>کلید Swift': 'subuser: bob:swift<br/>Swift key'
 ch04/f04_keystone:
-  کلاینت: null
-  احراز هویت: null
-  کاربر، رمز، پروژه: null
-  توکن: null
-  اعتبارسنجی توکن: null
-  با کاربر سرویس: null
-  پروژه و نقش‌ها: null
-  ساخت خودکار کاربر: null
-  برای پروژه: null
-  اولین بار: null
-  فهرست اشیاء: null
+  as کلاینت Swift: as Swift client
+  احراز هویت (کاربر، رمز، پروژه): authenticate (user, password, project)
+  'توکن + catalog (endpoint: RGW)': 'token + catalog (endpoint: RGW)'
+  اعتبارسنجی توکن (با کاربر سرویس): validate the token (with the service user)
+  پروژه و نقش‌ها: project and roles
+  ساخت خودکار کاربر RGW برای پروژه (اولین بار): automatically create an RGW user for the project (first time)
+  فهرست اشیاء: object listing
 ch04/f05_placement:
-  روی: null
-  تکثیری: null
-  با: null
-  قاعده‌ی: null
-  پس از ۳۰ روز: null
-  پس از ۳۶۵ روز: null
-  حذف: null
-  ذخیره‌سازی ابری بیرونی: null
+  'pool: data روی NVMe/HDD تکثیری': 'pool: data on replicated NVMe/HDD'
+  'pool: data-ec روی HDD با EC 8+3': 'pool: data-ec on HDD with EC 8+3'
+  قاعده‌ی lifecycle<br/>پس از ۳۰ روز → COLD<br/>پس از ۳۶۵ روز → حذف: lifecycle rule<br/>after 30 days → COLD<br/>after 365 days → delete
+  ذخیره‌سازی ابری بیرونی: external cloud storage
 ch04/s01_put:
-  کلاینت: null
-  شارد: null
-  داده: null
-  نام شیء: null
-  شماره‌ی شارد: null
-  نوشتن: null
-  اول: null
-  هر ۴: null
-  ، اندازه،: null
-  ثبت در: null
-  برای: null
-  اگر: null
-  بین: null
-  و: null
-  بمیرد، ورودی: null
-  بعداً با: null
-  یا: null
-  پاک می‌شود: null
+  as کلاینت S3: as S3 client
+  as شارد index (.dir.<marker>.N): as index shard (.dir.<marker>.N)
+  as pool داده: as data pool
+  hash(نام شیء) → شماره‌ی شارد: hash(object name) → shard number
+  (PENDING_MODIFY، tag): (PENDING_MODIFY, tag)
+  نوشتن head (۴MiB اول + xattr manifest، ACL، etag): write head (first 4MiB + xattr manifest, ACL, etag)
+  نوشتن tail stripes (<marker>__shadow_… هر ۴MiB): write tail stripes (<marker>__shadow_… every 4MiB)
+  (COMPLETE، اندازه، etag، mtime): (COMPLETE, size, etag, mtime)
+  ثبت در omap + bilog (برای multisite): record in omap + bilog (for multisite)
+  اگر RGW بین prepare و complete بمیرد، ورودی pending بعداً با dir_suggest یا bucket check پاک می‌شود: if RGW dies between prepare and complete, the pending entry is later cleaned by dir_suggest or bucket
+    check
 ch04/s02_layout:
-  مثلاً: null
-  نام شیء: null
-  پیش‌فرض ۱۱: null
-  پویا بالای ۱۰۰٬۰۰۰ شیء در هر شارد: null
-  داده: null
-  تا: null
-  هر کدام: null
-  هر: null
-  یک شیء؛: null
-  فقط: null
-  می‌سازد: null
-  حذف: null
-  بازنویسی: null
-  به صف: null
-  با: null
+  pool index (مثلاً default.rgw.buckets.index): index pool (e.g. default.rgw.buckets.index)
+  'omap: نام شیء → rgw_bucket_dir_entry': 'omap: object name → rgw_bucket_dir_entry'
+  N پیش‌فرض ۱۱ (zonegroup)<br/>resharding پویا بالای ۱۰۰٬۰۰۰ شیء در هر شارد: N default 11 (zonegroup)<br/>dynamic resharding above 100,000 objects per shard
+  pool داده (default.rgw.buckets.data): data pool (default.rgw.buckets.data)
+  'تا rgw_max_chunk_size=4MiB داده<br/>xattr: user.rgw.manifest، acl، etag': 'up to rgw_max_chunk_size=4MiB of data<br/>xattr: user.rgw.manifest, acl, etag'
+  'tail: <marker>__shadow_….1 ، ….2<br/>هر کدام rgw_obj_stripe_size=4MiB': 'tail: <marker>__shadow_….1 , ….2<br/>each rgw_obj_stripe_size=4MiB'
+  هر part یک شیء؛ complete فقط manifest می‌سازد: one object per part; complete only builds the manifest
+  حذف/بازنویسی → tail به صف GC<br/>(rgw_gc با cls_rgw_gc): delete/overwrite → tail to the GC queue<br/>(rgw_gc with cls_rgw_gc)
 ch05/f01_hier:
   فضای نام سراسری: null
   فضای نام مشترک: null

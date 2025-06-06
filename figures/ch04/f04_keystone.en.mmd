@@ -1,0 +1,11 @@
+sequenceDiagram
+  participant C as Swift client
+  participant K as Keystone
+  participant G as radosgw
+  C->>K: authenticate (user, password, project)
+  K-->>C: token + catalog (endpoint: RGW)
+  C->>G: GET /swift/v1/AUTH_proj/container  X-Auth-Token
+  G->>K: validate the token (with the service user)
+  K-->>G: project and roles
+  G->>G: automatically create an RGW user for the project (first time)
+  G-->>C: object listing

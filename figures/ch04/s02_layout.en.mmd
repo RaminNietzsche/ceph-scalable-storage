@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["index pool (e.g. default.rgw.buckets.index)"]
+    direction LR
+    s0[".dir.<marker>.0<br/>omap: object name → rgw_bucket_dir_entry"] --- s1[".dir.<marker>.1"] --- sn[".dir.<marker>.N-1<br/>N default 11 (zonegroup)<br/>dynamic resharding above 100,000 objects per shard"]
+  end
+  subgraph R2["data pool (default.rgw.buckets.data)"]
+    direction LR
+    h["head: <marker>_photos/a.jpg<br/>up to rgw_max_chunk_size=4MiB of data<br/>xattr: user.rgw.manifest, acl, etag"] --> t["tail: <marker>__shadow_….1 , ….2<br/>each rgw_obj_stripe_size=4MiB"]
+  end
+  subgraph R3["multipart"]
+    direction LR
+    m["<marker>__multipart_a.jpg.<upload-id>.1 …<br/>one object per part; complete only builds the manifest"] --- gc["delete/overwrite → tail to the GC queue<br/>(rgw_gc with cls_rgw_gc)"]
+  end
+  R1 ~~~ R2 ~~~ R3

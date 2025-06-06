@@ -1,0 +1,5 @@
+flowchart LR
+  B["bucket<br/>placement: default-placement"] --> SC1["storage class STANDARD<br/>pool: data on replicated NVMe/HDD"]
+  B --> SC2["storage class COLD<br/>pool: data-ec on HDD with EC 8+3"]
+  LC["lifecycle rule<br/>after 30 days → COLD<br/>after 365 days → delete"] --> B
+  SC2 -.->|"cloud transition"| CL["external cloud storage"]

@@ -1,0 +1,16 @@
+flowchart TB
+  C1["s3cmd / aws-cli / SDK"] --> LB["HAProxy + keepalived<br/>(ingress service)"]
+  C2["python-swiftclient"] --> LB
+  C3["Hadoop / Spark S3A"] --> LB
+  LB --> R1["radosgw 1<br/>Beast"]
+  LB --> R2["radosgw 2<br/>Beast"]
+  LB --> R3["radosgw 3<br/>Beast"]
+  R1 --> IDX
+  R2 --> DATA
+  R3 --> META
+  subgraph RADOS["RADOS"]
+    direction LR
+    IDX[("buckets.index<br/>omap on SSD")]
+    DATA[("buckets.data<br/>replicated or EC")]
+    META[("rgw.meta · log · control<br/>.rgw.root")]
+  end
