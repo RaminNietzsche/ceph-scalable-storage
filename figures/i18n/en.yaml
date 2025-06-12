@@ -321,104 +321,73 @@ ch04/s02_layout:
   هر part یک شیء؛ complete فقط manifest می‌سازد: one object per part; complete only builds the manifest
   حذف/بازنویسی → tail به صف GC<br/>(rgw_gc با cls_rgw_gc): delete/overwrite → tail to the GC queue<br/>(rgw_gc with cls_rgw_gc)
 ch05/f01_hier:
-  فضای نام سراسری: null
-  فضای نام مشترک: null
-  ها: null
-  کلاستر: null
-  الف: null
-  ب: null
-  ج: null
-  های: null
+  'realm: gold<br/>فضای نام سراسری · period': 'realm: gold<br/>global namespace · period'
+  'zonegroup: europe (master)<br/>فضای نام مشترک bucketها': 'zonegroup: europe (master)<br/>shared bucket namespace'
+  کلاستر Ceph الف: Ceph cluster A
+  کلاستر Ceph ب: Ceph cluster B
+  کلاستر Ceph ج: Ceph cluster C
+  RGWهای eu-1: eu-1 RGWs
+  RGWهای eu-2: eu-2 RGWs
+  RGWهای as-1: as-1 RGWs
 ch05/f02_evolution:
-  فرایند جداگانه،: null
-  فعال: null
-  فقط‌خواندنی: null
-  به بعد: null
-  همگام‌سازی درون: null
-  همه‌ی: null
-  ها نوشتنی: null
-  بازطراحی: null
+  radosgw-agent<br/>فرایند جداگانه، Python: radosgw-agent<br/>separate process, Python
+  master zone فعال<br/>slave فقط‌خواندنی: active master zone<br/>read-only slave
+  'Jewel به بعد: multisite v2': 'Jewel onwards: multisite v2'
+  همگام‌سازی درون radosgw: sync inside radosgw
+  active-active<br/>همه‌ی zoneها نوشتنی: active-active<br/>all zones writable
+  بازطراحی: redesign
 ch05/f03_sync:
-  کلاینت: null
-  در: null
-  خواندن تغییرات: null
-  شیء از: null
-  فقط در: null
-  کاربران و: null
-  ها: null
+  'کلاینت: PUT': 'client: PUT'
+  datalog + bilog<br/>در pool log: datalog + bilog<br/>in the log pool
+  ۱. خواندن تغییرات: 1. read changes
+  ۲. GET شیء از endpoint: 2. GET the object from the endpoint
+  metadata log<br/>فقط در master zone: metadata log<br/>only in the master zone
+  کاربران و bucketها: users and buckets
 ch05/f04_setup:
-  کلاستر اصلی: null
-  کلاستر ثانوی: null
-  استقرار: null
-  برای: null
-  اصلی: null
-  با کلید: null
-  ثانوی: null
-  همگام‌سازی کامل: null
-  سپس همگام‌سازی افزایشی: null
+  as کلاستر اصلی: as primary cluster
+  as کلاستر ثانوی: as secondary cluster
+  استقرار RGW برای zone اصلی: deploy RGW for the primary zone
+  realm pull --url (با کلید system): realm pull --url (with the system key)
+  zone create --rgw-zonegroup (ثانوی): zone create --rgw-zonegroup (secondary)
+  استقرار RGW برای zone ثانوی: deploy RGW for the secondary zone
+  همگام‌سازی کامل (full sync): full sync
+  سپس همگام‌سازی افزایشی: then incremental sync
 ch05/f05_failover:
-  حالت عادی: null
-  فراداده: null
-  در دسترس نیست: null
-  خرابی کوتاه: null
-  صبر؛ نوشتن داده در: null
-  ادامه دارد: null
-  فقط ساخت: null
-  و: null
-  متوقف است: null
-  خرابی طولانی: null
-  در: null
-  بازگشت: null
-  و در صورت نیاز: null
-  را برگردانید: null
+  حالت عادی<br/>eu-1 master فراداده: normal state<br/>eu-1 is the metadata master
+  eu-1 در دسترس نیست: eu-1 is unavailable
+  خرابی کوتاه: short outage
+  صبر؛ نوشتن داده در eu-2 ادامه دارد<br/>فقط ساخت user و bucket متوقف است: wait; data writes continue in eu-2<br/>only user and bucket creation stops
+  خرابی طولانی: long outage
+  'در eu-2: zone modify --master --default': 'in eu-2: zone modify --master --default'
+  'بازگشت eu-1: realm pull · period pull<br/>و در صورت نیاز master را برگردانید': 'eu-1 returns: realm pull · period pull<br/>and move the master back if needed'
 ch05/s01_logs:
-  مبدأ: null
-  هر نوشتن سه ردپا می‌گذارد: null
-  شیء: null
-  در شارد: null
-  ، همراه: null
-  شارد: null
-  از: null
-  تغییر کرد»: null
-  پنجره‌ی ادغام: null
-  ساخت: null
-  کاربر: null
-  فقط: null
-  مقصد: null
-  سه لایه: null
-  خواندن: null
-  برای هر شارد: null
-  و کپی شیء: null
-  کپی خود داده: null
-  نوشتن محلی: null
-  ثبت در: null
-  با حفظ: null
-  مبدأ برای جلوگیری از حلقه: null
-  به‌روزرسانی: null
-  در: null
-  شیء وضعیت: null
+  'zone مبدأ: هر نوشتن سه ردپا می‌گذارد': 'source zone: each write leaves three traces'
+  PUT/DELETE شیء: object PUT/DELETE
+  bilog در شارد index<br/>(cls_rgw، همراه complete_op): bilog in the index shard<br/>(cls_rgw, with complete_op)
+  'datalog: «شارد X از bucket B تغییر کرد»<br/>rgw_data_log_num_shards=128<br/>پنجره‌ی ادغام rgw_data_log_window=30s': 'datalog: «shard X of bucket B changed»<br/>rgw_data_log_num_shards=128<br/>merge window
+    rgw_data_log_window=30s'
+  ساخت bucket/کاربر: bucket/user creation
+  rgw_md_log_max_shards=64<br/>فقط master zone: rgw_md_log_max_shards=64<br/>master zone only
+  'zone مقصد: سه لایه coroutine': 'destination zone: three coroutine layers'
+  meta sync<br/>خواندن mdlog از master: meta sync<br/>reads the mdlog from the master
+  'data sync: برای هر شارد datalog': 'data sync: per datalog shard'
+  'bucket sync: برای هر شارد bucket': 'bucket sync: per bucket shard'
+  خواندن bilog و کپی شیء: reads the bilog and copies the object
+  کپی خود داده: copying the data itself
+  'fetch_remote_obj: GET شیء<br/>از endpoint مبدأ': 'fetch_remote_obj: GET the object<br/>from the source endpoint'
+  نوشتن محلی + ثبت در index مقصد<br/>(با حفظ zone مبدأ برای جلوگیری از حلقه): local write + record in the destination index<br/>(keeping the source zone to avoid loops)
+  به‌روزرسانی marker در<br/>شیء وضعیت sync (log pool): update the marker in<br/>the sync status object (log pool)
 ch05/s02_states:
-  ساخت اشیای وضعیت هر شارد: null
-  فهرست کردن همه‌ی: null
-  های: null
-  مبدأ در: null
-  هر شارد مستقل جلو می‌رود: null
-  هر شارد: null
-  در: null
-  پیمایش: null
-  همگام‌سازی کامل هر: null
-  خواندن: null
-  از: null
-  هر: null
-  خطا: null
-  بعدی: null
-  هماهنگی بین چند: null
-  مقصد: null
-  روی شیء وضعیت: null
-  لاگ‌های مبدأ: null
-  تا کمترین: null
-  همه‌ی: null
-  ها: null
+  StateInit = 0<br/>ساخت اشیای وضعیت هر شارد: StateInit = 0<br/>create each shard's status objects
+  StateBuildingFullSyncMaps = 1<br/>فهرست کردن همه‌ی bucketهای<br/>مبدأ در full-sync map: StateBuildingFullSyncMaps = 1<br/>list all of the source's<br/>buckets in the full-sync map
+  StateSync = 2<br/>هر شارد مستقل جلو می‌رود: StateSync = 2<br/>each shard advances independently
+  هر شارد datalog در StateSync: each datalog shard in StateSync
+  full sync:<br/>پیمایش full-sync map،<br/>همگام‌سازی کامل هر bucket shard: full sync:<br/>walk the full-sync map,<br/>fully sync each bucket shard
+  incremental sync:<br/>خواندن datalog از marker<br/>هر rgw_data_sync_poll_interval=20s: incremental sync:<br/>read the datalog from the marker<br/>every rgw_data_sync_poll_interval=20s
+  خطا → error repo<br/>retry بعدی (rgw_sync_error_repo): error → error repo<br/>later retry (rgw_sync_error_repo)
+  هماهنگی بین چند RGW مقصد: coordination between several destination RGWs
+  lease روی شیء وضعیت<br/>rgw_sync_lease_period=2min: lease on the status object<br/>rgw_sync_lease_period=2min
+  trim لاگ‌های مبدأ<br/>هر rgw_sync_log_trim_interval=20min<br/>تا کمترین marker همه‌ی peerها: trim the source's logs<br/>every rgw_sync_log_trim_interval=20min<br/>up to the lowest marker of all peers
 ch06/f01_arch:
   کلاینت: null
   یا: null

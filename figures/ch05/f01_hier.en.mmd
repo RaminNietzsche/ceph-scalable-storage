@@ -1,0 +1,9 @@
+flowchart TB
+  R["realm: gold<br/>global namespace · period"] --> ZG1["zonegroup: europe (master)<br/>shared bucket namespace"]
+  R --> ZG2["zonegroup: asia"]
+  ZG1 --> Z1["zone: eu-1 (master)<br/>Ceph cluster A"]
+  ZG1 --> Z2["zone: eu-2<br/>Ceph cluster B"]
+  ZG2 --> Z3["zone: as-1 (master)<br/>Ceph cluster C"]
+  Z1 --- G1["eu-1 RGWs"]
+  Z2 --- G2["eu-2 RGWs"]
+  Z3 --- G3["as-1 RGWs"]

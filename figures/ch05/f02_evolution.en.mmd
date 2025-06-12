@@ -1,0 +1,12 @@
+flowchart LR
+  subgraph H["Hammer: federated"]
+    direction TB
+    RG["region"] --> AG["radosgw-agent<br/>separate process, Python"]
+    AG --> M1["active master zone<br/>read-only slave"]
+  end
+  subgraph J["Jewel onwards: multisite v2"]
+    direction TB
+    RE["realm + period"] --> IN["sync inside radosgw"]
+    IN --> AA["active-active<br/>all zones writable"]
+  end
+  H ==>|"redesign"| J

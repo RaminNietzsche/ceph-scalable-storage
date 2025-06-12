@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant P as primary cluster
+  participant S as secondary cluster
+  P->>P: realm create · zonegroup create --master
+  P->>P: zone create --master · system user
+  P->>P: period update --commit
+  P->>P: deploy RGW for the primary zone
+  S->>P: realm pull --url (with the system key)
+  S->>S: zone create --rgw-zonegroup (secondary)
+  S->>P: period update --commit
+  S->>S: deploy RGW for the secondary zone
+  P-->>S: full sync
+  P-->>S: then incremental sync

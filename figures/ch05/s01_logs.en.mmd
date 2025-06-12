@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["source zone: each write leaves three traces"]
+    direction LR
+    w["object PUT/DELETE"] --> bi["bilog in the index shard<br/>(cls_rgw, with complete_op)"] --> dl["datalog: «shard X of bucket B changed»<br/>rgw_data_log_num_shards=128<br/>merge window rgw_data_log_window=30s"]
+    md["bucket/user creation"] --> ml["mdlog (meta.log.*)<br/>rgw_md_log_max_shards=64<br/>master zone only"]
+  end
+  subgraph R2["destination zone: three coroutine layers"]
+    direction LR
+    ms["meta sync<br/>reads the mdlog from the master"] --- ds["data sync: per datalog shard<br/>RGWDataSyncShardCR<br/>full → incremental"] --- bs["bucket sync: per bucket shard<br/>RGWBucketShardIncrementalSyncCR<br/>reads the bilog and copies the object"]
+  end
+  subgraph R3["copying the data itself"]
+    direction LR
+    f["fetch_remote_obj: GET the object<br/>from the source endpoint"] --> p["local write + record in the destination index<br/>(keeping the source zone to avoid loops)"] --> mk["update the marker in<br/>the sync status object (log pool)"]
+  end
+  R1 ~~~ R2 ~~~ R3

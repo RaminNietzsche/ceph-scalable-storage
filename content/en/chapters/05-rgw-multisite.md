@@ -5,95 +5,94 @@ title: Multi-Site Object Storage with RGW Multi-Site
 part: main
 original_heading: Working with Ceph Object Storage Multi-Site v2
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-05-1}
+# Before you start {#sec-05-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-05-1-1}
+## What questions does this chapter answer? {#sec-05-1-1}
 
-یک کلاستر Ceph، هر قدر هم بزرگ، در یک مرکز داده قرار دارد. برای بازیابی از سانحه، نزدیک کردن داده به کاربران در مناطق مختلف، یا مهاجرت بین مراکز داده، باید داده‌ی شیء را بین چند کلاستر مستقل تکثیر کنیم. **RGW Multi-Site** پاسخ Ceph به این نیاز است. در این فصل می‌بینیم:
+A Ceph cluster, however large, sits in one data centre. For disaster recovery, for bringing data closer to users in different regions, or for migrating between data centres, we need to replicate object data between several independent clusters. **RGW Multi-Site** is Ceph's answer to this need. In this chapter we look at:
 
-- realm، zonegroup، zone و period چه هستند و چطور با هم یک فضای نام سراسری می‌سازند؟
-- multisite امروزی (نسخه‌ی ۲، از Jewel) چه فرقی با پیکربندی federated قدیمی Hammer دارد؟
-- پیش‌نیازهای شبکه، زمان و ظرفیت برای یک استقرار چندسایتی چیست؟
-- چطور دو zone را، هم به روش دستی با `radosgw-admin` و هم با ماژول خودکار `ceph rgw`، پیکربندی کنیم؟
-- چطور وضعیت همگام‌سازی را بخوانیم، مشکلات را پیدا کنیم و هنگام سانحه master را جابه‌جا کنیم؟
-- sync policy، archive zone و resharding در multisite چگونه کار می‌کنند؟
+- What are the realm, zonegroup, zone and period, and how do they together build a global namespace?
+- How does today's multisite (version 2, since Jewel) differ from the old federated configuration of Hammer?
+- What are the network, time and capacity prerequisites for a multi-site deployment?
+- How do we configure two zones, both by hand with `radosgw-admin` and with the automated `ceph rgw` module?
+- How do we read the sync status, find problems and move the master during a disaster?
+- How do sync policy, the archive zone and resharding work in multisite?
 
-## پیش‌نیاز {#sec-05-1-2}
+## Prerequisites {#sec-05-1-2}
 
-دو کلاستر Ceph (برای آزمایشگاه دو کلاستر تک‌نودی کافی است) که RGWهایشان از طریق HTTP به هم دسترسی دارند. مفاهیم فصل ۴ را باید بدانید.
+Two Ceph clusters (for a lab, two single-node clusters are enough) whose RGWs can reach each other over HTTP. You should know the concepts of chapter 4.
 
-# مفاهیم multisite {#sec-05-2}
+# Multisite concepts {#sec-05-2}
 
-## سلسله‌مراتب {#sec-05-2-1}
+## The hierarchy {#sec-05-2-1}
 
-![سلسله‌مراتب multisite: realm شامل zonegroupها و هر zonegroup شامل zoneهایی است که هر کدام در یک کلاستر Ceph جداگانه قرار دارند](figures/ch05/f01_hier.png){#fig-05-f01_hier}
+![The multisite hierarchy: a realm contains zonegroups, and each zonegroup contains zones, each of which lives in a separate Ceph cluster](figures/ch05/f01_hier.png){#fig-05-f01_hier}
 
-| مفهوم | تعریف | نکته |
+| Concept | Definition | Note |
 |---|---|---|
-| zone | مجموعه‌ای از poolها و نمونه‌های RGW در یک کلاستر Ceph | هر zone در یک کلاستر است؛ یک کلاستر می‌تواند چند zone داشته باشد |
-| zonegroup | گروهی از zoneها که داده‌ی bucketها بین آن‌ها تکثیر می‌شود | قبلاً «region» نامیده می‌شد؛ یک zone آن master است |
-| realm | ظرف سراسری شامل zonegroupها؛ فضای نام یکتای کاربران و bucketها | یک zonegroup آن master است |
-| period | نسخه‌ای از پیکربندی realm با شناسه و epoch | هر تغییر ساختاری با `period update --commit` منتشر می‌شود |
-| master zone | zoneی که فراداده (کاربران، bucketها) را می‌پذیرد و به بقیه پخش می‌کند | ساخت کاربر و bucket فقط از طریق آن |
+| zone | A set of pools and RGW instances in one Ceph cluster | Each zone is in one cluster; one cluster can have several zones |
+| zonegroup | A group of zones between which bucket data is replicated | Formerly called a "region"; one zone in it is the master |
+| realm | The global container of zonegroups; a unique namespace for users and buckets | One zonegroup in it is the master |
+| period | A version of the realm configuration with an id and an epoch | Every structural change is published with `period update --commit` |
+| master zone | The zone that accepts metadata (users, buckets) and distributes it to the others | Users and buckets are created only through it |
 
-## چه چیزی و چطور تکثیر می‌شود؟ {#sec-05-2-2}
+## What is replicated, and how? {#sec-05-2-2}
 
-- **فراداده** (کاربران، bucketها، سیاست‌ها) در سطح realm تکثیر می‌شود و همیشه از master zone در master zonegroup منشأ می‌گیرد. درخواست ساخت bucket به zone غیر master به‌طور خودکار به master **forward** می‌شود.
-- **داده‌ی اشیاء** فقط بین zoneهای یک zonegroup تکثیر می‌شود. zonegroupهای مختلف فضای نام مشترک دارند (نام bucket یکتاست) اما داده‌ی هر bucket فقط در zonegroup خودش است.
-- همگام‌سازی **ناهمگام** و **active-active** است: کلاینت‌ها می‌توانند در هر zone بنویسند و تغییرات با تأخیری کوتاه به zoneهای دیگر می‌رسند. در تعارض نوشتن هم‌زمان روی یک شیء، آخرین نوشتن (بر اساس زمان) برنده است.
-
-::: {.warn}
-چون همگام‌سازی ناهمگام است، multisite جایگزین سازگاری قوی بین سایت‌ها نیست. اگر برنامه‌ای در سایت A می‌نویسد و بلافاصله در سایت B می‌خواند، ممکن است نسخه‌ی قدیمی یا هیچ نسخه‌ای نبیند. برنامه‌ها را طوری طراحی کنید که هر کلاینت «سایت خانگی» داشته باشد، یا وابستگی به خواندن فوری بین‌سایتی نداشته باشند.
-:::
-
-## تغییرات از پیکربندی federated در Hammer {#sec-05-2-3}
-
-![از federated در Hammer به multisite نسخه‌ی ۲: همگام‌سازی از یک agent بیرونی به درون خود radosgw منتقل شد و همه‌ی zoneها نوشتنی شدند](figures/ch05/f02_evolution.png){#fig-05-f02_evolution}
-
-در Hammer و پیش از آن، تکثیر با یک فرایند Python بیرونی به نام **radosgw-agent** انجام می‌شد، zone ثانوی فقط‌خواندنی بود و مفهوم realm و period وجود نداشت. از Jewel، multisite بازطراحی شد:
-
-- همگام‌سازی درون خود radosgw انجام می‌شود (نیازی به agent نیست).
-- همه‌ی zoneها می‌توانند داده بپذیرند (active-active).
-- realm و period امکان تغییر پیکربندی سازگار و نسخه‌دار را فراهم کرده‌اند.
-- failover با جابه‌جایی master zone و commit یک period جدید انجام می‌شود.
-
-از آن زمان قابلیت‌های بسیاری اضافه شده است: sync policy با کنترل در سطح bucket (Octopus)، archive zone، resharding بدون توقف همگام‌سازی (از Reef با zone feature به نام `resharding`) و در Umbrella اصلاح‌های متعدد در درستی همگام‌سازی.
-
-# پیش‌نیازهای multisite {#sec-05-3}
-
-## شبکه و زمان {#sec-05-3-1}
-
-- **دسترسی HTTP(S) بین RGWها:** RGWهای هر zone باید endpointهای zoneهای دیگر را ببینند. معمولاً endpoint هر zone نشانی load balancer آن است.
-- **پهنای باند:** نرخ تغییر داده (نه حجم کل) تعیین‌کننده است. همگام‌سازی اولیه (full sync) کل داده‌ی موجود را منتقل می‌کند؛ برای داده‌ی چندصد ترابایتی، روزها طول می‌کشد.
-- **تأخیر:** multisite برای WAN طراحی شده و تأخیر بالا را تحمل می‌کند، اما تأخیر زیاد، عقب‌ماندگی را بالا می‌برد.
-- **همگامی ساعت:** حل تعارض و امضای درخواست‌ها به زمان وابسته است. همه‌ی nodeها باید با NTP همگام باشند.
-
-## کاربر system و endpointها {#sec-05-3-2}
-
-zoneها برای خواندن لاگ‌ها و اشیای یکدیگر از یک **کاربر system** با کلید مشترک استفاده می‌کنند. این کاربر در master zone ساخته می‌شود و کلیدش در پیکربندی همه‌ی zoneها قرار می‌گیرد.
+- **Metadata** (users, buckets, policies) is replicated at the realm level and always originates from the master zone of the master zonegroup. A bucket creation request sent to a non-master zone is automatically **forwarded** to the master.
+- **Object data** is replicated only between the zones of one zonegroup. Different zonegroups share a namespace (bucket names are unique), but each bucket's data lives only in its own zonegroup.
+- Sync is **asynchronous** and **active-active**: clients can write in any zone, and changes reach the other zones after a short delay. In a conflict between concurrent writes to one object, the last write (by time) wins.
 
 ::: {.warn}
-کاربر system به همه‌ی داده‌ها و فراداده‌ی realm دسترسی کامل دارد. کلیدش را مثل کلید مدیر کلاستر حفاظت کنید، endpointهای همگام‌سازی را فقط روی شبکه‌ی خصوصی یا VPN بین سایت‌ها باز کنید و از TLS استفاده کنید.
+Because sync is asynchronous, multisite is not a substitute for strong consistency between sites. If an application writes in site A and immediately reads in site B, it may see an old version or no version at all. Design applications so that each client has a "home site", or so that they do not depend on immediate cross-site reads.
 :::
 
-## ظرفیت و poolها {#sec-05-3-3}
+## Changes from the federated configuration in Hammer {#sec-05-2-3}
 
-هر zone poolهای خودش را دارد که نامشان با نام zone شروع می‌شود (مثلاً `eu-1.rgw.buckets.data`). اگر poolها را پیش از راه‌اندازی بسازید، می‌توانید قاعده‌ی CRUSH، EC و target_size_ratio را از ابتدا درست تعیین کنید؛ وگرنه RGW آن‌ها را با پیش‌فرض‌ها می‌سازد. علاوه بر داده، pool لاگ (`<zone>.rgw.log`) در multisite پرکارتر است و باید روی رسانه‌ی سریع باشد.
+![From federated in Hammer to multisite version 2: sync moved from an external agent into radosgw itself, and all zones became writable](figures/ch05/f02_evolution.png){#fig-05-f02_evolution}
+
+In Hammer and earlier, replication was done by an external Python process called **radosgw-agent**, the secondary zone was read-only, and the realm and period concepts did not exist. Since Jewel, multisite has been redesigned:
+
+- Sync happens inside radosgw itself (no agent is needed).
+- All zones can accept data (active-active).
+- The realm and period make consistent, versioned configuration changes possible.
+- Failover is done by moving the master zone and committing a new period.
+
+Many features have been added since: sync policy with bucket-level control (Octopus), the archive zone, resharding without stopping sync (since Reef, with the zone feature named `resharding`), and in Umbrella numerous fixes to sync correctness.
+
+# Multisite prerequisites {#sec-05-3}
+
+## Network and time {#sec-05-3-1}
+
+- **HTTP(S) access between RGWs:** the RGWs of each zone must see the endpoints of the other zones. Usually each zone's endpoint is the address of its load balancer.
+- **Bandwidth:** the rate of data change (not the total volume) is what matters. The initial sync (full sync) transfers all existing data; for several hundred terabytes it takes days.
+- **Latency:** multisite is designed for WANs and tolerates high latency, but high latency increases the lag.
+- **Clock sync:** conflict resolution and request signing depend on time. All nodes must be synchronised with NTP.
+
+## The system user and endpoints {#sec-05-3-2}
+
+Zones use a **system user** with a shared key to read each other's logs and objects. This user is created in the master zone, and its key goes into the configuration of every zone.
+
+::: {.warn}
+The system user has full access to all data and metadata of the realm. Protect its key like the cluster administrator's key, open the sync endpoints only on the private network or VPN between sites, and use TLS.
+:::
+
+## Capacity and pools {#sec-05-3-3}
+
+Each zone has its own pools, whose names start with the zone name (for example `eu-1.rgw.buckets.data`). If you create the pools before setup, you can set the CRUSH rule, EC and target_size_ratio correctly from the start; otherwise RGW creates them with defaults. Besides the data, the log pool (`<zone>.rgw.log`) is busier in multisite and should be on fast media.
 
 ::: {.tip}
-هر دو سایت را از نظر ظرفیت متقارن طراحی کنید. zone ثانوی که زودتر پر شود، همگام‌سازی را متوقف می‌کند و بعد از آزاد کردن فضا باید عقب‌ماندگی زیادی را جبران کند.
+Design both sites symmetrically in capacity. A secondary zone that fills up first stops sync, and after space is freed it has a large lag to catch up.
 :::
 
-# پیکربندی multisite به روش دستی {#sec-05-4}
+# Configuring multisite by hand {#sec-05-4}
 
-![گام‌های راه‌اندازی: ساخت realm، zonegroup و master zone در کلاستر اصلی، سپس pull کردن realm و ساخت zone ثانوی در کلاستر دوم](figures/ch05/f04_setup.png){#fig-05-f04_setup}
+![Setup steps: create the realm, zonegroup and master zone in the primary cluster, then pull the realm and create the secondary zone in the second cluster](figures/ch05/f04_setup.png){#fig-05-f04_setup}
 
-فرض‌ها: کلاستر اصلی با RGW در دسترس روی `http://rgw-eu1.example.com:80` و کلاستر ثانوی روی `http://rgw-eu2.example.com:80`. realm به نام `gold`، zonegroup به نام `europe`، zoneها `eu-1` و `eu-2`.
+Assumptions: the primary cluster with RGW reachable at `http://rgw-eu1.example.com:80` and the secondary cluster at `http://rgw-eu2.example.com:80`. A realm named `gold`, a zonegroup named `europe`, and zones `eu-1` and `eu-2`.
 
-## گام ۱: ساختار در کلاستر اصلی {#sec-05-4-1}
+## Step 1: the structure in the primary cluster {#sec-05-4-1}
 
 ```bash
 radosgw-admin realm create --rgw-realm=gold --default
@@ -103,27 +102,27 @@ radosgw-admin zone create --rgw-zonegroup=europe --rgw-zone=eu-1 \
   --endpoints=http://rgw-eu1.example.com:80 --master --default
 ```
 
-اگر پیش‌تر RGW تک‌سایتی با zone و zonegroup پیش‌فرض (`default`) داشته‌اید و داده دارد، به‌جای ساختن zone جدید، zone و zonegroup پیش‌فرض را **تغییر نام** دهید و به realm اضافه کنید (مستندات «Migrating a Single-Site Deployment to Multi-Site»). در غیر این صورت داده‌ی موجود در zone قدیمی بی‌صاحب می‌ماند.
+If you previously had a single-site RGW with the default zone and zonegroup (`default`) and it holds data, then instead of creating a new zone, **rename** the default zone and zonegroup and add them to the realm (the documentation's "Migrating a Single-Site Deployment to Multi-Site"). Otherwise the data in the old zone is left orphaned.
 
-## گام ۲: کاربر system {#sec-05-4-2}
+## Step 2: the system user {#sec-05-4-2}
 
 ```bash
 radosgw-admin user create --uid=sync-user --display-name="Multisite sync" --system
-# access_key و secret_key را از خروجی بردارید
+# take access_key and secret_key from the output
 radosgw-admin zone modify --rgw-zone=eu-1 --access-key=<AK> --secret=<SK>
 radosgw-admin period update --commit
 ```
 
-## گام ۳: RGW برای zone اصلی {#sec-05-4-3}
+## Step 3: RGW for the primary zone {#sec-05-4-3}
 
-با cephadm، سرویس RGW را با realm و zone مشخص مستقر کنید:
+With cephadm, deploy the RGW service with a specific realm and zone:
 
 ```bash
 ceph orch apply rgw gold-eu1 --realm=gold --zone=eu-1 \
   --placement="label:rgw count-per-host:1" --port=80
 ```
 
-## گام ۴: کلاستر ثانوی {#sec-05-4-4}
+## Step 4: the secondary cluster {#sec-05-4-4}
 
 ```bash
 radosgw-admin realm pull --url=http://rgw-eu1.example.com:80 \
@@ -138,15 +137,15 @@ ceph orch apply rgw gold-eu2 --realm=gold --zone=eu-2 \
 ```
 
 ::: {.debug}
-اگر `period update --commit` در کلاستر ثانوی با خطای «failed to commit period» یا «connection refused» شکست خورد، از کلاستر ثانوی با `curl http://rgw-eu1.example.com:80` دسترسی را بسنجید و مطمئن شوید کلیدهای system در `zone modify` درست قرار گرفته‌اند (`radosgw-admin zone get --rgw-zone=eu-1`). یک خطای رایج، نام میزبانی است که فقط در یکی از سایت‌ها قابل‌حل است.
+If `period update --commit` on the secondary cluster fails with "failed to commit period" or "connection refused", test access from the secondary cluster with `curl http://rgw-eu1.example.com:80`, and make sure the system keys were set correctly in `zone modify` (`radosgw-admin zone get --rgw-zone=eu-1`). A common mistake is a host name that resolves on only one of the sites.
 :::
 
-# پیکربندی خودکار با ماژول rgw {#sec-05-5}
+# Automated configuration with the rgw module {#sec-05-5}
 
-از Reef به بعد، ماژول MGR به نام `rgw` (فرمان `ceph rgw`) همه‌ی گام‌های بالا را در دو دستور خلاصه می‌کند و با ارکستراتور هماهنگ است:
+Since Reef, the MGR module named `rgw` (the `ceph rgw` command) condenses all the steps above into two commands and is coordinated with the orchestrator:
 
 ```yaml
-# primary.yaml روی کلاستر اصلی
+# primary.yaml on the primary cluster
 rgw_realm: gold
 rgw_zonegroup: europe
 rgw_zone: eu-1
@@ -160,11 +159,11 @@ spec:
 ```bash
 ceph mgr module enable rgw
 ceph rgw realm bootstrap -i primary.yaml
-ceph rgw realm tokens            # توکن base64 شامل realm، endpoint و کلیدها
+ceph rgw realm tokens            # a base64 token containing the realm, endpoint and keys
 ```
 
 ```yaml
-# secondary.yaml روی کلاستر ثانوی
+# secondary.yaml on the secondary cluster
 rgw_zone: eu-2
 rgw_realm_token: <token>
 placement:
@@ -179,14 +178,14 @@ ceph rgw zone create -i secondary.yaml
 ```
 
 ::: {.tip}
-روش خودکار برای ساختارهای ساده (یک zonegroup و دو یا چند zone) بسیار سریع‌تر و کم‌خطاتر است. برای ساختارهای پیچیده (چند zonegroup، placementهای سفارشی، مهاجرت از تک‌سایتی) روش دستی کنترل بیشتری می‌دهد. داشبورد Ceph هم از Tentacle یک wizard برای خودکارسازی multisite دارد.
+The automated method is much faster and less error-prone for simple structures (one zonegroup and two or more zones). For complex structures (several zonegroups, custom placements, migration from single-site) the manual method gives more control. The Ceph dashboard has also had a wizard for automating multisite since Tentacle.
 :::
 
 ::: {.warn}
-توکن realm حاوی کلید کاربر system است. همان مراقبتی که برای توکن bootstrap در RBD mirroring گفتیم، این‌جا هم لازم است.
+The realm token contains the system user's key. The same care we described for the bootstrap token in RBD mirroring is needed here.
 :::
 
-# بررسی وضعیت همگام‌سازی {#sec-05-6}
+# Checking the sync status {#sec-05-6}
 
 ## sync status {#sec-05-6-1}
 
@@ -194,7 +193,7 @@ ceph rgw zone create -i secondary.yaml
 radosgw-admin sync status
 ```
 
-خروجی نمونه در zone ثانوی:
+Sample output in the secondary zone:
 
 ```text
           realm 1c2d... (gold)
@@ -213,17 +212,17 @@ zonegroup features enabled: resharding
                         data is caught up with source
 ```
 
-![سازوکار همگام‌سازی: zone مقصد datalog و bilog مبدأ را می‌خواند و اشیای تغییرکرده را با GET از endpoint مبدأ می‌کشد؛ فراداده از metadata log در master zone می‌آید](figures/ch05/f03_sync.png){#fig-05-f03_sync}
+![The sync mechanism: the destination zone reads the source's datalog and bilog and pulls changed objects with GET from the source endpoint; metadata comes from the metadata log in the master zone](figures/ch05/f03_sync.png){#fig-05-f03_sync}
 
-| عبارت در خروجی | معنا | اقدام |
+| Phrase in the output | Meaning | Action |
 |---|---|---|
-| metadata is caught up with master | فراداده همگام است | — |
-| data is caught up with source | داده‌ی همه‌ی shardها همگام است | — |
-| behind shards: [..] | برخی shardهای داده عقب‌اند | اگر ماندگار است، `sync error list` و پهنای باند را بررسی کنید |
-| oldest incremental change not applied | قدیمی‌ترین تغییر اعمال‌نشده | اختلاف زمانی را با now مقایسه کنید (RPO واقعی) |
-| full sync: N/M shards | همگام‌سازی کامل در جریان است | طبیعی پس از راه‌اندازی یا resync |
+| metadata is caught up with master | Metadata is in sync | — |
+| data is caught up with source | The data of all shards is in sync | — |
+| behind shards: [..] | Some data shards are behind | If it persists, check `sync error list` and the bandwidth |
+| oldest incremental change not applied | The oldest unapplied change | Compare the time difference with now (the real RPO) |
+| full sync: N/M shards | A full sync is in progress | Normal after setup or a resync |
 
-## دستورهای تکمیلی {#sec-05-6-2}
+## Additional commands {#sec-05-6-2}
 
 ```bash
 radosgw-admin sync status --rgw-zone=eu-2
@@ -236,60 +235,60 @@ radosgw-admin period get | jq '.period_map.zonegroups[].zones[].name'
 ```
 
 ::: {.debug}
-سه مشکل پرتکرار:
+Three frequent problems:
 
-عقب‌ماندگی ماندگار در چند shard: معمولاً یک bucket خیلی پرتغییر یا شیء خراب. `bucket sync status` روی bucketهای پرترافیک و `sync error list` را ببینید.
+Persistent lag in a few shards: usually a very busy bucket or a corrupt object. Look at `bucket sync status` on high-traffic buckets and at `sync error list`.
 
-خطاهای ۴۰۳ در لاگ همگام‌سازی: کلید system در یکی از zoneها با کاربر واقعی یکی نیست یا کاربر system حذف یا تعلیق شده است.
+403 errors in the sync log: the system key in one of the zones does not match the real user, or the system user has been deleted or suspended.
 
-همگام‌سازی شروع نمی‌شود: endpointهای zone (`zone get`) به نشانی‌ای اشاره می‌کنند که از سایت دیگر در دسترس نیست (مثلاً `localhost` یا نام داخلی).
+Sync does not start: the zone endpoints (`zone get`) point to an address that is not reachable from the other site (for example `localhost` or an internal name).
 :::
 
-# آزمون همگام‌سازی کاربر، bucket و شیء {#sec-05-7}
+# Testing the sync of users, buckets and objects {#sec-05-7}
 
 ```bash
-# روی کلاستر اصلی (master zone)
+# On the primary cluster (master zone)
 radosgw-admin user create --uid=tester --display-name="Multisite tester"
-# روی کلاستر ثانوی، پس از چند ثانیه:
-radosgw-admin user info --uid=tester        # کاربر همگام شده است
-# با s3cmd یا aws-cli
+# On the secondary cluster, after a few seconds:
+radosgw-admin user info --uid=tester        # the user has been synced
+# With s3cmd or aws-cli
 aws --endpoint-url http://rgw-eu1.example.com s3 mb s3://ms-test
 aws --endpoint-url http://rgw-eu1.example.com s3 cp ./report.pdf s3://ms-test/
 aws --endpoint-url http://rgw-eu2.example.com s3 ls s3://ms-test/
-# نوشتن در zone ثانوی و دیدن در اصلی (active-active)
+# Write in the secondary zone and see it in the primary (active-active)
 aws --endpoint-url http://rgw-eu2.example.com s3 cp ./notes.txt s3://ms-test/
 aws --endpoint-url http://rgw-eu1.example.com s3 ls s3://ms-test/
 radosgw-admin bucket sync status --bucket=ms-test
 ```
 
 ::: {.try}
-زمان رسیدن شیء به zone دیگر را اندازه بگیرید: در یک حلقه هر ثانیه یک شیء کوچک با زمان فعلی در نام در eu-1 بنویسید و در eu-2 فهرست بگیرید. سپس با ابزار `tc` روی میزبان RGW ثانوی ۲۰۰ میلی‌ثانیه تأخیر شبیه‌سازی کنید (`tc qdisc add dev eth0 root netem delay 200ms`) و اثرش را ببینید. یادتان نرود در پایان `tc qdisc del dev eth0 root` اجرا کنید.
+Measure how long an object takes to reach the other zone: in a loop, write a small object with the current time in its name to eu-1 every second and list it in eu-2. Then use the `tc` tool on the secondary RGW host to simulate 200 milliseconds of latency (`tc qdisc add dev eth0 root netem delay 200ms`) and watch the effect. Remember to run `tc qdisc del dev eth0 root` at the end.
 :::
 
-# از درون کد: لاگ‌ها و coroutineهای همگام‌سازی multisite {#sec-05-8}
+# From the code: multisite sync logs and coroutines {#sec-05-8}
 
-## سه لاگ، سه لایه {#sec-05-8-1}
+## Three logs, three layers {#sec-05-8-1}
 
-همگام‌سازی multisite در RGW **کششی (pull)** است. هر zone مقصد با REST، لاگ‌های zone مبدأ را می‌خواند و تغییرات را خودش اعمال می‌کند. سه نوع لاگ در این کار نقش دارند:
+Multisite sync in RGW is **pull-based**. Each destination zone reads the source zone's logs over REST and applies the changes itself. Three kinds of log play a part in this:
 
-| لاگ | کجا ذخیره می‌شود | چه چیزی را ثبت می‌کند | پیش‌فرض‌ها (main) |
+| Log | Where it is stored | What it records | Defaults (main) |
 |---|---|---|---|
-| bilog | کنار هر شارد bucket index (cls_rgw) | هر تغییر شیء در آن شارد | همراه complete_op |
-| datalog | pool log zone | «این bucket shard تغییر کرده است» (نه خود شیء) | rgw_data_log_num_shards=128، rgw_data_log_window=30 |
-| mdlog | اشیای `meta.log.*` (`rgw_mdlog.h`) | تغییر فراداده: کاربر، bucket، bucket instance | rgw_md_log_max_shards=64 |
+| bilog | Next to each bucket index shard (cls_rgw) | Every object change in that shard | Along with complete_op |
+| datalog | The zone's log pool | "This bucket shard has changed" (not the object itself) | rgw_data_log_num_shards=128, rgw_data_log_window=30 |
+| mdlog | `meta.log.*` objects (`rgw_mdlog.h`) | Metadata changes: user, bucket, bucket instance | rgw_md_log_max_shards=64 |
 
-![جریان کامل multisite. در zone مبدأ، هر PUT یا DELETE یک ورودی bilog در شارد index می‌سازد و یک ورودی datalog اعلام می‌کند که «آن شارد bucket تغییر کرده است». پنجره‌ی ۳۰ ثانیه‌ای datalog تغییرات پیاپی روی یک شارد را ادغام می‌کند تا لاگ منفجر نشود. ساخت bucket یا کاربر در mdlog ثبت می‌شود که فقط master zone آن را تولید می‌کند. در zone مقصد سه لایه coroutine کار می‌کنند: meta sync، data sync برای هر شارد datalog، و bucket sync برای هر شارد bucket که bilog را می‌خواند. لایه‌ی پایانی شیء را با fetch_remote_obj از مبدأ می‌کشد، محلی می‌نویسد و marker را در شیء وضعیت ذخیره می‌کند](figures/ch05/s01_logs.png){#fig-05-s01_logs}
+![The full multisite flow. In the source zone each PUT or DELETE creates a bilog entry in the index shard, and a datalog entry announces that "that bucket shard has changed". The 30-second datalog window merges successive changes to one shard so that the log does not explode. Creating a bucket or user is recorded in the mdlog, which only the master zone produces. In the destination zone three layers of coroutines work: meta sync, data sync for each datalog shard, and bucket sync for each bucket shard, which reads the bilog. The final layer pulls the object from the source with fetch_remote_obj, writes it locally and stores the marker in a status object](figures/ch05/s01_logs.png){#fig-05-s01_logs}
 
-## ماشین حالت data sync {#sec-05-8-2}
+## The data sync state machine {#sec-05-8-2}
 
-`rgw_data_sync_info` در `src/rgw/driver/rados/rgw_data_sync.h` سه حالت دارد: `StateInit = 0`، `StateBuildingFullSyncMaps = 1` و `StateSync = 2`. پیاده‌سازی بر پایه‌ی چارچوب coroutine خود RGW (`RGWCoroutine`) است. کلاس‌های اصلی در `rgw_data_sync.cc` این‌ها هستند: `RGWDataSyncShardCR` (حلقه‌ی هر شارد)، `RGWDataFullSyncShardCR`، `RGWDataIncSyncShardCR`، `RGWListRemoteDataLogShardCR` و برای لایه‌ی bucket، `RGWBucketShardIncrementalSyncCR`.
+`rgw_data_sync_info` in `src/rgw/driver/rados/rgw_data_sync.h` has three states: `StateInit = 0`, `StateBuildingFullSyncMaps = 1` and `StateSync = 2`. The implementation is based on RGW's own coroutine framework (`RGWCoroutine`). The main classes in `rgw_data_sync.cc` are: `RGWDataSyncShardCR` (the loop for each shard), `RGWDataFullSyncShardCR`, `RGWDataIncSyncShardCR`, `RGWListRemoteDataLogShardCR` and, for the bucket layer, `RGWBucketShardIncrementalSyncCR`.
 
-![ماشین حالت همگام‌سازی داده. ابتدا اشیای وضعیت ساخته می‌شوند (Init)، سپس همه‌ی bucketهای مبدأ در full-sync map فهرست می‌شوند (BuildingFullSyncMaps)، و پس از آن هر شارد datalog مستقل از بقیه ابتدا full sync و بعد incremental sync را با poll بیست‌ثانیه‌ای اجرا می‌کند. خطاها در error repo ثبت و بعداً دوباره تلاش می‌شوند. اگر چند RGW در zone مقصد باشند، هر شارد با یک lease دودقیقه‌ای فقط به یکی از آن‌ها سپرده می‌شود. trim لاگ‌های مبدأ هر ۲۰ دقیقه و فقط تا کمترین markerی انجام می‌شود که همه‌ی peerها به آن رسیده‌اند](figures/ch05/s02_states.png){#fig-05-s02_states}
+![The data sync state machine. First the status objects are created (Init), then all the source's buckets are listed in the full-sync map (BuildingFullSyncMaps), and after that each datalog shard, independently of the others, runs a full sync first and then an incremental sync with a twenty-second poll. Errors are recorded in the error repo and retried later. If there are several RGWs in the destination zone, each shard is assigned to only one of them with a two-minute lease. Trimming of the source's logs happens every 20 minutes and only up to the lowest marker that every peer has reached](figures/ch05/s02_states.png){#fig-05-s02_states}
 
 ```text
-pseudocode: یک شارد datalog در zone مقصد (خلاصه‌ی این کتاب از rgw_data_sync.cc)
+pseudocode: one datalog shard in the destination zone (this book's summary of rgw_data_sync.cc)
   loop:
-    acquire lease(shard, rgw_sync_lease_period)          # 2min؛ فقط یک RGW
+    acquire lease(shard, rgw_sync_lease_period)          # 2min; only one RGW
     if shard.state == full_sync:
         for bucket_shard in full_sync_map[shard] from marker:
             run bucket sync (full) ; persist marker
@@ -297,28 +296,28 @@ pseudocode: یک شارد datalog در zone مقصد (خلاصه‌ی این ک�
     else:
         entries = remote.list_datalog(shard, after=marker)
         for e in entries (dedup by bucket_shard):
-            spawn bucket_incremental_sync(e.bucket_shard)  # حداکثر rgw_bucket_sync_spawn_window=20 هم‌زمان
+            spawn bucket_incremental_sync(e.bucket_shard)  # at most rgw_bucket_sync_spawn_window=20 at once
               → read remote bilog after bucket marker
               → for op in bilog: fetch_remote_obj / remove
         persist marker ; if no entries: sleep rgw_data_sync_poll_interval (20s)
     on error: add to error repo for retry
 ```
 
-| گزینه | پیش‌فرض | نکته‌ی SRE |
+| Option | Default | SRE note |
 |---|---|---|
-| rgw_run_sync_thread | true | روی RGWهای سمت کاربر می‌توان false کرد تا sync فقط روی RGWهای مخصوص اجرا شود |
-| rgw_data_sync_poll_interval | 20 | حداقل تأخیر حالت آرام |
-| rgw_meta_sync_poll_interval | 20 | برای فراداده |
-| rgw_bucket_sync_spawn_window | 20 | موازی‌سازی bucket sync در هر شارد |
-| rgw_sync_lease_period | 2_min | اگر RGW بمیرد، شارد پس از انقضا به RGW دیگری می‌رسد |
-| rgw_sync_log_trim_interval | 20_min | peer عقب‌مانده جلوی trim را می‌گیرد و log pool رشد می‌کند |
+| rgw_run_sync_thread | true | Can be set to false on user-facing RGWs so that sync runs only on dedicated RGWs |
+| rgw_data_sync_poll_interval | 20 | The minimum delay in the quiet state |
+| rgw_meta_sync_poll_interval | 20 | For metadata |
+| rgw_bucket_sync_spawn_window | 20 | Parallelism of bucket sync per shard |
+| rgw_sync_lease_period | 2_min | If an RGW dies, the shard passes to another RGW after expiry |
+| rgw_sync_log_trim_interval | 20_min | A lagging peer blocks trimming, and the log pool grows |
 
 ::: {.warn}
-یک zone مقصد خاموش یا عقب‌مانده جلوی trim لاگ‌های مبدأ را می‌گیرد، چون trim فقط تا کمترین marker پیش می‌رود. نتیجه رشد omap در pool log و هشدار `LARGE_OMAP_OBJECTS` است. zone حذف‌شده را حتماً از zonegroup هم حذف و period را commit کنید.
+A destination zone that is down or lagging blocks trimming of the source's logs, because trimming only advances up to the lowest marker. The result is omap growth in the log pool and the `LARGE_OMAP_OBJECTS` warning. Always remove a deleted zone from the zonegroup as well and commit the period.
 :::
 
 ::: {.debug}
-فرمان‌های بررسی:
+Inspection commands:
 :::
 
 ```bash
@@ -330,165 +329,165 @@ radosgw-admin datalog status ; radosgw-admin mdlog status
 radosgw-admin bilog list --bucket=photos --max-entries=5
 ```
 
-# multisite با عدد: shardهای datalog و mdlog، پنجره‌ی ادغام و trim {#sec-05-9}
+# Multisite by the numbers: datalog and mdlog shards, the merge window and trimming {#sec-05-9}
 
-این بخش چهار تابع کوچک را بررسی می‌کند که بار و تأخیر همگام‌سازی multisite را تعیین می‌کنند. ارجاع‌ها به کد main در نوامبر 2026 است. عددها با بازپیاده‌سازی پایتونی ceph_str_hash_linux (از src/common/ceph_hash.cc) حساب شده‌اند. نکته‌ی «بیت‌های پایین hash» در زیر نتیجه‌ی تحلیل و شبیه‌سازی خود ما است، نه گزاره‌ای از مستندات Ceph.
+This section examines four small functions that determine the load and latency of multisite sync. References are to the main code in November 2026. The numbers were computed with a Python re-implementation of ceph_str_hash_linux (from src/common/ceph_hash.cc). The "low bits of the hash" point below is the result of our own analysis and simulation, not a statement from the Ceph documentation.
 
-## کدام shard از datalog؟ {#sec-05-9-1}
+## Which datalog shard? {#sec-05-9-1}
 
-::: {.algo #alg-05-1 title="انتخاب shard ‏datalog برای یک bucket shard" src="src/rgw/driver/rados/rgw_datalog.cc :: RGWDataChangesLog::choose_oid" complexity="O(طول نام bucket)"}
+::: {.algo #alg-05-1 title="Choosing the datalog shard for a bucket shard" src="src/rgw/driver/rados/rgw_datalog.cc :: RGWDataChangesLog::choose_oid" complexity="O(bucket name length)"}
 :::
 
 ```text
 pseudocode
 shift = max(bucket_shard_id, 0)
-index = (ceph_str_hash_linux(bucket.name) + shift) mod rgw_data_log_num_shards     # پیش‌فرض 128
-# بدون XOR و بدون عدد اول؛ shardهای یک bucket روی shardهای پشت‌سرهم datalog می‌افتند
+index = (ceph_str_hash_linux(bucket.name) + shift) mod rgw_data_log_num_shards     # default 128
+# no XOR and no prime; a bucket's shards land on consecutive datalog shards
 ```
 
-**مثال عددی.** hash نام `photos` برابر 3484799263 است و 3484799263 mod 128 = 31. اگر bucket ‏11 shard ایندکس داشته باشد، تغییرات آن در shardهای 31 تا 41 از datalog ثبت می‌شوند. این پخش عمدی است و Casey Bodley در طراحی reshard چندسایتی آن را «خاصیت مهم مقیاس‌پذیری» نامیده است، چون چند RGW مقصد می‌توانند بار یک bucket پرتغییر را بین خود تقسیم کنند (هر shard ‏datalog با lease دودقیقه‌ای فقط در اختیار یک RGW است).
+**Numeric example.** The hash of the name `photos` is 3484799263, and 3484799263 mod 128 = 31. If the bucket has 11 index shards, its changes are recorded in datalog shards 31 to 41. This spread is deliberate, and Casey Bodley called it an "important scalability property" in the design of multisite reshard, because several destination RGWs can split the load of a busy bucket between them (each datalog shard is held by only one RGW with a two-minute lease).
 
-**نکته‌ی بیت‌های پایین.** در هر گام hash، مقدار `c<<4` مضرب 16 است. پس hash mod 16 فقط به نیبل بالای نویسه‌ها بستگی دارد (برای همه‌ی رقم‌های ASCII برابر 3، برای a تا o برابر 6 و برای p تا z برابر 7). بنابراین همه‌ی نام‌های هم‌طولی که فقط در رقم‌ها با هم فرق دارند، hash mod 16 یکسانی دارند. برای 1000 bucket با نام‌های `bucket-0000` تا `bucket-0999`، hash mod 16 همیشه 8 است و فقط 8 مقدار پایه (8، 24، …، 120) از 128 ممکن است. با 11 shard برای هر bucket، فقط 88 shard از 128 shard ‏datalog کار دارند و 40 shard همیشه خالی می‌مانند. همین تعداد bucket با نام تصادفی 12 نویسه‌ای هر 128 shard را پر می‌کند. ایندکس bucket این مشکل را ندارد، چون پیش از mod، بایت پایین را با XOR به بالا می‌برد و بر عدد اول 7877 تقسیم می‌کند. این نکته روی درستی همگام‌سازی اثری ندارد. فقط موازی‌سازی و پخش بار بین RGWهای مقصد را کم می‌کند.
+**The low-bits point.** At each hash step the value `c<<4` is a multiple of 16. So hash mod 16 depends only on the high nibble of the characters (3 for all ASCII digits, 6 for a to o and 7 for p to z). Therefore all names of the same length that differ only in digits have the same hash mod 16. For 1000 buckets named `bucket-0000` to `bucket-0999`, hash mod 16 is always 8, and only 8 base values (8, 24, …, 120) out of 128 are possible. With 11 shards per bucket, only 88 of the 128 datalog shards get work, and 40 shards always stay empty. The same number of buckets with random 12-character names fills all 128 shards. The bucket index does not have this problem, because before the mod it moves the low byte to the top with XOR and divides by the prime 7877. This point has no effect on sync correctness. It only reduces parallelism and load spreading across the destination RGWs.
 
-![بالا: سهم shardهای datalog از 11000 bucket shard (1000 bucket با نام شماره‌دار و 11 shard برای هر کدام). فقط 88 shard از 128 shard کار دارند، در دسته‌هایی 11تایی که از 8، 24، …، 120 شروع می‌شوند. پایین: همین تعداد bucket با نام تصادفی که همه‌ی 128 shard را می‌پوشاند. خط‌چین میانگین ایده‌آل، یعنی حدود 86 bucket shard برای هر shard ‏datalog است. شبیه‌سازی ما، بر پایه‌ی بازپیاده‌سازی choose_oid](figures/ch05/f06_dlshard.png){#fig-05-f06_dlshard}
+![Top: the share of datalog shards from 11000 bucket shards (1000 buckets with numbered names and 11 shards each). Only 88 of the 128 shards get work, in groups of 11 starting at 8, 24, …, 120. Bottom: the same number of buckets with random names, covering all 128 shards. The dashed line is the ideal mean, about 86 bucket shards per datalog shard. Our simulation, based on a re-implementation of choose_oid](figures/ch05/f06_dlshard.png){#fig-05-f06_dlshard}
 
-## پنجره‌ی ادغام datalog {#sec-05-9-2}
+## The datalog merge window {#sec-05-9-2}
 
-::: {.algo #alg-05-2 title="افزودن ورودی datalog با پنجره و renew" src="src/rgw/driver/rados/rgw_datalog.cc :: RGWDataChangesLog::add_entry، renew_entries، renew_run" complexity="O(1) برای هر نوشتن و O(تعداد bucket shard فعال) برای هر renew"}
+::: {.algo #alg-05-2 title="Adding a datalog entry with the window and renew" src="src/rgw/driver/rados/rgw_datalog.cc :: RGWDataChangesLog::add_entry, renew_entries, renew_run" complexity="O(1) per write and O(number of active bucket shards) per renew"}
 :::
 
 ```text
 pseudocode
 add_entry(bs):
-    if watch روی sem-set سالم نیست: push(entry) ; return        # مسیر ایمن، بدون بهینه‌سازی
+    if the watch on the sem-set is not healthy: push(entry) ; return        # the safe path, no optimisation
     status = change_status[bs]
-    if now < status.cur_expiration:                       # در 30 ثانیه‌ی اخیر ثبت شده
+    if now < status.cur_expiration:                       # recorded in the last 30 seconds
         cur_cycle.add(bs) ; sem_set[index] += key ; return
-    if status.pending: منتظر push جاری بمان ; return
+    if status.pending: wait for the current push ; return
     status.pending = true ; sent = now
     push(entry{key=bs, gen, timestamp=now})
-    status.cur_expiration = sent + rgw_data_log_window      # از زمان شروع، نه پایان
-renew_run: هر window × 3/4 ثانیه (با 30 → 22 ثانیه، تقسیم صحیح)
-    برای هر bs در cur_cycle: push(entry) ; cur_expiration = now + window ; sem_set −= key
+    status.cur_expiration = sent + rgw_data_log_window      # from the start time, not the end
+renew_run: every window × 3/4 seconds (with 30 → 22 seconds, integer division)
+    for each bs in cur_cycle: push(entry) ; cur_expiration = now + window ; sem_set −= key
 ```
 
-**مثال عددی.** فرض کنید از ثانیه‌ی 0 تا 120 هر 10 میلی‌ثانیه یک PUT روی یک bucket shard انجام شود (12000 نوشتن). ورودی‌های datalog فقط در ثانیه‌های 0، 22، 44، 66، 88 و 110 ثبت می‌شوند: شش ورودی به جای 12000. اگر نوشتن‌ها پراکنده باشند (ثانیه‌های 0، 5، 40، 41 و 100)، ورودی‌ها در 0، 22 (renew برای نوشتن ثانیه‌ی 5)، 44 (renew برای 40 و 41) و 100 ثبت می‌شوند. چون بین 44 و 100 نوشتنی نیست، چیزی برای renew در 66 و 88 نمانده است. هر ورودی datalog فقط یعنی «این bucket shard را دوباره نگاه کن». جزئیات تغییر در bilog هست و مقصد آن را می‌خواند. پس ادغام چیزی را گم نمی‌کند، فقط حداکثر حدود یک پنجره به تأخیر کشف تغییر اضافه می‌کند. مجموعه‌ی شمارنده‌ی sem-set و مسیر «watch سالم نیست» در کد main وجود دارند و هدفشان این است که اگر RGW پیش از renew بمیرد، کلیدهای در انتظار گم نشوند. نسخه‌های قدیمی‌تر این سازوکار را نداشتند. پیش از تکیه بر آن، کد نسخه‌ی خود را بررسی کنید.
+**Numeric example.** Suppose that from second 0 to 120 there is a PUT on one bucket shard every 10 milliseconds (12000 writes). Datalog entries are recorded only at seconds 0, 22, 44, 66, 88 and 110: six entries instead of 12000. If the writes are scattered (seconds 0, 5, 40, 41 and 100), entries are recorded at 0, 22 (renew for the write at second 5), 44 (renew for 40 and 41) and 100. Because there is no write between 44 and 100, nothing is left to renew at 66 and 88. Each datalog entry only means "look at this bucket shard again". The details of the change are in the bilog, and the destination reads them. So merging loses nothing; it only adds at most about one window to the delay in discovering a change. The sem-set counter set and the "watch is not healthy" path exist in the main code, and their purpose is to avoid losing pending keys if an RGW dies before renewing. Older releases did not have this mechanism. Check the code of your own release before relying on it.
 
-![بالا: یک bucket shard پرکار با 12000 نوشتن در 120 ثانیه فقط شش ورودی datalog تولید می‌کند. اولی در لحظه‌ی نخستین نوشتن ثبت می‌شود و بقیه در تیک‌های 22 ثانیه‌ای renew. پایین: با نوشتن پراکنده، renew فقط وقتی انجام می‌شود که در پنجره‌ی قبل نوشتنی مانده باشد. نوشتن ثانیه‌ی 100 پس از انقضای پنجره بلافاصله ورودی می‌سازد](figures/ch05/f07_window.png){#fig-05-f07_window}
+![Top: a busy bucket shard with 12000 writes in 120 seconds produces only six datalog entries. The first is recorded at the moment of the first write and the rest at the 22-second renew ticks. Bottom: with scattered writes, a renew happens only when a write was left in the previous window. The write at second 100 creates an entry immediately because the window has expired](figures/ch05/f07_window.png){#fig-05-f07_window}
 
-![درخت تصمیم add_entry در main. ردیف اول مسیر ایمن را نشان می‌دهد: اگر watch روی sem-set قطع باشد، ورودی بی‌درنگ نوشته می‌شود. ردیف دوم ادغام در پنجره و انتظار برای push در جریان است. ردیف سوم push واقعی و چرخه‌ی renew است که پنجره را تمدید می‌کند و شمارنده‌ها را کم می‌کند](figures/ch05/f09_addentry.png){#fig-05-f09_addentry}
+![The add_entry decision tree in main. The first row shows the safe path: if the watch on the sem-set is broken, the entry is written immediately. The second row is merging within the window and waiting for an in-flight push. The third row is the actual push and the renew cycle, which extends the window and decrements the counters](figures/ch05/f09_addentry.png){#fig-05-f09_addentry}
 
-## کدام shard از mdlog؟ {#sec-05-9-3}
+## Which mdlog shard? {#sec-05-9-3}
 
-::: {.algo #alg-05-3 title="انتخاب shard ‏mdlog برای تغییر فراداده" src="src/rgw/driver/rados/rgw_sal_rados.cc (hash_key = section + \":\" + key)؛ src/rgw/driver/rados/rgw_metadata.cc :: rgw_shard_name، RGWMetadataLog::add_entry" complexity="O(طول کلید)"}
+::: {.algo #alg-05-3 title="Choosing the mdlog shard for a metadata change" src="src/rgw/driver/rados/rgw_sal_rados.cc (hash_key = section + \":\" + key); src/rgw/driver/rados/rgw_metadata.cc :: rgw_shard_name, RGWMetadataLog::add_entry" complexity="O(key length)"}
 :::
 
 ```text
 pseudocode
-hash_key = section + ":" + key            # مثلاً "user:alice" یا "bucket:photos"
-shard = ceph_str_hash_linux(hash_key) mod rgw_md_log_max_shards     # پیش‌فرض 64
+hash_key = section + ":" + key            # e.g. "user:alice" or "bucket:photos"
+shard = ceph_str_hash_linux(hash_key) mod rgw_md_log_max_shards     # default 64
 oid = "meta.log." + period_id + "." + shard
 ```
 
-**مثال عددی.** `user:alice` به shard ‏52 می‌رود، `bucket:photos` به 50 و `bucket.instance:photos:a1b2c3d4.4567.1` به 28. mdlog را فقط master zone تولید می‌کند و هر period لاگ خودش را دارد. همان نکته‌ی بیت‌های پایین اینجا شدیدتر است، چون 64 هم توان 2 است و جابه‌جایی shard هم وجود ندارد. 1000 کلید `bucket:bucket-0000` تا `bucket:bucket-0999` فقط در 4 shard (9، 25، 41 و 57) می‌نشینند، هر کدام حدود 250 کلید. در عمل نتیجه این است که meta sync اولیه‌ی چنین نام‌هایی روی 4 shard متمرکز می‌شود، به جای اینکه بین 64 shard پخش شود.
+**Numeric example.** `user:alice` goes to shard 52, `bucket:photos` to 50 and `bucket.instance:photos:a1b2c3d4.4567.1` to 28. Only the master zone produces the mdlog, and each period has its own log. The same low-bits point is more severe here, because 64 is also a power of 2 and there is no shard shift. 1000 keys `bucket:bucket-0000` to `bucket:bucket-0999` land in only 4 shards (9, 25, 41 and 57), about 250 keys each. In practice the result is that the initial meta sync of such names concentrates on 4 shards instead of being spread over 64.
 
-![چپ: shard ‏mdlog برای 1000 کلید bucket با نام شماره‌دار که فقط چهار shard را اشغال می‌کنند. راست: 1000 نام تصادفی که هر 64 shard را می‌پوشانند، با 7 تا 31 کلید در هر shard. محاسبه با بازپیاده‌سازی rgw_shard_name](figures/ch05/f08_mdlog.png){#fig-05-f08_mdlog}
+![Left: the mdlog shard for 1000 bucket keys with numbered names, which occupy only four shards. Right: 1000 random names covering all 64 shards, with 7 to 31 keys per shard. Computed with a re-implementation of rgw_shard_name](figures/ch05/f08_mdlog.png){#fig-05-f08_mdlog}
 
-## trim لاگ‌ها: کمینه‌ی markerها روی همه‌ی peerها {#sec-05-9-4}
+## Trimming logs: the minimum marker across all peers {#sec-05-9-4}
 
-::: {.algo #alg-05-4 title="trim ‏datalog بر پایه‌ی کمترین marker پایدار" src="src/rgw/driver/rados/rgw_trim_datalog.cc :: DataLogTrimCR، take_min_markers، get_stable_marker" complexity="O(peers × shards)"}
+::: {.algo #alg-05-4 title="Trimming the datalog based on the lowest stable marker" src="src/rgw/driver/rados/rgw_trim_datalog.cc :: DataLogTrimCR, take_min_markers, get_stable_marker" complexity="O(peers × shards)"}
 :::
 
 ```text
 pseudocode
-هر rgw_sync_log_trim_interval (20 دقیقه):
-    status[p] = REST GET /admin/log/?type=data&status از هر peer
-    اگر حتی یک peer پاسخ ندهد: این دور trim نکن
+every rgw_sync_log_trim_interval (20 minutes):
+    status[p] = REST GET /admin/log/?type=data&status from each peer
+    if even one peer does not respond: do not trim this round
     for shard i:
         stable(p) = state == FullSync ? next_step_marker : marker
         min_i = min_p stable(p)
         if min_i > last_trim[i]: trim(shard i, up to min_i) ; last_trim[i] = min_i
 ```
 
-**مثال نمادین.** فرض کنید در shard ‏5، peer ‏A تا marker ‏m120 و peer ‏B (که هنوز در full sync است) تا next_step_marker برابر m087 جلو رفته‌اند و trim قبلی تا m050 بوده است. پس shard ‏5 تا m087 کوتاه می‌شود. ورودی‌های m088 تا m120 می‌مانند تا B هم به آن‌ها برسد. markerهای واقعی به نوع backend ‏(cls_log یا FIFO) بستگی دارند و m120 فقط نماد است. پیامد عملی این است که «همه‌ی peerها باید پاسخ دهند». اگر یک zone مدت طولانی از دسترس خارج باشد، datalog و bilogهای zone مبدأ کوتاه نمی‌شوند و pool لاگ رشد می‌کند. پیش از حذف دائمی یک zone، آن را از zonegroup بیرون بیاورید و period را commit کنید.
+**A symbolic example.** Suppose that in shard 5, peer A has advanced to marker m120 and peer B (which is still in full sync) to a next_step_marker of m087, and the previous trim went up to m050. So shard 5 is trimmed up to m087. Entries m088 to m120 remain until B reaches them too. Real markers depend on the backend type (cls_log or FIFO), and m120 is only a symbol. The practical consequence is that "every peer must respond". If a zone is unreachable for a long time, the datalog and bilogs of the source zone are not trimmed and the log pool grows. Before permanently removing a zone, take it out of the zonegroup and commit the period.
 
-![چرخه‌ی trim ‏datalog. هر 20 دقیقه وضعیت همگام‌سازی از همه‌ی peerها گرفته می‌شود. اگر یکی پاسخ ندهد، آن دور trim انجام نمی‌شود. برای هر shard کمترین marker پایدار حساب می‌شود (در full sync، ‏next_step_marker) و فقط وقتی trim انجام می‌شود که از trim قبلی جلوتر باشد. ردیف پایین یک مثال نمادین است](figures/ch05/f10_trim.png){#fig-05-f10_trim}
+![The datalog trim cycle. Every 20 minutes the sync status is fetched from all peers. If one does not respond, that round of trimming is skipped. For each shard the lowest stable marker is computed (in full sync, next_step_marker), and a trim happens only when it is ahead of the previous trim. The bottom row is a symbolic example](figures/ch05/f10_trim.png){#fig-05-f10_trim}
 
-# failover و failback {#sec-05-10}
+# Failover and failback {#sec-05-10}
 
-![تصمیم‌گیری هنگام از دست رفتن master zone: در خرابی کوتاه صبر کنید؛ در خرابی طولانی zone دیگری را master کنید](figures/ch05/f05_failover.png){#fig-05-f05_failover}
+![Deciding when the master zone is lost: wait during a short outage; make another zone the master during a long one](figures/ch05/f05_failover.png){#fig-05-f05_failover}
 
-## وقتی master zone از دسترس خارج می‌شود {#sec-05-10-1}
+## When the master zone becomes unavailable {#sec-05-10-1}
 
-در خرابی master zone، zoneهای دیگر همچنان **داده** را می‌پذیرند و سرویس S3 برای bucketهای موجود ادامه دارد. اما عملیات فراداده‌ای که به master نیاز دارند (ساخت کاربر یا bucket، تغییر سیاست) با خطا مواجه می‌شوند. اگر خرابی طولانی است، zone ثانوی را master کنید:
+When the master zone fails, the other zones still accept **data**, and the S3 service continues for existing buckets. But metadata operations that need the master (creating a user or bucket, changing a policy) fail. If the outage is long, make the secondary zone the master:
 
 ```bash
-# روی کلاستر eu-2
+# On the eu-2 cluster
 radosgw-admin zone modify --rgw-zone=eu-2 --master --default
 radosgw-admin period update --commit
 ceph orch restart rgw.gold-eu2
 ```
 
-## بازگشت master قدیمی {#sec-05-10-2}
+## Return of the old master {#sec-05-10-2}
 
-وقتی eu-1 برگشت، باید period جدید را از master فعلی بگیرد تا بفهمد دیگر master نیست:
+When eu-1 comes back, it must fetch the new period from the current master to learn that it is no longer the master:
 
 ```bash
-# روی کلاستر eu-1
+# On the eu-1 cluster
 radosgw-admin realm pull --url=http://rgw-eu2.example.com:80 --access-key=<AK> --secret=<SK>
 radosgw-admin period pull --url=http://rgw-eu2.example.com:80 --access-key=<AK> --secret=<SK>
 ceph orch restart rgw.gold-eu1
 radosgw-admin sync status
-# اگر می‌خواهید master را برگردانید، پس از همگام شدن:
+# If you want to move the master back, after it has synced:
 radosgw-admin zone modify --rgw-zone=eu-1 --master --default
 radosgw-admin period update --commit
 ```
 
 ::: {.warn}
-اگر هر دو zone هم‌زمان خودشان را master بدانند (مثلاً به دلیل قطع شبکه بین سایت‌ها و ارتقای عجولانه)، دو تاریخچه‌ی period متفاوت ساخته می‌شود. پیش از ارتقای zone ثانوی، مطمئن شوید master قدیمی واقعاً از دسترس خارج است یا RGWهایش متوقف شده‌اند، و پس از بازگشت آن **قبل از** هر تغییری period را pull کنید.
+If both zones consider themselves master at the same time (for example because of a network split between sites and a hasty promotion), two different period histories are created. Before promoting the secondary zone, make sure the old master is really unavailable or its RGWs have been stopped, and after it returns, pull the period **before** making any change.
 :::
 
-## یک runbook حداقلی {#sec-05-10-3}
+## A minimal runbook {#sec-05-10-3}
 
-1. تأیید خرابی master از دو مسیر مستقل (پایش و تماس با تیم سایت).
-2. اعلام وضعیت و توقف تغییرات فراداده‌ای غیرضروری.
-3. ارتقای zone ثانوی به master و commit period.
-4. به‌روزرسانی DNS یا GSLB تا کلاینت‌ها به endpoint سالم بروند.
-5. پس از بازگشت سایت اصلی: pull period، بررسی `sync status` تا caught up، و تصمیم درباره‌ی بازگرداندن master.
-6. ثبت زمان‌ها و درس‌ها در لاگ حادثه.
+1. Confirm the master failure through two independent paths (monitoring and contact with the site team).
+2. Announce the status and stop non-essential metadata changes.
+3. Promote the secondary zone to master and commit the period.
+4. Update DNS or GSLB so that clients go to the healthy endpoint.
+5. After the primary site returns: pull the period, check `sync status` until caught up, and decide whether to move the master back.
+6. Record the times and lessons in the incident log.
 
-# sync policy: کنترل دقیق همگام‌سازی {#sec-05-11}
+# Sync policy: fine-grained control of sync {#sec-05-11}
 
-از Octopus، **sync policy** امکان می‌دهد به‌جای «همه‌ی bucketها در همه‌ی zoneها»، تعیین کنید چه چیزی از کجا به کجا برود. سیاست‌ها در قالب گروه، flow (جریان بین zoneها) و pipe (کدام bucketها) تعریف می‌شوند و در سطح zonegroup یا bucket اعمال می‌شوند.
+Since Octopus, **sync policy** lets you decide what goes from where to where, instead of "all buckets in all zones". Policies are defined as groups, flows (the flow between zones) and pipes (which buckets), and are applied at the zonegroup or bucket level.
 
 ```bash
-# همه‌ی bucketها به‌طور پیش‌فرض «مجاز» اما غیرفعال
+# All buckets "allowed" by default but not enabled
 radosgw-admin sync group create --group-id=global --status=allowed
 radosgw-admin sync group flow create --group-id=global --flow-id=eu-mesh \
   --flow-type=symmetrical --zones=eu-1,eu-2
 radosgw-admin sync group pipe create --group-id=global --pipe-id=all \
   --source-zones='*' --source-bucket='*' --dest-zones='*' --dest-bucket='*'
 radosgw-admin period update --commit
-# فعال کردن همگام‌سازی فقط برای یک bucket
+# Enable sync for one bucket only
 radosgw-admin sync group create --bucket=critical-data --group-id=critical --status=enabled
 radosgw-admin sync group pipe create --bucket=critical-data --group-id=critical \
   --pipe-id=p1 --source-zones='*' --dest-zones='*'
 radosgw-admin sync info --bucket=critical-data
 ```
 
-| وضعیت گروه | معنا |
+| Group status | Meaning |
 |---|---|
-| enabled | همگام‌سازی انجام می‌شود |
-| allowed | مجاز است اما فقط اگر سیاست سطح پایین‌تر (bucket) فعالش کند |
-| forbidden | ممنوع؛ سیاست‌های سطح bucket هم نمی‌توانند فعالش کنند |
+| enabled | Sync happens |
+| allowed | Permitted, but only if a lower-level (bucket) policy enables it |
+| forbidden | Prohibited; bucket-level policies cannot enable it either |
 
 ::: {.tip}
-یک الگوی رایج: در سطح zonegroup وضعیت `allowed` و در سطح bucket فقط برای bucketهای حساس `enabled`. این کار پهنای باند بین‌سایتی را برای bucketهای موقت یا قابل بازتولید هدر نمی‌دهد.
+A common pattern: `allowed` at the zonegroup level and `enabled` at the bucket level only for sensitive buckets. This avoids wasting inter-site bandwidth on temporary or reproducible buckets.
 :::
 
-# archive zone {#sec-05-12}
+# The archive zone {#sec-05-12}
 
-**archive zone** یک zone ویژه است که همه‌ی نسخه‌های همه‌ی اشیاء را نگه می‌دارد، حتی اگر در zoneهای دیگر حذف یا بازنویسی شوند. bucketها در archive zone خودکار versioning دارند. این راهی برای حفاظت در برابر حذف تصادفی یا مخرب بدون تحمیل versioning به کاربران است.
+The **archive zone** is a special zone that keeps every version of every object, even if they are deleted or overwritten in the other zones. Buckets in the archive zone have versioning automatically. This is a way to protect against accidental or malicious deletion without imposing versioning on users.
 
 ```bash
 radosgw-admin zone create --rgw-zonegroup=europe --rgw-zone=eu-archive \
@@ -497,9 +496,9 @@ radosgw-admin zone create --rgw-zonegroup=europe --rgw-zone=eu-archive \
 radosgw-admin period update --commit
 ```
 
-# resharding در multisite {#sec-05-13}
+# Resharding in multisite {#sec-05-13}
 
-پیش از Reef، resharding پویا در multisite پشتیبانی نمی‌شد و reshard دستی هم همگام‌سازی bucket را مختل می‌کرد. از Reef، zonegroup feature به نام `resharding` این امکان را می‌دهد که هر zone مستقل bucketهایش را reshard کند بدون قطع تکثیر. طبق مستندات zone features، این قابلیت فقط وقتی باید فعال شود که همه‌ی zoneها به نسخه‌ی پشتیبان ارتقا یافته باشند:
+Before Reef, dynamic resharding was not supported in multisite, and a manual reshard also disrupted bucket sync. Since Reef, the zonegroup feature named `resharding` lets each zone reshard its buckets independently without interrupting replication. According to the zone features documentation, this feature should be enabled only when all zones have been upgraded to a release that supports it:
 
 ```bash
 radosgw-admin zonegroup modify --rgw-zonegroup=europe --enable-feature=resharding
@@ -507,79 +506,79 @@ radosgw-admin period update --commit
 radosgw-admin sync status | grep features
 ```
 
-# کارایی و طراحی {#sec-05-14}
+# Performance and design {#sec-05-14}
 
-- **RGW اختصاصی همگام‌سازی:** با گزینه‌ی `rgw_run_sync_thread` می‌توانید همگام‌سازی را روی نمونه‌های خاصی اجرا کنید و نمونه‌های رو به کاربر را از بار آن آزاد کنید. endpointهای zone را روی نمونه‌های همگام‌ساز (یا load balancer آن‌ها) تنظیم کنید.
-- **pool لاگ سریع:** datalog و bilog در pool لاگ نوشته می‌شوند؛ این pool را روی SSD بگذارید.
-- **تعداد shardهای datalog:** پیش‌فرض ۱۲۸ است و موازی‌سازی همگام‌سازی داده را تعیین می‌کند.
-- **پایش عقب‌ماندگی:** صادرکننده‌ی Prometheus در MGR و آمار perf کلاینت RGW معیارهای همگام‌سازی دارند. یک هشدار بر اساس «قدیمی‌ترین تغییر اعمال‌نشده» تعریف کنید.
-- **ظرفیت لاگ:** اگر یک zone مدتی طولانی قطع باشد، لاگ‌های تغییرات در zone دیگر انباشته می‌شوند. trim خودکار لاگ‌ها فقط وقتی انجام می‌شود که همه‌ی zoneها آن تغییرات را دریافت کرده باشند.
+- **Dedicated sync RGWs:** with the `rgw_run_sync_thread` option you can run sync on specific instances and free the user-facing instances from its load. Point the zone endpoints at the sync instances (or their load balancer).
+- **A fast log pool:** the datalog and bilog are written to the log pool; put this pool on SSD.
+- **Number of datalog shards:** the default is 128, and it determines the parallelism of data sync.
+- **Monitoring the lag:** the Prometheus exporter in the MGR and the perf statistics of the RGW client have sync metrics. Define an alert based on "oldest incremental change not applied".
+- **Log capacity:** if one zone is down for a long time, change logs accumulate in the other zone. Automatic log trimming happens only when all zones have received those changes.
 
 ::: {.deep}
-RPO در multisite ثابت نیست؛ به نرخ تغییر، پهنای باند، تأخیر و تعداد اشیای کوچک بستگی دارد. اشیای کوچک بسیار زیاد (مثلاً میلیون‌ها فایل چندکیلوبایتی) گلوگاه CPU و درخواست‌اند، نه پهنای باند. برای برآورد واقعی، با بار نمونه‌ی خودتان آزمون کنید و «oldest incremental change not applied» را در اوج بار بسنجید.
+RPO in multisite is not fixed; it depends on the rate of change, bandwidth, latency and the number of small objects. Huge numbers of small objects (for example millions of files of a few kilobytes) are a CPU and request bottleneck, not a bandwidth one. For a realistic estimate, test with a sample of your own workload and measure "oldest incremental change not applied" at peak load.
 :::
 
-# تکمیلی و به‌روز {#sec-05-15}
+# Supplementary and up to date {#sec-05-15}
 
-- **خودکارسازی با `ceph rgw`** و wizard داشبورد (Tentacle) راه‌اندازی را به چند دقیقه رسانده است.
-- **zone features:** علاوه بر `resharding`، قابلیت‌هایی مثل `compress-encrypted` (Reef) و `notification_v2` (Squid) با سازوکار zone feature به‌صورت هماهنگ در همه‌ی zoneها فعال می‌شوند.
-- **OIDC در multisite:** در Umbrella پشتیبانی از OIDC در محیط چندسایتی اضافه شده است.
-- **اصلاح‌های درستی همگام‌سازی:** یادداشت‌های Umbrella اصلاح‌های متعددی را فهرست می‌کنند، از جمله حلقه‌ی بی‌پایان full sync، خطای segfault هنگام راه‌اندازی، درخواست‌های forward‌شده با UNSIGNED-PAYLOAD، قفل‌گذاری full sync در سطح bucket و تغییر نام zonegroup. اگر روی نسخه‌های قدیمی‌تر مشکلات همگام‌سازی دارید، ارتقا را جدی بگیرید.
-- **cloud sync module:** یک zone با `--tier-type=cloud` می‌تواند داده را به یک سرویس S3 بیرونی تکثیر کند.
+- **Automation with `ceph rgw`** and the dashboard wizard (Tentacle) have brought setup down to a few minutes.
+- **Zone features:** besides `resharding`, features such as `compress-encrypted` (Reef) and `notification_v2` (Squid) are enabled in a coordinated way across all zones with the zone feature mechanism.
+- **OIDC in multisite:** Umbrella added support for OIDC in multi-site environments.
+- **Sync correctness fixes:** the Umbrella notes list numerous fixes, including an infinite full-sync loop, a segfault at startup, forwarded requests with UNSIGNED-PAYLOAD, bucket-level full-sync locking and zonegroup renaming. If you have sync problems on older releases, take upgrading seriously.
+- **The cloud sync module:** a zone with `--tier-type=cloud` can replicate data to an external S3 service.
 
-# جمع‌بندی و مرور {#sec-05-16}
+# Summary and review {#sec-05-16}
 
-## خلاصه‌ی فصل {#sec-05-16-1}
+## Chapter summary {#sec-05-16-1}
 
-::: {.summary title="نکته‌های کلیدی"}
+::: {.summary title="Key points"}
 
-- realm فضای نام سراسری است؛ zonegroup واحد تکثیر داده؛ zone یک کلاستر؛ period نسخه‌ی پیکربندی.
-- فراداده از master zone پخش می‌شود؛ داده بین zoneهای یک zonegroup به‌صورت ناهمگام و active-active تکثیر می‌شود.
-- multisite نسخه‌ی ۲ همگام‌سازی را درون radosgw برده و agent قدیمی Hammer را حذف کرده است.
-- راه‌اندازی دستی با `radosgw-admin` یا خودکار با `ceph rgw realm bootstrap` و `ceph rgw zone create`.
-- `sync status`، `bucket sync status` و `sync error list` ابزارهای اصلی پایش‌اند.
-- failover یعنی master کردن zone دیگر و commit period؛ پس از بازگشت، period را pull کنید.
-- sync policy، archive zone و zone feature `resharding` multisite را منعطف‌تر کرده‌اند.
+- The realm is the global namespace; the zonegroup is the unit of data replication; a zone is one cluster; a period is a configuration version.
+- Metadata is distributed from the master zone; data is replicated between the zones of a zonegroup asynchronously and active-active.
+- Multisite version 2 moved sync into radosgw and removed Hammer's old agent.
+- Setup is manual with `radosgw-admin` or automated with `ceph rgw realm bootstrap` and `ceph rgw zone create`.
+- `sync status`, `bucket sync status` and `sync error list` are the main monitoring tools.
+- Failover means making another zone the master and committing the period; after the return, pull the period.
+- Sync policy, the archive zone and the `resharding` zone feature have made multisite more flexible.
 
 :::
 
-## اشتباهات رایج {#sec-05-16-2}
+## Common mistakes {#sec-05-16-2}
 
-- endpointهایی که فقط از یک سایت قابل‌دسترسی‌اند.
-- ساختن zone جدید به‌جای تغییر نام zone پیش‌فرض دارای داده.
-- نگه داشتن کلید کاربر system در اسکریپت‌ها و مخازن.
-- ارتقای عجولانه‌ی zone ثانوی به master در قطع شبکه‌ی موقت.
-- فعال کردن zone feature پیش از ارتقای همه‌ی zoneها.
-- نادیده گرفتن عقب‌ماندگی تا وقتی کاربران گزارش دهند.
+- Endpoints that are reachable from only one site.
+- Creating a new zone instead of renaming the default zone that holds data.
+- Keeping the system user's key in scripts and repositories.
+- Hastily promoting the secondary zone to master during a temporary network outage.
+- Enabling a zone feature before all zones have been upgraded.
+- Ignoring lag until users report it.
 
-## تمرین عملی {#sec-05-16-3}
+## Hands-on exercise {#sec-05-16-3}
 
-1. دو کلاستر تک‌نودی بسازید و multisite را یک‌بار دستی و یک‌بار با `ceph rgw realm bootstrap` راه بیندازید. زمان و تعداد گام‌ها را مقایسه کنید.
-2. هزار شیء در zone اصلی بنویسید و با `sync status` و `bucket sync status` روند همگام‌سازی را ثبت کنید.
-3. RGWهای zone اصلی را متوقف کنید، در zone ثانوی شیء بنویسید و ساخت bucket را امتحان کنید. پیام خطا را توضیح دهید. سپس failover کامل انجام دهید.
-4. یک sync policy بسازید که فقط bucketی با نام `critical-*` همگام شود و نشان دهید bucketهای دیگر همگام نمی‌شوند.
-5. یک archive zone اضافه کنید، شیئی را در zone اصلی حذف کنید و نسخه‌ی آن را در archive zone پیدا کنید.
+1. Build two single-node clusters and set up multisite once by hand and once with `ceph rgw realm bootstrap`. Compare the time and the number of steps.
+2. Write a thousand objects in the primary zone and record the progress of sync with `sync status` and `bucket sync status`.
+3. Stop the RGWs of the primary zone, write an object in the secondary zone and try creating a bucket. Explain the error message. Then do a full failover.
+4. Create a sync policy under which only buckets named `critical-*` are synced, and show that other buckets are not synced.
+5. Add an archive zone, delete an object in the primary zone and find its version in the archive zone.
 
-## پرسش‌های مرور {#sec-05-16-4}
+## Review questions {#sec-05-16-4}
 
-1. تفاوت نقش zonegroup و realm در تکثیر داده و فراداده چیست؟
-2. period چیست و چرا پس از تغییرات ساختاری باید commit شود؟
-3. سه تفاوت اصلی multisite نسخه‌ی ۲ با پیکربندی federated در Hammer کدام‌اند؟
-4. چرا ساخت bucket در zone غیر master هنگام از دست رفتن master شکست می‌خورد اما نوشتن شیء نه؟
-5. کاربر system چه نقشی دارد و چرا باید به‌شدت حفاظت شود؟
-6. در خروجی `sync status` عبارت «oldest incremental change not applied» چه اطلاعاتی می‌دهد؟
-7. گام‌های failover و بازگرداندن master قدیمی را بنویسید.
-8. تفاوت وضعیت‌های enabled، allowed و forbidden در sync policy چیست؟
-9. archive zone چه مشکلی را حل می‌کند؟
-10. چرا resharding پیش از Reef در multisite مشکل‌ساز بود و امروز چطور حل شده است؟
+1. How do the roles of the zonegroup and the realm differ in replicating data and metadata?
+2. What is a period, and why must it be committed after structural changes?
+3. What are the three main differences between multisite version 2 and the federated configuration in Hammer?
+4. Why does creating a bucket in a non-master zone fail when the master is lost, while writing an object does not?
+5. What role does the system user play, and why must it be strongly protected?
+6. What information does the phrase "oldest incremental change not applied" give in the output of `sync status`?
+7. Write down the steps of a failover and of returning the old master.
+8. What is the difference between the enabled, allowed and forbidden states in sync policy?
+9. What problem does the archive zone solve?
+10. Why was resharding problematic in multisite before Reef, and how is it solved today?
 
-## منابع این فصل {#sec-05-16-5}
+## Sources for this chapter {#sec-05-16-5}
 
-- مستندات Ceph — Multi-Site: https://docs.ceph.com/en/latest/radosgw/multisite/
-- مستندات Ceph — Multisite Sync Policy: https://docs.ceph.com/en/latest/radosgw/multisite-sync-policy/
-- مستندات Ceph — Zone Features: https://docs.ceph.com/en/latest/radosgw/zone-features/
-- مستندات Ceph — ماژول rgw در MGR: https://docs.ceph.com/en/latest/mgr/rgw/
-- مستندات Ceph — Archive Sync Module: https://docs.ceph.com/en/latest/radosgw/archive-sync-module/
-- مستندات Ceph — Cloud Sync Module: https://docs.ceph.com/en/latest/radosgw/cloud-sync-module/
-- مستندات cephadm — سرویس RGW در multisite: https://docs.ceph.com/en/latest/cephadm/services/rgw/
-- یادداشت‌های انتشار Umbrella (بخش Multisite): https://docs.ceph.com/en/latest/releases/umbrella/
+- Ceph documentation — Multi-Site: https://docs.ceph.com/en/latest/radosgw/multisite/
+- Ceph documentation — Multisite Sync Policy: https://docs.ceph.com/en/latest/radosgw/multisite-sync-policy/
+- Ceph documentation — Zone Features: https://docs.ceph.com/en/latest/radosgw/zone-features/
+- Ceph documentation — The rgw module in the MGR: https://docs.ceph.com/en/latest/mgr/rgw/
+- Ceph documentation — Archive Sync Module: https://docs.ceph.com/en/latest/radosgw/archive-sync-module/
+- Ceph documentation — Cloud Sync Module: https://docs.ceph.com/en/latest/radosgw/cloud-sync-module/
+- cephadm documentation — The RGW service in multisite: https://docs.ceph.com/en/latest/cephadm/services/rgw/
+- Umbrella release notes (Multisite section): https://docs.ceph.com/en/latest/releases/umbrella/

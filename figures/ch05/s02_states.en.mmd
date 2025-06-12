@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["rgw_data_sync_info::state (rgw_data_sync.h)"]
+    direction LR
+    a["StateInit = 0<br/>create each shard's status objects"] --> b["StateBuildingFullSyncMaps = 1<br/>list all of the source's<br/>buckets in the full-sync map"] --> c["StateSync = 2<br/>each shard advances independently"]
+  end
+  subgraph R2["each datalog shard in StateSync"]
+    direction LR
+    fs["full sync:<br/>walk the full-sync map,<br/>fully sync each bucket shard"] --> is["incremental sync:<br/>read the datalog from the marker<br/>every rgw_data_sync_poll_interval=20s"] --> er["error → error repo<br/>later retry (rgw_sync_error_repo)"]
+  end
+  subgraph R3["coordination between several destination RGWs"]
+    direction LR
+    l["lease on the status object<br/>rgw_sync_lease_period=2min"] --- t["trim the source's logs<br/>every rgw_sync_log_trim_interval=20min<br/>up to the lowest marker of all peers"]
+  end
+  R1 ~~~ R2 ~~~ R3

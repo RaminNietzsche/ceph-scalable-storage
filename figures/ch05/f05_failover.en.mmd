@@ -1,0 +1,5 @@
+flowchart TB
+  N["normal state<br/>eu-1 is the metadata master"] --> D{"eu-1 is unavailable"}
+  D -->|"short outage"| W["wait; data writes continue in eu-2<br/>only user and bucket creation stops"]
+  D -->|"long outage"| F["in eu-2: zone modify --master --default<br/>period update --commit"]
+  F --> B["eu-1 returns: realm pull · period pull<br/>and move the master back if needed"]
