@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["structure of a cap: (prefix) + (generic bits) — include/ceph_fs.h"]
+    direction LR
+    p["p = PIN<br/>keep the inode in the client cache"] --- a["A = Auth<br/>(mode, uid, gid)"] --- l["L = Link<br/>(nlink)"] --- x["X = Xattr"] --- f["F = File<br/>(content, size, mtime)"]
+  end
+  subgraph R2["generic bits (shifted onto each prefix)"]
+    direction LR
+    s["s = SHARED (1)<br/>read metadata"] --- e["x = EXCL (2)<br/>local change"] --- c["c = CACHE (4)<br/>read cache"] --- r["r = RD (8)"] --- w["w = WR (16)"] --- b["b = BUFFER (32)<br/>write buffer"] --- ex["a = WREXTEND (64)<br/>l = LAZYIO (128)"]
+  end
+  subgraph R3["symbolic examples (real output varies with state)"]
+    direction LR
+    n1["pAsLsXsFs<br/>ordinary reader"] --- n2["pAsLsXsFsxcrwb<br/>sole writer: full cache + buffer"] --- n3["pAsLsXsFrw<br/>two concurrent writers:<br/>no c and b → synchronous I/O to the OSD"]
+  end
+  R1 ~~~ R2 ~~~ R3

@@ -1,0 +1,12 @@
+flowchart LR
+  subgraph CL["clients"]
+    direction TB
+    K["Linux: kernel client<br/>mount -t ceph"]
+    F["Linux/Mac: ceph-fuse<br/>libcephfs"]
+    N["any system: NFS v4.1+"]
+    W["Windows/Mac: SMB"]
+  end
+  K --> FS[("CephFS")]
+  F --> FS
+  N --> G["NFS-Ganesha<br/>nfs module + ingress"] --> FS
+  W --> SM["Samba<br/>smb module (Tentacle)"] --> FS

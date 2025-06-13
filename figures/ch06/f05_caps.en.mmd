@@ -1,0 +1,12 @@
+sequenceDiagram
+  participant A as client A
+  participant M as MDS
+  participant B as client B
+  A->>M: open(report.txt, write)
+  M-->>A: write capability + buffer
+  A->>A: write to the local cache
+  B->>M: open(report.txt, read)
+  M->>A: capability recall (revoke)
+  A->>A: flush data to the OSDs
+  A-->>M: release the capability
+  M-->>B: read capability

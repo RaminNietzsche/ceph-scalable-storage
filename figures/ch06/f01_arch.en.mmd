@@ -1,0 +1,7 @@
+flowchart TB
+  C["CephFS client<br/>kernel or FUSE"] -->|"metadata: open, mkdir, stat, locks and capabilities"| MDS["active MDS<br/>metadata cache"]
+  C ==>|"data: direct object reads and writes"| DP[("data pool<br/>cephfs.fs01.data")]
+  MDS -->|"journal and inodes"| MP[("metadata pool<br/>cephfs.fs01.meta on SSD")]
+  SB["standby MDS<br/>or standby-replay"] -.->|"follows the journal"| MP
+  MON["MON: FSMap"] --> MDS
+  MON --> SB

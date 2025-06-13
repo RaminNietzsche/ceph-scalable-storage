@@ -1,0 +1,8 @@
+flowchart TB
+  R["/ (rank 0)"] --> H["/home<br/>pin → rank 1"]
+  R --> P["/projects<br/>pin → rank 2"]
+  R --> S["/scratch<br/>distributed ephemeral pin"]
+  H --> H1["/home/alice"]
+  H --> H2["/home/bob"]
+  P --> P1["/projects/ml"]
+  S --> S1["subdirectories spread across ranks"]

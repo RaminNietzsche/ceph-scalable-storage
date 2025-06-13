@@ -5,54 +5,53 @@ title: The Ceph File System (CephFS)
 part: main
 original_heading: Working with the Ceph Filesystem
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-06-1}
+# Before you start {#sec-06-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-06-1-1}
+## What questions does this chapter answer? {#sec-06-1-1}
 
-CephFS قدیمی‌ترین هدف پروژه‌ی Ceph بود (پایان‌نامه‌ی Sage Weil درباره‌ی یک فایل‌سیستم توزیع‌شده بود) و در عین حال آخرین رابطی بود که به بلوغ production رسید؛ از نسخه‌ی Jewel پایدار اعلام شد. امروز CephFS پشتوانه‌ی اشتراک‌های فایل در OpenStack Manila، volumeهای ReadWriteMany در Kubernetes، خانه‌ی کاربران در خوشه‌های HPC و حتی اشتراک‌های SMB برای کاربران ویندوز است. در این فصل:
+CephFS was the oldest goal of the Ceph project (Sage Weil's dissertation was about a distributed file system), and at the same time it was the last interface to reach production maturity; it was declared stable in Jewel. Today CephFS backs file shares in OpenStack Manila, ReadWriteMany volumes in Kubernetes, user home directories in HPC clusters and even SMB shares for Windows users. In this chapter:
 
-- معماری CephFS چیست و MDS دقیقاً چه کاری انجام می‌دهد که OSD نمی‌کند؟
-- چطور فایل‌سیستم بسازیم، MDSها را مستقر کنیم و دسترس‌پذیری بالا (standby و standby-replay) داشته باشیم؟
-- با کلاینت هسته و FUSE چطور mount کنیم و کدام را کی انتخاب کنیم؟
-- چطور CephFS را با NFS (و از Tentacle با SMB) صادر کنیم؟
-- subvolume، snapshot، quota و layout چه هستند؟
-- ادعای «جایگزین HDFS» در کتاب اصلی امروز چه وضعی دارد؟
+- What is the CephFS architecture, and what exactly does the MDS do that the OSD does not?
+- How do we create a file system, deploy MDSs and get high availability (standby and standby-replay)?
+- How do we mount with the kernel client and FUSE, and which should we choose when?
+- How do we export CephFS with NFS (and, since Tentacle, with SMB)?
+- What are subvolumes, snapshots, quotas and layouts?
+- Where does the original book's "HDFS replacement" claim stand today?
 
-## پیش‌نیاز {#sec-06-1-2}
+## Prerequisites {#sec-06-1-2}
 
-کلاستر فصل ۱ و client-node1. اگر در فصل ۱ `ceph fs volume create cephfs01` را اجرا کرده‌اید، یک فایل‌سیستم آماده دارید.
+The cluster from chapter 1 and client-node1. If you ran `ceph fs volume create cephfs01` in chapter 1, you already have a file system.
 
-# CephFS و MDS {#sec-06-2}
+# CephFS and the MDS {#sec-06-2}
 
-## معماری {#sec-06-2-1}
+## Architecture {#sec-06-2-1}
 
-![معماری CephFS: کلاینت فراداده را از MDS و داده را مستقیم از OSDها می‌گیرد؛ MDS journal و inodeها را در pool فراداده نگه می‌دارد](figures/ch06/f01_arch.png){#fig-06-f01_arch}
+![CephFS architecture: the client gets metadata from the MDS and data directly from the OSDs; the MDS keeps its journal and inodes in the metadata pool](figures/ch06/f01_arch.png){#fig-06-f01_arch}
 
-CephFS از دو pool استفاده می‌کند: یک **pool فراداده** (درخت پوشه‌ها، inodeها و journal MDS) و یک یا چند **pool داده** (محتوای فایل‌ها، شکسته به اشیای ۴ مگابایتی، مانند RBD). نکته‌ی کلیدی این طراحی جداسازی مسیر فراداده و داده است:
+CephFS uses two pools: a **metadata pool** (the directory tree, inodes and the MDS journal) and one or more **data pools** (file contents, broken into 4 MB objects, as in RBD). The key point of this design is the separation of the metadata path from the data path:
 
-- کلاینت برای `open`، `mkdir`، `stat`، `rename` و قفل‌ها با **MDS** صحبت می‌کند.
-- پس از گرفتن مجوز، کلاینت داده را **مستقیم** با OSDها می‌خواند و می‌نویسد. MDS در مسیر داده نیست و گلوگاه پهنای باند نمی‌شود.
+- The client talks to the **MDS** for `open`, `mkdir`, `stat`, `rename` and locks.
+- After getting permission, the client reads and writes data **directly** with the OSDs. The MDS is not on the data path and does not become a bandwidth bottleneck.
 
 ::: {.deep}
-MDS خودش هیچ داده‌ای را روی دیسک محلی نگه نمی‌دارد. همه‌ی وضعیت پایدارش در RADOS است: تغییرات فراداده اول در یک **journal** در pool فراداده نوشته می‌شوند و بعد به اشیای پوشه‌ها (dirfrag) منتقل می‌شوند. این یعنی هر MDS آماده‌به‌کاری می‌تواند با بازپخش journal جای MDS خراب را بگیرد. حافظه‌ی MDS عملاً یک cache بزرگ از فراداده است و اندازه‌ی آن (`mds_cache_memory_limit`، پیش‌فرض ۴ گیگابایت) مهم‌ترین تنظیم کارایی آن است.
+The MDS itself keeps no data on local disk. All of its persistent state is in RADOS: metadata changes are first written to a **journal** in the metadata pool and later moved into the directory objects (dirfrags). This means any standby MDS can take the place of a failed MDS by replaying the journal. The MDS's memory is effectively a large metadata cache, and its size (`mds_cache_memory_limit`, default 4 GB) is its most important performance setting.
 :::
 
-## capability: هماهنگی cache بین کلاینت‌ها {#sec-06-2-2}
+## Capabilities: coordinating caches between clients {#sec-06-2-2}
 
-CephFS سازگاری POSIX را جدی می‌گیرد: اگر یک کلاینت فایل را تغییر دهد، کلاینت دیگر باید فوراً تغییر را ببیند. این کار با **capability**ها انجام می‌شود: MDS به هر کلاینت مجوزهای مشخصی (خواندن، نوشتن، cache کردن، buffer کردن) روی هر inode می‌دهد و در صورت نیاز آن‌ها را پس می‌گیرد.
+CephFS takes POSIX consistency seriously: if one client changes a file, another client must see the change immediately. This is done with **capabilities**: the MDS gives each client specific permissions (read, write, cache, buffer) on each inode and takes them back when necessary.
 
-![فراخوانی capability: وقتی کلاینت دوم فایل را باز می‌کند، MDS از کلاینت اول می‌خواهد داده‌ی buffer‌شده را flush کند و مجوزش را آزاد کند](figures/ch06/f05_caps.png){#fig-06-f05_caps}
+![Capability recall: when a second client opens the file, the MDS asks the first client to flush its buffered data and release its permission](figures/ch06/f05_caps.png){#fig-06-f05_caps}
 
 ::: {.warn}
-کلاینتی که capabilityها را آزاد نمی‌کند (مثلاً به دلیل قطع شبکه، باگ یا فرایند معلق) می‌تواند دسترسی بقیه را معطل کند. هشدارهایی مثل `MDS_HEALTH_CLIENT_LATE_RELEASE` و `MDS_CLIENT_RECALL` نشانه‌ی همین‌اند. MDS پس از مهلت مشخص چنین کلاینتی را **evict** و در فهرست سیاه (blocklist) OSDها قرار می‌دهد تا نتواند داده‌ی کهنه بنویسد. کلاینت evict‌شده باید دوباره mount شود.
+A client that does not release capabilities (for example because of a network outage, a bug or a hung process) can hold up everyone else's access. Warnings such as `MDS_HEALTH_CLIENT_LATE_RELEASE` and `MDS_CLIENT_RECALL` are signs of this. After a set timeout the MDS **evicts** such a client and puts it on the OSDs' blocklist so that it cannot write stale data. An evicted client must be mounted again.
 :::
 
-## ساختن فایل‌سیستم {#sec-06-2-3}
+## Creating a file system {#sec-06-2-3}
 
-ساده‌ترین راه با cephadm، رابط **volumes** در MGR است که poolها، فایل‌سیستم و MDSها را یک‌جا می‌سازد:
+The simplest way with cephadm is the **volumes** interface in the MGR, which creates the pools, the file system and the MDSs in one go:
 
 ```bash
 ceph fs volume create fs01 --placement="2 ceph-node3 ceph-node4"
@@ -61,26 +60,26 @@ ceph fs status fs01
 ceph orch ps --daemon-type mds
 ```
 
-روش دستی، وقتی کنترل کامل بر poolها لازم است:
+The manual way, when you need full control over the pools:
 
 ```bash
 ceph osd pool create cephfs.fs02.meta
 ceph osd pool create cephfs.fs02.data
-ceph osd pool set cephfs.fs02.meta crush_rule ssd-rule     # فراداده روی SSD
+ceph osd pool set cephfs.fs02.meta crush_rule ssd-rule     # metadata on SSD
 ceph fs new fs02 cephfs.fs02.meta cephfs.fs02.data
 ceph orch apply mds fs02 --placement="2 ceph-node3 ceph-node4"
 ```
 
 ::: {.tip}
-pool فراداده کوچک است اما حساس به تأخیر؛ همیشه آن را تکثیری (نه EC) و روی SSD یا NVMe بگذارید. اگر می‌خواهید داده روی EC باشد، pool داده‌ی **پیش‌فرض** را تکثیری بسازید و pool EC را به‌عنوان pool داده‌ی دوم اضافه کنید (`ceph fs add_data_pool`) و با layout پوشه‌ها را به آن هدایت کنید. دلیلش این است که CephFS فراداده‌ی backtrace همه‌ی فایل‌ها را در pool داده‌ی پیش‌فرض نگه می‌دارد. pool EC هم باید `allow_ec_overwrites` داشته باشد.
+The metadata pool is small but latency-sensitive; always make it replicated (not EC) and put it on SSD or NVMe. If you want data on EC, create the **default** data pool as replicated, add the EC pool as a second data pool (`ceph fs add_data_pool`) and direct directories to it with a layout. The reason is that CephFS keeps the backtrace metadata of every file in the default data pool. The EC pool must also have `allow_ec_overwrites`.
 :::
 
-## دسترس‌پذیری بالا {#sec-06-2-4}
+## High availability {#sec-06-2-4}
 
-| حالت | رفتار | زمان جایگزینی |
+| Mode | Behaviour | Takeover time |
 |---|---|---|
-| standby | MDS بیکار که در صورت خرابی هر rank فعالی جایش را می‌گیرد | باید journal را از ابتدا بازپخش و cache را گرم کند؛ ثانیه‌ها تا دقیقه‌ها |
-| standby-replay | MDS که journal یک rank مشخص را دائماً دنبال می‌کند | بسیار سریع؛ cache تقریباً گرم است |
+| standby | An idle MDS that takes the place of any active rank that fails | Must replay the journal from the start and warm the cache; seconds to minutes |
+| standby-replay | An MDS that continuously follows the journal of a specific rank | Very fast; the cache is almost warm |
 
 ```bash
 ceph fs set fs01 allow_standby_replay true
@@ -89,80 +88,80 @@ ceph fs status fs01
 ```
 
 ::: {.note}
-هر rank فعال فقط می‌تواند یک standby-replay داشته باشد. اگر چند فایل‌سیستم دارید، MDSهای آماده‌به‌کار معمولی بین همه‌ی آن‌ها مشترک‌اند، مگر این‌که با `mds_join_fs` یک MDS را به فایل‌سیستم خاصی وابسته کنید.
+Each active rank can have only one standby-replay. If you have several file systems, ordinary standby MDSs are shared between all of them, unless you tie an MDS to a specific file system with `mds_join_fs`.
 :::
 
-## چند MDS فعال {#sec-06-2-5}
+## Multiple active MDSs {#sec-06-2-5}
 
-وقتی یک MDS دیگر جوابگوی بار فراداده نیست (مثلاً میلیون‌ها فایل کوچک یا هزاران کلاینت)، می‌توانید چند MDS **فعال** داشته باشید. هر کدام یک **rank** است و مسئول بخشی از درخت پوشه‌هاست:
+When one MDS can no longer handle the metadata load (for example millions of small files or thousands of clients), you can have several **active** MDSs. Each is a **rank** and is responsible for part of the directory tree:
 
 ```bash
 ceph fs set fs01 max_mds 2
 ceph fs status fs01
-# سنجاق کردن صریح یک زیردرخت به یک rank
+# Explicitly pin a subtree to a rank
 setfattr -n ceph.dir.pin -v 1 /mnt/fs01/home
-# توزیع خودکار زیرپوشه‌ها بین rankها (ephemeral distributed pin)
+# Automatically distribute subdirectories between ranks (ephemeral distributed pin)
 setfattr -n ceph.dir.pin.distributed -v 1 /mnt/fs01/scratch
 ```
 
-![چند MDS فعال: زیردرخت‌ها با pin صریح یا pin توزیع‌شده بین rankها تقسیم می‌شوند](figures/ch06/f02_multi_mds.png){#fig-06-f02_multi_mds}
+![Multiple active MDSs: subtrees are divided between ranks with an explicit pin or a distributed pin](figures/ch06/f02_multi_mds.png){#fig-06-f02_multi_mds}
 
 ::: {.warn}
-متعادل‌کننده‌ی خودکار MDS (که زیردرخت‌ها را بر اساس بار بین rankها جابه‌جا می‌کند) در گذشته منبع ناپایداری بوده است. توصیه‌ی رایج جامعه و مستندات این است که در production از **pinning صریح** استفاده کنید. همچنین در Tentacle تغییر `max_mds` روی کلاستر ناسالم نیازمند پرچم تأیید `--yes-i-really-mean-it` شده است، چون افزودن MDS در حین مشکل معمولاً حالت را بدتر می‌کند.
+The automatic MDS balancer (which moves subtrees between ranks based on load) has been a source of instability in the past. The common recommendation of the community and the documentation is to use **explicit pinning** in production. Also, in Tentacle changing `max_mds` on an unhealthy cluster requires the confirmation flag `--yes-i-really-mean-it`, because adding MDSs during a problem usually makes things worse.
 :::
 
-# دسترسی کلاینت‌ها {#sec-06-3}
+# Client access {#sec-06-3}
 
-![چهار راه دسترسی به CephFS: کلاینت هسته، ceph-fuse، NFS از طریق Ganesha و SMB از طریق Samba](figures/ch06/f03_access.png){#fig-06-f03_access}
+![Four ways to access CephFS: the kernel client, ceph-fuse, NFS through Ganesha and SMB through Samba](figures/ch06/f03_access.png){#fig-06-f03_access}
 
-## ساختن کاربر با دسترسی محدود {#sec-06-3-1}
+## Creating a user with restricted access {#sec-06-3-1}
 
-هیچ‌وقت کلید `client.admin` را روی کلاینت فایل‌سیستم نگذارید. دستور `ceph fs authorize` کاربری می‌سازد که فقط به فایل‌سیستم و مسیر مشخصی دسترسی دارد و capabilityهای لازم روی MON، MDS و OSD را خودش تنظیم می‌کند:
+Never put the `client.admin` key on a file system client. The `ceph fs authorize` command creates a user that can access only a specific file system and path, and it sets the necessary capabilities on the MON, MDS and OSD itself:
 
 ```bash
 ceph fs authorize fs01 client.webapp /web rw
 ceph fs authorize fs01 client.analyst / r /reports rw
 ceph auth get client.webapp
-# روی کلاینت
-ceph auth get client.webapp -o /etc/ceph/ceph.client.webapp.keyring   # از گره مدیریت
+# On the client
+ceph auth get client.webapp -o /etc/ceph/ceph.client.webapp.keyring   # from the admin node
 scp /etc/ceph/ceph.conf /etc/ceph/ceph.client.webapp.keyring client-node1:/etc/ceph/
 ```
 
 ::: {.tip}
-کاربر دوم مثال بالا کل فایل‌سیستم را فقط‌خواندنی و `/reports` را خواندنی‌نوشتنی می‌بیند. برای جلوگیری از تغییر layout یا quota توسط کاربر، پرچم‌های `p` (layout و quota) و `s` (snapshot) را به او ندهید؛ این پرچم‌ها فقط وقتی صراحتاً بدهید (مثلاً `rwps`) فعال‌اند.
+The second user in the example above sees the whole file system read-only and `/reports` read-write. To prevent the user from changing layouts or quotas, do not give them the `p` (layout and quota) and `s` (snapshot) flags; these flags are active only when you give them explicitly (for example `rwps`).
 :::
 
-## کلاینت هسته {#sec-06-3-2}
+## The kernel client {#sec-06-3-2}
 
-کلاینت هسته‌ی لینوکس (`ceph.ko`) سریع‌ترین و کم‌سربارترین راه است و برای اغلب بارهای production گزینه‌ی پیش‌فرض است. نحو جدید mount (که مستندات آن را «v2» می‌نامد) شکل `name@fsid.fs_name=/path` دارد:
+The Linux kernel client (`ceph.ko`) is the fastest and lowest-overhead way and is the default choice for most production workloads. The new mount syntax (which the documentation calls "v2") has the form `name@fsid.fs_name=/path`:
 
 ```bash
-sudo dnf install -y ceph-common            # یا apt install ceph-common
+sudo dnf install -y ceph-common            # or apt install ceph-common
 FSID=$(ceph fsid)
 sudo mkdir -p /mnt/fs01
 sudo mount -t ceph webapp@${FSID}.fs01=/web /mnt/fs01
-# اگر ceph.conf روی کلاینت نیست، آدرس MONها را صریحاً بدهید
+# If ceph.conf is not on the client, give the MON addresses explicitly
 sudo mount -t ceph webapp@${FSID}.fs01=/web /mnt/fs01 -o mon_addr=192.168.10.11/192.168.10.12
 df -h /mnt/fs01
 ```
 
-برای mount دائمی در `/etc/fstab`:
+For a permanent mount in `/etc/fstab`:
 
 ```text
 webapp@<fsid>.fs01=/web  /mnt/fs01  ceph  noatime,_netdev  0 0
 ```
 
 ::: {.note}
-نحو قدیمی `mount -t ceph 192.168.10.11:6789:/ /mnt -o name=webapp` هنوز کار می‌کند و در بسیاری از راهنماهای قدیمی (از جمله کتاب ۲۰۱۹) آمده است. نحو جدید روشن‌تر است چون نام فایل‌سیستم و fsid را صریحاً مشخص می‌کند و در کلاسترهای چند‌فایل‌سیستمی ابهام ندارد. با `-o ms_mode=secure` هم ترافیک کلاینت هسته با msgr2 رمزنگاری می‌شود.
+The old syntax `mount -t ceph 192.168.10.11:6789:/ /mnt -o name=webapp` still works and appears in many older guides (including the 2019 book). The new syntax is clearer because it names the file system and the fsid explicitly and is unambiguous on clusters with several file systems. With `-o ms_mode=secure` the kernel client's traffic is also encrypted with msgr2.
 :::
 
 ::: {.warn}
-کلاینت هسته به نسخه‌ی هسته‌ی سیستم‌عامل گره خورده است. قابلیت‌های جدید (مثل quota روی هسته‌های خیلی قدیمی یا رمزنگاری fscrypt) فقط روی هسته‌های جدید در دسترس‌اند. روی توزیع‌های enterprise، backportهای توزیع‌کننده مهم‌تر از شماره‌ی هسته‌اند؛ قبل از تصمیم، جدول سازگاری مستندات را بخوانید.
+The kernel client is tied to the operating system's kernel version. New features (such as quotas on very old kernels, or fscrypt encryption) are available only on new kernels. On enterprise distributions the vendor's backports matter more than the kernel number; read the compatibility table in the documentation before deciding.
 :::
 
 ## ceph-fuse {#sec-06-3-3}
 
-`ceph-fuse` در فضای کاربر اجرا می‌شود و بر پایه‌ی libcephfs است، پس همیشه هم‌نسخه‌ی کلاستر است و قابلیت‌های جدید را زودتر دارد؛ اما به دلیل تعویض context بین هسته و فضای کاربر کندتر است.
+`ceph-fuse` runs in user space and is based on libcephfs, so it always matches the cluster version and gets new features sooner; but it is slower because of the context switches between kernel and user space.
 
 ```bash
 sudo dnf install -y ceph-fuse
@@ -172,41 +171,41 @@ sudo ceph-fuse --id webapp --client_fs fs01 -r /web /mnt/fs01-fuse
 # none  /mnt/fs01-fuse  fuse.ceph  ceph.id=webapp,ceph.client_fs=fs01,ceph.client_mountpoint=/web,_netdev,defaults  0 0
 ```
 
-| معیار | کلاینت هسته | ceph-fuse |
+| Criterion | Kernel client | ceph-fuse |
 |---|---|---|
-| کارایی | بهتر؛ بدون سربار فضای کاربر | کمتر، به‌ویژه در فراداده‌ی سنگین |
-| به‌روز بودن | وابسته به هسته‌ی سیستم‌عامل | هم‌نسخه با بسته‌های Ceph |
-| اشکال‌زدایی | سخت‌تر (dmesg) | ساده‌تر (لاگ و admin socket) |
-| خطای کلاینت | ممکن است کل گره را درگیر کند | محدود به همان فرایند |
-| موارد مناسب | production، HPC، Kubernetes | کلاینت‌های قدیمی، آزمایش، macOS |
+| Performance | Better; no user-space overhead | Lower, especially under heavy metadata load |
+| Currency | Depends on the operating system kernel | Same version as the Ceph packages |
+| Debugging | Harder (dmesg) | Easier (logs and admin socket) |
+| Client failure | Can affect the whole node | Limited to that process |
+| Suitable cases | Production, HPC, Kubernetes | Old clients, testing, macOS |
 
-# صدور با NFS و SMB {#sec-06-4}
+# Exporting with NFS and SMB {#sec-06-4}
 
-## NFS با ماژول nfs {#sec-06-4-1}
+## NFS with the nfs module {#sec-06-4-1}
 
-برای کلاینت‌هایی که نمی‌توانند CephFS را مستقیم mount کنند (سیستم‌های قدیمی، VMware، یا شبکه‌هایی که نباید به شبکه‌ی public کلاستر دسترسی داشته باشند)، Ceph سرویس **NFS-Ganesha** را مدیریت می‌کند. Ganesha یک سرور NFS در فضای کاربر است که از طریق libcephfs به CephFS وصل می‌شود.
+For clients that cannot mount CephFS directly (old systems, VMware, or networks that must not reach the cluster's public network), Ceph manages the **NFS-Ganesha** service. Ganesha is a user-space NFS server that connects to CephFS through libcephfs.
 
 ```bash
-ceph mgr module enable nfs        # در نسخه‌های جدید معمولاً فعال است
+ceph mgr module enable nfs        # usually enabled in recent releases
 ceph nfs cluster create nfs01 "2 ceph-node2 ceph-node3" --ingress --virtual_ip 192.168.10.50/24
 ceph nfs cluster info nfs01
 ceph nfs export create cephfs --cluster-id nfs01 --pseudo-path /shared --fsname fs01 --path /web
 ceph nfs export ls nfs01 --detailed
-# روی کلاینت
+# On the client
 sudo mount -t nfs -o nfsvers=4.1,proto=tcp 192.168.10.50:/shared /mnt/shared
 ```
 
 ::: {.deep}
-گزینه‌ی `--ingress` یک سرویس ingress (haproxy و keepalived) جلوی daemonهای Ganesha مستقر می‌کند و یک IP مجازی ثابت می‌دهد. در حالت پیش‌فرض هر کلاینت به یک backend ثابت می‌چسبد، چون NFSv4 وضعیت دارد (stateful) و جابه‌جایی کلاینت بین سرورها نیازمند بازیابی وضعیت است. حالت `keepalive-only` فقط IP مجازی را بدون haproxy جابه‌جا می‌کند و برای ساده‌ترین HA مناسب است. پیکربندی exportها در اشیای RADOS (در pool `.nfs`) ذخیره می‌شود، نه در فایل محلی، بنابراین همه‌ی daemonها پیکربندی یکسانی دارند.
+The `--ingress` option deploys an ingress service (haproxy and keepalived) in front of the Ganesha daemons and provides a fixed virtual IP. By default each client sticks to a fixed backend, because NFSv4 is stateful and moving a client between servers requires state recovery. The `keepalive-only` mode moves only the virtual IP, without haproxy, and suits the simplest HA. Export configuration is stored in RADOS objects (in the `.nfs` pool), not in a local file, so all daemons have the same configuration.
 :::
 
 ::: {.warn}
-پشتیبانی رسمی ماژول nfs بر NFSv4.1 به بالاست. NFSv3 در نسخه‌های جدید با گزینه‌ی `--enable-nfsv3` در دسترس است، اما چون NFSv3 قفل‌گذاری را از طریق NLM جداگانه انجام می‌دهد، رفتار قفل‌ها و failover را پیش از استفاده آزمایش کنید.
+The nfs module's official support is for NFSv4.1 and above. NFSv3 is available in recent releases with the `--enable-nfsv3` option, but because NFSv3 does locking through the separate NLM, test lock and failover behaviour before using it.
 :::
 
-## SMB با ماژول smb (Tentacle) {#sec-06-4-2}
+## SMB with the smb module (Tentacle) {#sec-06-4-2}
 
-تا پیش از Tentacle، برای صدور CephFS به ویندوز باید Samba را دستی با ماژول `vfs_ceph` پیکربندی می‌کردید. در Tentacle ماژول **smb** به MGR اضافه شد که خوشه‌های Samba را در کانتینر مستقر و مدیریت می‌کند؛ هم با کاربران محلی و هم با پیوستن به Active Directory:
+Before Tentacle, exporting CephFS to Windows meant configuring Samba by hand with the `vfs_ceph` module. In Tentacle the **smb** module was added to the MGR; it deploys and manages Samba clusters in containers, with either local users or joining Active Directory:
 
 ```bash
 ceph mgr module enable smb
@@ -218,54 +217,54 @@ ceph smb show
 ```
 
 ::: {.tip}
-رمز عبور در مثال بالا نمونه است؛ در محیط واقعی از Active Directory استفاده کنید یا رمز را از یک مخزن امن بخوانید تا در تاریخچه‌ی shell نماند. Tentacle همچنین پوشه‌های **غیرحساس به بزرگی و کوچکی حروف** (case-insensitive) را به CephFS اضافه کرد که برای سازگاری با کلاینت‌های ویندوز اهمیت دارد؛ دستورهای subvolume پرچم `--casesensitive` را برای همین دارند.
+The password in the example above is a sample; in a real environment use Active Directory, or read the password from a secure store so that it does not stay in the shell history. Tentacle also added **case-insensitive** directories to CephFS, which matter for compatibility with Windows clients; the subvolume commands have the `--casesensitive` flag for this.
 :::
 
-# از درون کد: capabilityها، journal و dirfrag در MDS {#sec-06-5}
+# From the code: capabilities, the journal and dirfrags in the MDS {#sec-06-5}
 
-## capability: قرارداد کش بین MDS و کلاینت {#sec-06-5-1}
+## Capabilities: the cache contract between MDS and client {#sec-06-5-1}
 
-CephFS کش منسجم بین کلاینت‌ها را بدون قفل توزیع‌شده‌ی عمومی، با **capability** (cap) پیاده می‌کند. MDS برای هر inode به هر کلاینت مجموعه‌ای از بیت‌ها می‌دهد که مشخص می‌کند کلاینت چه چیزی را می‌تواند محلی کش یا تغییر دهد. ثابت‌ها در `src/include/ceph_fs.h` تعریف شده‌اند. بیت‌های عمومی `CEPH_CAP_GSHARED=1`، `GEXCL=2`، `GCACHE=4`، `GRD=8`، `GWR=16`، `GBUFFER=32`، `GWREXTEND=64` و `GLAZYIO=128` هستند. این بیت‌ها روی پیشوندهای `SAUTH=2`، `SLINK=4`، `SXATTR=6` و `SFILE=8` شیفت داده می‌شوند و `CEPH_CAP_PIN=1` جداگانه است.
+CephFS implements a coherent cache between clients, without a general distributed lock, using **capabilities** (caps). For each inode the MDS gives each client a set of bits that determines what the client may cache or change locally. The constants are defined in `src/include/ceph_fs.h`. The generic bits are `CEPH_CAP_GSHARED=1`, `GEXCL=2`, `GCACHE=4`, `GRD=8`, `GWR=16`, `GBUFFER=32`, `GWREXTEND=64` and `GLAZYIO=128`. These bits are shifted onto the prefixes `SAUTH=2`, `SLINK=4`, `SXATTR=6` and `SFILE=8`, and `CEPH_CAP_PIN=1` is separate.
 
-![رمزگشایی رشته‌ی cap. ردیف اول پیشوندها را نشان می‌دهد: p برای pin، A برای Auth (مالکیت و مجوز)، L برای Link، X برای Xattr و F برای File (محتوا و اندازه). ردیف دوم بیت‌های عمومی است که روی هر پیشوند اعمال می‌شوند: s برای خواندن مشترک، x برای انحصاری، c برای کش، r و w برای خواندن و نوشتن، b برای بافر نوشتن، a برای گسترش EOF و l برای lazyio. ردیف سوم سه حالت را نشان می‌دهد: خواننده‌ی عادی، تنها نویسنده با کش و بافر کامل، و دو نویسنده‌ی هم‌زمان روی یک فایل که MDS از آن‌ها c و b را پس می‌گیرد. در حالت آخر همه‌ی I/O به‌صورت هم‌گام به OSD می‌رود؛ این دلیل اصلی کندی برنامه‌هایی است که هم‌زمان از چند گره روی یک فایل می‌نویسند](figures/ch06/s01_caps.png){#fig-06-s01_caps}
+![Decoding a cap string. The first row shows the prefixes: p for pin, A for Auth (ownership and permissions), L for Link, X for Xattr and F for File (content and size). The second row is the generic bits applied to each prefix: s for shared read, x for exclusive, c for cache, r and w for read and write, b for write buffering, a for extending EOF and l for lazyio. The third row shows three cases: an ordinary reader, a sole writer with full cache and buffering, and two concurrent writers on one file from which the MDS takes back c and b. In the last case all I/O goes synchronously to the OSD; this is the main reason applications that write to one file from several nodes at once are slow](figures/ch06/s01_caps.png){#fig-06-s01_caps}
 
 ```text
-pseudocode: revoke (خلاصه‌ی این کتاب از Locker.cc و Client.cc)
-  MDS: کلاینت B فایل را برای نوشتن باز می‌کند و A دارای Fcb است
+pseudocode: revoke (this book's summary of Locker.cc and Client.cc)
+  MDS: client B opens the file for writing and A holds Fcb
      issue_caps(A, wanted=Fsr)              # CEPH_CAP_OP_REVOKE
   A:  flush dirty buffered data to OSD → MClientCaps(UPDATE/ack) with new issued
-  MDS: پس از ack، Fw به B و Fr به A (بدون c/b)
-  اگر A پاسخ ندهد: هشدار MDS_CLIENT_LATE_RELEASE
-     و اگر mds_cap_revoke_eviction_timeout>0 (پیش‌فرض 0 = غیرفعال) → evict + blocklist
+  MDS: after the ack, Fw to B and Fr to A (without c/b)
+  if A does not respond: MDS_CLIENT_LATE_RELEASE warning
+     and if mds_cap_revoke_eviction_timeout>0 (default 0 = disabled) → evict + blocklist
 ```
 
-| گزینه (mds.yaml.in) | پیش‌فرض | نقش |
+| Option (mds.yaml.in) | Default | Role |
 |---|---|---|
-| mds_cache_memory_limit | 4_G | هدف حافظه‌ی کش؛ فراتر از آن recall cap |
-| mds_recall_max_caps | 30000 | سقف cap فراخوانی‌شده در هر بار از یک session |
-| mds_max_caps_per_client | 1_M | سقف نرم cap برای هر کلاینت |
-| mds_cap_revoke_eviction_timeout | 0 | غیرفعال؛ اخراج خودکار کلاینتی که cap را پس نمی‌دهد |
-| mds_session_blocklist_on_timeout / on_evict | true / true | blocklist کلاینت اخراج‌شده |
-| mds_beacon_grace | 15 | پس از این مدت بدون beacon، MON آن MDS را laggy/failed می‌داند |
+| mds_cache_memory_limit | 4_G | Cache memory target; beyond it caps are recalled |
+| mds_recall_max_caps | 30000 | Cap on caps recalled from one session at a time |
+| mds_max_caps_per_client | 1_M | Soft cap on caps per client |
+| mds_cap_revoke_eviction_timeout | 0 | Disabled; automatic eviction of a client that does not return caps |
+| mds_session_blocklist_on_timeout / on_evict | true / true | Blocklist the evicted client |
+| mds_beacon_grace | 15 | After this long without a beacon, the MON considers that MDS laggy/failed |
 
-## journal، segment و dirfrag {#sec-06-5-2}
+## Journal, segments and dirfrags {#sec-06-5-2}
 
-هر تغییر فراداده ابتدا به‌صورت رویداد (مثلاً `EUpdate`) در MDLog نوشته می‌شود. این journal روی pool metadata قرار دارد و مثل یک log پیوسته با striping روی اشیای RADOS ذخیره می‌شود. پس از flush journal، پاسخ «safe» به کلاینت داده می‌شود. خود دایرکتوری‌ها بعداً هنگام expire شدن segmentها در اشیای dirfrag نوشته می‌شوند؛ هر dirfrag یک شیء با نام `<ino hex>.<frag hex>` است که ورودی‌هایش در omap قرار دارند.
+Every metadata change is first written as an event (for example `EUpdate`) to the MDLog. This journal lives in the metadata pool and is stored like a continuous log, striped over RADOS objects. After the journal is flushed, a "safe" reply is sent to the client. The directories themselves are written later, when segments expire, into dirfrag objects; each dirfrag is an object named `<ino hex>.<frag hex>` whose entries live in omap.
 
-![چرخه‌ی عمر یک عملیات فراداده. در ردیف اول، درخواست کلاینت در MDS قفل‌های لازم (SimpleLock، ScatterLock و...) را می‌گیرد، کش را به‌روز می‌کند و رویداد را در MDLog ثبت می‌کند. در ردیف دوم، رویدادها در segmentهای ۱۰۲۴ رویدادی جمع می‌شوند و MDS سعی می‌کند حداکثر ۱۲۸ segment نگه دارد. با expire شدن segment، dirfragها در omap نوشته می‌شوند. اگر trim عقب بماند، هشدار MDS_TRIM_BEHIND ظاهر می‌شود. ردیف سوم توالی حالت‌ها پس از شکست یک rank است: replay، resolve (فقط در چند rank فعال)، reconnect (کلاینت‌ها capهای خود را اعلام می‌کنند)، rejoin، clientreplay و در نهایت active. standby-replay با دنبال کردن پیوسته‌ی journal، زمان replay را کوتاه می‌کند](figures/ch06/s02_journal.png){#fig-06-s02_journal}
+![The life cycle of a metadata operation. In the first row the client request takes the necessary locks in the MDS (SimpleLock, ScatterLock and so on), updates the cache and records the event in the MDLog. In the second row events are collected into segments of 1024 events, and the MDS tries to keep at most 128 segments. When a segment expires, dirfrags are written to omap. If trimming falls behind, the MDS_TRIM_BEHIND warning appears. The third row is the sequence of states after a rank fails: replay, resolve (only with several active ranks), reconnect (clients declare their caps), rejoin, clientreplay and finally active. standby-replay shortens replay time by following the journal continuously](figures/ch06/s02_journal.png){#fig-06-s02_journal}
 
-| حالت (ceph_fs.h) | مقدار | معنا |
+| State (ceph_fs.h) | Value | Meaning |
 |---|---|---|
-| CEPH_MDS_STATE_REPLAY | 8 | بازخوانی journal |
-| CEPH_MDS_STATE_RESOLVE | 9 | رفع ابهام عملیات بین‌rank |
-| CEPH_MDS_STATE_RECONNECT | 10 | انتظار برای reconnect کلاینت‌ها |
-| CEPH_MDS_STATE_REJOIN | 11 | بازسازی کش توزیع‌شده |
-| CEPH_MDS_STATE_CLIENTREPLAY | 12 | اجرای دوباره‌ی درخواست‌های تأییدنشده‌ی کلاینت |
+| CEPH_MDS_STATE_REPLAY | 8 | Re-reading the journal |
+| CEPH_MDS_STATE_RESOLVE | 9 | Resolving ambiguous cross-rank operations |
+| CEPH_MDS_STATE_RECONNECT | 10 | Waiting for clients to reconnect |
+| CEPH_MDS_STATE_REJOIN | 11 | Rebuilding the distributed cache |
+| CEPH_MDS_STATE_CLIENTREPLAY | 12 | Re-executing the clients' unacknowledged requests |
 
-**تکه‌تکه شدن دایرکتوری (dirfrag):** وقتی تعداد ورودی‌های یک fragment از `mds_bal_split_size=10000` بیشتر شود، fragment تقسیم می‌شود. اگر از `mds_bal_merge_size=50` کمتر شود، ادغام صورت می‌گیرد. `mds_bal_fragment_size_max=100000` سقف سخت است و پس از آن ساخت فایل جدید در آن fragment با ENOSPC رد می‌شود. همین dirfragها واحد جابه‌جایی بین rankها در balancer یا با pinning هستند.
+**Directory fragmentation (dirfrag):** when the number of entries in a fragment exceeds `mds_bal_split_size=10000`, the fragment is split. If it drops below `mds_bal_merge_size=50`, a merge happens. `mds_bal_fragment_size_max=100000` is the hard cap, after which creating a new file in that fragment is rejected with ENOSPC. These dirfrags are the unit of movement between ranks in the balancer or with pinning.
 
 ::: {.debug}
-فرمان‌های بررسی:
+Inspection commands:
 :::
 
 ```bash
@@ -274,53 +273,53 @@ ceph tell mds.cephfs:0 session ls | jq '.[] | {id, num_caps, "client": .client_m
 ceph tell mds.cephfs:0 dump_ops_in_flight | jq '.ops[0]'
 ceph tell mds.cephfs:0 perf dump mds_log | jq '.mds_log | {ev, seg, evtrm}'
 ceph tell mds.cephfs:0 cache status
-setfattr -n ceph.dir.pin -v 1 /mnt/cephfs/projects   # pin دایرکتوری به rank 1
+setfattr -n ceph.dir.pin -v 1 /mnt/cephfs/projects   # pin the directory to rank 1
 ```
 
-# CephFS با عدد: نام شیءها، dirfrag، تقسیم و شمارنده‌ی محبوبیت {#sec-06-6}
+# CephFS by the numbers: object names, dirfrags, splitting and the popularity counter {#sec-06-6}
 
-این بخش نشان می‌دهد یک فایل و یک ورودی پوشه در CephFS دقیقاً به کدام شیء RADOS نگاشته می‌شوند، و MDS بر چه اساسی پوشه را تقسیم می‌کند. ارجاع‌ها به main در نوامبر 2026 است. پیاده‌سازی پایتونی ما از rjenkins برای نام `foo` همان 0x7fc1f406 را می‌دهد که `ceph osd map` گزارش می‌کند. همه‌ی عددهای زیر با همین بازپیاده‌سازی حساب شده‌اند.
+This section shows exactly which RADOS object a file and a directory entry in CephFS map to, and on what basis the MDS splits a directory. References are to main in November 2026. Our Python implementation of rjenkins gives 0x7fc1f406 for the name `foo`, the same value that `ceph osd map` reports. All the numbers below were computed with this re-implementation.
 
-## فایل به شیء {#sec-06-6-1}
+## File to object {#sec-06-6-1}
 
-::: {.algo #alg-06-1 title="نگاشت بایت فایل به شیء ‏RADOS در pool داده" src="src/osdc/Striper.cc :: Striper::file_to_extents؛ src/include/object.cc :: file_object_t::c_str؛ src/mds/InoTable.cc :: InoTable::reset_state" complexity="O(1) برای هر بایت و O(تعداد شیء) برای هر محدوده"}
+::: {.algo #alg-06-1 title="Mapping a file byte to a RADOS object in the data pool" src="src/osdc/Striper.cc :: Striper::file_to_extents; src/include/object.cc :: file_object_t::c_str; src/mds/InoTable.cc :: InoTable::reset_state" complexity="O(1) per byte and O(number of objects) per range"}
 :::
 
 ```text
 pseudocode
-inoهای rank r از (r+1) << 40 شروع می‌شوند (rank 0 → 0x10000000000)
+inos of rank r start at (r+1) << 40 (rank 0 → 0x10000000000)
 blockno   = off / su ; stripeno = blockno / sc ; stripepos = blockno mod sc
 objsetno  = stripeno / (object_size / su)
 objectno  = objsetno × sc + stripepos
 obj_off   = (stripeno mod (object_size / su)) × su + off mod su
-oid       = sprintf("%llx.%08llx", ino, objectno)       # در pool لایه‌ی فایل (layout.pool_id)
+oid       = sprintf("%llx.%08llx", ino, objectno)       # in the pool of the file's layout (layout.pool_id)
 ```
 
-**مثال عددی.** با layout پیش‌فرض (su = 4 MiB، sc = 1 و شیء 4 MiB)، یک فایل 10 مگابایتی با ino ‏0x10000000000 سه شیء دارد: `10000000000.00000000`، `.00000001` و `.00000002`. بایت 9 MiB در شیء 2 و offset ‏1 MiB است. اگر پیش از نوشتن، با `setfattr -n ceph.file.layout.stripe_unit -v 1048576` و `stripe_count` برابر 4 layout را عوض کنید، همان بایت به شیء 1 و offset ‏2 MiB می‌رود و 10 مگابایت روی 4 شیء پخش می‌شود. بنابراین یک خواندن ترتیبی بزرگ همزمان به 4 OSD می‌رسد. layout فایل فقط تا وقتی که فایل خالی است قابل تغییر است. layout پوشه فقط بر فایل‌های تازه اثر دارد.
+**Numeric example.** With the default layout (su = 4 MiB, sc = 1 and 4 MiB objects), a 10 MB file with ino 0x10000000000 has three objects: `10000000000.00000000`, `.00000001` and `.00000002`. Byte 9 MiB is in object 2 at offset 1 MiB. If, before writing, you change the layout with `setfattr -n ceph.file.layout.stripe_unit -v 1048576` and a `stripe_count` of 4, the same byte goes to object 1 at offset 2 MiB, and the 10 MB is spread over 4 objects. So a large sequential read reaches 4 OSDs at the same time. A file's layout can be changed only while the file is empty. A directory's layout affects only new files.
 
-![چیدمان یک فایل 10 مگابایتی. چپ: layout پیش‌فرض، با هر 4 مگابایت پشت‌سرهم در یک شیء. راست: su برابر 1 MiB و sc برابر 4، که مگابایت‌های پیاپی را به‌صورت چرخشی بین چهار شیء پخش می‌کند. نام شیء ino به hex و شماره‌ی شیء به hex هشت‌رقمی است. پیکان جای بایت 9 MiB را در هر دو حالت نشان می‌دهد](figures/ch06/f08_layout.png){#fig-06-f08_layout}
+![The layout of a 10 MB file. Left: the default layout, with each 4 MB stored contiguously in one object. Right: su of 1 MiB and sc of 4, which spreads successive megabytes round-robin across four objects. The object name is the ino in hex and the object number as eight hex digits. The arrow shows where byte 9 MiB lands in both cases](figures/ch06/f08_layout.png){#fig-06-f08_layout}
 
-## نام ورودی به dirfrag {#sec-06-6-2}
+## Entry name to dirfrag {#sec-06-6-2}
 
-::: {.algo #alg-06-2 title="انتخاب dirfrag برای یک dentry" src="src/mds/CInode.cc :: InodeStoreBase::hash_dentry_name، pick_dirfrag؛ src/include/frag.h :: fragtree_t::operator[]؛ src/include/ceph_frag.h" complexity="O(عمق درخت frag)"}
+::: {.algo #alg-06-2 title="Choosing the dirfrag for a dentry" src="src/mds/CInode.cc :: InodeStoreBase::hash_dentry_name, pick_dirfrag; src/include/frag.h :: fragtree_t::operator[]; src/include/ceph_frag.h" complexity="O(depth of the frag tree)"}
 :::
 
 ```text
 pseudocode
-h = ceph_str_hash(dir_layout.dl_dir_hash, name)     # پیش‌فرض mds_default_dir_hash = 2 = rjenkins
-frag = ریشه (bits=0, value=0)
-تا وقتی frag در fragtree تقسیم شده (nb بیت):
-    frag = فرزندی که contains(h): (h AND mask) == value ، mask = 0xFFFFFF << (24 − bits)
-_enc = (bits << 24) | value         ؛ شیء dirfrag = sprintf("%llx.%08llx", dir_ino, _enc)
+h = ceph_str_hash(dir_layout.dl_dir_hash, name)     # default mds_default_dir_hash = 2 = rjenkins
+frag = root (bits=0, value=0)
+while frag is split in the fragtree (nb bits):
+    frag = the child that contains(h): (h AND mask) == value , mask = 0xFFFFFF << (24 − bits)
+_enc = (bits << 24) | value         ; dirfrag object = sprintf("%llx.%08llx", dir_ino, _enc)
 ```
 
-**مثال عددی.** فقط 24 بیت پایین hash فضای frag را تشکیل می‌دهند. تقسیم سه‌بیتی بیت‌های 23 تا 21 را می‌خواند. rjenkins برای `file_00042` عدد 0x924b1135 است و بیت‌های 23 تا 21 آن 010 است، پس ورودی به frag با _enc برابر 0x03400000 می‌رود و شیء آن، برای پوشه‌ای با ino ‏0x10000000005، `10000000005.03400000` است. `report.pdf` با hash ‏0xc65a1876 هم به همان frag می‌رود و `IMG_0001.JPG` با hash ‏0xfe199dbc به frag ‏0x03000000. 100000 نام `file_00000` تا `file_99999` بین 8 frag به‌صورت 12403 تا 12610 پخش می‌شوند. rjenkins برخلاف hash لینوکس روی بیت‌های پایین هم خوب پخش می‌کند.
+**Numeric example.** Only the low 24 bits of the hash make up the frag space. A three-bit split reads bits 23 to 21. rjenkins for `file_00042` is 0x924b1135, and its bits 23 to 21 are 010, so the entry goes to the frag with _enc 0x03400000, whose object, for a directory with ino 0x10000000005, is `10000000005.03400000`. `report.pdf` with hash 0xc65a1876 also goes to the same frag, and `IMG_0001.JPG` with hash 0xfe199dbc to frag 0x03000000. The 100000 names `file_00000` to `file_99999` are spread across the 8 frags as 12403 to 12610 each. Unlike the Linux hash, rjenkins spreads well on the low bits too.
 
-![فضای hash نام‌ها در یک پوشه. ردیف بالا frag ریشه است، ردیف میانی هشت frag پس از تقسیم سه‌بیتی با _enc و تعداد نام‌های هر کدام، و ردیف پایین تقسیم دوباره‌ی frag ‏010 به هشت frag شش‌بیتی. خط‌های رنگی جای hash سه نام نمونه را نشان می‌دهند. محور افقی 24 بیت پایین hash است](figures/ch06/f09_dirfrag.png){#fig-06-f09_dirfrag}
+![The hash space of names in one directory. The top row is the root frag, the middle row is the eight frags after a three-bit split with _enc and the number of names in each, and the bottom row is a further split of frag 010 into eight six-bit frags. The coloured lines show where the hashes of three sample names fall. The horizontal axis is the low 24 bits of the hash](figures/ch06/f09_dirfrag.png){#fig-06-f09_dirfrag}
 
-## کی تقسیم و کی ادغام؟ {#sec-06-6-3}
+## When to split and when to merge? {#sec-06-6-3}
 
-::: {.algo #alg-06-3 title="تصمیم split و merge برای dirfrag" src="src/mds/MDBalancer.cc :: MDBalancer::hit_dir، maybe_fragment، queue_split؛ src/mds/CDir.cc :: CDir::should_split، should_split_fast، should_merge" complexity="O(1) برای هر hit؛ تقسیم O(ورودی‌های frag)"}
+::: {.algo #alg-06-3 title="The split and merge decision for a dirfrag" src="src/mds/MDBalancer.cc :: MDBalancer::hit_dir, maybe_fragment, queue_split; src/mds/CDir.cc :: CDir::should_split, should_split_fast, should_merge" complexity="O(1) per hit; split O(entries in the frag)"}
 :::
 
 ```text
@@ -328,81 +327,81 @@ pseudocode
 hit_dir(dir, type): v = dir.pop_me[type].hit(1)
     hot = (type == IRD and v > mds_bal_split_rd 25000) or (type == IWR and v > mds_bal_split_wr 10000)
     if should_split (size + snap > 10000) or hot:
-        if split در صف نیست: queue_split(dir) بعد از mds_bal_fragment_interval (5 s)
-        elif should_split_fast (size > 10000 × 1.5): queue_split(dir, fast) ، بی‌درنگ
-    if should_merge (size + snap < 50 و frag ریشه نیست) : queue_merge
-split_dir(dir, mds_bal_split_bits = 3) → 8 frag ؛ بار هر فرزند = بار والد × 1/8
-سقف سخت: mds_bal_fragment_size_max = 100000 ← dentry تازه ENOSPC می‌گیرد
+        if no split is queued: queue_split(dir) after mds_bal_fragment_interval (5 s)
+        elif should_split_fast (size > 10000 × 1.5): queue_split(dir, fast) , immediately
+    if should_merge (size + snap < 50 and not the root frag) : queue_merge
+split_dir(dir, mds_bal_split_bits = 3) → 8 frags ; load of each child = parent load × 1/8
+hard cap: mds_bal_fragment_size_max = 100000 → a new dentry gets ENOSPC
 ```
 
-**مثال عددی.** اگر 100000 فایل `file_NNNNN` پشت‌سرهم در یک پوشه ساخته شوند و تقسیم بی‌درنگ فرض شود، در ورودی 10001 پوشه به 8 frag تقسیم می‌شود. هر frag حدود 1250 ورودی دارد و بعد هم‌زمان رشد می‌کند. تقسیم دوم تقریباً هم‌زمان برای هر هشت frag، بین ورودی‌های 79193 و 80693، انجام می‌شود و تعداد frag به 64 می‌رسد. در 100000 ورودی، اندازه‌ی fragها 1462 تا 1663 است. در عمل تأخیر 5 ثانیه‌ای و مسیر fast (بالای 15000) تعیین می‌کنند که یک ساخت انبوه بسیار سریع از 10000 چقدر جلوتر برود. سقف 100000 فقط وقتی می‌رسد که تقسیم ممکن نباشد. MDCache::can_fragment در این حالت‌ها تقسیم را رد می‌کند: فایل‌سیستم فقط‌خواندنی است، کلاستر MDS در وضعیت degraded است، scrub روی پوشه در جریان است، پوشه quiesce شده است، یا پوشه‌ی ریشه، mdsdir یا stray است. maybe_fragment هم inodeهای پایه را کنار می‌گذارد. پس **پوشه‌ی ریشه‌ی CephFS هیچ‌وقت تقسیم نمی‌شود** و نمی‌تواند بیش از 100000 ورودی داشته باشد. فایل‌های انبوه را در زیرپوشه‌ها بگذارید.
+**Numeric example.** If 100000 files `file_NNNNN` are created one after another in one directory, and splitting is assumed to be immediate, the directory is split into 8 frags at entry 10001. Each frag has about 1250 entries and then they grow together. The second split happens almost simultaneously for all eight frags, between entries 79193 and 80693, and the number of frags reaches 64. At 100000 entries the frag sizes are 1462 to 1663. In practice the 5-second delay and the fast path (above 15000) determine how far beyond 10000 a very fast bulk creation gets. The 100000 cap is reached only when splitting is impossible. MDCache::can_fragment refuses to split in these cases: the file system is read-only, the MDS cluster is degraded, a scrub is running on the directory, the directory is quiesced, or it is the root, mdsdir or stray directory. maybe_fragment also skips base inodes. So **the CephFS root directory is never split** and cannot have more than 100000 entries. Put bulk files in subdirectories.
 
-![تعداد dirfrag (آبی، پله‌ای) و اندازه‌ی بزرگ‌ترین frag (قرمز) هنگام ساخت 100000 ورودی در یک پوشه، با فرض تقسیم بی‌درنگ. خط‌چین آستانه‌ی 10000 و نقطه‌چین آستانه‌ی تقسیم سریع 15000 است. پس از تقسیم اول، اندازه‌ی بزرگ‌ترین frag به حدود 1250 می‌افتد و دوباره تا 10000 بالا می‌رود. شبیه‌سازی ما با rjenkins و منطق frag_t](figures/ch06/f10_fraggrowth.png){#fig-06-f10_fraggrowth}
+![The number of dirfrags (blue, stepped) and the size of the largest frag (red) while creating 100000 entries in one directory, assuming immediate splitting. The dashed line is the 10000 threshold and the dotted line the fast-split threshold of 15000. After the first split, the size of the largest frag drops to about 1250 and climbs back towards 10000. Our simulation with rjenkins and the frag_t logic](figures/ch06/f10_fraggrowth.png){#fig-06-f10_fraggrowth}
 
-## شمارنده‌ی محبوبیت با نیمه‌عمر {#sec-06-6-4}
+## The popularity counter with a half-life {#sec-06-6-4}
 
-::: {.algo #alg-06-4 title="DecayCounter و آستانه‌ی «داغ»" src="src/common/DecayCounter.cc :: DecayCounter::decay؛ src/common/DecayCounter.h :: DecayRate" complexity="O(1)"}
+::: {.algo #alg-06-4 title="DecayCounter and the \"hot\" threshold" src="src/common/DecayCounter.cc :: DecayCounter::decay; src/common/DecayCounter.h :: DecayRate" complexity="O(1)"}
 :::
 
 ```text
 pseudocode
-k = ln(0.5) / mds_decay_halflife          # نیمه‌عمر پیش‌فرض 5 ثانیه
+k = ln(0.5) / mds_decay_halflife          # default half-life 5 seconds
 hit(Δ): val = val × exp(k × (now − last)) + Δ ; last = now ; if val < 0.01: val = 0
-مقدار پایدار با نرخ r: r × halflife / ln 2 = r × 7.21
-زمان رسیدن به آستانه‌ی T: t = −halflife × log2(1 − T / (r × 7.21))
+steady value at rate r: r × halflife / ln 2 = r × 7.21
+time to reach threshold T: t = −halflife × log2(1 − T / (r × 7.21))
 ```
 
-**مثال عددی.** آستانه‌ی نوشتن 10000 با نرخ پایدار r فقط وقتی رد می‌شود که r × 7.21 > 10000، یعنی r > 1386.3 نوشتن بر ثانیه روی یک dirfrag. با 1000 نوشتن بر ثانیه، شمارنده در 7213 ثابت می‌ماند و پوشه هیچ‌وقت «داغ» نمی‌شود. با 1500، آستانه پس از 18.6 ثانیه رد می‌شود، با 3000 پس از 4.5 ثانیه و با 5000 پس از 2.3 ثانیه. برای خواندن، آستانه‌ی 25000 به حدود 3466 خواندن بر ثانیه نیاز دارد. با 4000 خواندن بر ثانیه، 14.5 ثانیه طول می‌کشد. پس پوشه‌ی کوچک اما پرترافیک هم تقسیم می‌شود و fragهایش واحد جابه‌جایی balancer بین rankها می‌شوند. همین DecayCounter در balancer برای سنجش بار rankها و در MDS برای شمارش recall capها هم به کار می‌رود.
+**Numeric example.** The write threshold of 10000 is crossed at a steady rate r only when r × 7.21 > 10000, that is r > 1386.3 writes per second on one dirfrag. At 1000 writes per second the counter settles at 7213 and the directory never becomes "hot". At 1500 the threshold is crossed after 18.6 seconds, at 3000 after 4.5 seconds and at 5000 after 2.3 seconds. For reads, the threshold of 25000 needs about 3466 reads per second. At 4000 reads per second it takes 14.5 seconds. So a small but busy directory is also split, and its frags become the balancer's unit of movement between ranks. The same DecayCounter is used in the balancer to measure rank load and in the MDS to count cap recalls.
 
-![منحنی شمارنده‌ی IWR یک dirfrag زیر بار نوشتن پایدار، با نیمه‌عمر 5 ثانیه. هر منحنی به مقدار پایدار r × 7.21 میل می‌کند. خط‌چین آستانه‌ی mds_bal_split_wr است و نقطه‌ها لحظه‌ی رد شدن آن را نشان می‌دهند. منحنی 1000 نوشتن بر ثانیه هرگز به آستانه نمی‌رسد](figures/ch06/f11_decay.png){#fig-06-f11_decay}
+![The IWR counter curve of a dirfrag under steady write load, with a 5-second half-life. Each curve tends towards the steady value r × 7.21. The dashed line is the mds_bal_split_wr threshold, and the dots show the moment it is crossed. The 1000 writes per second curve never reaches the threshold](figures/ch06/f11_decay.png){#fig-06-f11_decay}
 
-![درخت تصمیم تقسیم و ادغام dirfrag. ردیف اول دو محرک تقسیم است: اندازه و داغی. ردیف دوم صف‌بندی عادی با تأخیر 5 ثانیه یا مسیر سریع بالای 1.5 برابر آستانه است. ردیف سوم تقسیم به 8 فرزند، ادغام fragهای زیر 50 ورودی و سقف سخت 100000 را نشان می‌دهد](figures/ch06/f12_split.png){#fig-06-f12_split}
+![The dirfrag split and merge decision tree. The first row is the two split triggers: size and heat. The second row is normal queueing with a 5-second delay, or the fast path above 1.5 times the threshold. The third row shows the split into 8 children, the merge of frags under 50 entries and the hard cap of 100000](figures/ch06/f12_split.png){#fig-06-f12_split}
 
-# subvolume، snapshot و quota {#sec-06-7}
+# Subvolumes, snapshots and quotas {#sec-06-7}
 
-## subvolume: واحد مدیریتی اشتراک‌ها {#sec-06-7-1}
+## Subvolume: the management unit of shares {#sec-06-7-1}
 
-در محیط‌های چندمستأجری (Kubernetes، Manila) هر مستأجر یا هر volume باید پوشه‌ای مستقل با quota، مجوز و چرخه‌ی عمر خودش داشته باشد. رابط **fs volumes** در MGR همین را با سه مفهوم ارائه می‌کند: **volume** (یک فایل‌سیستم)، **subvolumegroup** (گروهی از subvolumeها با layout مشترک) و **subvolume** (یک پوشه‌ی مدیریت‌شده با quota).
+In multi-tenant environments (Kubernetes, Manila) each tenant or each volume needs an independent directory with its own quota, permissions and life cycle. The **fs volumes** interface in the MGR provides exactly this with three concepts: the **volume** (a file system), the **subvolumegroup** (a group of subvolumes with a shared layout) and the **subvolume** (a managed directory with a quota).
 
-![سلسله‌مراتب volume، subvolumegroup و subvolume؛ درایور ceph-csi و Manila هر PVC یا share را به یک subvolume نگاشت می‌کنند](figures/ch06/f04_subvol.png){#fig-06-f04_subvol}
+![The volume, subvolumegroup and subvolume hierarchy; the ceph-csi driver and Manila map each PVC or share to a subvolume](figures/ch06/f04_subvol.png){#fig-06-f04_subvol}
 
 ```bash
 ceph fs subvolumegroup create fs01 teams
 ceph fs subvolume create fs01 data-eng --group_name teams --size 53687091200 --mode 770
 ceph fs subvolume getpath fs01 data-eng --group_name teams
-# خروجی شبیه: /volumes/teams/data-eng/<uuid>
+# output similar to: /volumes/teams/data-eng/<uuid>
 ceph fs subvolume info fs01 data-eng --group_name teams
 ceph fs subvolume resize fs01 data-eng 107374182400 --group_name teams --no_shrink
 ceph fs subvolume ls fs01 --group_name teams
 ```
 
 ::: {.note}
-درایور **ceph-csi** (که Rook هم از آن استفاده می‌کند) برای هر PVC از نوع CephFS یک subvolume در گروه `csi` می‌سازد. اگر در کلاستر Kubernetes می‌بینید subvolumeهای بی‌صاحب جمع شده‌اند، معمولاً PVها با `reclaimPolicy: Retain` حذف شده‌اند و subvolume پشت آن‌ها باقی مانده است.
+The **ceph-csi** driver (which Rook also uses) creates a subvolume in the `csi` group for each CephFS PVC. If you see orphaned subvolumes piling up in a Kubernetes cluster, usually PVs with `reclaimPolicy: Retain` were deleted and the subvolumes behind them were left behind.
 :::
 
-## snapshot {#sec-06-7-2}
+## Snapshots {#sec-06-7-2}
 
-snapshotهای CephFS در سطح **هر پوشه** گرفته می‌شوند، نه کل فایل‌سیستم، و از طریق پوشه‌ی مجازی `.snap` در دسترس‌اند. ایجاد آن‌ها لحظه‌ای است و از copy-on-write در سطح RADOS استفاده می‌کنند.
+CephFS snapshots are taken **per directory**, not for the whole file system, and are reachable through the virtual `.snap` directory. Creating them is instant, and they use copy-on-write at the RADOS level.
 
 ```bash
-# روی پوشه‌ی mount‌شده (کاربر باید پرچم s داشته باشد)
+# On the mounted directory (the user needs the s flag)
 mkdir /mnt/fs01/projects/.snap/before-migration
 ls /mnt/fs01/projects/.snap/
-cp -a /mnt/fs01/projects/.snap/before-migration/report.xlsx /mnt/fs01/projects/   # بازیابی یک فایل
+cp -a /mnt/fs01/projects/.snap/before-migration/report.xlsx /mnt/fs01/projects/   # restore one file
 rmdir /mnt/fs01/projects/.snap/before-migration
-# برای subvolumeها از رابط مدیریتی استفاده کنید
+# For subvolumes, use the management interface
 ceph fs subvolume snapshot create fs01 data-eng snap-2026-11-15 --group_name teams
 ceph fs subvolume snapshot clone fs01 data-eng snap-2026-11-15 data-eng-test --group_name teams
 ceph fs clone status fs01 data-eng-test
 ```
 
 ::: {.warn}
-clone یک subvolume از snapshot برخلاف clone در RBD **لحظه‌ای نیست**؛ MGR داده را در پس‌زمینه کپی می‌کند و برای subvolumeهای بزرگ ساعت‌ها طول می‌کشد. در Kubernetes این یعنی ساخت PVC از snapshot در CephFS می‌تواند کند باشد. برای بارهایی که clone سریع می‌خواهند، RBD مناسب‌تر است.
+Unlike a clone in RBD, cloning a subvolume from a snapshot is **not instant**; the MGR copies the data in the background, and for large subvolumes it takes hours. In Kubernetes this means creating a PVC from a snapshot in CephFS can be slow. For workloads that need fast clones, RBD is a better fit.
 :::
 
-## snapshot زمان‌بندی‌شده {#sec-06-7-3}
+## Scheduled snapshots {#sec-06-7-3}
 
-ماژول `snap_schedule` گرفتن و حذف دوره‌ای snapshotها را خودکار می‌کند:
+The `snap_schedule` module automates taking and removing snapshots periodically:
 
 ```bash
 ceph mgr module enable snap_schedule
@@ -412,24 +411,24 @@ ceph fs snap-schedule retention add /projects d 7 --fs fs01
 ceph fs snap-schedule status /projects --fs fs01
 ```
 
-## quota {#sec-06-7-4}
+## Quotas {#sec-06-7-4}
 
-quota در CephFS با ویژگی‌های گسترده (xattr) روی هر پوشه تعیین می‌شود و دو نوع دارد: حداکثر بایت و حداکثر تعداد فایل.
+Quotas in CephFS are set with extended attributes (xattrs) on each directory and come in two kinds: maximum bytes and maximum number of files.
 
 ```bash
 setfattr -n ceph.quota.max_bytes -v 10737418240 /mnt/fs01/web
 setfattr -n ceph.quota.max_files -v 100000 /mnt/fs01/web
 getfattr -n ceph.quota.max_bytes /mnt/fs01/web
-setfattr -n ceph.quota.max_bytes -v 0 /mnt/fs01/web      # حذف quota
+setfattr -n ceph.quota.max_bytes -v 0 /mnt/fs01/web      # remove the quota
 ```
 
 ::: {.deep}
-اعمال quota در CephFS **همکارانه** است: کلاینت خودش مصرف را دنبال می‌کند و وقتی به سقف رسید نوشتن را متوقف می‌کند. به همین دلیل کلاینتی که چند ثانیه با تأخیر از سقف باخبر شود، ممکن است کمی بیشتر از quota بنویسد، و کلاینت مخربی که کد را تغییر داده باشد می‌تواند quota را نادیده بگیرد. برای جداسازی سخت‌گیرانه‌ی مستأجران، علاوه بر quota از محدودیت مسیر در capability و namespace جدای RADOS استفاده کنید.
+Quota enforcement in CephFS is **cooperative**: the client itself tracks usage and stops writing when it reaches the cap. For this reason a client that learns about the cap a few seconds late may write slightly more than the quota, and a malicious client that has modified the code can ignore the quota. For strict tenant isolation, use path restrictions in capabilities and a separate RADOS namespace in addition to quotas.
 :::
 
-## layout: کنترل جای داده {#sec-06-7-5}
+## Layout: controlling where data goes {#sec-06-7-5}
 
-layout تعیین می‌کند داده‌ی فایل‌های یک پوشه در کدام pool و با چه الگوی striping ذخیره شود. یک کاربرد رایج، هدایت داده‌ی آرشیوی به pool EC است:
+The layout determines in which pool, and with which striping pattern, the data of a directory's files is stored. A common use is directing archive data to an EC pool:
 
 ```bash
 ceph osd pool create cephfs.fs01.ec erasure
@@ -440,20 +439,20 @@ getfattr -n ceph.dir.layout /mnt/fs01/archive
 ```
 
 ::: {.warn}
-layout پوشه فقط روی فایل‌هایی اثر دارد که **بعد از** تنظیم ساخته می‌شوند. فایل‌های موجود در pool قبلی می‌مانند؛ برای انتقالشان باید آن‌ها را کپی کنید (نه `mv`، چون rename در یک فایل‌سیستم داده را جابه‌جا نمی‌کند).
+A directory's layout affects only files created **after** it is set. Existing files stay in the previous pool; to move them you must copy them (not `mv`, because a rename within one file system does not move the data).
 :::
 
-# آینه‌سازی و جایگزینی HDFS {#sec-06-8}
+# Mirroring and replacing HDFS {#sec-06-8}
 
-## آینه‌سازی snapshot بین کلاسترها {#sec-06-8-1}
+## Snapshot mirroring between clusters {#sec-06-8-1}
 
-از Pacific، daemon **cephfs-mirror** snapshotهای پوشه‌های انتخاب‌شده را به‌صورت ناهمگام به فایل‌سیستمی در کلاستر دیگر منتقل می‌کند. این سازوکار مبتنی بر snapshot است: هر snapshot جدید در مقصد هم ساخته می‌شود و فقط تفاوت‌ها منتقل می‌شوند.
+Since Pacific, the **cephfs-mirror** daemon asynchronously transfers the snapshots of selected directories to a file system in another cluster. This mechanism is snapshot-based: each new snapshot is also created at the destination, and only the differences are transferred.
 
 ```bash
-# کلاستر مقصد
+# Destination cluster
 ceph fs authorize fs01 client.mirror_remote / rwps
 ceph fs snapshot mirror peer_bootstrap create fs01 client.mirror_remote site-b
-# کلاستر مبدأ
+# Source cluster
 ceph orch apply cephfs-mirror --placement="1 ceph-node2"
 ceph mgr module enable mirroring
 ceph fs snapshot mirror enable fs01
@@ -463,45 +462,45 @@ ceph fs snapshot mirror peer_list fs01
 ```
 
 ::: {.note}
-آینه‌سازی CephFS یک‌طرفه و مبتنی بر snapshot است؛ RPO برابر فاصله‌ی snapshotهاست. آن را با snap-schedule ترکیب کنید تا snapshotها مرتب ساخته شوند. فایل‌سیستم مقصد در زمان عادی فقط باید خوانده شود.
+CephFS mirroring is one-way and snapshot-based; the RPO equals the interval between snapshots. Combine it with snap-schedule so that snapshots are created regularly. In normal operation the destination file system should only be read.
 :::
 
-## ادعای «جایگزین HDFS» {#sec-06-8-2}
+## The "HDFS replacement" claim {#sec-06-8-2}
 
-کتاب ۲۰۱۹ بخشی را به اجرای Hadoop روی CephFS به‌جای HDFS اختصاص داده بود. وضعیت امروز:
+The 2019 book devoted a section to running Hadoop on CephFS instead of HDFS. The situation today:
 
-- پلاگین `cephfs-hadoop` سال‌هاست نگهداری فعال ندارد و در مستندات جاری به‌عنوان مسیر توصیه‌شده نیامده است.
-- اکوسیستم داده‌ی بزرگ به سمت **ذخیره‌سازی شیء** رفته است: Spark، Trino، Hive و Iceberg از طریق رابط **S3A** مستقیماً با RGW کار می‌کنند (فصل ۴).
-- برای بارهایی که POSIX واقعاً لازم دارند (مثلاً آموزش مدل‌های یادگیری ماشین با کتابخانه‌هایی که فایل باز می‌کنند)، CephFS مستقیماً با کلاینت هسته mount می‌شود.
+- The `cephfs-hadoop` plugin has had no active maintenance for years and does not appear in the current documentation as a recommended path.
+- The big-data ecosystem has moved towards **object storage**: Spark, Trino, Hive and Iceberg work directly with RGW through the **S3A** interface (chapter 4).
+- For workloads that really need POSIX (for example training machine-learning models with libraries that open files), CephFS is mounted directly with the kernel client.
 
 ::: {.tip}
-اگر امروز «Hadoop روی Ceph» از شما خواسته شد، تقریباً همیشه منظور «Spark یا Trino روی RGW با S3A» است. نکات کلیدی آن: فعال کردن path-style یا DNS درست برای bucketها، استفاده از committerهای مخصوص S3 (مثل magic committer) و مراقبت از تعداد اشیای هر bucket و reshard (فصل ۴).
+If you are asked for "Hadoop on Ceph" today, it almost always means "Spark or Trino on RGW with S3A". Its key points: enabling path-style or correct DNS for buckets, using S3-specific committers (such as the magic committer), and watching the number of objects per bucket and resharding (chapter 4).
 :::
 
-# عملیات و عیب‌یابی {#sec-06-9}
+# Operations and troubleshooting {#sec-06-9}
 
-## پایش روزانه {#sec-06-9-1}
+## Daily monitoring {#sec-06-9-1}
 
 ```bash
 ceph fs status
 ceph health detail | grep -i mds
-ceph tell mds.fs01:0 session ls          # فهرست کلاینت‌های rank 0
+ceph tell mds.fs01:0 session ls          # list of rank 0's clients
 ceph tell mds.fs01:0 perf dump mds_server
 ceph tell mds.fs01:0 dump_ops_in_flight
 ceph tell mds.fs01:0 cache status
 ```
 
-| هشدار | معنی | اقدام |
+| Warning | Meaning | Action |
 |---|---|---|
-| MDS_CACHE_OVERSIZED | cache از سقف تعیین‌شده بزرگ‌تر شده است | کلاینت‌هایی که capability زیادی نگه داشته‌اند را پیدا کنید؛ در صورت نیاز `mds_cache_memory_limit` را بالا ببرید |
-| MDS_CLIENT_RECALL | کلاینت به درخواست آزادسازی cache پاسخ نمی‌دهد | نسخه‌ی کلاینت را بررسی کنید؛ ممکن است لازم باشد evict شود |
-| MDS_HEALTH_CLIENT_LATE_RELEASE | کلاینت capability را دیر آزاد می‌کند | شبکه و فرایندهای معلق روی کلاینت |
-| MDS_SLOW_REQUEST | درخواست‌های فراداده کند | `dump_ops_in_flight`، کندی OSDهای pool فراداده |
-| MDS_TRIM | journal عقب افتاده است | سلامت و تأخیر pool فراداده |
-| FS_DEGRADED | یک یا چند rank فعال نیست | وضعیت MDSها و standbyها |
-| MDS_INSUFFICIENT_STANDBY | کمتر از standby_count_wanted آماده‌به‌کار | MDS اضافه کنید |
+| MDS_CACHE_OVERSIZED | The cache has grown beyond its set limit | Find clients holding many capabilities; raise `mds_cache_memory_limit` if needed |
+| MDS_CLIENT_RECALL | A client does not respond to cache release requests | Check the client version; it may need to be evicted |
+| MDS_HEALTH_CLIENT_LATE_RELEASE | A client releases capabilities late | The network and hung processes on the client |
+| MDS_SLOW_REQUEST | Slow metadata requests | `dump_ops_in_flight`, slow OSDs in the metadata pool |
+| MDS_TRIM | The journal has fallen behind | Health and latency of the metadata pool |
+| FS_DEGRADED | One or more ranks are not active | The state of the MDSs and standbys |
+| MDS_INSUFFICIENT_STANDBY | Fewer standbys than standby_count_wanted | Add MDSs |
 
-## evict کردن کلاینت {#sec-06-9-2}
+## Evicting a client {#sec-06-9-2}
 
 ```bash
 ceph tell mds.fs01:0 client ls | grep -E '"id"|hostname'
@@ -510,63 +509,63 @@ ceph osd blocklist ls
 ```
 
 ::: {.debug}
-کلاینتی که mount آن «یخ زده» است (هر `ls` معلق می‌ماند) معمولاً evict شده است. `dmesg` روی کلاینت هسته را ببینید. پس از رفع علت، mount را با `umount -f` یا `umount -l` جدا و دوباره mount کنید. گزینه‌ی `recover_session=clean` کلاینت هسته می‌تواند پس از evict خودکار دوباره وصل شود، اما داده‌ی کثیف cache‌شده از دست می‌رود.
+A client whose mount has "frozen" (every `ls` hangs) has usually been evicted. Look at `dmesg` on the kernel client. After fixing the cause, detach the mount with `umount -f` or `umount -l` and mount it again. The kernel client's `recover_session=clean` option can reconnect automatically after an eviction, but dirty cached data is lost.
 :::
 
-## خرابی فراداده {#sec-06-9-3}
+## Metadata damage {#sec-06-9-3}
 
-ابزارهای `cephfs-journal-tool`، `cephfs-data-scan` و `cephfs-table-tool` برای بازیابی فراداده‌ی آسیب‌دیده وجود دارند. این ابزارها خطرناک‌اند و اشتباه در ترتیب اجرای آن‌ها می‌تواند وضع را بدتر کند.
+The tools `cephfs-journal-tool`, `cephfs-data-scan` and `cephfs-table-tool` exist for recovering damaged metadata. These tools are dangerous, and running them in the wrong order can make things worse.
 
 ::: {.warn}
-پیش از هر اقدام بازیابی فراداده، از journal پشتیبان بگیرید (`cephfs-journal-tool --rank=fs01:0 journal export backup.bin`) و دقیقاً مراحل صفحه‌ی «Disaster recovery» مستندات CephFS را دنبال کنید. اگر داده‌ی مهمی در خطر است، قبل از اجرای `cephfs-data-scan` از متخصص یا فهرست پستی جامعه کمک بگیرید.
+Before any metadata recovery action, back up the journal (`cephfs-journal-tool --rank=fs01:0 journal export backup.bin`) and follow the steps of the "Disaster recovery" page of the CephFS documentation exactly. If important data is at risk, get help from an expert or the community mailing list before running `cephfs-data-scan`.
 :::
 
-::: {.summary title="نکات SRE این فصل"}
+::: {.summary title="SRE notes for this chapter"}
 
-- pool فراداده: تکثیری، روی SSD/NVMe، با CRUSH rule جدا.
-- همیشه حداقل یک MDS آماده‌به‌کار؛ برای failover سریع standby-replay.
-- چند MDS فعال فقط وقتی لازم است؛ pinning صریح به جای balancer خودکار.
-- هر کلاینت کاربر خودش با `ceph fs authorize` و مسیر محدود.
-- RAM کافی برای MDS: `mds_cache_memory_limit` به‌علاوه‌ی سربار (حدود ۱.۵ برابر).
-- quota همکارانه است؛ برای جداسازی سخت، capability مسیر و namespace RADOS.
-- clone در CephFS کپی کامل است و کند.
+- Metadata pool: replicated, on SSD/NVMe, with a separate CRUSH rule.
+- Always at least one standby MDS; standby-replay for fast failover.
+- Multiple active MDSs only when needed; explicit pinning instead of the automatic balancer.
+- Each client gets its own user with `ceph fs authorize` and a restricted path.
+- Enough RAM for the MDS: `mds_cache_memory_limit` plus overhead (about 1.5 times).
+- Quotas are cooperative; for strict isolation, use path capabilities and a RADOS namespace.
+- A clone in CephFS is a full copy and is slow.
 
 :::
 
-# تکمیلی و به‌روز {#sec-06-10}
+# Supplementary and up to date {#sec-06-10}
 
-- **Pacific**: پشتیبانی از چند فایل‌سیستم در کلاسترهای تازه به‌صورت پیش‌فرض فعال شد (کلاسترهای قدیمی‌تر هنوز پرچم `enable_multiple` لازم دارند) و آینه‌سازی snapshot با cephfs-mirror معرفی شد.
-- **نسخه‌های بعدی**: رابط subvolume مدام گسترش یافته است؛ نحو جاری `ceph fs subvolume create` گزینه‌هایی مثل `--earmark`، `--normalization`، `--casesensitive` و `--namespace-isolated` دارد که در کتاب ۲۰۱۹ وجود نداشتند.
-- **Tentacle**: ماژول **smb** برای مدیریت Samba، پوشه‌های غیرحساس به حروف و نرمال‌سازی نام‌ها، نیاز به تأیید صریح برای تغییر `max_mds` روی کلاستر ناسالم، و پشتیبانی Dashboard از NVMe/TCP.
-- **مسیر قدیمی کتاب**: ساخت MDS با ceph-deploy و mount با نحو IP قدیمی؛ امروز `ceph fs volume create` و نحو v2 جایگزین شده‌اند.
+- **Pacific**: support for multiple file systems became enabled by default on new clusters (older clusters still need the `enable_multiple` flag), and snapshot mirroring with cephfs-mirror was introduced.
+- **Later releases**: the subvolume interface has kept growing; the current syntax of `ceph fs subvolume create` has options such as `--earmark`, `--normalization`, `--casesensitive` and `--namespace-isolated` that did not exist in the 2019 book.
+- **Tentacle**: the **smb** module for managing Samba, case-insensitive directories and name normalisation, explicit confirmation for changing `max_mds` on an unhealthy cluster, and Dashboard support for NVMe/TCP.
+- **The book's old path**: creating an MDS with ceph-deploy and mounting with the old IP syntax; today `ceph fs volume create` and the v2 syntax have replaced them.
 
 ::: {.note}
-جزئیات هر نسخه را در یادداشت‌های انتشار رسمی بخوانید؛ این فصل فقط تغییراتی را آورده که در مستندات جاری تأیید شده‌اند.
+Read the details of each release in the official release notes; this chapter includes only changes confirmed in the current documentation.
 :::
 
-# تمرین عملی {#sec-06-11}
+# Hands-on exercise {#sec-06-11}
 
-1. فایل‌سیستم `lab-fs` را با `ceph fs volume create` و دو MDS بسازید و standby-replay را فعال کنید. MDS فعال را با `ceph mds fail lab-fs:0` از کار بیندازید و زمان failover را با `ceph fs status` اندازه بگیرید.
-2. کاربر `client.lab` را با دسترسی خواندنی‌نوشتنی فقط به `/lab` بسازید. با کلاینت هسته mount کنید و بررسی کنید که به `/` دسترسی نوشتن ندارد.
-3. quota یک گیگابایتی روی `/lab` بگذارید و با `dd` از آن عبور کنید. چه خطایی می‌بینید و چه مقدار بیش از quota نوشته شد؟
-4. یک subvolume با سقف ۵ گیگابایت بسازید، snapshot بگیرید، فایلی را حذف و از `.snap` بازیابی کنید.
-5. یک خوشه‌ی NFS با ingress بسازید، export تعریف کنید و از یک ماشین بدون بسته‌های Ceph آن را mount کنید.
-6. snap-schedule ساعتی با نگهداری ۶ عددی تعریف کنید و پس از چند ساعت خروجی `status` را بررسی کنید.
+1. Create the file system `lab-fs` with `ceph fs volume create` and two MDSs, and enable standby-replay. Fail the active MDS with `ceph mds fail lab-fs:0` and measure the failover time with `ceph fs status`.
+2. Create the user `client.lab` with read-write access only to `/lab`. Mount with the kernel client and check that it has no write access to `/`.
+3. Set a one-gigabyte quota on `/lab` and exceed it with `dd`. Which error do you see, and how much was written beyond the quota?
+4. Create a subvolume with a 5 GB cap, take a snapshot, delete a file and restore it from `.snap`.
+5. Create an NFS cluster with ingress, define an export and mount it from a machine without the Ceph packages.
+6. Define an hourly snap-schedule with a retention of 6, and check the output of `status` after a few hours.
 
-# پرسش‌های مرور {#sec-06-12}
+# Review questions {#sec-06-12}
 
-1. چرا MDS در مسیر داده‌ی فایل‌ها قرار ندارد و این چه مزیتی دارد؟
-2. capability چیست و چه زمانی MDS یک کلاینت را evict می‌کند؟
-3. تفاوت standby و standby-replay چیست؟
-4. چرا pool داده‌ی پیش‌فرض CephFS نباید EC باشد؟
-5. چه زمانی چند MDS فعال لازم است و چرا pinning صریح توصیه می‌شود؟
-6. کلاینت هسته و ceph-fuse را از نظر کارایی و به‌روز بودن مقایسه کنید.
-7. چرا NFS-Ganesha پیکربندی exportها را در RADOS نگه می‌دارد؟
-8. چرا quota در CephFS «همکارانه» نامیده می‌شود؟
-9. چرا تغییر layout یک پوشه فایل‌های موجود را جابه‌جا نمی‌کند؟
-10. امروز جایگزین معمول «Hadoop روی CephFS» چیست؟
+1. Why is the MDS not on the file data path, and what advantage does this have?
+2. What is a capability, and when does the MDS evict a client?
+3. What is the difference between standby and standby-replay?
+4. Why should the default CephFS data pool not be EC?
+5. When are multiple active MDSs needed, and why is explicit pinning recommended?
+6. Compare the kernel client and ceph-fuse in terms of performance and currency.
+7. Why does NFS-Ganesha keep export configuration in RADOS?
+8. Why are quotas in CephFS called "cooperative"?
+9. Why does changing a directory's layout not move existing files?
+10. What is the usual replacement for "Hadoop on CephFS" today?
 
-# منابع این فصل {#sec-06-13}
+# Sources for this chapter {#sec-06-13}
 
 - CephFS: https://docs.ceph.com/en/latest/cephfs/
 - FS volumes and subvolumes: https://docs.ceph.com/en/latest/cephfs/fs-volumes/

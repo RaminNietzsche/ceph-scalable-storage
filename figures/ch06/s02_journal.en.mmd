@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["1. metadata request (e.g. mkdir)"]
+    direction LR
+    c["client: MClientRequest"] --> m["active MDS rank:<br/>locks (SimpleLock/ScatterLock)<br/>+ cache update"] --> j["EUpdate in the MDLog<br/>(journal on the metadata pool)"]
+  end
+  subgraph R2["2. durability"]
+    direction LR
+    sg["segment: mds_log_events_per_segment=1024<br/>at most mds_log_max_segments=128"] --> ack["safe reply to the client<br/>after the journal flush"] --> exp["expire segment:<br/>write dirfrags to the objects<br/>&lt;ino&gt;.&lt;frag&gt; (omap)"]
+  end
+  subgraph R3["3. rank failure"]
+    direction LR
+    st["standby-replay follows the journal"] --> rp["replay → resolve → reconnect<br/>(clients re-declare their caps)"] --> act["rejoin → clientreplay → active"]
+  end
+  R1 ~~~ R2 ~~~ R3

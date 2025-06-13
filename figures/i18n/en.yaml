@@ -389,84 +389,65 @@ ch05/s02_states:
   lease روی شیء وضعیت<br/>rgw_sync_lease_period=2min: lease on the status object<br/>rgw_sync_lease_period=2min
   trim لاگ‌های مبدأ<br/>هر rgw_sync_log_trim_interval=20min<br/>تا کمترین marker همه‌ی peerها: trim the source's logs<br/>every rgw_sync_log_trim_interval=20min<br/>up to the lowest marker of all peers
 ch06/f01_arch:
-  کلاینت: null
-  یا: null
-  فراداده: null
-  ، قفل و: null
-  فعال: null
-  داده: null
-  خواندن و نوشتن مستقیم اشیاء: null
-  و: null
-  ها: null
-  روی: null
-  آماده‌به‌کار: null
-  دنبال کردن: null
+  کلاینت CephFS<br/>kernel یا FUSE: CephFS client<br/>kernel or FUSE
+  'فراداده: open، mkdir، stat، قفل و capability': 'metadata: open, mkdir, stat, locks and capabilities'
+  MDS فعال<br/>cache فراداده: active MDS<br/>metadata cache
+  'داده: خواندن و نوشتن مستقیم اشیاء': 'data: direct object reads and writes'
+  pool داده<br/>cephfs.fs01.data: data pool<br/>cephfs.fs01.data
+  journal و inodeها: journal and inodes
+  pool فراداده<br/>cephfs.fs01.meta روی SSD: metadata pool<br/>cephfs.fs01.meta on SSD
+  MDS آماده‌به‌کار<br/>یا standby-replay: standby MDS<br/>or standby-replay
+  دنبال کردن journal: follows the journal
 ch06/f02_multi_mds:
-  توزیع‌شده: null
-  زیرپوشه‌ها بین: null
-  ها پخش: null
+  /scratch<br/>ephemeral pin توزیع‌شده: /scratch<br/>distributed ephemeral pin
+  زیرپوشه‌ها بین rankها پخش: subdirectories spread across ranks
 ch06/f03_access:
-  کلاینت‌ها: null
-  لینوکس: null
-  مک: null
-  هر سیستمی: null
-  ویندوز: null
-  ماژول: null
+  کلاینت‌ها: clients
+  'لینوکس: kernel client<br/>mount -t ceph': 'Linux: kernel client<br/>mount -t ceph'
+  'لینوکس/مک: ceph-fuse<br/>libcephfs': 'Linux/Mac: ceph-fuse<br/>libcephfs'
+  'هر سیستمی: NFS v4.1+': 'any system: NFS v4.1+'
+  'ویندوز/مک: SMB': 'Windows/Mac: SMB'
+  NFS-Ganesha<br/>ماژول nfs + ingress: NFS-Ganesha<br/>nfs module + ingress
+  Samba<br/>ماژول smb (Tentacle): Samba<br/>smb module (Tentacle)
 ch06/f04_subvol:
-  یک فایل‌سیستم: null
-  اختیاری: null
-  و: null
+  'volume: fs01<br/>(یک فایل‌سیستم)': 'volume: fs01<br/>(one file system)'
+  quota 50G · namespace RADOS اختیاری: quota 50G · optional RADOS namespace
+  snapshot و clone<br/>ceph fs subvolume snapshot create: snapshot and clone<br/>ceph fs subvolume snapshot create
 ch06/f05_caps:
-  کلاینت: null
-  نوشتن: null
-  نوشتن در: null
-  محلی: null
-  فراخوانی: null
-  داده به: null
-  ها: null
-  آزاد کردن: null
-  خواندن: null
+  as کلاینت A: as client A
+  as کلاینت B: as client B
+  capability نوشتن + buffer: write capability + buffer
+  نوشتن در cache محلی: write to the local cache
+  فراخوانی capability (revoke): capability recall (revoke)
+  flush داده به OSDها: flush data to the OSDs
+  آزاد کردن capability: release the capability
+  capability خواندن: read capability
 ch06/s01_caps:
-  ساختار یک: null
-  پیشوند: null
-  بیت‌های عمومی: null
-  در کش کلاینت نگه داشته شود: null
-  محتوا، اندازه،: null
-  روی هر پیشوند: null
-  خواندن فراداده: null
-  تغییر محلی: null
-  کش خواندن: null
-  بافر نوشتن: null
-  نمونه‌های نمادین: null
-  خروجی واقعی بسته به وضعیت متفاوت است: null
-  خواننده‌ی عادی: null
-  تنها نویسنده: null
-  کش: null
-  بافر کامل: null
-  دو نویسنده‌ی هم‌زمان: null
-  بدون: null
-  و: null
-  هم‌گام با: null
+  'ساختار یک cap: (پیشوند) + (بیت‌های عمومی) — include/ceph_fs.h': 'structure of a cap: (prefix) + (generic bits) — include/ceph_fs.h'
+  p = PIN<br/>inode در کش کلاینت نگه داشته شود: p = PIN<br/>keep the inode in the client cache
+  A = Auth<br/>(mode، uid، gid): A = Auth<br/>(mode, uid, gid)
+  F = File<br/>(محتوا، اندازه، mtime): F = File<br/>(content, size, mtime)
+  بیت‌های عمومی (shift روی هر پیشوند): generic bits (shifted onto each prefix)
+  s = SHARED (1)<br/>خواندن فراداده: s = SHARED (1)<br/>read metadata
+  x = EXCL (2)<br/>تغییر محلی: x = EXCL (2)<br/>local change
+  c = CACHE (4)<br/>کش خواندن: c = CACHE (4)<br/>read cache
+  b = BUFFER (32)<br/>بافر نوشتن: b = BUFFER (32)<br/>write buffer
+  نمونه‌های نمادین (خروجی واقعی بسته به وضعیت متفاوت است): symbolic examples (real output varies with state)
+  pAsLsXsFs<br/>خواننده‌ی عادی: pAsLsXsFs<br/>ordinary reader
+  'pAsLsXsFsxcrwb<br/>تنها نویسنده: کش + بافر کامل': 'pAsLsXsFsxcrwb<br/>sole writer: full cache + buffer'
+  pAsLsXsFrw<br/>دو نویسنده‌ی هم‌زمان:<br/>بدون c و b → I/O هم‌گام با OSD: pAsLsXsFrw<br/>two concurrent writers:<br/>no c and b → synchronous I/O to the OSD
 ch06/s02_journal:
-  درخواست فراداده: null
-  مثلاً: null
-  کلاینت: null
-  فعال: null
-  قفل‌ها: null
-  به‌روزرسانی کش: null
-  در: null
-  روی: null
-  پایداری: null
-  حداکثر: null
-  پاسخ: null
-  به کلاینت: null
-  پس از: null
-  نوشتن: null
-  ها در اشیای: null
-  شکست: null
-  دنبال: null
-  کلاینت‌ها: null
-  ها را دوباره اعلام می‌کنند: null
+  ۱. درخواست فراداده (مثلاً mkdir): 1. metadata request (e.g. mkdir)
+  'کلاینت: MClientRequest': 'client: MClientRequest'
+  MDS rank فعال:<br/>قفل‌ها (SimpleLock/ScatterLock)<br/>+ به‌روزرسانی کش: active MDS rank:<br/>locks (SimpleLock/ScatterLock)<br/>+ cache update
+  EUpdate در MDLog<br/>(journal روی pool metadata): EUpdate in the MDLog<br/>(journal on the metadata pool)
+  ۲. پایداری: 2. durability
+  'segment: mds_log_events_per_segment=1024<br/>حداکثر mds_log_max_segments=128': 'segment: mds_log_events_per_segment=1024<br/>at most mds_log_max_segments=128'
+  پاسخ safe به کلاینت<br/>پس از flush journal: safe reply to the client<br/>after the journal flush
+  expire segment:<br/>نوشتن dirfragها در اشیای<br/>: expire segment:<br/>write dirfrags to the objects<br/>
+  ۳. شکست rank: 3. rank failure
+  standby-replay دنبال journal: standby-replay follows the journal
+  (کلاینت‌ها capها را دوباره اعلام می‌کنند): (clients re-declare their caps)
 ch07/f01_layers:
   سطح کنترل: null
   در: null
