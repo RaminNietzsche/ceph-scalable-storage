@@ -5,133 +5,132 @@ title: Operating and Managing a Ceph Cluster
 part: main
 original_heading: Operating and Managing a Ceph Cluster
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-07-1}
+# Before you start {#sec-07-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-07-1-1}
+## What questions does this chapter answer? {#sec-07-1-1}
 
-ساختن کلاستر کار یک روز است؛ راهبری آن کار چند سال. این فصل کارهای روزمره‌ی اپراتور را پوشش می‌دهد: مدیریت سرویس‌ها، پیکربندی، بزرگ و کوچک کردن کلاستر، تعویض دیسک، ارتقای نسخه و کنترل بار بازیابی. کتاب ۲۰۱۹ این کارها را با ویرایش دستی `ceph.conf`، `ceph-deploy` و unitهای systemd بسته‌ای انجام می‌داد. در یک کلاستر امروزی با cephadm، بیشتر این کارها اعلانی (declarative) شده‌اند: شما وضعیت مطلوب را می‌گویید و orchestrator آن را برقرار نگه می‌دارد.
+Building a cluster takes a day; running it takes years. This chapter covers the operator's day-to-day work: managing services, configuration, growing and shrinking the cluster, replacing disks, upgrading releases and controlling recovery load. The 2019 book did these tasks by editing `ceph.conf` by hand, with `ceph-deploy` and with packaged systemd units. In a modern cluster with cephadm most of these tasks have become declarative: you state the desired state and the orchestrator keeps it in place.
 
-- مدیریت سرویس در cephadm چه لایه‌هایی دارد و systemd کجای آن است؟
-- پیکربندی امروز کجا نگه‌داری می‌شود و چرا `ceph.conf` تقریباً خالی است؟
-- چطور گره، OSD و MON اضافه یا حذف کنیم؟
-- روال امن تعویض دیسک خراب چیست؟
-- ارتقای نسخه را چطور بدون قطعی و با کنترل ریسک انجام دهیم؟
-- بازیابی و backfill را چطور کند یا تند کنیم، به‌ویژه با زمان‌بند mClock؟
+- What layers does service management have in cephadm, and where does systemd fit?
+- Where is configuration kept today, and why is `ceph.conf` almost empty?
+- How do we add or remove nodes, OSDs and MONs?
+- What is the safe procedure for replacing a failed disk?
+- How do we upgrade without downtime and with controlled risk?
+- How do we slow down or speed up recovery and backfill, especially with the mClock scheduler?
 
-# مدیریت سرویس‌ها {#sec-07-2}
+# Managing services {#sec-07-2}
 
-## لایه‌های کنترل {#sec-07-2-1}
+## Control layers {#sec-07-2-1}
 
-![لایه‌های مدیریت daemon در cephadm: از دستور ceph orch تا کانتینر روی میزبان](figures/ch07/f01_layers.png){#fig-07-f01_layers}
+![The daemon management layers in cephadm: from the ceph orch command to the container on the host](figures/ch07/f01_layers.png){#fig-07-f01_layers}
 
-در cephadm، هر daemon یک کانتینر است که با یک unit systemd اجرا می‌شود. orchestrator (ماژول cephadm در MGR) از طریق SSH روی میزبان‌ها daemon می‌سازد، حذف می‌کند یا راه‌اندازی مجدد می‌کند. شما معمولاً فقط با لایه‌ی بالا کار می‌کنید:
+In cephadm each daemon is a container run by a systemd unit. The orchestrator (the cephadm module in the MGR) creates, removes or restarts daemons on the hosts over SSH. You normally work only with the top layer:
 
 ```bash
-ceph orch ls                          # سرویس‌ها و تعداد daemonهای مطلوب/در حال اجرا
-ceph orch ps                          # همه‌ی daemonها
+ceph orch ls                          # services and the number of desired/running daemons
+ceph orch ps                          # all daemons
 ceph orch ps --daemon-type osd --hostname ceph-node2
-ceph orch ls --export > cluster-specs.yaml   # پشتیبان از وضعیت مطلوب
+ceph orch ls --export > cluster-specs.yaml   # a backup of the desired state
 ```
 
-## شروع، توقف و راه‌اندازی مجدد {#sec-07-2-2}
+## Start, stop and restart {#sec-07-2-2}
 
 ```bash
-ceph orch restart rgw.objstore            # همه‌ی daemonهای یک سرویس، یکی‌یکی
+ceph orch restart rgw.objstore            # all daemons of a service, one by one
 ceph orch daemon restart osd.3
 ceph orch daemon stop mds.fs01.ceph-node3.xyzabc
 ceph orch daemon start mds.fs01.ceph-node3.xyzabc
-ceph orch daemon redeploy mgr.ceph-node1.abcdef   # ساخت دوباره‌ی کانتینر (مثلاً پس از تغییر image)
+ceph orch daemon redeploy mgr.ceph-node1.abcdef   # rebuild the container (e.g. after an image change)
 ```
 
-## systemd در پشت صحنه {#sec-07-2-3}
+## systemd behind the scenes {#sec-07-2-3}
 
-روی هر میزبان، unitهای systemd نام‌گذاری مشخصی دارند که شامل fsid کلاستر است. این نام‌گذاری اجازه می‌دهد چند کلاستر روی یک میزبان (مثلاً در آزمایشگاه) بدون تداخل اجرا شوند.
+On each host the systemd units have a specific naming scheme that includes the cluster fsid. This naming lets several clusters run on one host (for example in a lab) without interfering.
 
 ```bash
 FSID=$(ceph fsid)
 systemctl list-units "ceph-${FSID}*"
 systemctl status ceph-${FSID}@osd.3.service
-sudo systemctl stop ceph-${FSID}.target      # توقف همه‌ی daemonهای این کلاستر روی این میزبان
+sudo systemctl stop ceph-${FSID}.target      # stop all daemons of this cluster on this host
 sudo systemctl start ceph-${FSID}.target
 journalctl -u ceph-${FSID}@osd.3 --since "1 hour ago"
-cephadm logs --name osd.3                  # همان لاگ از طریق cephadm
+cephadm logs --name osd.3                  # the same log through cephadm
 ```
 
 ::: {.warn}
-اگر daemon را مستقیم با systemctl متوقف کنید، orchestrator از آن خبر ندارد و ممکن است در چرخه‌ی بعدی تطبیق وضعیت آن را دوباره راه بیندازد یا گزارش خطا بدهد. برای کارهای برنامه‌ریزی‌شده روی کل میزبان، از **حالت نگهداری** استفاده کنید (پایین‌تر). systemctl را برای اشکال‌زدایی محلی یا وقتی MGR در دسترس نیست نگه دارید.
+If you stop a daemon directly with systemctl, the orchestrator does not know about it and may restart it or report an error in the next reconciliation cycle. For planned work on a whole host, use **maintenance mode** (below). Keep systemctl for local debugging or for when the MGR is unavailable.
 :::
 
-# پیکربندی {#sec-07-3}
+# Configuration {#sec-07-3}
 
-## پایگاه پیکربندی متمرکز {#sec-07-3-1}
+## The centralised configuration database {#sec-07-3-1}
 
-![منابع پیکربندی و ترتیب اولویت آن‌ها؛ مقدار مؤثر هر daemon را با ceph config show ببینید](figures/ch07/f02_config.png){#fig-07-f02_config}
+![Configuration sources and their order of precedence; see each daemon's effective value with ceph config show](figures/ch07/f02_config.png){#fig-07-f02_config}
 
-از Mimic، پیکربندی کلاستر در **پایگاه پیکربندی MON** نگه داشته می‌شود و `ceph.conf` روی میزبان‌ها فقط حداقل اطلاعات لازم برای پیدا کردن MONها را دارد (fsid و mon_host). کتاب ۲۰۱۹ هنوز افزودن بخش‌های `[mon.a]` و `[osd.0]` به `ceph.conf` را آموزش می‌داد؛ این کار امروز نه لازم است و نه توصیه می‌شود.
+Since Mimic, the cluster configuration has been kept in the **MON configuration database**, and `ceph.conf` on the hosts holds only the minimum information needed to find the MONs (fsid and mon_host). The 2019 book still taught adding `[mon.a]` and `[osd.0]` sections to `ceph.conf`; today this is neither necessary nor recommended.
 
 ```bash
-cat /etc/ceph/ceph.conf                      # معمولاً چند خط
-ceph config dump                              # همه‌ی تنظیمات غیرپیش‌فرض
+cat /etc/ceph/ceph.conf                      # usually a few lines
+ceph config dump                              # all non-default settings
 ceph config get osd osd_memory_target
 ceph config set osd osd_memory_target 6442450944
-ceph config set osd.12 osd_memory_target 8589934592    # فقط یک OSD
-ceph config set osd/class:ssd osd_memory_target 8589934592   # همه‌ی OSDهای SSD (mask)
+ceph config set osd.12 osd_memory_target 8589934592    # one OSD only
+ceph config set osd/class:ssd osd_memory_target 8589934592   # all SSD OSDs (mask)
 ceph config set client.rgw.objstore rgw_max_concurrent_requests 2048
-ceph config show osd.3 | grep memory_target   # مقدار مؤثر در daemon در حال اجرا
+ceph config show osd.3 | grep memory_target   # the effective value in the running daemon
 ceph config help osd_memory_target
-ceph config log 10                            # تاریخچه‌ی تغییرات
+ceph config log 10                            # the change history
 ```
 
 ::: {.tip}
-دستور `ceph config log` و `ceph config reset <n>` امکان برگرداندن تغییرات پیکربندی را می‌دهند. قبل از هر تغییر بزرگ خروجی `ceph config dump` را در کنترل نسخه (Git) ذخیره کنید تا بعداً بتوانید تفاوت‌ها را مقایسه کنید.
+The `ceph config log` and `ceph config reset <n>` commands let you roll back configuration changes. Before any big change, save the output of `ceph config dump` in version control (Git) so that you can compare the differences later.
 :::
 
-## تغییر موقت در زمان اجرا {#sec-07-3-2}
+## Temporary changes at run time {#sec-07-3-2}
 
 ```bash
-ceph tell osd.* config set debug_osd 10/10      # موقتاً، تا راه‌اندازی مجدد
-ceph tell osd.* config set debug_osd 1/5        # بازگرداندن
-ceph daemon osd.3 config show                    # از طریق admin socket، روی همان میزبان (درون shell cephadm)
+ceph tell osd.* config set debug_osd 10/10      # temporarily, until restart
+ceph tell osd.* config set debug_osd 1/5        # restore
+ceph daemon osd.3 config show                    # through the admin socket, on the same host (inside a cephadm shell)
 ```
 
 ::: {.note}
-`ceph tell` از طریق شبکه به daemon پیام می‌فرستد؛ `ceph daemon` از طریق admin socket محلی کار می‌کند و فقط روی میزبان همان daemon (در cephadm، داخل `cephadm shell --name osd.3`) در دسترس است. وقتی daemon به دلیل گیر کردن به پیام‌های شبکه پاسخ نمی‌دهد، admin socket معمولاً هنوز جواب می‌دهد.
+`ceph tell` sends a message to the daemon over the network; `ceph daemon` works through the local admin socket and is available only on that daemon's host (in cephadm, inside `cephadm shell --name osd.3`). When a daemon does not respond because it is stuck on network messages, the admin socket usually still answers.
 :::
 
-# بزرگ و کوچک کردن کلاستر {#sec-07-4}
+# Growing and shrinking the cluster {#sec-07-4}
 
-## scale-up یا scale-out؟ {#sec-07-4-1}
+## Scale-up or scale-out? {#sec-07-4-1}
 
-![دو راه افزایش ظرفیت: دیسک بیشتر در همان گره‌ها یا گره‌های بیشتر](figures/ch07/f05_scale.png){#fig-07-f05_scale}
+![Two ways to add capacity: more disks in the same nodes, or more nodes](figures/ch07/f05_scale.png){#fig-07-f05_scale}
 
-| معیار | scale-up (گره‌های پرتراکم‌تر) | scale-out (گره‌های بیشتر) |
+| Criterion | Scale-up (denser nodes) | Scale-out (more nodes) |
 |---|---|---|
-| هزینه‌ی هر ترابایت | معمولاً کمتر | کمی بیشتر (CPU، شبکه، رک) |
-| دامنه‌ی خرابی | بزرگ؛ از دست رفتن یک گره بخش بزرگی از داده را بازیابی می‌کند | کوچک‌تر؛ بازیابی سریع‌تر و کم‌اثرتر |
-| کارایی | CPU و شبکه‌ی هر گره گلوگاه می‌شود | خطی‌تر با افزایش گره‌ها |
-| محدودیت | حداقل تعداد گره برای EC و دامنه‌ی خرابی | فضای رک، سوئیچ و برق |
+| Cost per terabyte | Usually lower | Somewhat higher (CPU, network, rack) |
+| Failure domain | Large; losing one node recovers a large part of the data | Smaller; faster recovery with less impact |
+| Performance | Each node's CPU and network become the bottleneck | More linear as nodes are added |
+| Limitation | Minimum number of nodes for EC and the failure domain | Rack space, switches and power |
 
 ::: {.tip}
-یک قاعده‌ی عملی: هیچ گره‌ای نباید بیش از حدود ۱۰ تا ۱۵ درصد ظرفیت خام کلاستر را نگه دارد. همچنین فضای آزاد کلاستر باید آن‌قدر باشد که پس از از دست رفتن بزرگ‌ترین دامنه‌ی خرابی (گره یا رک)، OSDها از نسبت `nearfull` عبور نکنند.
+A practical rule: no node should hold more than about 10 to 15 percent of the cluster's raw capacity. Also, the cluster's free space should be large enough that after losing the largest failure domain (node or rack), the OSDs do not cross the `nearfull` ratio.
 :::
 
-## افزودن گره و OSD {#sec-07-4-2}
+## Adding a node and OSDs {#sec-07-4-2}
 
 ```bash
-# روی گره تازه: نصب podman، تنظیم زمان (chrony) و کلید SSH کلاستر
+# On the new node: install podman, set up time (chrony) and the cluster SSH key
 ssh-copy-id -f -i /etc/ceph/ceph.pub root@ceph-node5
 ceph orch host add ceph-node5 192.168.10.15 --labels osd
 ceph orch device ls ceph-node5 --refresh
-# اگر spec OSD شما (مثلاً all-available-devices یا یک spec با فیلتر) فعال است، OSDها خودکار ساخته می‌شوند
+# If your OSD spec (e.g. all-available-devices or a spec with a filter) is active, OSDs are created automatically
 ceph orch ls osd
 ceph -s
 ```
 
 ::: {.warn}
-افزودن ناگهانی تعداد زیادی OSD باعث جابه‌جایی گسترده‌ی PGها می‌شود. در کلاستر شلوغ قبل از افزودن، پرچم‌های `norebalance` و `nobackfill` را بگذارید، همه‌ی OSDها را بسازید و بعد پرچم‌ها را بردارید تا داده یک بار و نه چند بار جابه‌جا شود. ابزارهایی مانند ماژول **balancer** پس از اتمام backfill، توزیع را یکنواخت می‌کنند.
+Suddenly adding many OSDs causes widespread PG movement. On a busy cluster, set the `norebalance` and `nobackfill` flags before adding, create all the OSDs, and then remove the flags so that data moves once rather than several times. Tools such as the **balancer** module even out the distribution after backfill finishes.
 :::
 
 ```bash
@@ -141,9 +140,9 @@ ceph osd tree
 ceph osd unset nobackfill && ceph osd unset norebalance
 ```
 
-## افزودن MON و MGR {#sec-07-4-3}
+## Adding MONs and MGRs {#sec-07-4-3}
 
-در cephadm، تعداد و محل MONها با spec سرویس `mon` تعیین می‌شود:
+In cephadm the number and placement of MONs are set with the `mon` service spec:
 
 ```yaml
 service_type: mon
@@ -160,86 +159,86 @@ ceph quorum_status -f json-pretty | jq '.quorum_names'
 ```
 
 ::: {.note}
-تعداد MONها را فرد نگه دارید (۳ یا ۵). پنج MON تحمل از دست رفتن دو MON را می‌دهد؛ بیشتر از ۵ معمولاً فقط سربار اجماع را زیاد می‌کند. MONها را در دامنه‌های خرابی مختلف (رک یا اتاق) قرار دهید.
+Keep the number of MONs odd (3 or 5). Five MONs tolerate losing two MONs; more than 5 usually only adds consensus overhead. Place MONs in different failure domains (racks or rooms).
 :::
 
-## حذف OSD {#sec-07-4-4}
+## Removing an OSD {#sec-07-4-4}
 
 ```bash
-ceph osd safe-to-destroy osd.9        # آیا بدون از دست رفتن داده می‌توان حذف کرد؟
-ceph osd ok-to-stop osd.9             # آیا توقف موقت باعث از دسترس رفتن PG می‌شود؟
-ceph orch osd rm 9                    # تخلیه و حذف
+ceph osd safe-to-destroy osd.9        # can it be removed without losing data?
+ceph osd ok-to-stop osd.9             # would stopping it temporarily make a PG unavailable?
+ceph orch osd rm 9                    # drain and remove
 ceph orch osd rm status
 ```
 
-`ceph orch osd rm` ابتدا وزن OSD را صفر می‌کند، صبر می‌کند تا همه‌ی PGها جای دیگری بروند، سپس daemon را حذف و OSD را از CRUSH و نقشه پاک می‌کند. با `--zap` دیسک هم پاک‌سازی (LVM و partitionها) می‌شود تا دوباره قابل استفاده باشد.
+`ceph orch osd rm` first sets the OSD's weight to zero, waits until all PGs have moved elsewhere, then removes the daemon and deletes the OSD from CRUSH and the map. With `--zap` the disk is also wiped (LVM and partitions) so that it can be used again.
 
-## حذف یک میزبان کامل {#sec-07-4-5}
+## Removing a whole host {#sec-07-4-5}
 
 ```bash
-ceph orch host drain ceph-node5       # همه‌ی daemonها را تخلیه می‌کند، از جمله OSDها
+ceph orch host drain ceph-node5       # drains all daemons, including OSDs
 ceph orch osd rm status
-ceph orch ps ceph-node5               # باید خالی شود
+ceph orch ps ceph-node5               # should become empty
 ceph orch host rm ceph-node5
 ```
 
 ::: {.warn}
-`--offline --force` در `host rm` فقط برای میزبانی است که برای همیشه از دست رفته است؛ این گزینه OSDهای آن را بدون تخلیه حذف می‌کند و تنها وقتی امن است که داده‌ی آن‌ها از روی نسخه‌های دیگر قابل بازسازی باشد.
+`--offline --force` in `host rm` is only for a host that is lost for good; this option removes its OSDs without draining and is safe only when their data can be rebuilt from other copies.
 :::
 
-# تعویض دیسک خراب {#sec-07-5}
+# Replacing a failed disk {#sec-07-5}
 
-![روال امن تعویض دیسک: اول بازیابی، بعد بررسی safe-to-destroy، سپس حذف با حفظ id و تعویض فیزیکی](figures/ch07/f03_replace.png){#fig-07-f03_replace}
+![The safe disk replacement procedure: recovery first, then the safe-to-destroy check, then removal keeping the id, and the physical replacement](figures/ch07/f03_replace.png){#fig-07-f03_replace}
 
-وقتی دیسکی خراب می‌شود، OSD آن down می‌شود و پس از `mon_osd_down_out_interval` (پیش‌فرض ۱۰ دقیقه) به‌صورت خودکار out می‌شود و بازیابی شروع می‌شود. روال پیشنهادی:
+When a disk fails, its OSD goes down, and after `mon_osd_down_out_interval` (default 10 minutes) it is automatically marked out and recovery starts. The suggested procedure:
 
 ```bash
 ceph health detail
 ceph osd tree down
-ceph device ls-by-daemon osd.7                 # شناسه‌ی دستگاه و میزبان
-ceph device light on <devid> ident             # روشن کردن چراغ شناسایی (اگر سخت‌افزار پشتیبانی کند)
-# صبر تا داده بازیابی شود
+ceph device ls-by-daemon osd.7                 # device id and host
+ceph device light on <devid> ident             # turn on the identification light (if the hardware supports it)
+# wait until the data has been recovered
 ceph -s
 ceph osd safe-to-destroy osd.7
 ceph orch osd rm 7 --replace --zap
 ceph orch osd rm status
-# پس از تعویض فیزیکی دیسک
+# after physically replacing the disk
 ceph orch device ls ceph-node2 --refresh
 ceph osd tree | grep osd.7
 ```
 
 ::: {.deep}
-گزینه‌ی `--replace` به‌جای حذف کامل، OSD را در وضعیت `destroyed` نگه می‌دارد؛ id و جایگاهش در CRUSH حفظ می‌شود. وقتی spec OSD دیسک تازه‌ی همان میزبان را می‌بیند، OSD جدید را با همان id می‌سازد. مزیتش این است که نقشه‌ی CRUSH تغییر نمی‌کند و داده‌ی کمتری جابه‌جا می‌شود.
+The `--replace` option keeps the OSD in the `destroyed` state instead of removing it completely; its id and position in CRUSH are preserved. When the OSD spec sees the new disk on the same host, it creates the new OSD with the same id. The advantage is that the CRUSH map does not change and less data moves.
 :::
 
 ::: {.tip}
-مدیریت سلامت دستگاه‌ها (`ceph device`) داده‌ی SMART دیسک‌ها را جمع می‌کند و می‌تواند خرابی را پیش‌بینی کند. با `ceph device monitoring on` و `ceph device get-health-metrics <devid>` آن را بررسی کنید. اگر `mgr/devicehealth/self_heal` فعال باشد، OSDهای دیسک‌هایی که احتمال خرابی بالایی دارند پیش‌دستانه out می‌شوند.
+Device health management (`ceph device`) collects the SMART data of the disks and can predict failures. Check it with `ceph device monitoring on` and `ceph device get-health-metrics <devid>`. If `mgr/devicehealth/self_heal` is enabled, the OSDs of disks with a high probability of failure are marked out preemptively.
 :::
 
-# ارتقای نسخه {#sec-07-6}
+# Upgrading {#sec-07-6}
 
-![ترتیب ارتقا در cephadm: اول MGR و MON، سپس OSD و MDS، در پایان دروازه‌ها](figures/ch07/f04_upgrade.png){#fig-07-f04_upgrade}
+![The upgrade order in cephadm: MGR and MON first, then OSD and MDS, and the gateways last](figures/ch07/f04_upgrade.png){#fig-07-f04_upgrade}
 
-cephadm ارتقای نسخه را خودکار و مرحله‌ای انجام می‌دهد و ترتیب درست را رعایت می‌کند. پیش از ارتقا:
+cephadm performs upgrades automatically and in stages, and it respects the correct order. Before upgrading:
 
-- یادداشت‌های انتشار نسخه‌ی مقصد را کامل بخوانید، به‌ویژه بخش «Upgrading» و تغییرات ناسازگار.
-- مسیر ارتقای مجاز را بررسی کنید: Ceph معمولاً ارتقا را حداکثر از دو نسخه‌ی اصلی قبل‌تر پشتیبانی می‌کند.
-- کلاستر باید `HEALTH_OK` باشد و همه‌ی PGها `active+clean`.
-- برای Umbrella، پیش‌نیازهای میزبان را چک کنید: image‌ها مبتنی بر el10 هستند و CPU با سطح x86-64-v3 لازم است.
+- Read the release notes of the target release in full, especially the "Upgrading" section and the incompatible changes.
+- Check the allowed upgrade path: Ceph usually supports upgrades from at most two major releases back.
+- The cluster must be `HEALTH_OK` and every PG `active+clean`.
+- For Umbrella, check the host prerequisites: the images are based on el10, and a CPU at the x86-64-v3 level is required.
 
 ```bash
 ceph versions
 ceph orch upgrade start --image quay.io/ceph/ceph:v20.2.5
 ceph orch upgrade status
-ceph -W cephadm                         # دنبال کردن رویدادهای ارتقا
-ceph orch upgrade pause                 # در صورت مشکل
+ceph -W cephadm                         # follow the upgrade events
+ceph orch upgrade pause                 # in case of trouble
 ceph orch upgrade resume
 ceph orch upgrade stop
 ```
 
-## ارتقای مرحله‌ای و محدود {#sec-07-6-1}
+## Staged and limited upgrades {#sec-07-6-1}
 
-cephadm اجازه می‌دهد ارتقا را به نوع daemon، سرویس یا میزبان خاصی محدود کنید. در Umbrella امکان ارتقای OSDها **bucket به bucket** در CRUSH اضافه شده است که با دستور تازه‌ی `ceph osd ok-to-upgrade` بررسی می‌کند کدام OSDها را می‌توان هم‌زمان ارتقا داد:
+cephadm lets you limit an upgrade to a specific daemon type, service or host. Umbrella added the ability to upgrade OSDs **bucket by bucket** in CRUSH, which uses the new `ceph osd ok-to-upgrade` command to check which OSDs can be upgraded at the same time:
 
 ```bash
 ceph orch upgrade start --image quay.io/ceph/ceph:v21.2.0 --daemon-types mgr,mon
@@ -247,93 +246,93 @@ ceph orch upgrade start --image quay.io/ceph/ceph:v21.2.0 --daemon-types osd --c
 ```
 
 ::: {.warn}
-در ارتقای چندمرحله‌ای، باید ترتیب را خودتان رعایت کنید: هیچ daemonی نباید جدیدتر از MGRها و MONها باشد. پس از ارتقای همه‌ی OSDها، cephadm به‌طور معمول `require_osd_release` را تنظیم می‌کند؛ با `ceph osd dump | grep require_osd_release` تأیید کنید. تا وقتی این مقدار تنظیم نشده، قابلیت‌های جدید OSD فعال نمی‌شوند و هشدار مربوط باقی می‌ماند.
+In a multi-stage upgrade you must respect the order yourself: no daemon may be newer than the MGRs and MONs. After all OSDs have been upgraded, cephadm normally sets `require_osd_release`; confirm with `ceph osd dump | grep require_osd_release`. Until this value is set, new OSD features are not enabled and the related warning remains.
 :::
 
-# ظرفیت و توازن {#sec-07-7}
+# Capacity and balance {#sec-07-7}
 
-## نسبت‌های پر شدن {#sec-07-7-1}
+## Fullness ratios {#sec-07-7-1}
 
-Ceph برای جلوگیری از پر شدن کامل OSDها سه آستانه دارد. پر شدن کامل یک OSD در Ceph بسیار خطرناک است، چون BlueStore برای حذف داده هم به فضای آزاد نیاز دارد:
+Ceph has three thresholds to prevent OSDs from filling up completely. A completely full OSD is very dangerous in Ceph, because BlueStore needs free space even to delete data:
 
-| آستانه | پیش‌فرض | اثر |
+| Threshold | Default | Effect |
 |---|---|---|
-| nearfull_ratio | ۰.۸۵ | هشدار OSD_NEARFULL |
-| backfillfull_ratio | ۰.۹۰ | backfill به این OSD متوقف می‌شود |
-| full_ratio | ۰.۹۵ | نوشتن در poolهای وابسته متوقف می‌شود (OSD_FULL) |
+| nearfull_ratio | 0.85 | OSD_NEARFULL warning |
+| backfillfull_ratio | 0.90 | Backfill to this OSD stops |
+| full_ratio | 0.95 | Writes to the dependent pools stop (OSD_FULL) |
 
 ```bash
 ceph osd dump | grep -E 'full_ratio|nearfull'
-ceph osd df tree                    # درصد استفاده و تعداد PG هر OSD
-ceph df detail                      # فضای خام و قابل استفاده هر pool
+ceph osd df tree                    # usage percentage and PG count of each OSD
+ceph df detail                      # raw and usable space of each pool
 ```
 
 ::: {.warn}
-اگر کلاستر به `OSD_FULL` رسید، اولین واکنش طبیعی (حذف داده) ممکن است کار نکند. روال اضطراری: موقتاً `ceph osd set-full-ratio 0.97` (فقط برای فرصت حذف)، حذف یا انتقال داده‌ی غیرضروری، افزودن ظرفیت، و سپس بازگرداندن نسبت به مقدار پیش‌فرض. هرگز این نسبت را به‌صورت دائمی بالا نبرید.
+If the cluster reaches `OSD_FULL`, the natural first reaction (deleting data) may not work. The emergency procedure: temporarily `ceph osd set-full-ratio 0.97` (only to make room for deletion), delete or move non-essential data, add capacity, and then set the ratio back to its default. Never raise this ratio permanently.
 :::
 
-## ظرفیت «قابل استفاده» واقعی {#sec-07-7-2}
+## The real "usable" capacity {#sec-07-7-2}
 
-عدد `MAX AVAIL` در `ceph df` ظرفیت قابل استفاده‌ی هر pool را با در نظر گرفتن نوع افزونگی و **پرترین OSD** محاسبه می‌کند. یعنی عدم توازن، ظرفیت قابل استفاده را کم می‌کند: اگر یک OSD زودتر پر شود، کل pool پر به حساب می‌آید. برای برنامه‌ریزی ظرفیت این قاعده‌ها را به کار ببرید:
+The `MAX AVAIL` figure in `ceph df` computes each pool's usable capacity taking into account the redundancy type and the **fullest OSD**. That is, imbalance reduces usable capacity: if one OSD fills up first, the whole pool counts as full. Use these rules for capacity planning:
 
-- ظرفیت خام را بر ضریب افزونگی تقسیم کنید (۳ برای تکثیر سه‌تایی، `(k+m)/k` برای EC).
-- فضای لازم برای تحمل خرابی بزرگ‌ترین دامنه را کم کنید.
-- حاشیه‌ی امن تا nearfull را کم کنید (معمولاً هدف مصرف عادی زیر ۷۰ درصد).
+- Divide raw capacity by the redundancy factor (3 for three-way replication, `(k+m)/k` for EC).
+- Subtract the space needed to tolerate the failure of the largest domain.
+- Subtract a safety margin up to nearfull (usually aim for normal usage under 70 percent).
 
 ::: {.try}
-کلاستری با ۸ گره و در هر گره ۱۲ دیسک ۱۶ ترابایتی دارید و دامنه‌ی خرابی host است. ظرفیت خام ۱۵۳۶ ترابایت است. با تکثیر سه‌تایی حدود ۵۱۲ ترابایت قابل استفاده می‌ماند. برای تحمل از دست رفتن یک گره (یک‌هشتم ظرفیت) و ماندن زیر ۸۵ درصد پس از بازیابی، مصرف عادی را حدود ۷۰ درصد یعنی نزدیک ۳۵۰ تا ۳۶۰ ترابایت نگه دارید. همین محاسبه را برای EC 4+2 تکرار کنید.
+You have a cluster with 8 nodes and 12 disks of 16 TB in each node, and the failure domain is host. Raw capacity is 1536 TB. With three-way replication about 512 TB remains usable. To tolerate losing one node (one eighth of the capacity) and stay under 85 percent after recovery, keep normal usage at about 70 percent, that is around 350 to 360 TB. Repeat the same calculation for EC 4+2.
 :::
 
-## balancer {#sec-07-7-3}
+## The balancer {#sec-07-7-3}
 
-ماژول **balancer** در MGR با تنظیم نگاشت‌های **upmap** (جابه‌جایی صریح PGها بین OSDها) توزیع را یکنواخت می‌کند. در نسخه‌های جاری به‌صورت پیش‌فرض فعال است و حالت `upmap` به کلاینت‌هایی با حداقل نسخه‌ی Luminous نیاز دارد.
+The **balancer** module in the MGR evens out the distribution by setting **upmap** mappings (explicit movement of PGs between OSDs). In current releases it is enabled by default, and `upmap` mode requires clients at least at the Luminous level.
 
 ```bash
 ceph balancer status
 ceph balancer mode upmap
 ceph balancer on
-ceph config set mgr target_max_misplaced_ratio .03     # حداکثر ۳٪ داده‌ی جابه‌جا‌شده در هر لحظه
-ceph osd df | sort -nk17 | tail                        # پرترین OSDها
+ceph config set mgr target_max_misplaced_ratio .03     # at most 3% of data misplaced at any moment
+ceph osd df | sort -nk17 | tail                        # the fullest OSDs
 ```
 
 ::: {.deep}
-در Reef حالت‌های تازه‌ی `read` و `upmap-read` اضافه شدند که علاوه بر توزیع داده، **primary**ها را هم متعادل می‌کنند تا بار خواندن یکنواخت‌تر شود (خواندن به‌طور پیش‌فرض از OSD اصلی هر PG انجام می‌شود). این حالت‌ها از نگاشت `pg-upmap-primary` استفاده می‌کنند و همه‌ی کلاینت‌ها باید Reef یا جدیدتر باشند. در کلاستری که دیسک‌های ناهمگن دارد، این حالت می‌تواند گلوگاه خواندن روی چند OSD را کاهش دهد.
+Reef added the new modes `read` and `upmap-read`, which balance **primaries** as well as data distribution so that read load becomes more even (by default reads are served by each PG's primary OSD). These modes use the `pg-upmap-primary` mapping, and all clients must be Reef or newer. On a cluster with heterogeneous disks, this mode can reduce read bottlenecks on a few OSDs.
 :::
 
-## مقیاس‌دهی خودکار PG {#sec-07-7-4}
+## Automatic PG scaling {#sec-07-7-4}
 
-ماژول **pg_autoscaler** تعداد PG هر pool را بر اساس داده‌ی ذخیره‌شده یا اندازه‌ی هدفی که اعلام می‌کنید تنظیم می‌کند:
+The **pg_autoscaler** module adjusts each pool's PG count based on the stored data or a target size you declare:
 
 ```bash
 ceph osd pool autoscale-status
-ceph osd pool set rbd target_size_ratio 0.4          # این pool قرار است ۴۰٪ کلاستر را بگیرد
+ceph osd pool set rbd target_size_ratio 0.4          # this pool is expected to take 40% of the cluster
 ceph osd pool set cephfs.fs01.meta pg_autoscale_mode on
-ceph osd pool set images bulk true                   # pool بزرگ: از ابتدا PG کافی بگیرد
+ceph osd pool set images bulk true                   # a large pool: get enough PGs from the start
 ```
 
 ::: {.note}
-در Umbrella پیش‌فرض `mon_target_pg_per_osd` از ۱۰۰ به ۲۰۰ و سقف `mon_max_pg_per_osd` از ۲۵۰ به ۵۰۰ افزایش یافت. پس از ارتقا، autoscaler ممکن است تعداد PG برخی poolها را بالا ببرد و جابه‌جایی داده شروع شود. خروجی `autoscale-status` را پیش و پس از ارتقا مقایسه کنید و اگر لازم است تغییرات را زمان‌بندی کنید.
+In Umbrella the default of `mon_target_pg_per_osd` was raised from 100 to 200 and the cap `mon_max_pg_per_osd` from 250 to 500. After upgrading, the autoscaler may raise the PG count of some pools and data movement may start. Compare the output of `autoscale-status` before and after the upgrade, and schedule the changes if necessary.
 :::
 
-# از درون کد: MON، Paxos و سرویس‌های نقشه {#sec-07-8}
+# Inside the code: MON, Paxos and the map services {#sec-07-8}
 
-## نقش Paxos در Ceph {#sec-07-8-1}
+## The role of Paxos in Ceph {#sec-07-8-1}
 
-همه‌ی نقشه‌های کلاستر (MonMap، OSDMap، MgrMap، FSMap، پیکربندی مرکزی، کلیدهای cephx و...) روی **یک نمونه‌ی Paxos مشترک** در `src/mon/Paxos.cc` ذخیره می‌شوند. هر «سرویس» (`PaxosService`؛ مانند `OSDMonitor`، `AuthMonitor`، `ConfigMonitor`) تغییرات خود را به این Paxos پیشنهاد می‌کند و Paxos آن‌ها را یکی‌یکی با شماره‌ی نسخه‌ی پیوسته (`last_committed`) در RocksDB مانیتور می‌نویسد. پیاده‌سازی Ceph نسخه‌ای از **Multi-Paxos با رهبر پایدار** است: پس از انتخابات، رهبر یک بار مرحله‌ی بازیابی (collect/last) را انجام می‌دهد و سپس هر تغییر فقط به یک رفت‌وبرگشت (begin/accept) و یک پیام commit نیاز دارد.
+All the cluster maps (MonMap, OSDMap, MgrMap, FSMap, the central configuration, cephx keys and so on) are stored on **one shared Paxos instance** in `src/mon/Paxos.cc`. Each "service" (`PaxosService`; such as `OSDMonitor`, `AuthMonitor`, `ConfigMonitor`) proposes its changes to this Paxos, and Paxos writes them one by one, with a contiguous version number (`last_committed`), into the monitor's RocksDB. Ceph's implementation is a form of **Multi-Paxos with a stable leader**: after an election the leader runs the recovery phase (collect/last) once, and from then on each change needs only one round trip (begin/accept) and one commit message.
 
-![توالی پیام‌های Paxos در MON: پس از انتخابات، رهبر با OP_COLLECT شماره‌ی پیشنهاد جدید را اعلام و با OP_LAST مقادیر ناتمام را جمع می‌کند؛ سپس برای هر تغییر، OP_BEGIN با نسخه‌ی بعدی ارسال، OP_ACCEPT از همه‌ی اعضای quorum دریافت، OP_COMMIT اعلام و با OP_LEASE اجازه‌ی خواندن تا مدت mon_lease به peonها داده می‌شود](figures/ch07/s01_paxos.png){#fig-07-s01_paxos}
+![The sequence of Paxos messages in the MON: after an election the leader announces a new proposal number with OP_COLLECT and gathers unfinished values with OP_LAST; then, for each change, OP_BEGIN is sent with the next version, OP_ACCEPT is received from every quorum member, OP_COMMIT is announced, and OP_LEASE grants the peons permission to serve reads for mon_lease](figures/ch07/s01_paxos.png){#fig-07-s01_paxos}
 
-| پیام (MMonPaxos) | جهت | معنا |
+| Message (MMonPaxos) | Direction | Meaning |
 |---|---|---|
-| OP_COLLECT (۱) | رهبر → peon | شروع دور با شماره‌ی پیشنهاد (pn) جدید |
-| OP_LAST (۲) | peon → رهبر | پذیرش pn و ارسال مقادیر پذیرفته‌شده‌ی ناتمام |
-| OP_BEGIN (۳) | رهبر → peon | مقدار پیشنهادی برای نسخه‌ی بعد |
-| OP_ACCEPT (۴) | peon → رهبر | پذیرش مقدار |
-| OP_COMMIT (۵) | رهبر → peon | اعلام مقدار توافق‌شده |
-| OP_LEASE (۶) | رهبر → peon | تمدید اجازه‌ی خواندن |
-| OP_LEASE_ACK (۷) | peon → رهبر | تأیید lease |
+| OP_COLLECT (1) | leader → peon | Start a round with a new proposal number (pn) |
+| OP_LAST (2) | peon → leader | Accept the pn and send unfinished accepted values |
+| OP_BEGIN (3) | leader → peon | Proposed value for the next version |
+| OP_ACCEPT (4) | peon → leader | Accept the value |
+| OP_COMMIT (5) | leader → peon | Announce the agreed value |
+| OP_LEASE (6) | leader → peon | Extend read permission |
+| OP_LEASE_ACK (7) | peon → leader | Acknowledge the lease |
 
-یک تفاوت مهم با Paxos کلاسیک: رهبر برای commit منتظر پذیرش **همه‌ی اعضای quorum فعلی** می‌ماند، نه فقط اکثریت. در `Paxos::handle_accept()`:
+An important difference from classic Paxos: to commit, the leader waits for acceptance from **all members of the current quorum**, not just a majority. In `Paxos::handle_accept()`:
 
 ```cpp
 // from ceph/ceph, LGPL — src/mon/Paxos.cc, handle_accept() (excerpt)
@@ -342,210 +341,210 @@ accepted.insert(from);
 if (accepted == mon.get_quorum()) {
 ```
 
-این ممکن است چون quorum خودش از انتخابات اکثریتی آمده است؛ اگر یکی از اعضای quorum پاسخ ندهد، accept timeout رخ می‌دهد و انتخابات دوباره برگزار می‌شود تا quorum کوچک‌تری (که هنوز اکثریت است) شکل بگیرد. مزیت: همه‌ی اعضای quorum همیشه همه‌ی نسخه‌ها را دارند و می‌توانند خواندن را با lease سرویس دهند.
+This is possible because the quorum itself came out of a majority election; if one quorum member does not respond, an accept timeout occurs and a new election is held so that a smaller quorum (still a majority) forms. The advantage: all quorum members always have all versions and can serve reads under a lease.
 
-## حالت‌ها و lease {#sec-07-8-2}
+## States and the lease {#sec-07-8-2}
 
-حالت‌های Paxos در `Paxos.h`: `STATE_RECOVERING`، `STATE_ACTIVE`، `STATE_UPDATING`، `STATE_UPDATING_PREVIOUS`، `STATE_WRITING`، `STATE_WRITING_PREVIOUS`، `STATE_REFRESH` (و SHUTDOWN). خواندن از یک peon فقط وقتی مجاز است که lease معتبر داشته باشد. پارامترها:
+The Paxos states in `Paxos.h`: `STATE_RECOVERING`, `STATE_ACTIVE`, `STATE_UPDATING`, `STATE_UPDATING_PREVIOUS`, `STATE_WRITING`, `STATE_WRITING_PREVIOUS`, `STATE_REFRESH` (and SHUTDOWN). A read from a peon is allowed only when it holds a valid lease. Parameters:
 
-| گزینه | پیش‌فرض | نقش |
+| Option | Default | Role |
 |---|---|---|
-| mon_lease | ۵ ثانیه | مدت اعتبار lease خواندن |
-| mon_lease_renew_interval_factor | ۰.۶ | تمدید پس از ۶۰٪ مدت lease |
-| mon_lease_ack_timeout_factor | ۲ | اگر ack در دو برابر lease نرسد، انتخابات دوباره |
-| paxos_propose_interval | ۱ ثانیه | فاصله‌ی دسته‌بندی تغییرات پیش از پیشنهاد |
-| mon_election_timeout | ۵ ثانیه | مهلت انتخابات |
+| mon_lease | 5 seconds | Validity period of the read lease |
+| mon_lease_renew_interval_factor | 0.6 | Renew after 60% of the lease period |
+| mon_lease_ack_timeout_factor | 2 | If the ack does not arrive within twice the lease, re-elect |
+| paxos_propose_interval | 1 second | Batching interval for changes before proposing |
+| mon_election_timeout | 5 seconds | Election timeout |
 
 ::: {.deep}
-lease دلیل اصلی حساسیت MON به **اختلاف ساعت** است: رهبر به peon می‌گوید «تا زمان T می‌توانی خواندن را سرویس دهی». اگر ساعت peon عقب باشد، ممکن است پس از اینکه رهبر نقشه‌ی جدیدی commit کرده، هنوز نقشه‌ی قدیمی را به کلاینت بدهد. هشدار `MON_CLOCK_SKEW` (آستانه‌ی `mon_clock_drift_allowed`) برای جلوگیری از همین وضعیت است.
+The lease is the main reason the MON is sensitive to **clock skew**: the leader tells a peon "you may serve reads until time T". If the peon's clock is behind, it may still hand the old map to a client after the leader has committed a new one. The `MON_CLOCK_SKEW` warning (threshold `mon_clock_drift_allowed`) exists to prevent exactly this situation.
 :::
 
-## از فرمان تا نقشه‌ی جدید {#sec-07-8-3}
+## From command to new map {#sec-07-8-3}
 
-![مسیر یک فرمان در یک سرویس Paxos مانند OSDMonitor: فرمان‌های فقط‌خواندنی در preprocess_query از نقشه‌ی فعلی پاسخ داده می‌شوند؛ فرمان‌های تغییردهنده در prepare_update روی pending incremental اعمال، با تأخیر paxos_propose_interval دسته‌بندی و با propose_pending به Paxos پیشنهاد می‌شوند؛ پس از commit، نقشه بارگذاری، incremental به مشترکان منتشر و به فرمان‌دهنده پاسخ داده می‌شود](figures/ch07/s02_service.png){#fig-07-s02_service}
+![The path of a command in a Paxos service such as OSDMonitor: read-only commands are answered in preprocess_query from the current map; modifying commands are applied in prepare_update to the pending incremental, batched with a paxos_propose_interval delay and proposed to Paxos with propose_pending; after commit the map is loaded, the incremental is published to subscribers and the issuer gets a reply](figures/ch07/s02_service.png){#fig-07-s02_service}
 
 ```text
-pseudocode: PaxosService (خلاصه‌ی این کتاب از PaxosService.cc و OSDMonitor.cc)
+pseudocode: PaxosService (this book's summary of PaxosService.cc and OSDMonitor.cc)
   dispatch(op):
-      if preprocess_query(op): return            # فقط‌خواندنی؛ مثلاً osd dump
+      if preprocess_query(op): return            # read-only; e.g. osd dump
       if not leader: forward(op to leader); return
-      if prepare_update(op):                     # تغییر روی pending_inc
-          if should_propose(delay):              # دسته‌بندی با paxos_propose_interval
+      if prepare_update(op):                     # change on pending_inc
+          if should_propose(delay):              # batching with paxos_propose_interval
               schedule propose_pending() after delay
   propose_pending():
       t = new transaction
       encode_pending(t)                          # OSDMap::Incremental → bytes
-      paxos.begin(t)                             # OP_BEGIN به quorum
+      paxos.begin(t)                             # OP_BEGIN to the quorum
   on commit:
-      update_from_paxos()                        # epoch جدید
-      publish incrementals to subscribers        # OSDها و کلاینت‌ها
+      update_from_paxos()                        # new epoch
+      publish incrementals to subscribers        # OSDs and clients
       reply to waiting ops
 ```
 
 ::: {.note}
-به همین دلیل اجرای هم‌زمان چند ده فرمان `ceph osd ...` معمولاً **یک** epoch جدید با همه‌ی تغییرات می‌سازد، نه ده‌ها epoch. و به همین دلیل یک فرمان تغییردهنده حدود یک ثانیه طول می‌کشد حتی وقتی کلاستر کاملاً آرام است.
+This is why running several dozen `ceph osd ...` commands at the same time usually produces **one** new epoch with all the changes, not dozens of epochs. And it is also why a modifying command takes about a second even when the cluster is completely quiet.
 :::
 
-## انتخابات {#sec-07-8-4}
+## Elections {#sec-07-8-4}
 
-`src/mon/ElectionLogic.h` سه راهبرد انتخابات دارد: `CLASSIC` (بر اساس rank؛ کمترین rank برنده می‌شود)، `DISALLOW` (فهرستی از MONها نباید رهبر شوند) و `CONNECTIVITY` (شامل DISALLOW، و ترجیح MONی با اتصال بهتر بر اساس امتیازهای اتصال که در store ذخیره می‌شوند). stretch mode به `connectivity` نیاز دارد (فصل ۱۸).
+`src/mon/ElectionLogic.h` has three election strategies: `CLASSIC` (rank-based; the lowest rank wins), `DISALLOW` (a list of MONs must not become leader) and `CONNECTIVITY` (includes DISALLOW, and prefers the MON with better connectivity based on connectivity scores stored in the store). Stretch mode requires `connectivity` (chapter 18).
 
 ```bash
 ceph mon dump | grep election_strategy
 ceph mon set election_strategy connectivity
-ceph mon add disallowed_leader e         # MON داور هرگز رهبر نشود
+ceph mon add disallowed_leader e         # the tiebreaker MON never becomes leader
 ceph quorum_status | jq '.quorum_leader_name, .quorum_names'
-ceph daemon mon.a sessions | jq length   # روی میزبان MON
+ceph daemon mon.a sessions | jq length   # on the MON host
 ```
 
-# عملیات روزمره با عدد: down، out، grace و MAX AVAIL {#sec-07-9}
+# Daily operations by the numbers: down, out, grace and MAX AVAIL {#sec-07-9}
 
-چهار الگوریتم این بخش در MON اجرا می‌شوند و به چند پرسش روزمره‌ی اپراتور جواب می‌دهند: چرا OSD در این لحظه down شد یا نشد، چرا بعد از ده دقیقه out شد، و چرا `ceph df` فضای آزاد کمتری از فضای خام نشان می‌دهد. ارجاع‌ها به main در نوامبر 2026 است و عددها با بازپیاده‌سازی پایتونی حساب شده‌اند.
+The four algorithms in this section run in the MON and answer a few everyday operator questions: why an OSD was or was not marked down at this moment, why it was marked out after ten minutes, and why `ceph df` shows less free space than the raw space. References are to main as of November 2026, and the numbers were computed with a Python reimplementation.
 
-## علامت‌گذاری down: گزارش‌دهنده‌ها و grace {#sec-07-9-1}
+## Marking down: reporters and grace {#sec-07-9-1}
 
-::: {.algo #alg-07-1 title="تصمیم MON برای down کردن یک OSD" src="src/mon/OSDMonitor.cc :: OSDMonitor::check_failure، get_grace_time، is_failure_stale" complexity="O(تعداد گزارش‌دهنده‌ها)"}
+::: {.algo #alg-07-1 title="The MON's decision to mark an OSD down" src="src/mon/OSDMonitor.cc :: OSDMonitor::check_failure, get_grace_time, is_failure_stale" complexity="O(number of reporters)"}
 :::
 
 ```text
 pseudocode
-گزارش‌دهنده‌ها را بر حسب mon_osd_reporter_subtree_level (پیش‌فرض host) گروه کن
-if تعداد گروه‌ها < mon_osd_min_down_reporters (2): هنوز نه
-failed_for = now − failed_since                      # از اولین گزارش، با عقب‌بردن زمان
+group the reporters by mon_osd_reporter_subtree_level (default host)
+if number of groups < mon_osd_min_down_reporters (2): not yet
+failed_for = now − failed_since                      # from the first report, backdated
 grace = osd_heartbeat_grace (20)
 if mon_osd_adjust_heartbeat_grace (true):
     decay = exp(failed_for × ln 0.5 / mon_osd_laggy_halflife (3600))
-    grace += decay × laggy_interval × laggy_probability             # سابقه‌ی خود OSD
-    grace += میانگین همان جمله برای گزارش‌دهنده‌ها (با decay از down_stamp آن‌ها)
-if failed_for ≥ grace: OSD را در نقشه‌ی بعدی down کن
-اگر failed_for ≥ grace + osd_heartbeat_stale (600 s) شد و هنوز تصمیمی نیست: گزارش‌ها را دور بریز
+    grace += decay × laggy_interval × laggy_probability             # the OSD's own history
+    grace += the mean of the same term for the reporters (decayed from their down_stamp)
+if failed_for ≥ grace: mark the OSD down in the next map
+if failed_for ≥ grace + osd_heartbeat_stale (600 s) and still no decision: discard the reports
 ```
 
-**مثال عددی.** OSD سالمی که سابقه‌ی laggy ندارد (p = 0) وقتی down می‌شود که همتایانش روی دست‌کم دو میزبان متفاوت گزارش بدهند و failed_for به 20 ثانیه برسد. چون OSDها خودشان پس از 20 ثانیه بدون پاسخ ping گزارش می‌دهند، این معمولاً تقریباً هم‌زمان با اولین گزارش‌هاست. اگر همه‌ی گزارش‌ها از OSDهای یک میزبان باشند، شمارش گروهی 1 است و OSD هیچ‌وقت down نمی‌شود. این عمدی است، چون مشکل شبکه‌ی یک میزبان نباید باعث down شدن بقیه‌ی کلاستر شود. در کلاستر سه‌میزبانی، اگر دو میزبان دیگر سالم باشند، این شرط برقرار می‌شود.
+**Numerical example.** A healthy OSD with no laggy history (p = 0) is marked down when its peers on at least two different hosts report it and failed_for reaches 20 seconds. Because OSDs themselves report after 20 seconds without a ping reply, this is usually almost simultaneous with the first reports. If all the reports come from OSDs on one host, the group count is 1 and the OSD is never marked down. This is deliberate, because a network problem on one host should not cause the rest of the cluster to be marked down. In a three-host cluster, if the other two hosts are healthy, the condition is met.
 
-![زمان‌بندی یک OSD خاموش با پیش‌فرض‌ها. پس از 20 ثانیه بی‌پاسخی، همتایان روی دو میزبان گزارش می‌دهند و MON آن را down می‌کند. PGها degraded می‌شوند، اما داده جابه‌جا نمی‌شود. پس از 600 ثانیه (به‌علاوه‌ی جمله‌ی laggy) OSD ‏out می‌شود و backfill شروع می‌شود. خط بنفش استثناها را نشان می‌دهد: پرچم noout و down بودن کل یک rack (mon_osd_down_out_subtree_limit) که شمارنده را صفر می‌کند](figures/ch07/f09_downout.png){#fig-07-f09_downout}
+![The timeline of a powered-off OSD with the defaults. After 20 seconds without replies, peers on two hosts report it and the MON marks it down. PGs become degraded, but no data moves. After 600 seconds (plus the laggy term) the OSD is marked out and backfill starts. The purple line shows the exceptions: the noout flag and a whole rack being down (mon_osd_down_out_subtree_limit), which reset the counter](figures/ch07/f09_downout.png){#fig-07-f09_downout}
 
-## سابقه‌ی laggy: میانگین متحرک نمایی {#sec-07-9-2}
+## Laggy history: an exponential moving average {#sec-07-9-2}
 
-::: {.algo #alg-07-2 title="به‌روزرسانی laggy_probability و laggy_interval" src="src/mon/OSDMonitor.cc :: OSDMonitor::prepare_boot، grace_interval_threshold_exceeded، set_default_laggy_params" complexity="O(1)"}
+::: {.algo #alg-07-2 title="Updating laggy_probability and laggy_interval" src="src/mon/OSDMonitor.cc :: OSDMonitor::prepare_boot, grace_interval_threshold_exceeded, set_default_laggy_params" complexity="O(1)"}
 :::
 
 ```text
 pseudocode
 w = mon_osd_laggy_weight (0.3)
-هنگام boot یک OSD که down علامت خورده بود:
-    if boot_epoch == 0 (پردازه واقعاً از نو شروع شده):  p ×= 0.7 ; I ×= 0.7
-    else (پردازه زنده بود، یعنی down اشتباه بود):
+on boot of an OSD that had been marked down:
+    if boot_epoch == 0 (the process really started afresh):  p ×= 0.7 ; I ×= 0.7
+    else (the process was alive, i.e. the down was wrong):
         gap = min(now − down_stamp, mon_osd_laggy_max_interval 300)
         I = w × gap + (1 − w) × I ;  p = w + (1 − w) × p
-اگر down بعدی بیش از 48 × laggy_halflife (48 ساعت) پس از down_stamp قبلی بیفتد: p = I = 0
+if the next down happens more than 48 × laggy_halflife (48 hours) after the previous down_stamp: p = I = 0
 ```
 
-**مثال عددی.** OSDی که زیر بار سنگین به اشتباه down می‌شود و هر بار 40 ثانیه بعد برمی‌گردد، پس از بار اول p = 0.3 و I = 12 دارد. پس از بار دوم p = 0.51 و I = 20.4 است و پس از بار سوم p = 0.657 و I = 26.28. پس grace شکست بعدی تقریباً 20 + 0.657 × 26.28 = 37.3 ثانیه است. decay در اینجا روی failed_for حساب می‌شود، یعنی چند ده ثانیه، و حدود 0.994 است. سری grace برای 1 تا 8 down اشتباه این است: 23.6، 30.4، 37.3، 43.1، 47.7، 51.1، 53.7 و 55.5 ثانیه. حد بالای آن 20 + 40 = 60 ثانیه است. یعنی MON خود به خود با OSDهای «بدقلق» صبورتر می‌شود. چیزی که سابقه را پاک می‌کند گذشت زمان نیست، بلکه ری‌استارت واقعی پردازه یا 48 ساعت بدون down است. همین جمله، با decay بر اساس مدت down، به mon_osd_down_out_interval هم اضافه می‌شود. برای مثال بالا، out پس از حدود 615 ثانیه انجام می‌شود، نه 600.
+**Numerical example.** An OSD that is wrongly marked down under heavy load and comes back 40 seconds later each time has p = 0.3 and I = 12 after the first time. After the second time p = 0.51 and I = 20.4, and after the third p = 0.657 and I = 26.28. So the grace for the next failure is about 20 + 0.657 × 26.28 = 37.3 seconds. The decay here is computed on failed_for, i.e. a few tens of seconds, and is about 0.994. The grace series for 1 to 8 wrong downs is: 23.6, 30.4, 37.3, 43.1, 47.7, 51.1, 53.7 and 55.5 seconds. Its upper bound is 20 + 40 = 60 seconds. That is, the MON automatically becomes more patient with "difficult" OSDs. What clears the history is not the passage of time but a real process restart or 48 hours without a down. The same term, with decay based on the down duration, is also added to mon_osd_down_out_interval. For the example above, out happens after about 615 seconds, not 600.
 
-![چپ: رشد laggy_probability و laggy_interval با هر down اشتباه (OSD زنده که 40 ثانیه بعد برمی‌گردد)، با وزن 0.3. راست: grace مؤثر شکست بعدی، یعنی 20 ثانیه‌ی پایه به‌علاوه‌ی p × I. جمله‌ی همتایان در این مثال صفر فرض شده است. اگر down بعدی بیش از 48 ساعت بعد باشد، سابقه صفر می‌شود](figures/ch07/f08_laggy.png){#fig-07-f08_laggy}
+![Left: growth of laggy_probability and laggy_interval with each wrong down (a live OSD that returns 40 seconds later), with weight 0.3. Right: the effective grace of the next failure, i.e. the 20-second base plus p × I. The peer term is assumed to be zero in this example. If the next down is more than 48 hours later, the history is reset](figures/ch07/f08_laggy.png){#fig-07-f08_laggy}
 
-## از down تا out {#sec-07-9-3}
+## From down to out {#sec-07-9-3}
 
-::: {.algo #alg-07-3 title="علامت‌گذاری خودکار out" src="src/mon/OSDMonitor.cc :: OSDMonitor::tick (down_pending_out)، can_mark_out؛ src/osd/OSDMap.cc :: containing_subtree_is_down" complexity="O(OSDهای down × عمق CRUSH)"}
+::: {.algo #alg-07-3 title="Automatic marking out" src="src/mon/OSDMonitor.cc :: OSDMonitor::tick (down_pending_out), can_mark_out; src/osd/OSDMap.cc :: containing_subtree_is_down" complexity="O(down OSDs × CRUSH depth)"}
 :::
 
 ```text
 pseudocode
-هر tick برای هر OSD در down_pending_out:
-    down = now − زمان down شدن
+every tick, for each OSD in down_pending_out:
+    down = now − time it was marked down
     grace = mon_osd_down_out_interval (600) + exp(down × ln 0.5 / 3600) × I × p
-    if پرچم noout (سراسری یا روی گره CRUSH یا device class) یا can_mark_out رد کند: ادامه
-    if کل زیردرختی از نوع mon_osd_down_out_subtree_limit (rack) down است: down_pending_out[o] = now ; ادامه
-    if down ≥ grace: OSD را out کن (reweight = 0) ← PGها remap و backfill می‌شوند
+    if noout flag (global, or on a CRUSH node or device class) or can_mark_out refuses: continue
+    if a whole subtree of type mon_osd_down_out_subtree_limit (rack) is down: down_pending_out[o] = now ; continue
+    if down ≥ grace: mark the OSD out (reweight = 0) ← PGs are remapped and backfilled
 ```
 
-**مثال عددی.** OSD بی‌سابقه دقیقاً 600 ثانیه پس از down، out می‌شود. اگر یک rack کامل با 3 میزبان و 36 OSD خاموش شود، شمارنده‌ی هیچ‌کدام جلو نمی‌رود و out خودکار انجام نمی‌شود. این سیاست محافظه‌کارانه است: فرض می‌کند خاموشی کامل یک rack (برق یا سوئیچ) گذرا است و نباید باعث جابه‌جایی چند ده ترابایت داده شود. برای نگه‌داری برنامه‌ریزی‌شده‌ی یک میزبان، به جای پرچم سراسری از `ceph osd set-group noout <host>` یا `ceph orch host maintenance enter` استفاده کنید.
+**Numerical example.** An OSD with no history is marked out exactly 600 seconds after going down. If a whole rack with 3 hosts and 36 OSDs is powered off, none of their counters advance and no automatic out happens. This policy is conservative: it assumes that a complete rack outage (power or switch) is transient and should not cause tens of terabytes of data to move. For planned maintenance of a host, use `ceph osd set-group noout <host>` or `ceph orch host maintenance enter` instead of the global flag.
 
-## MAX AVAIL در ceph df {#sec-07-9-4}
+## MAX AVAIL in ceph df {#sec-07-9-4}
 
-::: {.algo #alg-07-4 title="برآورد فضای قابل‌استفاده‌ی یک pool" src="src/mon/PGMap.cc :: PGMap::get_rule_avail، dump_object_stat_sum؛ src/osd/OSDMap.cc :: pool_raw_used_rate" complexity="O(OSDهای rule)"}
+::: {.algo #alg-07-4 title="Estimating a pool's usable space" src="src/mon/PGMap.cc :: PGMap::get_rule_avail, dump_object_stat_sum; src/osd/OSDMap.cc :: pool_raw_used_rate" complexity="O(OSDs in the rule)"}
 :::
 
 ```text
 pseudocode
-wm = سهم وزنی هر OSD در rule (get_rule_weight_osd_map، مجموع = 1)
-برای هر OSD با وزن > 0:
-    avail = max(0, kb_avail − kb × (1 − full_ratio))      # 5٪ ذخیره‌ی پیش از full
-    proj  = avail / wm[osd]                                # چقدر داده‌ی خام تا پر شدن همین OSD
-raw_avail = min(proj)                                       # پرترین OSD نسبت به سهمش
-MAX AVAIL = raw_avail / raw_used_rate     # replicated: size ؛ EC: (k + m) / k
+wm = each OSD's weighted share in the rule (get_rule_weight_osd_map, sum = 1)
+for each OSD with weight > 0:
+    avail = max(0, kb_avail − kb × (1 − full_ratio))      # the 5% reserve before full
+    proj  = avail / wm[osd]                                # how much raw data until this OSD fills
+raw_avail = min(proj)                                       # the fullest OSD relative to its share
+MAX AVAIL = raw_avail / raw_used_rate     # replicated: size ; EC: (k + m) / k
 ```
 
-**مثال عددی.** کلاستری با 52 TiB خام را در نظر بگیرید: یازده OSD چهار ترابایتی و یک OSD هشت ترابایتی. ده OSD چهار ترابایتی 60٪ پرند، osd.10 ‏80٪ و osd.11 (هشت ترابایتی) ‏55٪. سهم وزنی هر OSD چهار ترابایتی 4/52 است. برای OSDهای 60٪ داریم proj = (1.6 − 0.2) / (4/52) = 18.2 TiB، اما برای osd.10 فقط (0.8 − 0.2) / (4/52) = 7.8 TiB. MAX AVAIL یک pool سه‌نسخه‌ای 7.8 / 3 = 2.6 TiB است و یک pool ‏EC ‏4+2 برابر 7.8 / 1.5 = 5.2 TiB. اگر osd.10 هم 60٪ بود، همین pool سه‌نسخه‌ای 6.1 TiB نشان می‌داد. پس یک OSD نامتوازن بیش از نیمی از فضای «قابل‌استفاده»ی گزارش‌شده را می‌خورد. این تعریف درست است، چون CRUSH داده را به نسبت وزن پخش می‌کند و همان OSD اول پر می‌شود. علاج آن balancer با حالت upmap است، نه افزودن دیسک.
+**Numerical example.** Consider a cluster with 52 TiB raw: eleven 4 TB OSDs and one 8 TB OSD. Ten of the 4 TB OSDs are 60% full, osd.10 is 80% and osd.11 (8 TB) is 55%. The weighted share of each 4 TB OSD is 4/52. For the 60% OSDs we have proj = (1.6 − 0.2) / (4/52) = 18.2 TiB, but for osd.10 only (0.8 − 0.2) / (4/52) = 7.8 TiB. The MAX AVAIL of a three-replica pool is 7.8 / 3 = 2.6 TiB, and of an EC 4+2 pool 7.8 / 1.5 = 5.2 TiB. If osd.10 were also at 60%, the same three-replica pool would show 6.1 TiB. So one unbalanced OSD eats more than half of the reported "usable" space. This definition is correct, because CRUSH spreads data in proportion to weight and that same OSD fills up first. The remedy is the balancer in upmap mode, not adding disks.
 
-![چپ: درصد استفاده‌ی دوازده OSD، با یک OSD چهار ترابایتی که 80٪ پر است (قرمز). راست: برای هر OSD، داده‌ی خامی که می‌توان نوشت تا همان OSD به full_ratio برسد. کمینه‌ی آن‌ها (خط قرمز) پایه‌ی MAX AVAIL است و بر size یا (k + m) / k تقسیم می‌شود](figures/ch07/f10_maxavail.png){#fig-07-f10_maxavail}
+![Left: the usage percentage of twelve OSDs, with one 4 TB OSD 80% full (red). Right: for each OSD, the raw data that can be written before that OSD reaches full_ratio. Their minimum (red line) is the basis of MAX AVAIL and is divided by size or (k + m) / k](figures/ch07/f10_maxavail.png){#fig-07-f10_maxavail}
 
-![نردبان نسبت‌های پری با پیش‌فرض‌ها: هشدار NEARFULL از 85٪، توقف backfill به سمت OSD از 90٪، پرچم FULL و توقف نوشتن کلاینت‌ها از 95٪، و failsafe خود OSD از 97٪. سه نسبت اول در OSDMap نگه‌داری می‌شوند و با set-*-ratio تغییر می‌کنند. failsafe یک گزینه‌ی پیکربندی OSD است](figures/ch07/f11_ratios.png){#fig-07-f11_ratios}
+![The ladder of fullness ratios with the defaults: the NEARFULL warning from 85%, backfill to the OSD stops from 90%, the FULL flag and client writes stop from 95%, and the OSD's own failsafe from 97%. The first three ratios are kept in the OSDMap and changed with set-*-ratio. The failsafe is an OSD configuration option](figures/ch07/f11_ratios.png){#fig-07-f11_ratios}
 
-# نگهداری روزمره {#sec-07-10}
+# Day-to-day maintenance {#sec-07-10}
 
-## حالت نگهداری میزبان {#sec-07-10-1}
+## Host maintenance mode {#sec-07-10-1}
 
-برای کارهای برنامه‌ریزی‌شده (به‌روزرسانی هسته، تعویض قطعه، راه‌اندازی مجدد)، از حالت نگهداری cephadm استفاده کنید. این حالت همه‌ی daemonهای Ceph روی میزبان را متوقف می‌کند و پرچم `noout` را فقط برای همان میزبان می‌گذارد تا OSDهایش out نشوند و بازیابی بی‌مورد شروع نشود:
+For planned work (kernel updates, part replacement, reboots), use cephadm's maintenance mode. This mode stops all Ceph daemons on the host and sets the `noout` flag for that host only, so that its OSDs are not marked out and no unnecessary recovery starts:
 
 ```bash
-ceph osd ok-to-stop $(ceph osd ls-tree ceph-node2 | tr '\n' ' ')   # آیا توقف همه‌ی OSDهای این میزبان امن است؟
+ceph osd ok-to-stop $(ceph osd ls-tree ceph-node2 | tr '\n' ' ')   # is it safe to stop all OSDs on this host?
 ceph orch host maintenance enter ceph-node2
-# ... راه‌اندازی مجدد میزبان یا تعمیر ...
+# ... reboot the host or repair it ...
 ceph orch host maintenance exit ceph-node2
 ceph -s
 ```
 
 ::: {.warn}
-`--force` در `maintenance enter` بررسی‌های ایمنی را دور می‌زند. اگر میزبان آخرین MON سالم یا آخرین نسخه‌ی در دسترس برخی PGها را دارد، ورود اجباری به نگهداری یعنی قطع دسترسی. اگر `ok-to-stop` منفی جواب داد، اول علت را برطرف کنید.
+`--force` in `maintenance enter` bypasses the safety checks. If the host holds the last healthy MON or the last available copy of some PGs, forcing it into maintenance means an outage. If `ok-to-stop` answers no, fix the cause first.
 :::
 
-## پرچم‌های کلاستر {#sec-07-10-2}
+## Cluster flags {#sec-07-10-2}
 
-| پرچم | اثر | کاربرد معمول |
+| Flag | Effect | Typical use |
 |---|---|---|
-| noout | OSDهای down خودکار out نمی‌شوند | نگهداری کوتاه‌مدت |
-| norebalance | بازتوزیع داده‌ی سالم متوقف می‌شود | افزودن گروهی OSD |
-| nobackfill | backfill متوقف می‌شود | کاهش بار در ساعات اوج |
-| norecover | بازیابی متوقف می‌شود | فقط در اضطرار و برای مدت کوتاه |
-| noscrub, nodeep-scrub | scrub جدید شروع نمی‌شود | عملیات سنگین، ارتقا |
-| pause | همه‌ی خواندن و نوشتن‌ها متوقف می‌شود | تقریباً هرگز در production |
+| noout | Down OSDs are not marked out automatically | Short maintenance |
+| norebalance | Rebalancing of healthy data stops | Adding OSDs in bulk |
+| nobackfill | Backfill stops | Reducing load at peak hours |
+| norecover | Recovery stops | Only in emergencies and briefly |
+| noscrub, nodeep-scrub | No new scrub starts | Heavy operations, upgrades |
+| pause | All reads and writes stop | Almost never in production |
 
 ```bash
 ceph osd set noout
 ceph osd unset noout
-ceph osd set-group noout osd.4    # فقط یک OSD
-ceph osd set-group noout ceph-node3   # همه‌ی OSDهای یک میزبان (bucket CRUSH)
+ceph osd set-group noout osd.4    # one OSD only
+ceph osd set-group noout ceph-node3   # all OSDs of one host (a CRUSH bucket)
 ceph osd unset-group noout ceph-node3
 ```
 
 ::: {.tip}
-پرچم‌های فراموش‌شده یکی از رایج‌ترین علت‌های رفتار عجیب کلاستر هستند (مثلاً داده هرگز بازیابی نمی‌شود چون `norecover` روشن مانده است). در پایش، هشدار `OSDMAP_FLAGS` را جدی بگیرید و بعد از هر نگهداری `ceph osd dump | grep flags` را بررسی کنید.
+Forgotten flags are one of the most common causes of strange cluster behaviour (for example, data never recovers because `norecover` was left on). In monitoring, take the `OSDMAP_FLAGS` warning seriously and check `ceph osd dump | grep flags` after every maintenance.
 :::
 
-## کنترل سرعت بازیابی و backfill {#sec-07-10-3}
+## Controlling recovery and backfill speed {#sec-07-10-3}
 
-کتاب ۲۰۱۹ برای کند کردن بازیابی، تنظیم مستقیم `osd_max_backfills`، `osd_recovery_max_active` و `osd_recovery_sleep` را آموزش می‌داد. از Quincy، زمان‌بند پیش‌فرض OSD **mClock** است و این تنظیمات را خودش مدیریت می‌کند. راه درست امروزی انتخاب **پروفایل** است:
+To slow recovery down, the 2019 book taught setting `osd_max_backfills`, `osd_recovery_max_active` and `osd_recovery_sleep` directly. Since Quincy the default OSD scheduler is **mClock**, and it manages these settings itself. The right way today is to choose a **profile**:
 
-| پروفایل | اولویت | کاربرد |
+| Profile | Priority | Use |
 |---|---|---|
-| balanced (پیش‌فرض) | تعادل بین کلاینت و بازیابی | حالت عادی |
-| high_client_ops | اولویت با کلاینت؛ بازیابی کندتر | ساعات اوج، کلاستر حساس به تأخیر |
-| high_recovery_ops | اولویت با بازیابی | پس از خرابی بزرگ، در ساعات کم‌بار |
+| balanced (default) | Balance between client and recovery | Normal operation |
+| high_client_ops | Clients first; slower recovery | Peak hours, latency-sensitive cluster |
+| high_recovery_ops | Recovery first | After a big failure, in off-peak hours |
 
 ```bash
 ceph config get osd osd_mclock_profile
 ceph config set osd osd_mclock_profile high_recovery_ops
-# پس از اتمام بازیابی
+# after recovery finishes
 ceph config set osd osd_mclock_profile balanced
 ```
 
 ::: {.deep}
-در حالت mClock، OSD مقادیری مثل `osd_max_backfills` و `osd_recovery_max_active` را نادیده می‌گیرد یا خودش تنظیم می‌کند. اگر واقعاً لازم است دستی تنظیمشان کنید، اول باید `osd_mclock_override_recovery_settings` را `true` کنید. mClock برای تخصیص سهم‌ها به ظرفیت IOPS هر OSD تکیه دارد که در اولین راه‌اندازی اندازه‌گیری می‌شود (`osd_mclock_max_capacity_iops_hdd` و `_ssd`). اگر این اندازه‌گیری روی دیسک شلوغ انجام شده باشد، مقدار غیرواقعی سهم بازیابی را خراب می‌کند. در Squid برای HDDها پیش‌فرض‌های shard تغییر کرد (`osd_op_num_shards_hdd` برابر ۱ با ۵ thread) تا رفتار mClock روی HDD قابل پیش‌بینی‌تر شود.
+In mClock mode the OSD ignores values such as `osd_max_backfills` and `osd_recovery_max_active`, or sets them itself. If you really need to set them by hand, you must first set `osd_mclock_override_recovery_settings` to `true`. mClock relies on each OSD's IOPS capacity, measured at first start-up (`osd_mclock_max_capacity_iops_hdd` and `_ssd`), to allocate shares. If this measurement was taken on a busy disk, the unrealistic value spoils the recovery share. In Squid the shard defaults for HDDs changed (`osd_op_num_shards_hdd` set to 1 with 5 threads) to make mClock's behaviour on HDDs more predictable.
 :::
 
-## اولویت‌دهی به PGهای خاص {#sec-07-10-4}
+## Prioritising specific PGs {#sec-07-10-4}
 
 ```bash
 ceph pg force-recovery 2.1f
@@ -553,9 +552,9 @@ ceph pg force-backfill 2.1f 2.20
 ceph pg cancel-force-recovery 2.1f
 ```
 
-## scrub {#sec-07-10-5}
+## Scrub {#sec-07-10-5}
 
-scrub سبک (هر روز) فراداده‌ی نسخه‌ها را مقایسه می‌کند و deep-scrub (هر هفته) داده را با checksum بررسی می‌کند. برای کاهش اثر scrub بر کلاینت، آن را به ساعات کم‌بار محدود کنید:
+Light scrub (daily) compares the replicas' metadata, and deep-scrub (weekly) checks the data with checksums. To reduce scrub's impact on clients, limit it to off-peak hours:
 
 ```bash
 ceph config set osd osd_scrub_begin_hour 1
@@ -564,50 +563,50 @@ ceph pg deep-scrub 2.1f
 ceph health detail | grep -i scrub
 ```
 
-::: {.summary title="نکات SRE این فصل"}
+::: {.summary title="SRE notes for this chapter"}
 
-- وضعیت مطلوب را با `ceph orch ls --export` در Git نگه دارید.
-- پیکربندی در پایگاه MON است؛ `ceph.conf` را دستی ویرایش نکنید.
-- قبل از هر حذف: `ok-to-stop` و `safe-to-destroy`.
-- تعویض دیسک با `--replace` تا id و CRUSH حفظ شوند.
-- نگهداری میزبان فقط با `maintenance enter/exit`.
-- پرچم‌ها را پس از کار بردارید؛ `OSDMAP_FLAGS` را پایش کنید.
-- سرعت بازیابی را با پروفایل mClock کنترل کنید، نه تنظیم دستی.
-- ارتقا: یادداشت انتشار، HEALTH_OK، مسیر حداکثر دو نسخه، پایش پس از ارتقا.
+- Keep the desired state in Git with `ceph orch ls --export`.
+- Configuration lives in the MON database; do not edit `ceph.conf` by hand.
+- Before any removal: `ok-to-stop` and `safe-to-destroy`.
+- Replace disks with `--replace` so that the id and CRUSH position are kept.
+- Host maintenance only with `maintenance enter/exit`.
+- Remove flags after the work; monitor `OSDMAP_FLAGS`.
+- Control recovery speed with the mClock profile, not manual tuning.
+- Upgrades: release notes, HEALTH_OK, a path of at most two releases, monitoring after the upgrade.
 
 :::
 
-# تکمیلی و به‌روز {#sec-07-11}
+# Supplementary and up to date {#sec-07-11}
 
-- **ceph-deploy** بازنشسته شده و ceph-ansible هم دیگر مسیر توصیه‌شده نیست؛ cephadm و Rook دو روش پشتیبانی‌شده‌ی استقرار و راهبری هستند.
-- **پیکربندی متمرکز** (Mimic) جای ویرایش `ceph.conf` را گرفت.
-- **mClock** (پیش‌فرض از Quincy) کنترل بازیابی را به پروفایل‌ها سپرد؛ Squid پیش‌فرض‌های shard HDD را تغییر داد.
-- **Umbrella**: ارتقای OSD به ترتیب bucketهای CRUSH و دستور `ceph osd ok-to-upgrade`؛ پیش‌نیاز CPU x86-64-v3 و image‌های el10؛ و افزایش پیش‌فرض‌های `mon_target_pg_per_osd` به ۲۰۰ و `mon_max_pg_per_osd` به ۵۰۰ که بر برنامه‌ریزی PG در کلاسترهای ارتقایافته اثر دارد.
-- **Tentacle**: ماژول‌های restful و zabbix از MGR حذف شدند؛ اگر اسکریپت‌های عملیاتی شما به restful وابسته‌اند، پیش از ارتقا آن‌ها را به API داشبورد منتقل کنید.
+- **ceph-deploy** is retired, and ceph-ansible is no longer the recommended path either; cephadm and Rook are the two supported methods of deployment and operation.
+- **Centralised configuration** (Mimic) replaced editing `ceph.conf`.
+- **mClock** (default since Quincy) handed recovery control over to profiles; Squid changed the HDD shard defaults.
+- **Umbrella**: OSD upgrades in CRUSH bucket order and the `ceph osd ok-to-upgrade` command; the x86-64-v3 CPU prerequisite and el10 images; and higher defaults of 200 for `mon_target_pg_per_osd` and 500 for `mon_max_pg_per_osd`, which affect PG planning in upgraded clusters.
+- **Tentacle**: the restful and zabbix modules were removed from the MGR; if your operational scripts depend on restful, move them to the dashboard API before upgrading.
 
-# تمرین عملی {#sec-07-12}
+# Hands-on exercise {#sec-07-12}
 
-1. خروجی `ceph orch ls --export` را ذخیره کنید، تعداد MGRها را تغییر دهید و تفاوت را با `diff` ببینید.
-2. `osd_memory_target` را فقط برای OSDهای کلاس ssd تغییر دهید و با `ceph config show` در یک OSD بررسی کنید.
-3. یک میزبان را وارد حالت نگهداری کنید، آن را راه‌اندازی مجدد کنید و خارج شوید. در حین کار خروجی `ceph -s` و پرچم‌ها را یادداشت کنید.
-4. خرابی دیسک را با `ceph orch daemon stop osd.N` شبیه‌سازی کنید، پس از out شدن، روال تعویض با `--replace` را اجرا کنید.
-5. پروفایل mClock را به `high_recovery_ops` تغییر دهید و سرعت بازیابی (`ceph -s`) را با `balanced` مقایسه کنید.
-6. در آزمایشگاه، کلاستر را به آخرین نسخه‌ی نقطه‌ای همان خط ارتقا دهید و مراحل را با `ceph -W cephadm` دنبال کنید.
+1. Save the output of `ceph orch ls --export`, change the number of MGRs and look at the difference with `diff`.
+2. Change `osd_memory_target` for the ssd-class OSDs only and check it on one OSD with `ceph config show`.
+3. Put a host into maintenance mode, reboot it and exit. Note the output of `ceph -s` and the flags along the way.
+4. Simulate a disk failure with `ceph orch daemon stop osd.N`; after it is marked out, run the replacement procedure with `--replace`.
+5. Change the mClock profile to `high_recovery_ops` and compare the recovery speed (`ceph -s`) with `balanced`.
+6. In a lab, upgrade the cluster to the latest point release of the same line and follow the stages with `ceph -W cephadm`.
 
-# پرسش‌های مرور {#sec-07-13}
+# Review questions {#sec-07-13}
 
-1. چرا توقف daemon با systemctl در cephadm توصیه نمی‌شود؟
-2. ترتیب اولویت منابع پیکربندی چیست و مقدار مؤثر را چطور می‌بینید؟
-3. تفاوت `ceph tell` و `ceph daemon` چیست؟
-4. مزایا و معایب scale-up و scale-out را از نظر دامنه‌ی خرابی مقایسه کنید.
-5. چرا هنگام افزودن تعداد زیادی OSD، پرچم‌های norebalance و nobackfill مفیدند؟
-6. تفاوت `ok-to-stop` و `safe-to-destroy` چیست؟
-7. گزینه‌ی `--replace` در حذف OSD چه مزیتی دارد؟
-8. حالت نگهداری cephadm چه کاری انجام می‌دهد؟
-9. چرا در mClock تنظیم مستقیم `osd_max_backfills` اثر ندارد و راه درست چیست؟
-10. ارتقای OSD به ترتیب bucketهای CRUSH در Umbrella چه ریسکی را کاهش می‌دهد؟
+1. Why is stopping a daemon with systemctl not recommended in cephadm?
+2. What is the precedence order of configuration sources, and how do you see the effective value?
+3. What is the difference between `ceph tell` and `ceph daemon`?
+4. Compare the advantages and disadvantages of scale-up and scale-out in terms of failure domain.
+5. Why are the norebalance and nobackfill flags useful when adding many OSDs?
+6. What is the difference between `ok-to-stop` and `safe-to-destroy`?
+7. What advantage does the `--replace` option give when removing an OSD?
+8. What does cephadm's maintenance mode do?
+9. Why does setting `osd_max_backfills` directly have no effect under mClock, and what is the right way?
+10. What risk does upgrading OSDs in CRUSH bucket order in Umbrella reduce?
 
-# منابع این فصل {#sec-07-14}
+# Sources for this chapter {#sec-07-14}
 
 - cephadm operations: https://docs.ceph.com/en/latest/cephadm/operations/
 - Host management: https://docs.ceph.com/en/latest/cephadm/host-management/

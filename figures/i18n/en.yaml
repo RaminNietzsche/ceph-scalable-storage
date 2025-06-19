@@ -449,86 +449,70 @@ ch06/s02_journal:
   standby-replay دنبال journal: standby-replay follows the journal
   (کلاینت‌ها capها را دوباره اعلام می‌کنند): (clients re-declare their caps)
 ch07/f01_layers:
-  سطح کنترل: null
-  در: null
-  تطبیق وضعیت مطلوب: null
-  روی هر میزبان: null
-  از طریق: null
-  روی میزبان: null
-  کانتینر: null
+  سطح کنترل: control plane
+  cephadm در MGR<br/>تطبیق وضعیت مطلوب: cephadm in the MGR<br/>reconciles the desired state
+  روی هر میزبان (از طریق SSH): on each host (over SSH)
+  cephadm روی میزبان<br/>deploy, logs: cephadm on the host<br/>deploy, logs
+  podman/docker<br/>کانتینر daemon: podman/docker<br/>daemon container
 ch07/f02_config:
-  اولویت از کم به زیاد: null
-  پیش‌فرض کامپایل‌شده: null
-  پایگاه پیکربندی: null
-  محلی: null
-  حداقلی: null
-  ادامه: null
-  آرگومان خط فرمان: null
-  تغییر زمان اجرا: null
-  مقدار مؤثر: null
+  اولویت از کم به زیاد: precedence from lowest to highest
+  ۱. پیش‌فرض کامپایل‌شده: 1. compiled-in default
+  ۲. پایگاه پیکربندی MON<br/>ceph config set: 2. MON configuration database<br/>ceph config set
+  ۳. ceph.conf محلی<br/>حداقلی: 3. local ceph.conf<br/>minimal
+  ادامه: continued
+  ۴. آرگومان خط فرمان: 4. command-line argument
+  ۵. تغییر زمان اجرا<br/>ceph tell / daemon config set: 5. run-time change<br/>ceph tell / daemon config set
+  مقدار مؤثر<br/>ceph config show osd.3: effective value<br/>ceph config show osd.3
 ch07/f03_replace:
-  دیسک خراب: null
-  آیا داده بازیابی شده؟: null
-  خیر: null
-  صبر تا: null
-  یا اولویت‌دهی: null
-  بله: null
-  تعویض فیزیکی دیسک: null
-  دیسک تازه را می‌بیند: null
-  و: null
-  را با همان: null
-  می‌سازد: null
-  به: null
-  تازه: null
+  'دیسک خراب: OSD.7 down': 'failed disk: OSD.7 down'
+  آیا داده بازیابی شده؟<br/>ceph -s: has the data recovered?<br/>ceph -s
+  خیر: 'no'
+  صبر تا active+clean<br/>یا اولویت‌دهی recovery: wait for active+clean<br/>or prioritise recovery
+  بله: 'yes'
+  تعویض فیزیکی دیسک: physically replace the disk
+  spec OSD دیسک تازه را می‌بیند<br/>و OSD.7 را با همان id می‌سازد: the OSD spec sees the new disk<br/>and creates OSD.7 with the same id
+  backfill به OSD تازه: backfill to the new OSD
 ch07/f04_upgrade:
-  گام ۱: null
-  صفحه‌ی کنترل: null
-  پیش‌بررسی: null
-  ها: null
-  و: null
-  گام ۲: null
-  داده و دروازه‌ها: null
-  گره یا: null
-  به ترتیب: null
-  پایش: null
-  پس از ارتقا: null
+  'گام ۱: صفحه‌ی کنترل': 'step 1: control plane'
+  پیش‌بررسی<br/>HEALTH_OK: pre-check<br/>HEALTH_OK
+  MGRها: MGRs
+  MONها: MONs
+  crash و<br/>ceph-exporter: crash and<br/>ceph-exporter
+  'گام ۲: داده و دروازه‌ها': 'step 2: data and gateways'
+  OSDها<br/>گره یا bucket به ترتیب: OSDs<br/>node or bucket in order
+  MDSها: MDSs
+  RGW، NFS،<br/>NVMe-oF: RGW, NFS,<br/>NVMe-oF
+  پایش<br/>پس از ارتقا: monitoring<br/>after the upgrade
 ch07/f05_scale:
-  بزرگ‌تر کردن گره‌ها: null
-  ۴ گره: null
-  ۱۲ دیسک: null
-  ۲۴ دیسک: null
-  افزودن گره: null
-  ۸ گره: null
+  'scale-up: بزرگ‌تر کردن گره‌ها': 'scale-up: bigger nodes'
+  ۴ گره × ۱۲ دیسک: 4 nodes × 12 disks
+  ۴ گره × ۲۴ دیسک: 4 nodes × 24 disks
+  'scale-out: افزودن گره': 'scale-out: more nodes'
+  ۸ گره × ۱۲ دیسک: 8 nodes × 12 disks
 ch07/s01_paxos:
-  کمترین: null
-  در: null
-  بازیابی پس از انتخابات: null
-  جدید،: null
-  مقادیر پذیرفته‌ی ناتمام: null
-  اگر مقدار ناتمامی هست، دوباره پیشنهاد می‌شود: null
-  هر تغییر نقشه: null
-  ذخیره‌ی مقدار پیشنهادی: null
-  ، نسخه‌ی: null
-  پس از: null
-  همه‌ی: null
-  اجازه‌ی خواندن تا: null
+  Leader (کمترین rank در quorum): Leader (lowest rank in the quorum)
+  'بازیابی پس از انتخابات: collect / last': 'recovery after the election: collect / last'
+  OP_COLLECT (pn جدید، first/last_committed): OP_COLLECT (new pn, first/last_committed)
+  OP_LAST (مقادیر پذیرفته‌ی ناتمام): OP_LAST (unfinished accepted values)
+  اگر مقدار ناتمامی هست، دوباره پیشنهاد می‌شود (UPDATING_PREVIOUS): any unfinished value is proposed again (UPDATING_PREVIOUS)
+  'هر تغییر نقشه: begin / accept / commit': 'each map change: begin / accept / commit'
+  'begin(v): ذخیره‌ی مقدار پیشنهادی (STATE_UPDATING)': 'begin(v): store the proposed value (STATE_UPDATING)'
+  OP_BEGIN (pn، نسخه‌ی last_committed+1، v): OP_BEGIN (pn, version last_committed+1, v)
+  'پس از accept همه‌ی quorum: commit_start (STATE_WRITING)': 'after accept from the whole quorum: commit_start (STATE_WRITING)'
+  OP_LEASE (اجازه‌ی خواندن تا now + mon_lease): OP_LEASE (read permission until now + mon_lease)
 ch07/s02_service:
-  دریافت فرمان: null
-  فقط‌خواندنی؟: null
-  بله: null
-  پاسخ فوری: null
-  از نقشه‌ی فعلی: null
-  تغییر: null
-  اعمال روی: null
-  تأخیر: null
-  برای دسته‌بندی تغییرات: null
-  پس از: null
-  بارگذاری: null
-  جدید: null
-  انتشار: null
-  به مشترکان: null
-  ، کلاینت: null
-  پاسخ به فرمان‌دهنده: null
+  ۱. دریافت فرمان (PaxosService::dispatch): 1. receive the command (PaxosService::dispatch)
+  preprocess_query<br/>فقط‌خواندنی؟: preprocess_query<br/>read-only?
+  بله: 'yes'
+  پاسخ فوری<br/>از نقشه‌ی فعلی: immediate reply<br/>from the current map
+  ۲. تغییر: 2. change
+  prepare_update:<br/>اعمال روی pending_inc: prepare_update:<br/>apply to pending_inc
+  should_propose:<br/>تأخیر paxos_propose_interval=1s<br/>برای دسته‌بندی تغییرات: should_propose:<br/>paxos_propose_interval=1s delay<br/>to batch changes
+  propose_pending:<br/>encode_pending → Paxos::begin: propose_pending:<br/>encode_pending → Paxos::begin
+  ۳. پس از commit: 3. after commit
+  'refresh: بارگذاری epoch جدید': 'refresh: load the new epoch'
+  انتشار OSDMap incremental<br/>به مشترکان (OSD، کلاینت): publish the OSDMap incremental<br/>to subscribers (OSDs, clients)
+  پاسخ به فرمان‌دهنده: reply to the issuer
 ch08/f01_place:
   شیء: null
   مجموعه‌ی: null

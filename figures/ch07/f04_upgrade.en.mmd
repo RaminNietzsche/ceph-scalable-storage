@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph A1["step 1: control plane"]
+    direction LR
+    P["pre-check<br/>HEALTH_OK"] --> M1["MGRs"] --> M2["MONs"] --> M3["crash and<br/>ceph-exporter"]
+  end
+  subgraph A2["step 2: data and gateways"]
+    direction LR
+    O["OSDs<br/>node or bucket in order"] --> MD["MDSs"] --> G["RGW, NFS,<br/>NVMe-oF"] --> F["monitoring<br/>after the upgrade"]
+  end
+  A1 ~~~ A2

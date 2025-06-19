@@ -1,0 +1,10 @@
+flowchart LR
+  subgraph UP["scale-up: bigger nodes"]
+    direction TB
+    U1["4 nodes × 12 disks"] --> U2["4 nodes × 24 disks"]
+  end
+  subgraph OUT["scale-out: more nodes"]
+    direction TB
+    O1["4 nodes × 12 disks"] --> O2["8 nodes × 12 disks"]
+  end
+  UP ~~~ OUT

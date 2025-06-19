@@ -1,0 +1,21 @@
+sequenceDiagram
+  participant L as Leader (lowest rank in the quorum)
+  participant P1 as Peon 1
+  participant P2 as Peon 2
+  Note over L,P2: recovery after the election: collect / last
+  L->>P1: OP_COLLECT (new pn, first/last_committed)
+  L->>P2: OP_COLLECT
+  P1-->>L: OP_LAST (unfinished accepted values)
+  P2-->>L: OP_LAST
+  Note over L: any unfinished value is proposed again (UPDATING_PREVIOUS)
+  Note over L,P2: each map change: begin / accept / commit
+  L->>L: begin(v): store the proposed value (STATE_UPDATING)
+  L->>P1: OP_BEGIN (pn, version last_committed+1, v)
+  L->>P2: OP_BEGIN
+  P1-->>L: OP_ACCEPT
+  P2-->>L: OP_ACCEPT
+  Note over L: after accept from the whole quorum: commit_start (STATE_WRITING)
+  L->>P1: OP_COMMIT
+  L->>P2: OP_COMMIT
+  L->>P1: OP_LEASE (read permission until now + mon_lease)
+  P1-->>L: OP_LEASE_ACK

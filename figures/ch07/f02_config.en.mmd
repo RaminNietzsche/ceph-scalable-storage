@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph L1["precedence from lowest to highest"]
+    direction LR
+    S1["1. compiled-in default"] --> S2["2. MON configuration database<br/>ceph config set"] --> S3["3. local ceph.conf<br/>minimal"]
+  end
+  subgraph L2["continued"]
+    direction LR
+    S4["4. command-line argument"] --> S5["5. run-time change<br/>ceph tell / daemon config set"] --> R["effective value<br/>ceph config show osd.3"]
+  end
+  L1 ~~~ L2

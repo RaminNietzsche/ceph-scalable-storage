@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph A["1. receive the command (PaxosService::dispatch)"]
+    direction LR
+    m["MMonCommand: osd pool set ..."] --> pq{"preprocess_query<br/>read-only?"}
+    pq -- yes --> rr["immediate reply<br/>from the current map"]
+  end
+  subgraph B["2. change"]
+    direction LR
+    pu["prepare_update:<br/>apply to pending_inc"] --> sp["should_propose:<br/>paxos_propose_interval=1s delay<br/>to batch changes"] --> pp["propose_pending:<br/>encode_pending → Paxos::begin"]
+  end
+  subgraph C["3. after commit"]
+    direction LR
+    rf["refresh: load the new epoch"] --> pub["publish the OSDMap incremental<br/>to subscribers (OSDs, clients)"] --> rep["reply to the issuer"]
+  end
+  A ~~~ B ~~~ C

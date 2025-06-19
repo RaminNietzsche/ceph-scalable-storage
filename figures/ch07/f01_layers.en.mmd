@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["control plane"]
+    direction LR
+    A["ceph orch<br/>apply, ls, ps, rm"] --> B["cephadm in the MGR<br/>reconciles the desired state"]
+  end
+  subgraph R2["on each host (over SSH)"]
+    direction LR
+    C["cephadm on the host<br/>deploy, logs"] --> D["systemd<br/>ceph-FSID@osd.3"] --> E["podman/docker<br/>daemon container"]
+  end
+  R1 ~~~ R2

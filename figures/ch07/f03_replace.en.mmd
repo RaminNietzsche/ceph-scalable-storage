@@ -1,0 +1,9 @@
+flowchart TB
+  F["failed disk: OSD.7 down"] --> W{"has the data recovered?<br/>ceph -s"}
+  W -->|"no"| WAIT["wait for active+clean<br/>or prioritise recovery"]
+  WAIT --> W
+  W -->|"yes"| SAFE["ceph osd safe-to-destroy 7"]
+  SAFE --> RM["ceph orch osd rm 7 --replace --zap"]
+  RM --> HW["physically replace the disk"]
+  HW --> AUTO["the OSD spec sees the new disk<br/>and creates OSD.7 with the same id"]
+  AUTO --> BF["backfill to the new OSD"]
