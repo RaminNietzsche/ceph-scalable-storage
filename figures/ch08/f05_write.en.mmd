@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant C as client
+  participant P as primary OSD
+  participant S1 as secondary OSD 1
+  participant S2 as secondary OSD 2
+  C->>P: write(obj)
+  par parallel replication
+    P->>S1: replicate the write
+    P->>S2: replicate the write
+  end
+  P->>P: commit in BlueStore
+  S1-->>P: ack
+  S2-->>P: ack
+  P-->>C: ack (after all replicas commit)

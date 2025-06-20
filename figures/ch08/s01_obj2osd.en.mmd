@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph A["1. object to PG (client, Objecter)"]
+    direction LR
+    o["object name + namespace<br/>(or locator key)"] --> h["ceph_str_hash<br/>(rjenkins by default)"] --> s["ceph_stable_mod(hash, pg_num, pg_num_mask)<br/>→ ps (seed)"]
+  end
+  subgraph B["2. PG to OSD (CRUSH)"]
+    direction LR
+    p["raw_pg_to_pps:<br/>hash(ps, pool_id)"] --> c["crush_do_rule(rule, x=pps)<br/>take → choose/chooseleaf → emit"] --> r["raw up set<br/>[osd.4, osd.11, osd.19]"]
+  end
+  subgraph C["3. post-processing (OSDMap)"]
+    direction LR
+    u["drop down/nonexistent OSDs"] --> m["apply pg_upmap / pg_upmap_items"] --> t["pg_temp and primary_temp<br/>→ acting set and primary"]
+  end
+  A ~~~ B ~~~ C

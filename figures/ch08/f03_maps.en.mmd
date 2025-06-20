@@ -1,0 +1,6 @@
+flowchart LR
+  C["clients"] -->|"fetch maps<br/>and epochs"| MON["MONs with Paxos consensus<br/>━━━━━━━━<br/>MonMap · OSDMap and CRUSH<br/>MgrMap · FSMap · ConfigDB · AuthDB"]
+  OSD["OSDs"] -->|"peer failure reports<br/>boot and stats"| MON
+  MON --> MGR["MGR<br/>PG stats (PGMap)<br/>dashboard and modules"]
+  OSD -->|"PG stats"| MGR
+  OSD <-->|"new map spread<br/>between peers"| OSD2["other OSDs"]

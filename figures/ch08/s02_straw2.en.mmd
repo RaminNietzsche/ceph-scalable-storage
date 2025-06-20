@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph S1["1. for each item i in the bucket"]
+    direction LR
+    a["u = hash(x, id_i, r) & 0xffff<br/>pseudo-random number in [0, 65535]"] --> b["ln = crush_ln(u) − 2^48<br/>table approximation of ln(u/65536) ≤ 0"] --> c["draw_i = ln / weight_i<br/>(16.16 fixed-point weight)"]
+  end
+  subgraph S2["2. choice"]
+    direction LR
+    d["the item with the largest draw<br/>(closest to zero)"] --> e["equivalent to the minimum of (−ln U)/w:<br/>exponential distribution with rate w"] --> f["P(choose i) = w_i / Σw"]
+  end
+  subgraph S3["3. consequence"]
+    direction LR
+    g["changing one item's weight changes only that item's draw"] --> h["data moves only to/from that item<br/>(minimal movement)"]
+  end
+  S1 ~~~ S2 ~~~ S3

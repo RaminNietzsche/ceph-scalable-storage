@@ -1,0 +1,4 @@
+flowchart LR
+  O["object<br/>rbd_data.12ab.000…04"] -->|"hash(name) mod pg_num"| PG["PG 3.1f<br/>pool 3"]
+  PG -->|"CRUSH(pgid, map, rule)"| SET["OSD set<br/>[12, 4, 27]"]
+  SET --> P["primary: osd.12"]

@@ -514,112 +514,84 @@ ch07/s02_service:
   انتشار OSDMap incremental<br/>به مشترکان (OSD، کلاینت): publish the OSDMap incremental<br/>to subscribers (OSDs, clients)
   پاسخ به فرمان‌دهنده: reply to the issuer
 ch08/f01_place:
-  شیء: null
-  مجموعه‌ی: null
+  شیء<br/>rbd_data.12ab.000…04: object<br/>rbd_data.12ab.000…04
+  مجموعه‌ی OSD<br/>[12, 4, 27]: OSD set<br/>[12, 4, 27]
 ch08/f03_maps:
-  کلاینت‌ها: null
-  دریافت نقشه‌ها: null
-  و: null
-  ها: null
-  ها با اجماع: null
-  گزارش خرابی همتا: null
-  و آمار: null
-  آمار: null
-  داشبورد و ماژول‌ها: null
-  انتشار نقشه‌ی جدید: null
-  بین همتاها: null
-  های دیگر: null
+  کلاینت‌ها: clients
+  دریافت نقشه‌ها<br/>و epochها: fetch maps<br/>and epochs
+  MONها با اجماع Paxos<br/>━━━━━━━━<br/>MonMap · OSDMap و CRUSH<br/>MgrMap · FSMap · ConfigDB · AuthDB: MONs with Paxos consensus<br/>━━━━━━━━<br/>MonMap · OSDMap and CRUSH<br/>MgrMap · FSMap · ConfigDB
+    · AuthDB
+  OSDها: OSDs
+  گزارش خرابی همتا<br/>boot و آمار: peer failure reports<br/>boot and stats
+  MGR<br/>آمار PGها (PGMap)<br/>داشبورد و ماژول‌ها: MGR<br/>PG stats (PGMap)<br/>dashboard and modules
+  آمار PG: PG stats
+  انتشار نقشه‌ی جدید<br/>بین همتاها: new map spread<br/>between peers
+  OSDهای دیگر: other OSDs
 ch08/f04_cephx:
-  کلاینت: null
-  درخواست احراز هویت: null
-  نام کاربر: null
-  چالش رمز‌شده با کلید مشترک: null
-  پاسخ صحیح به چالش: null
-  کلید جلسه: null
-  با زمان انقضا: null
-  درخواست: null
-  همراه: null
-  بررسی: null
-  با کلید سرویس: null
-  بدون تماس با: null
-  پاسخ: null
+  as کلاینت: as client
+  درخواست احراز هویت (نام کاربر): authentication request (user name)
+  چالش رمز‌شده با کلید مشترک: challenge encrypted with the shared key
+  پاسخ صحیح به چالش: correct answer to the challenge
+  کلید جلسه + ticket با زمان انقضا: session key + ticket with an expiry
+  درخواست I/O همراه ticket: I/O request with the ticket
+  بررسی ticket با کلید سرویس (بدون تماس با MON): check the ticket with the service key (no MON contact)
+  پاسخ: reply
 ch08/f05_write:
-  کلاینت: null
-  اصلی: null
-  ثانویه ۱: null
-  ثانویه ۲: null
-  تکثیر موازی: null
-  تکرار نوشتن: null
-  در: null
-  پس از: null
-  همه‌ی نسخه‌ها: null
+  as کلاینت: as client
+  as OSD اصلی: as primary OSD
+  as OSD ثانویه ۱: as secondary OSD 1
+  as OSD ثانویه ۲: as secondary OSD 2
+  تکثیر موازی: parallel replication
+  تکرار نوشتن: replicate the write
+  commit در BlueStore: commit in BlueStore
+  ack (پس از commit همه‌ی نسخه‌ها): ack (after all replicas commit)
 ch08/f06_pgstates:
-  بازیابی: null
-  ، کپی کامل: null
-  نسخه‌ی کافی نیست: null
-  ناسازگاری: null
+  بازیابی log: log recovery
+  OSD out، کپی کامل: OSD out, full copy
+  نسخه‌ی کافی نیست: not enough copies
+  scrub ناسازگاری: scrub inconsistency
 ch08/s01_obj2osd:
-  شیء به: null
-  کلاینت،: null
-  نام شیء: null
-  یا: null
-  پیش‌فرض: null
-  به: null
-  پس‌پردازش: null
-  حذف: null
-  های: null
-  اعمال: null
-  و: null
+  ۱. شیء به PG (کلاینت، Objecter): 1. object to PG (client, Objecter)
+  نام شیء + namespace<br/>(یا locator key): object name + namespace<br/>(or locator key)
+  ceph_str_hash<br/>(rjenkins پیش‌فرض): ceph_str_hash<br/>(rjenkins by default)
+  ۲. PG به OSD (CRUSH): 2. PG to OSD (CRUSH)
+  ۳. پس‌پردازش (OSDMap): 3. post-processing (OSDMap)
+  حذف OSDهای down/nonexistent: drop down/nonexistent OSDs
+  اعمال pg_upmap / pg_upmap_items: apply pg_upmap / pg_upmap_items
+  pg_temp و primary_temp<br/>→ acting set و primary: pg_temp and primary_temp<br/>→ acting set and primary
 ch08/s02_straw2:
-  برای هر آیتم: null
-  در: null
-  عدد شبه‌تصادفی در: null
-  تقریب: null
-  با جدول: null
-  وزن: null
-  ممیز ثابت: null
-  انتخاب: null
-  آیتم با بیشترین: null
-  نزدیک‌ترین به صفر: null
-  معادل کمینه‌ی: null
-  توزیع نمایی با نرخ: null
-  پیامد: null
-  تغییر وزن یک آیتم فقط: null
-  همان آیتم را عوض می‌کند: null
-  جابه‌جایی داده فقط به: null
-  از همان آیتم: null
-  حداقل جابه‌جایی: null
+  ۱. برای هر آیتم i در bucket: 1. for each item i in the bucket
+  u = hash(x, id_i, r) & 0xffff<br/>عدد شبه‌تصادفی در [0, 65535]: u = hash(x, id_i, r) & 0xffff<br/>pseudo-random number in [0, 65535]
+  ln = crush_ln(u) − 2^48<br/>تقریب ln(u/65536) ≤ 0 با جدول: ln = crush_ln(u) − 2^48<br/>table approximation of ln(u/65536) ≤ 0
+  draw_i = ln / weight_i<br/>(وزن 16.16 ممیز ثابت): draw_i = ln / weight_i<br/>(16.16 fixed-point weight)
+  ۲. انتخاب: 2. choice
+  آیتم با بیشترین draw<br/>(نزدیک‌ترین به صفر): the item with the largest draw<br/>(closest to zero)
+  معادل کمینه‌ی (−ln U)/w:<br/>توزیع نمایی با نرخ w: equivalent to the minimum of (−ln U)/w:<br/>exponential distribution with rate w
+  P(انتخاب i) = w_i / Σw: P(choose i) = w_i / Σw
+  ۳. پیامد: 3. consequence
+  تغییر وزن یک آیتم فقط draw همان آیتم را عوض می‌کند: changing one item's weight changes only that item's draw
+  جابه‌جایی داده فقط به/از همان آیتم<br/>(حداقل جابه‌جایی): data moves only to/from that item<br/>(minimal movement)
 ch08/s03_cephx:
-  کلاینت: null
-  نام: null
-  پاسخ: null
-  با کلید مشترک: null
-  رمزشده با کلید کلاینت: null
-  احراز: null
-  رمزشده با کلید: null
-  درخواست: null
-  سرویس: null
-  رمزشده با: null
-  کلیدهای چرخشی را با: null
-  از: null
-  می‌گیرد: null
-  رمزگشایی: null
-  با: null
-  ؛ بررسی انقضا و: null
-  اثبات دو طرفه: null
+  as کلاینت (client.app): as client (client.app)
+  'CEPHX_GET_AUTH_SESSION_KEY: نام + پاسخ challenge با کلید مشترک': 'CEPHX_GET_AUTH_SESSION_KEY: name + challenge answer with the shared key'
+  session key (رمزشده با کلید کلاینت) + ticket احراز (رمزشده با کلید MON): session key (encrypted with the client key) + auth ticket (encrypted with the MON key)
+  'CEPHX_GET_PRINCIPAL_SESSION_KEY: درخواست ticket سرویس osd': 'CEPHX_GET_PRINCIPAL_SESSION_KEY: request an osd service ticket'
+  service ticket (رمزشده با rotating key سرویس osd) + session key سرویس: service ticket (encrypted with the osd service rotating key) + service session key
+  OSD کلیدهای چرخشی را با CEPHX_GET_ROTATING_KEY از MON می‌گیرد: the OSD fetches the rotating keys from the MON with CEPHX_GET_ROTATING_KEY
+  authorizer = ticket + nonce رمزشده با session key سرویس: authorizer = ticket + nonce encrypted with the service session key
+  رمزگشایی ticket با rotating key؛ بررسی انقضا و caps: decrypt the ticket with the rotating key; check expiry and caps
+  پاسخ authorizer (اثبات دو طرفه): authorizer reply (mutual proof)
 ch08/s04_msgr2:
-  اندازه‌ی ثابت،: null
-  جدا: null
-  برای هر: null
-  و: null
-  ها: null
-  پیام: null
-  هم‌تراز برای: null
-  و حالت‌ها: null
-  هر: null
-  رمز و احراز صحت هر: null
-  اختیاری: null
-  پس از: null
+  ۱. preamble (اندازه‌ی ثابت، CRC جدا): 1. preamble (fixed size, separate CRC)
+  tag<br/>HELLO، AUTH_REQUEST، MESSAGE، ...: tag<br/>HELLO, AUTH_REQUEST, MESSAGE, ...
+  برای هر segment:<br/>length و alignment: for each segment:<br/>length and alignment
+  ۲. segmentها: 2. segments
+  'seg 0: header پیام': 'seg 0: message header'
+  'seg 3: data<br/>(هم‌تراز برای zero-copy)': 'seg 3: data<br/>(aligned for zero-copy)'
+  ۳. epilogue و حالت‌ها: 3. epilogue and modes
+  'crc mode: crc32c هر segment': 'crc mode: crc32c of each segment'
+  'secure mode: AES-GCM<br/>رمز و احراز صحت هر frame': 'secure mode: AES-GCM<br/>encryption and authentication of each frame'
+  compression (اختیاری)<br/>پس از COMPRESSION_REQUEST: compression (optional)<br/>after COMPRESSION_REQUEST
 ch09/f01_history:
   نسل اول: null
   ابزارهای جدا: null

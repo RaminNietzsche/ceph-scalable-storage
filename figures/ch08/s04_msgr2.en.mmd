@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph F1["1. preamble (fixed size, separate CRC)"]
+    direction LR
+    t["tag<br/>HELLO, AUTH_REQUEST, MESSAGE, ..."] ~~~ n["num_segments ≤ 4"] ~~~ sg["for each segment:<br/>length and alignment"] ~~~ pc["crc32c preamble"]
+  end
+  subgraph F2["2. segments"]
+    direction LR
+    s0["seg 0: message header"] ~~~ s1["seg 1: front"] ~~~ s2["seg 2: middle"] ~~~ s3["seg 3: data<br/>(aligned for zero-copy)"]
+  end
+  subgraph F3["3. epilogue and modes"]
+    direction LR
+    e1["crc mode: crc32c of each segment"] ~~~ e2["secure mode: AES-GCM<br/>encryption and authentication of each frame"] ~~~ e3["compression (optional)<br/>after COMPRESSION_REQUEST"]
+  end
+  F1 ~~~ F2 ~~~ F3

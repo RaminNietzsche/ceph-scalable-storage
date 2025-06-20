@@ -1,0 +1,10 @@
+flowchart LR
+  CR["creating"] --> PE["peering"]
+  PE --> AC["active+clean"]
+  AC -->|"OSD down"| DG["active+degraded"]
+  DG -->|"log recovery"| RE["recovering"]
+  DG -->|"OSD out, full copy"| BF["backfilling"]
+  RE --> AC
+  BF --> AC
+  PE -->|"not enough copies"| IN["inactive / incomplete"]
+  AC -->|"scrub inconsistency"| INC["inconsistent"]

@@ -1,0 +1,11 @@
+sequenceDiagram
+  participant C as client
+  participant M as MON
+  participant O as OSD
+  C->>M: authentication request (user name)
+  M-->>C: challenge encrypted with the shared key
+  C->>M: correct answer to the challenge
+  M-->>C: session key + ticket with an expiry
+  C->>O: I/O request with the ticket
+  O->>O: check the ticket with the service key (no MON contact)
+  O-->>C: reply
