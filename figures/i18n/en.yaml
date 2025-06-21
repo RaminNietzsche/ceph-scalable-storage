@@ -579,7 +579,7 @@ ch08/s03_cephx:
   service ticket (رمزشده با rotating key سرویس osd) + session key سرویس: service ticket (encrypted with the osd service rotating key) + service session key
   OSD کلیدهای چرخشی را با CEPHX_GET_ROTATING_KEY از MON می‌گیرد: the OSD fetches the rotating keys from the MON with CEPHX_GET_ROTATING_KEY
   authorizer = ticket + nonce رمزشده با session key سرویس: authorizer = ticket + nonce encrypted with the service session key
-  رمزگشایی ticket با rotating key؛ بررسی انقضا و caps: decrypt the ticket with the rotating key; check expiry and caps
+  رمزگشایی ticket با rotating key؛ بررسی انقضا و caps: decrypt the ticket with the rotating key, check expiry and caps
   پاسخ authorizer (اثبات دو طرفه): authorizer reply (mutual proof)
 ch08/s04_msgr2:
   ۱. preamble (اندازه‌ی ثابت، CRC جدا): 1. preamble (fixed size, separate CRC)

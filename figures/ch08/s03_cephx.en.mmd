@@ -8,5 +8,5 @@ sequenceDiagram
   M-->>C: service ticket (encrypted with the osd service rotating key) + service session key
   Note over M,O: the OSD fetches the rotating keys from the MON with CEPHX_GET_ROTATING_KEY
   C->>O: authorizer = ticket + nonce encrypted with the service session key
-  O->>O: decrypt the ticket with the rotating key; check expiry and caps
+  O->>O: decrypt the ticket with the rotating key, check expiry and caps
   O-->>C: authorizer reply (mutual proof)
