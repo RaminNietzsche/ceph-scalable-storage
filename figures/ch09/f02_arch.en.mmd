@@ -1,0 +1,8 @@
+flowchart LR
+  U["browser"] -->|"HTTPS"| GW["mgmt-gateway<br/>nginx (optional)"]
+  GW --> OA["oauth2-proxy<br/>SSO with the IdP"]
+  GW --> D["dashboard module<br/>in the active MGR"]
+  GW --> GR["Grafana"]
+  GW --> PR["Prometheus<br/>Alertmanager"]
+  D -->|"librados and orchestrator"| CL[("Ceph cluster")]
+  PR -->|"scrape"| EX["prometheus module<br/>and ceph-exporter"]

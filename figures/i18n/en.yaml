@@ -593,78 +593,65 @@ ch08/s04_msgr2:
   'secure mode: AES-GCM<br/>رمز و احراز صحت هر frame': 'secure mode: AES-GCM<br/>encryption and authentication of each frame'
   compression (اختیاری)<br/>پس از COMPRESSION_REQUEST: compression (optional)<br/>after COMPRESSION_REQUEST
 ch09/f01_history:
-  نسل اول: null
-  ابزارهای جدا: null
-  آخرین نسخه: null
-  نسل دوم: null
-  درون: null
-  ، فقط‌خواندنی: null
-  جدید: null
-  بر پایه‌ی: null
-  و: null
+  'نسل اول: ابزارهای جدا': 'first generation: separate tools'
+  VSM (Intel)<br/>آخرین نسخه v2.2.0، ۲۰۱۶: VSM (Intel)<br/>last release v2.2.0, 2016
+  'نسل دوم: درون MGR': 'second generation: inside the MGR'
+  Dashboard v1<br/>Luminous، فقط‌خواندنی: Dashboard v1<br/>Luminous, read-only
+  Dashboard جدید<br/>بر پایه‌ی openATTIC<br/>Angular + REST API: new Dashboard<br/>based on openATTIC<br/>Angular + REST API
+  mgmt-gateway<br/>و oauth2-proxy (Tentacle): mgmt-gateway<br/>and oauth2-proxy (Tentacle)
 ch09/f02_arch:
-  مرورگر: null
-  اختیاری: null
-  با: null
-  ماژول: null
-  در: null
-  فعال: null
-  و: null
-  کلاستر: null
+  مرورگر: browser
+  mgmt-gateway<br/>nginx (اختیاری): mgmt-gateway<br/>nginx (optional)
+  oauth2-proxy<br/>SSO با IdP: oauth2-proxy<br/>SSO with the IdP
+  ماژول dashboard<br/>در MGR فعال: dashboard module<br/>in the active MGR
+  librados و orchestrator: librados and orchestrator
+  کلاستر Ceph: Ceph cluster
+  ماژول prometheus<br/>و ceph-exporter: prometheus module<br/>and ceph-exporter
 ch09/f03_rbac:
-  کاربر: null
-  نقش: null
-  ها: null
-  خواندن همه‌ی: null
-  به جز تنظیمات حساس: null
+  'کاربر: ops-alice': 'user: ops-alice'
+  'نقش: cluster-manager': 'role: cluster-manager'
+  'کاربر: dev-bob': 'user: dev-bob'
+  'نقش: block-manager': 'role: block-manager'
+  'کاربر: noc': 'user: noc'
+  'نقش: read-only': 'role: read-only'
+  'scopeها: hosts، osd، monitor، manager، config-opt، log': 'scopes: hosts, osd, monitor, manager, config-opt, log'
+  'scopeها: rbd-image، rbd-mirroring، iscsi، pool': 'scopes: rbd-image, rbd-mirroring, iscsi, pool'
+  خواندن همه‌ی scopeها<br/>به جز تنظیمات حساس: read all scopes<br/>except sensitive settings
 ch09/f04_workflow:
-  روز صفر: null
-  افزودن میزبان: null
-  و: null
-  ها با: null
-  روز یک: null
-  کاربران و نقش‌ها: null
-  روز دو: null
-  پایش و هشدارها: null
-  ارتقا و نگهداری: null
+  روز صفر: day zero
+  افزودن میزبان<br/>و OSDها با spec: add hosts<br/>and OSDs with a spec
+  روز یک: day one
+  pool، RBD، CephFS، RGW: pool, RBD, CephFS, RGW
+  کاربران و نقش‌ها: users and roles
+  روز دو: day two
+  پایش و هشدارها: monitoring and alerts
+  ارتقا و نگهداری: upgrade and maintenance
 ch09/f07_authz:
-  احراز هویت درخواست: null
-  سرآیند: null
-  یا کوکی: null
-  امضا و: null
-  معتبر؟: null
-  پیش‌فرض: null
-  خیر: null
-  بله: null
-  در: null
-  خروج قبلی: null
-  ؟: null
-  مجوز: null
-  کنترلر: null
-  مثلاً: null
-  متد: null
-  هیچ نقشی همه‌ی مجوزها را: null
-  یک‌جا ندارد: null
-  یک نقش کافی است: null
-  اجرای: null
+  احراز هویت درخواست REST: REST request authentication
+  'سرآیند Authorization: Bearer JWT<br/>یا کوکی token': 'Authorization: Bearer JWT header<br/>or token cookie'
+  امضا و exp معتبر؟<br/>(jwt_token_ttl پیش‌فرض 28800 s): valid signature and exp?<br/>(jwt_token_ttl default 28800 s)
+  خیر: 'no'
+  بله: 'yes'
+  jti در blocklist<br/>(خروج قبلی)؟: jti in blocklist<br/>(earlier logout)?
+  'مجوز: AuthManagerTool._check_authorization': 'authorisation: AuthManagerTool._check_authorization'
+  _security_scope کنترلر<br/>مثلاً pool: controller _security_scope<br/>e.g. pool
+  _security_permissions متد<br/>GET→read، POST→create، PUT→update، DELETE→delete: method _security_permissions<br/>GET→read, POST→create, PUT→update, DELETE→delete
+  هیچ نقشی همه‌ی مجوزها را<br/>یک‌جا ندارد: no role has all the permissions<br/>together
+  یک نقش کافی است: one role is enough
+  اجرای handler: run the handler
 ch09/s01_mgr:
-  فرایند: null
-  به: null
-  ، انتظار برای: null
-  شدن: null
-  اشتراک نقشه‌ها: null
-  دریافت: null
-  از: null
-  و: null
-  میزبانی پایتون: null
-  کشف و بارگذاری ماژول‌ها: null
-  هر ماژول: null
-  یک: null
-  برای: null
-  ماژول پایتون: null
-  فرمان: null
-  حلقه‌ی پس‌زمینه: null
-  رویداد نقشه: null
+  فرایند ceph-mgr (C++) — src/mgr/: the ceph-mgr process (C++) — src/mgr/
+  MgrStandby<br/>(beacon به MON، انتظار برای active شدن): MgrStandby<br/>(beacon to the MON, waits to become active)
+  'Mgr: اشتراک نقشه‌ها<br/>ClusterState (pg، osd، health)': 'Mgr: map subscriptions<br/>ClusterState (pg, osd, health)'
+  DaemonServer<br/>دریافت MMgrReport/perf counters<br/>از OSD و MDS و RGW: DaemonServer<br/>receives MMgrReport/perf counters<br/>from OSD, MDS and RGW
+  میزبانی پایتون: Python hosting
+  PyModuleRegistry<br/>کشف و بارگذاری ماژول‌ها: PyModuleRegistry<br/>discovers and loads modules
+  'ActivePyModules<br/>هر ماژول: یک sub-interpreter<br/>+ thread برای serve()': 'ActivePyModules<br/>each module: one sub-interpreter<br/>+ a thread for serve()'
+  BaseMgrModule (C++↔Python)<br/>get، mon_command، set_store: BaseMgrModule (C++↔Python)<br/>get, mon_command, set_store
+  ماژول پایتون — pybind/mgr/&lt;name&gt;/module.py: Python module — pybind/mgr/&lt;name&gt;/module.py
+  class Module(MgrModule)<br/>MODULE_OPTIONS، NOTIFY_TYPES: class Module(MgrModule)<br/>MODULE_OPTIONS, NOTIFY_TYPES
+  '@CLIReadCommand / @CLIWriteCommand<br/>→ فرمان ceph &lt;...&gt;': '@CLIReadCommand / @CLIWriteCommand<br/>→ ceph &lt;...&gt; command'
+  'serve(): حلقه‌ی پس‌زمینه<br/>notify(type, id): رویداد نقشه': 'serve(): background loop<br/>notify(type, id): map event'
 ch10/f01_layers:
   لایه‌ی ۱: null
   سخت‌افزار خام: null

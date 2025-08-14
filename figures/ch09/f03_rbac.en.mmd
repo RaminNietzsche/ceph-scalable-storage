@@ -1,0 +1,7 @@
+flowchart TB
+  U1["user: ops-alice"] --> R1["role: cluster-manager"]
+  U2["user: dev-bob"] --> R2["role: block-manager"]
+  U3["user: noc"] --> R3["role: read-only"]
+  R1 --> S1["scopes: hosts, osd, monitor, manager, config-opt, log"]
+  R2 --> S2["scopes: rbd-image, rbd-mirroring, iscsi, pool"]
+  R3 --> S3["read all scopes<br/>except sensitive settings"]

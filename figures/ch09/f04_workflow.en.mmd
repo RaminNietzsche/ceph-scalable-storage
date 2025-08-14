@@ -1,0 +1,14 @@
+flowchart LR
+  subgraph W1["day zero"]
+    direction TB
+    A1["bootstrap"] --> A2["add hosts<br/>and OSDs with a spec"]
+  end
+  subgraph W2["day one"]
+    direction TB
+    B1["pool, RBD, CephFS, RGW"] --> B2["users and roles"]
+  end
+  subgraph W3["day two"]
+    direction TB
+    C1["monitoring and alerts"] --> C2["upgrade and maintenance"]
+  end
+  W1 ~~~ W2 ~~~ W3

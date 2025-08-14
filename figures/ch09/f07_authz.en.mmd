@@ -1,0 +1,16 @@
+flowchart TB
+  subgraph A["REST request authentication"]
+    direction LR
+    a1["Authorization: Bearer JWT header<br/>or token cookie"] --> a2{"valid signature and exp?<br/>(jwt_token_ttl default 28800 s)"}
+    a2 -- "no" --> a3["401"]
+    a2 -- "yes" --> a4{"jti in blocklist<br/>(earlier logout)?"}
+    a4 -- "yes" --> a3
+  end
+  subgraph B["authorisation: AuthManagerTool._check_authorization"]
+    direction LR
+    b1["controller _security_scope<br/>e.g. pool"] --> b2["method _security_permissions<br/>GET→read, POST→create, PUT→update, DELETE→delete"] --> b3{"User.authorize"}
+    b3 -- "pwd_update_required" --> b5["403"]
+    b3 -- "no role has all the permissions<br/>together" --> b5
+    b3 -- "one role is enough" --> b6["run the handler"]
+  end
+  A ~~~ B

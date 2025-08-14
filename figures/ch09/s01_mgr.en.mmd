@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["the ceph-mgr process (C++) — src/mgr/"]
+    direction LR
+    ms["MgrStandby<br/>(beacon to the MON, waits to become active)"] --> mg["Mgr: map subscriptions<br/>ClusterState (pg, osd, health)"] --> ds["DaemonServer<br/>receives MMgrReport/perf counters<br/>from OSD, MDS and RGW"]
+  end
+  subgraph R2["Python hosting"]
+    direction LR
+    reg["PyModuleRegistry<br/>discovers and loads modules"] --> ap["ActivePyModules<br/>each module: one sub-interpreter<br/>+ a thread for serve()"] --> bm["BaseMgrModule (C++↔Python)<br/>get, mon_command, set_store"]
+  end
+  subgraph R3["Python module — pybind/mgr/&lt;name&gt;/module.py"]
+    direction LR
+    mm["class Module(MgrModule)<br/>MODULE_OPTIONS, NOTIFY_TYPES"] --- cli["@CLIReadCommand / @CLIWriteCommand<br/>→ ceph &lt;...&gt; command"] --- sv["serve(): background loop<br/>notify(type, id): map event"]
+  end
+  R1 ~~~ R2 ~~~ R3

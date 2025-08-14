@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph G1["first generation: separate tools"]
+    direction LR
+    A["Calamari"] ~~~ B["VSM (Intel)<br/>last release v2.2.0, 2016"] ~~~ C["openATTIC (SUSE)"]
+  end
+  subgraph G2["second generation: inside the MGR"]
+    direction LR
+    D["Dashboard v1<br/>Luminous, read-only"] --> E["new Dashboard<br/>based on openATTIC<br/>Angular + REST API"] --> F["mgmt-gateway<br/>and oauth2-proxy (Tentacle)"]
+  end
+  G1 ~~~ G2
