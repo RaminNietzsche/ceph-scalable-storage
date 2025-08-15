@@ -1,5 +1,13 @@
 # NOTICE / Attribution
 
+## Licence of this work
+
+The book text, figures, templates and the tools and scripts in this repository are
+licensed under a single licence, [CC BY-NC-SA 4.0](LICENSE)
+(Attribution-NonCommercial-ShareAlike 4.0 International). Commercial use is not
+permitted without separate written permission. Quoted upstream code excerpts keep
+their original licences (see below).
+
 ## What this book is based on
 
 The **order of topics** in chapters 1–21 follows the *public table of contents* of
@@ -15,7 +23,8 @@ text** (`content/fa/`), not of the original book.
 
 The book quotes short excerpts (usually a few lines) and names functions, constants
 and on-disk structures from the projects below. Each excerpt is attributed where it
-appears and keeps its upstream licence. It is not covered by CC BY-SA 4.0.
+appears and keeps its original upstream licence. It is not covered by the book's
+CC BY-NC-SA 4.0 licence.
 
 | Project | Upstream | Licence (as published upstream) |
 |---|---|---|

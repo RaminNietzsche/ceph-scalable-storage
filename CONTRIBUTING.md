@@ -3,6 +3,13 @@
 Thanks for helping. This file covers the workflow, the Markdown conventions and how
 to translate.
 
+## Licence of contributions
+
+This repository is licensed under [CC BY-NC-SA 4.0](LICENSE) — text, figures and
+tools alike. By contributing, you agree that your contribution is released under the
+same licence. Do not add material that cannot be distributed under it; quoted
+upstream code excerpts must stay short, attributed and keep their original licence.
+
 ## Workflow
 
 1. Edit the sources under `content/fa/` (canonical) or translate under `content/en/`.

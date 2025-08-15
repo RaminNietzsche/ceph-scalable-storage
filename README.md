@@ -41,6 +41,8 @@ make check                                   # lint, spell, refs, links, parity
 - اگر نمی‌خواهید چیزی نصب کنید، Docker کافی است: `docker build -t ceph-book . && docker run --rm -v "$PWD":/book ceph-book make all`.
 - `make help` همه‌ی هدف‌ها را فهرست می‌کند.
 
+**مجوز.** متن، شکل‌ها، قالب‌ها و ابزارها و اسکریپت‌های این مخزن همه با یک مجوز واحد، [CC BY-NC-SA 4.0](LICENSE) (اِسناد، غیرتجاری، اشتراک همسان ۴.۰ بین‌المللی)، منتشر شده‌اند: بازنشر و اقتباس با ذکر منبع و با همان مجوز آزاد است، اما **استفاده‌ی تجاری مجاز نیست**. تکه‌های کد نقل‌شده از پروژه‌های بالادستی مجوز اصلی خودشان را حفظ می‌کنند؛ [NOTICE.md](NOTICE.md) را ببینید.
+
 </div>
 
 ## Building (English)
@@ -103,6 +105,9 @@ The full guide is in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 
-The text, figures and tooling are under [CC BY-SA 4.0](LICENSE). Quoted code
-excerpts keep their upstream licences; see [NOTICE.md](NOTICE.md). The original book's
+The text, figures, templates and the tools/scripts are under a single licence,
+[CC BY-NC-SA 4.0](LICENSE) (Attribution-NonCommercial-ShareAlike 4.0 International):
+free to share and adapt with attribution, under the same licence, and **not for
+commercial use**. Quoted upstream code excerpts keep their original licences; see
+[NOTICE.md](NOTICE.md). The original book's
 public table of contents was used only to order the topics of chapters 1–21.

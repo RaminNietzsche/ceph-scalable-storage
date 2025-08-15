@@ -7,6 +7,12 @@ restructures the book.
 
 ## [Unreleased]
 
+### Changed
+
+- Relicensed the whole repository (text, figures, templates, tools and scripts)
+  under a single licence, CC BY-NC-SA 4.0 (previously CC BY-SA 4.0). Quoted
+  upstream code excerpts keep their original licences.
+
 ### Added
 
 - The book is now a source repository. The content is Pandoc Markdown with fenced
