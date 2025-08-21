@@ -653,70 +653,48 @@ ch09/s01_mgr:
   '@CLIReadCommand / @CLIWriteCommand<br/>→ فرمان ceph &lt;...&gt;': '@CLIReadCommand / @CLIWriteCommand<br/>→ ceph &lt;...&gt; command'
   'serve(): حلقه‌ی پس‌زمینه<br/>notify(type, id): رویداد نقشه': 'serve(): background loop<br/>notify(type, id): map event'
 ch10/f01_layers:
-  لایه‌ی ۱: null
-  سخت‌افزار خام: null
-  روی دیسک خام: null
-  بین گره‌ها: null
-  لایه‌ی ۲: null
-  لایه‌ی ۳: null
-  رابط‌ها: null
-  و: null
-  با: null
-  یا: null
-  روی: null
-  لایه‌ی ۴: null
-  بار واقعی: null
-  بار برنامه یا: null
+  'لایه‌ی ۱: سخت‌افزار خام': 'layer 1: raw hardware'
+  fio روی دیسک خام: fio on the raw disk
+  iperf3 بین گره‌ها: iperf3 between nodes
+  'لایه‌ی ۲: RADOS': 'layer 2: RADOS'
+  'لایه‌ی ۳: رابط‌ها': 'layer 3: interfaces'
+  rbd bench و fio با rbd: rbd bench and fio with rbd
+  warp یا s3bench روی RGW: warp or s3bench on RGW
+  fio روی CephFS: fio on CephFS
+  'لایه‌ی ۴: بار واقعی': 'layer 4: real workload'
+  بار برنامه یا replay: application load or replay
 ch10/f02_asok:
-  اپراتور: null
-  از هر جای کلاستر: null
-  شبکه: null
-  فقط روی همان میزبان: null
+  اپراتور: operator
+  ceph tell osd.3 ...<br/>از هر جای کلاستر: ceph tell osd.3 ...<br/>from anywhere in the cluster
+  شبکه / MON: network / MON
+  ceph daemon osd.3 ...<br/>فقط روی همان میزبان: ceph daemon osd.3 ...<br/>only on the same host
 ch10/f03_fio:
-  مستقیم: null
-  روی: null
-  یا: null
-  روی فایل در: null
-  کلاستر: null
+  ioengine=rbd<br/>librbd مستقیم: ioengine=rbd<br/>librbd directly
+  ioengine=libaio<br/>روی /dev/rbd0 یا vda: ioengine=libaio<br/>on /dev/rbd0 or vda
+  ioengine=libaio<br/>روی فایل در CephFS: ioengine=libaio<br/>on a file in CephFS
+  کلاستر: cluster
 ch10/f04_cot:
-  مرحله‌ی ۱: null
-  آماده‌سازی: null
-  خراب یا: null
-  گم‌شده: null
-  توقف: null
-  مرحله‌ی ۲: null
-  نجات: null
-  پشتیبان از: null
-  روی: null
-  متوقف دیگر: null
-  راه‌اندازی و: null
-  بررسی: null
+  'مرحله‌ی ۱: آماده‌سازی': 'stage 1: preparation'
+  OSD خراب یا<br/>PG گم‌شده: failed OSD or<br/>lost PG
+  توقف OSD<br/>orch daemon stop: stop the OSD<br/>orch daemon stop
+  'مرحله‌ی ۲: نجات PG': 'stage 2: PG rescue'
+  --op export<br/>پشتیبان از PG: --op export<br/>backup of the PG
+  --op import<br/>روی OSD متوقف دیگر: --op import<br/>on another stopped OSD
+  راه‌اندازی و<br/>بررسی peering: start and<br/>check peering
 ch10/s01_bench:
-  مسیر: null
-  فرمان: null
-  به: null
-  بررسی محدودیت‌ها: null
-  کوچک: null
-  بزرگ: null
-  روی: null
-  مستقیم به: null
-  بدون شبکه، بدون: null
-  ، بدون تکثیر: null
-  هم‌زمانی: null
-  پیش‌فرض: null
-  اشیای: null
-  متادیتا در: null
-  برای: null
-  بعدی؛ با: null
-  هر ثانیه: null
-  هنگام بوت: null
-  اگر: null
-  اجرای: null
-  کوتاه: null
-  مقایسه با آستانه‌ها: null
-  ثبت: null
-  در: null
-  با: null
+  ceph tell osd.N bench [count] [bsize] — مسیر OSD::run_osd_bench_test: ceph tell osd.N bench [count] [bsize] — the OSD::run_osd_bench_test path
+  فرمان tell به OSD: tell command to the OSD
+  ? 'بررسی محدودیت‌ها:<br/>bsize ≤ osd_bench_max_block_size=64M<br/>کوچک: ≤ osd_bench_small_size_max_iops=100 × 30s<br/>بزرگ: ≤ 100M/s × osd_bench_duration=30s'
+  : 'limit checks:<br/>bsize ≤ osd_bench_max_block_size=64M<br/>small: ≤ osd_bench_small_size_max_iops=100 × 30s<br/>large: ≤ 100M/s × osd_bench_duration=30s'
+  OSDBenchTest روی meta collection:<br/>Transaction write مستقیم به ObjectStore<br/>(بدون شبکه، بدون PG، بدون تکثیر): OSDBenchTest on the meta collection:<br/>Transaction write directly to the ObjectStore<br/>(no
+    network, no PG, no replication)
+  'write_bench: -t هم‌زمانی (پیش‌فرض 16)<br/>اشیای benchmark_data_&lt;host&gt;_&lt;pid&gt;_objectN': 'write_bench: -t concurrency (default 16)<br/>objects benchmark_data_&lt;host&gt;_&lt;pid&gt;_objectN'
+  متادیتا در benchmark_last_metadata<br/>(برای seq/rand بعدی؛ با --no-cleanup): metadata in benchmark_last_metadata<br/>(for a later seq/rand, with --no-cleanup)
+  'seq_read_bench / rand_read_bench<br/>status_printer: هر ثانیه cur MB/s، lat': 'seq_read_bench / rand_read_bench<br/>status_printer: cur MB/s, lat every second'
+  هنگام بوت OSD — maybe_override_max_osd_capacity_for_qos: at OSD boot — maybe_override_max_osd_capacity_for_qos
+  اگر skip_benchmark=false:<br/>اجرای bench کوتاه 4K: if skip_benchmark=false:<br/>run a short 4K bench
+  مقایسه با آستانه‌ها<br/>(hdd 50..500، ssd 1000..80000): compare with the thresholds<br/>(hdd 50..500, ssd 1000..80000)
+  ثبت osd_mclock_max_capacity_iops_hdd/ssd<br/>در config MON با mon_cmd_set_config: record osd_mclock_max_capacity_iops_hdd/ssd<br/>in the MON config with mon_cmd_set_config
 ch11/f01_tools:
   دیروز: null
   آرشیو شده: null

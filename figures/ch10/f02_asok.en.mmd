@@ -1,0 +1,3 @@
+flowchart LR
+  OP["operator"] -->|"ceph tell osd.3 ...<br/>from anywhere in the cluster"| NET["network / MON"] --> OSD["osd.3"]
+  OP -->|"ceph daemon osd.3 ...<br/>only on the same host"| SOCK["admin socket<br/>/var/run/ceph/.../ceph-osd.3.asok"] --> OSD

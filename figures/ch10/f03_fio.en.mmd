@@ -1,0 +1,7 @@
+flowchart LR
+  F["fio"] --> E1["ioengine=rbd<br/>librbd directly"]
+  F --> E2["ioengine=libaio<br/>on /dev/rbd0 or vda"]
+  F --> E3["ioengine=libaio<br/>on a file in CephFS"]
+  E1 --> C[("cluster")]
+  E2 --> C
+  E3 --> C

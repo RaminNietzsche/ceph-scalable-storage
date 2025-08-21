@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph L1["layer 1: raw hardware"]
+    direction LR
+    D["fio on the raw disk"] ~~~ N["iperf3 between nodes"]
+  end
+  subgraph L2["layer 2: RADOS"]
+    direction LR
+    OB["ceph tell osd.N bench"] ~~~ RB["rados bench"]
+  end
+  subgraph L3["layer 3: interfaces"]
+    direction LR
+    RBD["rbd bench and fio with rbd"] ~~~ S3["warp or s3bench on RGW"] ~~~ FS["fio on CephFS"]
+  end
+  subgraph L4["layer 4: real workload"]
+    direction LR
+    APP["application load or replay"]
+  end
+  L1 ~~~ L2 ~~~ L3 ~~~ L4

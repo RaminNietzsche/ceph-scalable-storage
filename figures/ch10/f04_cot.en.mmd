@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph A["stage 1: preparation"]
+    direction LR
+    S["failed OSD or<br/>lost PG"] --> STOP["stop the OSD<br/>orch daemon stop"] --> SH["cephadm shell<br/>--name osd.N"]
+  end
+  subgraph B["stage 2: PG rescue"]
+    direction LR
+    L["--op list / info"] --> EX["--op export<br/>backup of the PG"] --> IM["--op import<br/>on another stopped OSD"] --> UP["start and<br/>check peering"]
+  end
+  A ~~~ B

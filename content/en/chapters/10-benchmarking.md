@@ -5,109 +5,108 @@ title: Benchmarking and Expert Tools for Ceph
 part: main
 original_heading: More on Ceph
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-10-1}
+# Before you start {#sec-10-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-10-1-1}
+## What questions does this chapter answer? {#sec-10-1-1}
 
-«کلاستر ما چقدر سریع است؟» سؤالی است که هر تیم Ceph بالاخره با آن روبه‌رو می‌شود، و جواب درست آن تقریباً هیچ‌وقت یک عدد نیست. این فصل روش سنجش کارایی را از پایین‌ترین لایه (دیسک و شبکه) تا رابط‌ها آموزش می‌دهد و سپس به جعبه‌ابزار اپراتور کارشناس می‌پردازد: admin socket، `ceph tell`، API مدیریتی، پروفایل حافظه و `ceph-objectstore-tool`. سرفصل قدیمی چند ابزار را هم داشت که امروز کنار رفته‌اند (ceph-medic، ماژول restful، BlueStore «آزمایشی»)؛ وضعیت آن‌ها را هم روشن می‌کنیم.
+"How fast is our cluster?" is a question every Ceph team eventually faces, and the right answer is almost never a single number. This chapter teaches how to measure performance from the lowest layer (disk and network) up to the interfaces, and then turns to the expert operator's toolbox: the admin socket, `ceph tell`, the management API, memory profiling and `ceph-objectstore-tool`. The old outline also included a few tools that have since been dropped (ceph-medic, the restful module, "experimental" BlueStore); we clarify their status too.
 
-- چرا باید سنجش را لایه‌به‌لایه انجام داد؟
-- خط پایه‌ی دیسک و شبکه را چطور بگیریم؟
-- `rados bench`، `rbd bench` و fio را چطور درست اجرا و تفسیر کنیم؟
-- admin socket و `ceph tell` چه تفاوتی دارند و چه اطلاعاتی می‌دهند؟
-- مصرف حافظه‌ی daemonها را چطور بررسی کنیم؟
-- `ceph-objectstore-tool` چه زمانی ابزار نجات است و چه زمانی خطرناک؟
+- Why should measurement be done layer by layer?
+- How do we take a baseline of disks and network?
+- How do we run and interpret `rados bench`, `rbd bench` and fio correctly?
+- How do the admin socket and `ceph tell` differ, and what information do they give?
+- How do we examine daemons' memory usage?
+- When is `ceph-objectstore-tool` a rescue tool, and when is it dangerous?
 
-# روش سنجش لایه‌ای {#sec-10-2}
+# Layered measurement {#sec-10-2}
 
-![سنجش لایه‌به‌لایه: هر لایه را فقط پس از شناختن سقف لایه‌ی زیرین بسنجید](figures/ch10/f01_layers.png){#fig-10-f01_layers}
+![Layer-by-layer measurement: measure each layer only after you know the ceiling of the layer below](figures/ch10/f01_layers.png){#fig-10-f01_layers}
 
-اگر `rbd bench` عدد ناامیدکننده‌ای بدهد، نمی‌دانید مشکل از دیسک است، از شبکه، از پیکربندی OSD یا از کلاینت. اما اگر بدانید هر دیسک چند IOPS می‌دهد و شبکه چند گیگابیت، می‌توانید سقف نظری را حساب کنید و ببینید کجا فاصله ایجاد شده است. قاعده‌ی کلی:
+If `rbd bench` gives a disappointing number, you do not know whether the problem is the disk, the network, the OSD configuration or the client. But if you know how many IOPS each disk gives and how many gigabits the network carries, you can compute the theoretical ceiling and see where the gap appears. The general rule:
 
-1. سقف هر دیسک و هر لینک شبکه را جداگانه اندازه بگیرید.
-2. سقف نظری کلاستر را حساب کنید (با در نظر گرفتن ضریب تکثیر یا EC).
-3. RADOS را مستقیم بسنجید.
-4. رابط‌ها (RBD، RGW، CephFS) را بسنجید.
-5. بار واقعی برنامه را آزمایش کنید.
+1. Measure the ceiling of each disk and each network link separately.
+2. Compute the cluster's theoretical ceiling (taking the replication factor or EC into account).
+3. Measure RADOS directly.
+4. Measure the interfaces (RBD, RGW, CephFS).
+5. Test the application's real workload.
 
 ::: {.warn}
-هرگز بنچمارک خواندن را بلافاصله پس از نوشتن همان داده تفسیر نکنید: cache صفحه‌ی سیستم‌عامل کلاینت، cache کلاینت RBD و cache BlueStore عددها را غیرواقعی می‌کنند. روی کلاستری که داده‌ی production دارد هم بنچمارک سنگین اجرا نکنید؛ بنچمارک نوشتن می‌تواند تأخیر همه‌ی مستأجران را بالا ببرد.
+Never interpret a read benchmark right after writing the same data: the client OS page cache, the RBD client cache and the BlueStore cache make the numbers unrealistic. Also, do not run heavy benchmarks on a cluster holding production data; a write benchmark can raise latency for every tenant.
 :::
 
-# خط پایه‌ی سخت‌افزار {#sec-10-3}
+# Hardware baseline {#sec-10-3}
 
-## دیسک {#sec-10-3-1}
+## Disk {#sec-10-3-1}
 
-ابزار درست برای سنجش دیسک **fio** است؛ `dd` فقط یک الگوی ساده‌ی ترتیبی را می‌سنجد و عمق صف را کنترل نمی‌کند. آزمایش‌های زیر را روی دیسکی انجام دهید که **هنوز OSD نشده** است، چون نوشتن مستقیم روی دیسک خام داده‌ی آن را نابود می‌کند.
+The right tool for measuring disks is **fio**; `dd` measures only a simple sequential pattern and does not control queue depth. Run the tests below on a disk that **is not yet an OSD**, because writing directly to the raw disk destroys its data.
 
 ```bash
-# نوشتن ترتیبی بلوک بزرگ (توان)
+# large-block sequential write (throughput)
 sudo fio --name=seqwrite --filename=/dev/sdX --rw=write --bs=4M --direct=1 \
   --ioengine=libaio --iodepth=16 --runtime=60 --time_based --group_reporting
-# نوشتن تصادفی بلوک کوچک با sync (نزدیک به رفتار WAL)
+# small-block random write with sync (close to WAL behaviour)
 sudo fio --name=syncwrite --filename=/dev/sdX --rw=randwrite --bs=4k --direct=1 \
   --sync=1 --ioengine=libaio --iodepth=1 --numjobs=1 --runtime=60 --time_based
-# خواندن تصادفی
+# random read
 sudo fio --name=randread --filename=/dev/sdX --rw=randread --bs=4k --direct=1 \
   --ioengine=libaio --iodepth=32 --runtime=60 --time_based
 ```
 
 ::: {.deep}
-آزمایش دوم (نوشتن ۴ کیلوبایتی با sync و عمق صف ۱) مهم‌ترین آزمایش برای SSDهایی است که قرار است DB/WAL یا OSD باشند. SSDهای مصرفی بدون حفاظت در برابر قطع برق (PLP) در این آزمایش گاهی فقط چند صد IOPS می‌دهند، در حالی که SSDهای دیتاسنتری با PLP ده‌ها هزار IOPS. علتش این است که SSD بدون PLP باید هر نوشتن sync را واقعاً روی NAND ببرد. این تفاوت مستقیماً در تأخیر نوشتن Ceph دیده می‌شود.
+The second test (4 KB writes with sync at queue depth 1) is the most important test for SSDs that are to be DB/WAL devices or OSDs. Consumer SSDs without power-loss protection (PLP) sometimes give only a few hundred IOPS in this test, while datacenter SSDs with PLP give tens of thousands. The reason is that an SSD without PLP must really put every sync write on NAND. This difference shows up directly in Ceph's write latency.
 :::
 
-## اجرای هم‌زمان روی چند دیسک {#sec-10-3-2}
+## Running on several disks at once {#sec-10-3-2}
 
-برای پیدا کردن گلوگاه کنترلر یا گذرگاه، همان آزمایش را هم‌زمان روی همه‌ی دیسک‌های یک گره اجرا کنید و مجموع را با حاصل‌ضرب تعداد دیسک در عدد تک‌دیسک مقایسه کنید. اگر مجموع بسیار کمتر است، کنترلر HBA، expander یا PCIe گلوگاه است.
+To find a controller or bus bottleneck, run the same test simultaneously on all the disks of a node and compare the total with the number of disks times the single-disk figure. If the total is much lower, the HBA controller, expander or PCIe is the bottleneck.
 
 ```bash
 sudo fio --rw=write --bs=4M --direct=1 --ioengine=libaio --iodepth=16 --runtime=60 --time_based --group_reporting \
   --name=d1 --filename=/dev/sdb --name=d2 --filename=/dev/sdc --name=d3 --filename=/dev/sdd
 ```
 
-## شبکه {#sec-10-3-3}
+## Network {#sec-10-3-3}
 
 ```bash
-# روی گره ۱
+# on node 1
 iperf3 -s
-# روی گره ۲: چند جریان موازی، چون یک جریان TCP معمولاً لینک ۲۵ یا ۱۰۰ گیگابیتی را پر نمی‌کند
+# on node 2: several parallel streams, because one TCP stream usually does not fill a 25 or 100 Gbit link
 iperf3 -c ceph-node1 -P 8 -t 30
-# بررسی MTU و jumbo frame از سر تا سر
+# check MTU and jumbo frames end to end
 ping -M do -s 8972 -c 3 ceph-node1
 ```
 
 ::: {.tip}
-MTU ناهماهنگ (مثلاً ۹۰۰۰ روی گره‌ها و ۱۵۰۰ روی یک سوئیچ) یکی از رایج‌ترین علت‌های رفتار عجیب Ceph است: heartbeatهای کوچک رد می‌شوند و OSDها up به نظر می‌رسند، اما پیام‌های بزرگ گم می‌شوند و عملیات کند یا معلق می‌شود. آزمایش `ping -M do` را بین همه‌ی جفت گره‌ها و در هر دو شبکه‌ی public و cluster اجرا کنید.
+A mismatched MTU (for example 9000 on the nodes and 1500 on one switch) is one of the most common causes of strange Ceph behaviour: small heartbeats get through and OSDs look up, but large messages are lost and operations become slow or hang. Run the `ping -M do` test between every pair of nodes and on both the public and cluster networks.
 :::
 
-## سقف نظری {#sec-10-3-4}
+## The theoretical ceiling {#sec-10-3-4}
 
-با اعداد خط پایه می‌توانید سقف تقریبی را حساب کنید. مثلاً با ۶ گره، هر کدام ۱۰ SSD که هرکدام ۱.۵ گیگابایت بر ثانیه نوشتن ترتیبی دارند، و شبکه‌ی ۲۵ گیگابیتی (حدود ۳ گیگابایت بر ثانیه) در هر گره:
+With the baseline numbers you can compute an approximate ceiling. For example, with 6 nodes, each with 10 SSDs of 1.5 GB/s sequential write each, and a 25 Gbit network (about 3 GB/s) per node:
 
-- دیسک‌ها: ۶ × ۱۰ × ۱.۵ = ۹۰ گیگابایت بر ثانیه نوشتن خام.
-- با تکثیر سه‌تایی، هر بایت کاربر سه بار نوشته می‌شود: حدود ۳۰ گیگابایت بر ثانیه.
-- اما شبکه‌ی هر گره فقط ۳ گیگابایت بر ثانیه است و هر بایت ورودی دو بار دیگر روی شبکه به ثانویه‌ها می‌رود؛ پس شبکه گلوگاه است و سقف واقعی بسیار پایین‌تر از ۳۰ است.
+- Disks: 6 × 10 × 1.5 = 90 GB/s raw write.
+- With three-way replication each user byte is written three times: about 30 GB/s.
+- But each node's network is only 3 GB/s, and every incoming byte travels over the network twice more to the secondaries; so the network is the bottleneck and the real ceiling is far below 30.
 
-این نوع محاسبه نشان می‌دهد سرمایه‌گذاری بعدی باید روی شبکه باشد، نه دیسک.
+This kind of calculation shows that the next investment should be in the network, not the disks.
 
-# سنجش RADOS {#sec-10-4}
+# Measuring RADOS {#sec-10-4}
 
-## بنچمارک OSD منفرد {#sec-10-4-1}
+## Single-OSD benchmark {#sec-10-4-1}
 
-هر OSD یک بنچمارک داخلی دارد که مستقیماً روی BlueStore همان OSD می‌نویسد (بدون شبکه و تکثیر). برای پیدا کردن OSDهای کند در میان صدها OSD مفید است:
+Each OSD has a built-in benchmark that writes directly to that OSD's BlueStore (no network or replication). It is useful for finding slow OSDs among hundreds:
 
 ```bash
-ceph tell osd.0 bench                       # پیش‌فرض: ۱ گیگابایت با بلوک ۴ مگابایتی
-ceph tell osd.0 bench 12288000 4096 4194304 100   # کل بایت، اندازه‌ی بلوک، اندازه‌ی شیء، تعداد اشیا
+ceph tell osd.0 bench                       # default: 1 GB with 4 MB blocks
+ceph tell osd.0 bench 12288000 4096 4194304 100   # total bytes, block size, object size, number of objects
 for i in $(ceph osd ls); do echo -n "osd.$i "; ceph tell osd.$i bench -f json | jq -r .bytes_per_sec; done | sort -nk2 | head
 ```
 
 ## rados bench {#sec-10-4-2}
 
-`rados bench` بار را مستقیماً روی یک pool می‌فرستد و مسیر کامل RADOS (شبکه، تکثیر، commit) را می‌سنجد. pool جداگانه بسازید تا داده‌ی آزمایشی با داده‌ی واقعی مخلوط نشود:
+`rados bench` sends load directly to a pool and measures the full RADOS path (network, replication, commit). Create a separate pool so that test data does not mix with real data:
 
 ```bash
 ceph osd pool create benchpool 128 128
@@ -115,19 +114,19 @@ ceph osd pool application enable benchpool rados-bench --yes-i-really-mean-it
 rados bench -p benchpool 60 write -b 4M -t 16 --no-cleanup
 rados bench -p benchpool 60 seq -t 16
 rados bench -p benchpool 60 rand -t 16
-rados bench -p benchpool 60 write -b 4K -t 64 --no-cleanup     # IOPS بلوک کوچک
+rados bench -p benchpool 60 write -b 4K -t 64 --no-cleanup     # small-block IOPS
 rados -p benchpool cleanup
 ```
 
 ::: {.note}
-نتیجه‌ی `rados bench` شامل میانگین توان، IOPS و تأخیر (میانگین، حداکثر و انحراف معیار) است. انحراف معیار بالای تأخیر یا «حداکثر» خیلی بزرگ نشانه‌ی یک یا چند OSD کند است، حتی اگر میانگین خوب به نظر برسد. خواندن ترتیبی و تصادفی باید از همان میزبانی اجرا شوند که نوشتن را انجام داده است، چون نام اشیا شامل نام میزبان است. برای شبیه‌سازی چند کلاینت، چند نمونه را هم‌زمان از چند میزبان با `--run-name` متفاوت اجرا کنید.
+The `rados bench` result includes average throughput, IOPS and latency (mean, maximum and standard deviation). A high latency standard deviation or a very large "maximum" indicates one or more slow OSDs, even if the mean looks good. Sequential and random reads must be run from the same host that did the writes, because the object names include the host name. To simulate several clients, run several instances at once from several hosts with different `--run-name` values.
 :::
 
 ::: {.warn}
-`rados load-gen` که در منابع قدیمی آمده است، در صفحه‌ی راهنمای جاری `rados` دیده نمی‌شود. برای بارهای ترکیبی امروز از fio با موتور `rados` یا `rbd` استفاده کنید که کنترل بسیار بیشتری روی الگوی بار می‌دهد.
+`rados load-gen`, which appears in older sources, is not seen in the current `rados` manual page. For mixed workloads today, use fio with the `rados` or `rbd` engine, which gives much more control over the load pattern.
 :::
 
-# سنجش RBD {#sec-10-5}
+# Measuring RBD {#sec-10-5}
 
 ## rbd bench {#sec-10-5-1}
 
@@ -138,11 +137,11 @@ rbd bench --io-type read --io-size 4K --io-threads 32 --io-total 10G --io-patter
 rbd bench --io-type readwrite --rw-mix-read 70 --io-size 16K --io-pattern rand rbd/benchimg
 ```
 
-![سه روش اجرای fio روی Ceph: موتور rbd مستقیم با librbd، دستگاه بلوکی نگاشت‌شده و فایل روی CephFS](figures/ch10/f03_fio.png){#fig-10-f03_fio}
+![Three ways to run fio on Ceph: the rbd engine directly with librbd, a mapped block device, and a file on CephFS](figures/ch10/f03_fio.png){#fig-10-f03_fio}
 
-## fio با موتور rbd {#sec-10-5-2}
+## fio with the rbd engine {#sec-10-5-2}
 
-fio موتور `rbd` دارد که مستقیماً از librbd استفاده می‌کند؛ بدون نیاز به `rbd map` یا ماشین مجازی. این روش برای مقایسه‌ی پیکربندی‌ها ایده‌آل است:
+fio has an `rbd` engine that uses librbd directly, with no need for `rbd map` or a virtual machine. This method is ideal for comparing configurations:
 
 ```ini
 # rbd-randwrite.fio
@@ -177,20 +176,20 @@ jq '.jobs[] | {name: .jobname, write_iops: .write.iops, read_iops: .read.iops, p
 ```
 
 ::: {.tip}
-برای سنجش نزدیک به واقعیت، fio را **درون یک ماشین مجازی** روی دیسک RBD همان ماشین هم اجرا کنید. تفاوت بین fio با موتور rbd و fio درون VM، سربار لایه‌ی مجازی‌سازی (virtio، QEMU، cache) را نشان می‌دهد. همیشه **صدک ۹۹ و ۹۹.۹ تأخیر** را گزارش کنید، نه فقط میانگین IOPS؛ پایگاه‌های داده به دم توزیع تأخیر حساس‌اند.
+For a measurement close to reality, also run fio **inside a virtual machine** on that machine's RBD disk. The difference between fio with the rbd engine and fio inside the VM shows the overhead of the virtualisation layer (virtio, QEMU, cache). Always report **the 99th and 99.9th latency percentiles**, not just mean IOPS; databases are sensitive to the tail of the latency distribution.
 :::
 
-## پیش‌گرم کردن image {#sec-10-5-3}
+## Pre-warming the image {#sec-10-5-3}
 
-اولین نوشتن روی هر بخش از image تازه کندتر است، چون اشیای RADOS باید ساخته شوند. پیش از سنجش نوشتن تصادفی، image را یک بار با نوشتن ترتیبی کامل پر کنید؛ در غیر این صورت عدد اندازه‌گیری‌شده ترکیبی از «ساخت شیء» و «بازنویسی» است.
+The first write to each part of a new image is slower, because RADOS objects must be created. Before measuring random writes, fill the image once with a full sequential write; otherwise the measured number is a mix of "object creation" and "overwrite".
 
-# جعبه‌ابزار اپراتور {#sec-10-6}
+# The operator's toolbox {#sec-10-6}
 
-## admin socket و ceph tell {#sec-10-6-1}
+## The admin socket and ceph tell {#sec-10-6-1}
 
-![دو مسیر ارتباط با daemon: ceph tell از طریق شبکه و ceph daemon از طریق admin socket محلی](figures/ch10/f02_asok.png){#fig-10-f02_asok}
+![Two paths to talk to a daemon: ceph tell over the network and ceph daemon through the local admin socket](figures/ch10/f02_asok.png){#fig-10-f02_asok}
 
-هر daemon یک **admin socket** (فایل سوکت یونیکس) دارد که دستورهای تشخیصی را بدون نیاز به MON یا شبکه پاسخ می‌دهد. در cephadm، سوکت‌ها زیر `/var/run/ceph/<fsid>/` قرار دارند و ساده‌ترین راه استفاده، `cephadm shell --name` است:
+Each daemon has an **admin socket** (a Unix socket file) that answers diagnostic commands without needing the MON or the network. In cephadm the sockets live under `/var/run/ceph/<fsid>/`, and the simplest way to use them is `cephadm shell --name`:
 
 ```bash
 cephadm shell --name osd.3 -- ceph daemon osd.3 help
@@ -200,7 +199,7 @@ cephadm shell --name osd.3 -- ceph daemon osd.3 perf dump bluestore
 cephadm shell --name osd.3 -- ceph daemon osd.3 config diff
 ```
 
-بسیاری از همین دستورها با `ceph tell` از هر جای کلاستر هم در دسترس‌اند:
+Many of the same commands are also available from anywhere in the cluster with `ceph tell`:
 
 ```bash
 ceph tell osd.3 dump_ops_in_flight
@@ -210,25 +209,25 @@ ceph tell mon.* sessions | jq length
 ceph tell mds.fs01:0 perf dump
 ```
 
-| دستور | کاربرد |
+| Command | Use |
 |---|---|
-| dump_ops_in_flight | عملیات در جریان؛ اولین ابزار برای slow ops |
-| dump_historic_ops, dump_historic_slow_ops | عملیات کند اخیر با زمان هر مرحله |
-| perf dump | شمارنده‌های داخلی (BlueStore، RocksDB، messenger و ...) |
-| config diff | تنظیماتی که با پیش‌فرض فرق دارند |
-| dump_mempools | مصرف حافظه به تفکیک بخش‌ها |
-| status | خلاصه‌ی وضعیت daemon |
+| dump_ops_in_flight | Operations in progress; the first tool for slow ops |
+| dump_historic_ops, dump_historic_slow_ops | Recent slow operations with the time of each stage |
+| perf dump | Internal counters (BlueStore, RocksDB, messenger, ...) |
+| config diff | Settings that differ from the defaults |
+| dump_mempools | Memory usage broken down by component |
+| status | Summary of the daemon's state |
 
 ::: {.debug}
-در خروجی `dump_historic_slow_ops`، هر عملیات فهرستی از رویدادها با زمان دارد (مثل `queued_for_pg`، `reached_pg`، `sub_op_committed`). فاصله‌ی بزرگ بین دو رویداد نشان می‌دهد عملیات کجا معطل شده است: انتظار در صف PG (معمولاً قفل یا PG شلوغ)، انتظار برای ثانویه‌ها (OSD یا شبکه‌ی کند دیگر) یا commit محلی (دیسک کند).
+In the output of `dump_historic_slow_ops`, each operation has a list of events with times (such as `queued_for_pg`, `reached_pg`, `sub_op_committed`). A large gap between two events shows where the operation was held up: waiting in the PG queue (usually a lock or a busy PG), waiting for the secondaries (another slow OSD or network) or the local commit (a slow disk).
 :::
 
-## API مدیریتی {#sec-10-6-2}
+## The management API {#sec-10-6-2}
 
-سرفصل قدیمی «Ceph REST API» را بر اساس ماژول `restful` توضیح می‌داد. این ماژول در Tentacle حذف شد. برای خودکارسازی امروز دو راه دارید:
+The old outline described the "Ceph REST API" based on the `restful` module. This module was removed in Tentacle. For automation today you have two options:
 
-- **API Dashboard** برای عملیات مدیریتی (فصل ۹)، با احراز هویت JWT و نسخه‌دار.
-- **کتابخانه‌های librados** (پایتون، C، Go و ...) برای دسترسی برنامه‌نویسی به RADOS و حتی ارسال دستورهای MON (فصل ۱۴).
+- The **Dashboard API** for management operations (chapter 9), with JWT authentication and versioning.
+- The **librados libraries** (Python, C, Go, ...) for programmatic access to RADOS and even for sending MON commands (chapter 14).
 
 ```python
 import rados, json
@@ -240,15 +239,15 @@ print(stats["total_bytes"], stats["total_used_raw_bytes"])
 cluster.shutdown()
 ```
 
-# سنجش RGW و CephFS {#sec-10-7}
+# Measuring RGW and CephFS {#sec-10-7}
 
-## ذخیره‌سازی شیء {#sec-10-7-1}
+## Object storage {#sec-10-7-1}
 
-برای RGW، ابزار عمومی و متن‌باز رایج **warp** است (از پروژه‌ی MinIO) که هر سرویس سازگار با S3 را می‌سنجد. پیش از اجرا یک کاربر و bucket جدا برای آزمایش بسازید:
+For RGW, the common general-purpose open-source tool is **warp** (from the MinIO project), which measures any S3-compatible service. Before running it, create a separate user and bucket for testing:
 
 ```bash
 radosgw-admin user create --uid=bench --display-name="Benchmark user"
-# کلیدها را از خروجی بردارید و در متغیرهای محیطی بگذارید، نه در خط فرمان
+# take the keys from the output and put them in environment variables, not on the command line
 export WARP_ACCESS_KEY=... WARP_SECRET_KEY=...
 warp put --host rgw.example.internal:8080 --bucket bench-put --obj.size 4MiB --concurrent 32 --duration 2m
 warp get --host rgw.example.internal:8080 --bucket bench-get --obj.size 4MiB --concurrent 32 --duration 2m
@@ -256,65 +255,65 @@ warp mixed --host rgw.example.internal:8080 --bucket bench-mixed --obj.size 64Ki
 ```
 
 ::: {.note}
-در سنجش RGW سه گلوگاه رایج را جدا کنید: (۱) خود RGW (CPU و تعداد thread یا `rgw_max_concurrent_requests`)، (۲) load balancer جلوی آن، و (۳) pool شاخص bucketها. اندازه‌ی اشیا نتیجه را کاملاً تغییر می‌دهد: با اشیای کوچک، عملیات فراداده (به‌روزرسانی شاخص bucket) غالب است و با اشیای بزرگ، پهنای باند شبکه و دیسک. برای هر دو حالت جداگانه عدد بگیرید.
+When measuring RGW, separate three common bottlenecks: (1) RGW itself (CPU and the number of threads or `rgw_max_concurrent_requests`), (2) the load balancer in front of it, and (3) the bucket index pool. Object size changes the result completely: with small objects, metadata operations (bucket index updates) dominate, and with large objects, network and disk bandwidth. Take numbers separately for both cases.
 :::
 
 ::: {.tip}
-برای بنچمارک اشیای کوچک، bucket را از ابتدا با تعداد shard کافی بسازید یا مطمئن شوید reshard پویا فعال است؛ وگرنه در میانه‌ی آزمایش reshard اتفاق می‌افتد و نتیجه را آشفته می‌کند (فصل ۴).
+For small-object benchmarks, create the bucket with enough shards from the start or make sure dynamic resharding is enabled; otherwise a reshard happens in the middle of the test and muddles the result (chapter 4).
 :::
 
-## فایل‌سیستم {#sec-10-7-2}
+## File system {#sec-10-7-2}
 
-برای CephFS دو نوع آزمایش لازم است: **داده** (توان خواندن و نوشتن فایل‌های بزرگ) و **فراداده** (ساخت، stat و حذف تعداد زیادی فایل کوچک). fio برای داده کافی است؛ برای فراداده، ابزارهایی مثل `mdtest` (از مجموعه‌ی IOR در جامعه‌ی HPC) یا یک اسکریپت ساده مناسب‌اند.
+CephFS needs two kinds of test: **data** (read and write throughput for large files) and **metadata** (creating, stat-ing and deleting many small files). fio is enough for data; for metadata, tools such as `mdtest` (from the IOR suite in the HPC community) or a simple script are suitable.
 
 ```bash
-# داده: چند job هم‌زمان روی فایل‌های جدا
+# data: several concurrent jobs on separate files
 fio --name=cephfs-seq --directory=/mnt/fs01/bench --rw=write --bs=4M --size=8G \
     --numjobs=8 --direct=1 --ioengine=libaio --iodepth=8 --group_reporting
-# فراداده: ساخت و حذف ۱۰۰ هزار فایل خالی
+# metadata: create and delete 100 thousand empty files
 time (mkdir -p /mnt/fs01/meta && cd /mnt/fs01/meta && seq 1 100000 | xargs -P 16 -n 1000 touch)
 time rm -rf /mnt/fs01/meta
 ceph tell mds.fs01:0 perf dump mds_server | jq '.mds_server | {req: .handle_client_request}'
 ```
 
 ::: {.warn}
-آزمایش فراداده بار سنگینی روی MDS و pool فراداده می‌گذارد و cache MDS را پر می‌کند. آن را روی فایل‌سیستم production اجرا نکنید و پس از آزمایش، هشدارهای `MDS_CACHE_OVERSIZED` یا کند شدن درخواست‌ها را بررسی کنید.
+The metadata test puts a heavy load on the MDS and the metadata pool and fills the MDS cache. Do not run it on a production file system, and after the test check for `MDS_CACHE_OVERSIZED` warnings or slow requests.
 :::
 
-# گزارش بنچمارک {#sec-10-8}
+# Benchmark report {#sec-10-8}
 
-عدد بدون زمینه بی‌ارزش است. هر گزارش بنچمارک باید شامل این موارد باشد تا دیگران بتوانند آن را تکرار یا مقایسه کنند:
+A number without context is worthless. Every benchmark report should include the following so that others can repeat or compare it:
 
-| بخش | محتوا |
+| Section | Contents |
 |---|---|
-| سخت‌افزار | تعداد و مدل گره‌ها، CPU، حافظه، مدل دیسک‌ها، کنترلر، شبکه و MTU |
-| نرم‌افزار | نسخه‌ی دقیق Ceph، سیستم‌عامل و هسته، نسخه‌ی fio یا ابزار |
-| پیکربندی | نوع pool (تکثیر یا EC)، تعداد PG، پروفایل mClock، تنظیمات غیرپیش‌فرض (`ceph config dump`) |
-| بار | ابزار، فایل پیکربندی کامل، اندازه‌ی بلوک، عمق صف، تعداد کلاینت، مدت و ramp |
-| نتیجه | IOPS، توان، تأخیر میانگین و صدک‌های ۹۵، ۹۹ و ۹۹.۹ |
-| وضعیت | خروجی `ceph -s` پیش و پس از آزمایش؛ آیا recovery یا scrub در جریان بود؟ |
+| Hardware | Number and model of nodes, CPU, memory, disk models, controller, network and MTU |
+| Software | Exact Ceph version, OS and kernel, fio or tool version |
+| Configuration | Pool type (replicated or EC), PG count, mClock profile, non-default settings (`ceph config dump`) |
+| Load | Tool, full configuration file, block size, queue depth, number of clients, duration and ramp |
+| Result | IOPS, throughput, mean latency and the 95th, 99th and 99.9th percentiles |
+| State | `ceph -s` output before and after the test; was recovery or scrub in progress? |
 
 ::: {.tip}
-هر آزمایش را دست‌کم سه بار تکرار کنید و میانه را گزارش دهید. اگر اختلاف تکرارها زیاد است، چیزی در محیط ثابت نیست (scrub، بار دیگر، cache یا thermal throttling دیسک). در طول آزمایش، Grafana را باز نگه دارید تا تأخیر هر OSD را ببینید؛ OSD کند معمولاً همان‌جا خودش را نشان می‌دهد.
+Repeat each test at least three times and report the median. If the repetitions differ widely, something in the environment is not stable (scrub, other load, cache or disk thermal throttling). Keep Grafana open during the test to see each OSD's latency; a slow OSD usually shows itself there.
 :::
 
-# از درون کد: osd bench، rados bench و سنجش ظرفیت mClock {#sec-10-9}
+# Inside the code: osd bench, rados bench and the mClock capacity measurement {#sec-10-9}
 
-## دو ابزار، دو چیز متفاوت {#sec-10-9-1}
+## Two tools, two different things {#sec-10-9-1}
 
-خطای رایج این است که خروجی `ceph tell osd.N bench` را با `rados bench` مقایسه کنیم. این دو ابزار دو لایه‌ی کاملاً متفاوت را می‌سنجند و کد آن‌ها هم این تفاوت را نشان می‌دهد.
+A common mistake is to compare the output of `ceph tell osd.N bench` with `rados bench`. These two tools measure two completely different layers, and their code shows the difference.
 
-![سه سازوکار سنجش در کد Ceph. در ردیف بالا، osd bench در OSD::run_osd_bench_test ابتدا محدودیت‌ها را بررسی می‌کند. اندازه‌ی بلوک نباید از 64MiB بیشتر باشد. برای بلوک‌های کوچک، کل حجم به 100 IOPS ضرب در 30 ثانیه محدود است و برای بلوک‌های بزرگ به 100MiB/s ضرب در 30 ثانیه، تا آزمون OSD را در محیط عملیاتی از کار نیندازد. سپس کلاس OSDBenchTest (تعریف‌شده در OSD.h) تراکنش‌های نوشتن را مستقیم روی ObjectStore در collection متادیتا اجرا می‌کند؛ نه شبکه در کار است، نه PG و نه تکثیر. در ردیف میانی، rados bench از کلاس ObjBencher در common/obj_bencher.cc استفاده می‌کند: اشیای benchmark_data_<host>_<pid>_objectN را با 16 عملیات هم‌زمان پیش‌فرض می‌نویسد، متادیتای اجرا را در benchmark_last_metadata ذخیره می‌کند و status_printer هر ثانیه پهنای باند و تأخیر لحظه‌ای را چاپ می‌کند. در ردیف پایین، OSD هنگام بوت (اگر benchmark غیرفعال نشده باشد) یک آزمون کوتاه 4K اجرا می‌کند، نتیجه را با آستانه‌های معقول نوع دستگاه مقایسه می‌کند و در صورت معتبر بودن، osd_mclock_max_capacity_iops_hdd یا _ssd را در config MON ثبت می‌کند](figures/ch10/s01_bench.png){#fig-10-s01_bench}
+![Three measurement mechanisms in the Ceph code. In the top row, osd bench in OSD::run_osd_bench_test first checks the limits. The block size must not exceed 64MiB. For small blocks the total volume is limited to 100 IOPS times 30 seconds, and for large blocks to 100MiB/s times 30 seconds, so that the test does not disable the OSD in production. Then the OSDBenchTest class (defined in OSD.h) runs write transactions directly on the ObjectStore in the meta collection; no network, PG or replication is involved. In the middle row, rados bench uses the ObjBencher class in common/obj_bencher.cc: it writes the objects benchmark_data_<host>_<pid>_objectN with a default of 16 concurrent operations, stores the run's metadata in benchmark_last_metadata, and status_printer prints the instantaneous bandwidth and latency every second. In the bottom row, at boot (unless the benchmark is disabled) the OSD runs a short 4K test, compares the result with reasonable thresholds for the device type and, if it is valid, records osd_mclock_max_capacity_iops_hdd or _ssd in the MON config](figures/ch10/s01_bench.png){#fig-10-s01_bench}
 
 |  | osd bench | rados bench |
 |---|---|---|
-| چه چیزی را می‌سنجد | ObjectStore محلی (BlueStore + دیسک) | کل مسیر: کلاینت، شبکه، PG، تکثیر/EC، BlueStore |
-| تابع ورودی | `OSD::run_osd_bench_test` → `OSDBenchTest` | `ObjBencher::aio_bench` → `write_bench` / `seq_read_bench` / `rand_read_bench` |
-| پیش‌فرض‌ها | count=1G، bsize=4M؛ محدودیت‌های `osd_bench_*` | `-t 16`، `-b 4M`؛ پاک‌سازی خودکار مگر با `--no-cleanup` |
-| خطای تفسیر رایج | نتیجه‌ی آن را ظرفیت کلاستر دانستن | اجرا از یک کلاینت و نتیجه‌گیری درباره‌ی کل کلاستر |
+| What it measures | The local ObjectStore (BlueStore + disk) | The whole path: client, network, PG, replication/EC, BlueStore |
+| Entry function | `OSD::run_osd_bench_test` → `OSDBenchTest` | `ObjBencher::aio_bench` → `write_bench` / `seq_read_bench` / `rand_read_bench` |
+| Defaults | count=1G, bsize=4M; `osd_bench_*` limits | `-t 16`, `-b 4M`; automatic cleanup unless `--no-cleanup` |
+| Common misinterpretation | Taking its result as the cluster's capacity | Running from one client and drawing conclusions about the whole cluster |
 
 ```text
-pseudocode: ObjBencher::write_bench (خلاصه‌ی این کتاب)
+pseudocode: ObjBencher::write_bench (this book's summary)
   start status_printer thread
   for slot in 0..concurrentios-1: aio_write(obj_name(slot), data)
   while elapsed < seconds:
@@ -326,27 +325,27 @@ pseudocode: ObjBencher::write_bench (خلاصه‌ی این کتاب)
 ```
 
 ::: {.warn}
-اندازه‌گیری هنگام بوت فقط نوشتن 12288000 بایت با بلوک 4096 روی 100 شیء 4MiB است (همان مقادیری که در کد هستند) و اگر دیسک کش نوشتن داشته باشد یا OSD هم‌زمان مشغول recovery باشد، عدد غیرواقعی تولید می‌شود. Ceph عددهای خارج از بازه‌ی آستانه را نادیده می‌گیرد و در لاگ OSD هشدار می‌دهد. مقدار ثبت‌شده را بررسی کنید و در صورت نیاز بر اساس fio خودتان override کنید (فصل ۲۱).
+The boot-time measurement is only a write of 12288000 bytes in 4096-byte blocks over 100 objects of 4MiB (the values in the code), and if the disk has a write cache or the OSD is busy with recovery at the same time, it produces an unrealistic number. Ceph ignores numbers outside the threshold range and warns in the OSD log. Check the recorded value and, if necessary, override it based on your own fio results (chapter 21).
 :::
 
 ::: {.debug}
-فرمان‌ها:
+Commands:
 :::
 
 ```bash
-ceph tell osd.4 bench                       # 1G با بلوک 4M
-ceph tell osd.4 bench 12288000 4096 4194304 100   # همان پارامترهای آزمون بوت mClock
+ceph tell osd.4 bench                       # 1G with 4M blocks
+ceph tell osd.4 bench 12288000 4096 4194304 100   # the same parameters as the mClock boot test
 ceph config dump | grep osd_mclock_max_capacity_iops
 rados bench -p bench 60 write -t 32 -b 4M --no-cleanup
 rados bench -p bench 60 rand -t 32 ; rados -p bench cleanup
-ceph osd perf                               # commit/apply latency هر OSD در حین آزمون
+ceph osd perf                               # each OSD's commit/apply latency during the test
 ```
 
-# سه الگوریتم سنجش با عدد {#sec-10-10}
+# Three measurement algorithms by the numbers {#sec-10-10}
 
-## سقف ایمنی osd bench {#sec-10-10-1}
+## The osd bench safety cap {#sec-10-10-1}
 
-::: {.algo #alg-10-1 title="اعتبارسنجی پارامترهای osd bench" src="src/osd/OSD.cc :: OSDBenchTest::precheck، OSDBenchTest::run_test (v21.2.0 و main)؛ در v20.2.0 همین منطق در OSD::run_osd_bench_test است" complexity="O(1) برای اعتبارسنجی؛ خود آزمون O(count / bsize) نوشتن"}
+::: {.algo #alg-10-1 title="Validating osd bench parameters" src="src/osd/OSD.cc :: OSDBenchTest::precheck, OSDBenchTest::run_test (v21.2.0 and main); in v20.2.0 the same logic is in OSD::run_osd_bench_test" complexity="O(1) for validation; the test itself is O(count / bsize) writes"}
 :::
 
 ```text
@@ -357,153 +356,153 @@ elif bsize < 1M: max_count = bsize × duration × osd_bench_small_size_max_iops 
 else:            max_count = osd_bench_large_size_max_throughput (100M) × duration
 if count > max_count: EINVAL
 if osize and bsize > osize: bsize = osize
-run: flush cache ; prefill onum × osize ; write count بایت در تکه‌های bsize ; cleanup
+run: flush cache ; prefill onum × osize ; write count bytes in bsize pieces ; cleanup
 bandwidth = count / elapsed ; iops = bandwidth / bsize
 ```
 
-**مثال عددی.** با `ceph tell osd.4 bench 12288000 4096 4194304 100` داریم bsize = 4K < 1M. پس max_count = 4096 × 30 × 100 = 12288000. count دقیقاً برابر سقف است و پذیرفته می‌شود. کد آزمون بوت mClock هم همین عدد را به کار می‌برد. این آزمون 3000 نوشتن 4K را در 100 شیء 4 مگابایتی پخش می‌کند. اگر 10 ثانیه طول بکشد، bandwidth = 1228800 B/s و iops = 300.
+**Numerical example.** With `ceph tell osd.4 bench 12288000 4096 4194304 100` we have bsize = 4K < 1M. So max_count = 4096 × 30 × 100 = 12288000. count is exactly equal to the cap and is accepted. The mClock boot test code uses the same number. This test spreads 3000 writes of 4K over 100 objects of 4 MB. If it takes 10 seconds, bandwidth = 1228800 B/s and iops = 300.
 
-برای بلوک 4M، سقف 100M × 30 = 3145728000 بایت است. همین عدد برای بلوک 1M هم از قاعده‌ی IOPS به دست می‌آید (1M × 30 × 100)، پس دو قاعده در مرز 1M پیوسته‌اند. `ceph tell osd.4 bench 4294967296 4194304` (4 GiB) با EINVAL رد می‌شود.
+For a 4M block, the cap is 100M × 30 = 3145728000 bytes. The IOPS rule gives the same number for a 1M block (1M × 30 × 100), so the two rules are continuous at the 1M boundary. `ceph tell osd.4 bench 4294967296 4194304` (4 GiB) is rejected with EINVAL.
 
-![سقف count پذیرفتنی برای osd bench برحسب اندازه‌ی بلوک، هر دو محور لگاریتمی. زیر یک مگابایت سقف با فرض 100 IOPS در 30 ثانیه خطی رشد می‌کند. از یک مگابایت به بعد با فرض 100 مگابایت بر ثانیه ثابت می‌ماند. ستاره پارامترهای آزمون بوت mClock است که دقیقاً روی سقف قرار دارد. بالاتر از 64 مگابایت هر اندازه‌ی بلوکی رد می‌شود](figures/ch10/f06_benchguard.png){#fig-10-f06_benchguard}
+![The accepted count cap for osd bench as a function of block size, both axes logarithmic. Below one megabyte the cap grows linearly, assuming 100 IOPS for 30 seconds. From one megabyte on it stays constant, assuming 100 MB per second. The star is the mClock boot test's parameters, which lie exactly on the cap. Above 64 megabytes any block size is rejected](figures/ch10/f06_benchguard.png){#fig-10-f06_benchguard}
 
-## پذیرش ظرفیت اندازه‌گیری‌شده برای mClock {#sec-10-10-2}
+## Accepting the measured capacity for mClock {#sec-10-10-2}
 
-::: {.algo #alg-10-2 title="آزمون بوت و ذخیره‌ی osd_mclock_max_capacity_iops" src="src/osd/OSD.cc :: OSD::maybe_override_max_osd_capacity_for_qos" complexity="یک آزمون O(3000 نوشتن 4K) هنگام بوت؛ فقط اگر مقدار فعلی همان پیش‌فرض باشد"}
+::: {.algo #alg-10-2 title="The boot test and storing osd_mclock_max_capacity_iops" src="src/osd/OSD.cc :: OSD::maybe_override_max_osd_capacity_for_qos" complexity="one O(3000 4K writes) test at boot; only if the current value is the default"}
 :::
 
 ```text
 pseudocode
 if scheduler ≠ mClock or osd_mclock_skip_benchmark or store == memstore: return
 key = rotational ? osd_mclock_max_capacity_iops_hdd : …_ssd
-if !force_run_benchmark_on_init and current(key) ≠ default(key): return   # کاربر یا بوت قبلی تنظیم کرده
+if !force_run_benchmark_on_init and current(key) ≠ default(key): return   # set by the user or a previous boot
 iops = OSDBenchTest(count 12288000, bsize 4096, osize 4M, onum 100).run()
 (lo, hi) = rotational ? (50, 500) : (1000, 80000)
-if lo ≤ iops ≤ hi: mon_cmd_set_config(key, iops)       # در پایگاه پیکربندی MON
-else: هشدار کلاستر و نگه داشتن مقدار فعلی
+if lo ≤ iops ≤ hi: mon_cmd_set_config(key, iops)       # in the MON configuration database
+else: cluster warning and keep the current value
 ```
 
-**مثال عددی.**
+**Numerical example.**
 
-- **HDD، اندازه‌گیری 300 IOPS:** در بازه‌ی [50، 500] است، پس در پایگاه پیکربندی MON ذخیره می‌شود. از بوت بعد، چون مقدار دیگر پیش‌فرض نیست، آزمون اجرا نمی‌شود.
-- **HDD با کش نوشتن، 6000 IOPS:** بزرگ‌تر از 500 است، پس رد می‌شود و 315 می‌ماند.
-- **SSD، اندازه‌گیری 45000:** در بازه‌ی [1000، 80000] است و ذخیره می‌شود.
-- **NVMe، اندازه‌گیری 250000:** رد می‌شود و 21500 می‌ماند. برای چنین دستگاهی باید مقدار را خودتان از fio تنظیم کنید.
+- **HDD, measured 300 IOPS:** it is within [50, 500], so it is stored in the MON configuration database. From the next boot on, because the value is no longer the default, the test does not run.
+- **HDD with a write cache, 6000 IOPS:** greater than 500, so it is rejected and 315 remains.
+- **SSD, measured 45000:** within [1000, 80000] and stored.
+- **NVMe, measured 250000:** rejected and 21500 remains. For such a device you must set the value yourself from fio.
 
-برای اندازه‌گیری دوباره، `ceph config rm osd.N osd_mclock_max_capacity_iops_ssd` و راه‌اندازی دوباره‌ی OSD لازم است، یا `osd_mclock_force_run_benchmark_on_init = true`.
+To measure again, you need `ceph config rm osd.N osd_mclock_max_capacity_iops_ssd` and an OSD restart, or `osd_mclock_force_run_benchmark_on_init = true`.
 
-![بازه‌ی پذیرش نتیجه‌ی آزمون بوت برای HDD و SSD روی محور لگاریتمی. ناحیه‌ی سبز بازه‌ی میان آستانه‌ی پایین و بالاست و خط آبی مقدار پیش‌فرض. نقطه‌های سبز ذخیره می‌شوند. نقطه‌های قرمز، مثل HDD با کش نوشتن یا NVMe بسیار سریع، رد می‌شوند و مقدار قبلی می‌ماند](figures/ch10/f07_mclockcap.png){#fig-10-f07_mclockcap}
+![The acceptance range of the boot test result for HDD and SSD on a logarithmic axis. The green area is the range between the lower and upper thresholds and the blue line is the default value. The green points are stored. The red points, such as an HDD with a write cache or a very fast NVMe, are rejected and the previous value remains](figures/ch10/f07_mclockcap.png){#fig-10-f07_mclockcap}
 
-## از ظرفیت تا رزرو هر کلاس {#sec-10-10-3}
+## From capacity to each class's reservation {#sec-10-10-3}
 
-::: {.algo #alg-10-3 title="تبدیل پروفایل mClock به رزرو و سقف بایتی" src="src/common/mclock_common.cc :: MclockConfig::set_from_config، ClientRegistry::update_from_profile، MclockConfig::calc_scaled_cost؛ src/common/mclock_common.h :: HIGH_CLIENT_OPS، BALANCED، HIGH_RECOVERY_OPS (v21.2.0)" complexity="O(1) برای هر تغییر پیکربندی؛ هزینه‌ی هر op در O(1)"}
+::: {.algo #alg-10-3 title="Turning an mClock profile into byte reservations and limits" src="src/common/mclock_common.cc :: MclockConfig::set_from_config, ClientRegistry::update_from_profile, MclockConfig::calc_scaled_cost; src/common/mclock_common.h :: HIGH_CLIENT_OPS, BALANCED, HIGH_RECOVERY_OPS (v21.2.0)" complexity="O(1) per configuration change; O(1) cost per op"}
 :::
 
 ```text
 pseudocode
 bw = osd_mclock_max_sequential_bandwidth_{hdd 150M | ssd 1200M} ; iops = max_capacity_iops
-cost_per_io = bw / iops ; cap_per_shard = bw / num_shards (hdd 1 ، ssd 8)
+cost_per_io = bw / iops ; cap_per_shard = bw / num_shards (hdd 1 , ssd 8)
 for class in (client, background_recovery, background_best_effort):
-    res = r ? r × cap_per_shard : کمینه ; lim = l ? l × cap_per_shard : بی‌سقف ; weight = w
-cost(op) = max(op_bytes, cost_per_io)      # opهای کوچک دست‌کم یک «IO کامل» هزینه دارند
+    res = r ? r × cap_per_shard : minimum ; lim = l ? l × cap_per_shard : unlimited ; weight = w
+cost(op) = max(op_bytes, cost_per_io)      # small ops cost at least one "full IO"
 ```
 
-**مثال عددی (HDD با پیش‌فرض‌ها).** cost_per_io = 157286400 / 315 = 499322 بایت. پس یک نوشتن 4K هزینه‌ای برابر 488 KiB دارد. با پروفایل پیش‌فرض balanced (v21.2.0):
+**Numerical example (HDD with the defaults).** cost_per_io = 157286400 / 315 = 499322 bytes. So a 4K write costs the equivalent of 488 KiB. With the default balanced profile (v21.2.0):
 
-- **client:** رزرو 0.5 × 150 MiB/s، معادل 157.5 op کوچک در ثانیه.
-- **background_recovery:** همان 157.5.
-- **background_best_effort:** رزرو 0.05، معادل 15.75 op، و سقف 0.9، معادل 283.5 op.
+- **client:** reservation 0.5 × 150 MiB/s, equivalent to 157.5 small ops per second.
+- **background_recovery:** the same 157.5.
+- **background_best_effort:** reservation 0.05, equivalent to 15.75 ops, and limit 0.9, equivalent to 283.5 ops.
 
-در high_client_ops رزرو client به 189 و وزنش به 2 می‌رسد. در SSD با 21500 IOPS و 8 شارد، cost_per_io = 58525 بایت است و رزرو client در balanced برای هر شارد 1343.75 op و در کل 10750 op می‌شود. یعنی همان نیمی از 21500.
+In high_client_ops the client reservation rises to 189 and its weight to 2. On an SSD with 21500 IOPS and 8 shards, cost_per_io = 58525 bytes, and the client reservation in balanced is 1343.75 ops per shard and 10750 ops in total. That is, exactly half of 21500.
 
-![رزرو (ستون پررنگ) و سقف (ستون کم‌رنگ) سه کلاس سرویس در سه پروفایل داخلی mClock، برحسب op کوچک در ثانیه برای HDD با پیش‌فرض‌ها. وزن هر کلاس سهم آن از ظرفیت باقی‌مانده پس از رزروهاست. سقف «max» یعنی محدودیتی جز ظرفیت دستگاه ندارد. اعداد از ضرب نسبت‌های پروفایل در 150 مگابایت بر ثانیه و تقسیم بر هزینه‌ی هر IO به دست آمده‌اند](figures/ch10/f08_mclockprof.png){#fig-10-f08_mclockprof}
+![The reservation (solid bar) and limit (light bar) of the three service classes in mClock's three built-in profiles, in small ops per second for an HDD with the defaults. Each class's weight is its share of the capacity left after the reservations. A "max" limit means no limit other than the device's capacity. The numbers come from multiplying the profile ratios by 150 megabytes per second and dividing by the cost per IO](figures/ch10/f08_mclockprof.png){#fig-10-f08_mclockprof}
 
 ::: {.warn}
-**وابسته به نسخه.** در v20.2.0 مقادیر پروفایل در `src/osd/scheduler/mClockScheduler.cc` تعریف شده‌اند و کلاس background_best_effort رزرو 0 و وزن 1 دارد. در v21.2.0 این مقادیر به `src/common/mclock_common.h` منتقل شده‌اند و best_effort رزرو 0.05 دارد، با وزن 4 در high_client_ops و وزن 2 در balanced و high_recovery_ops. پیش از تکیه بر اعداد، `ceph config show osd.N | grep mclock_scheduler` را روی نسخه‌ی خودتان بخوانید.
+**Version-dependent.** In v20.2.0 the profile values are defined in `src/osd/scheduler/mClockScheduler.cc`, and the background_best_effort class has reservation 0 and weight 1. In v21.2.0 these values moved to `src/common/mclock_common.h`, and best_effort has reservation 0.05, with weight 4 in high_client_ops and weight 2 in balanced and high_recovery_ops. Before relying on the numbers, read `ceph config show osd.N | grep mclock_scheduler` on your own release.
 :::
 
-# سنجش واقعی روی یک کلاستر آزمایشی {#sec-10-11}
+# Real measurement on a test cluster {#sec-10-11}
 
-دو اندازه‌گیری این بخش روی یک کلاستر سه‌OSDی BlueStore اجرا شده‌اند: Ceph 18.2.7 از بسته‌های Debian، با فایل‌های sparse ده‌گیگابایتی روی دیسک یک ماشین مجازی. عددهای مطلق سخت‌افزار واقعی را نشان نمی‌دهند، چون cache صفحه‌ی سیستم‌عامل و یک CPU مشترک در کارند. اما شکل منحنی‌ها همان چیزی است که روی هر کلاستری خواهید دید. هدف آموختن خواندن این منحنی‌هاست.
+The two measurements in this section were run on a three-OSD BlueStore cluster: Ceph 18.2.7 from Debian packages, with ten-gigabyte sparse files on a virtual machine's disk. The absolute numbers do not represent real hardware, because the OS page cache and a shared CPU are involved. But the shape of the curves is what you will see on any cluster. The goal is to learn to read these curves.
 
-## هم‌روندی، تأخیر و قانون Little {#sec-10-11-1}
+## Concurrency, latency and Little's law {#sec-10-11-1}
 
-::: {.algo #alg-10-4 title="حلقه‌ی بسته‌ی rados bench و قانون Little" src="rados bench (src/common/obj_bencher.cc)؛ L = X · R" complexity="O(1) برای بررسی هر نقطه"}
+::: {.algo #alg-10-4 title="The closed loop of rados bench and Little's law" src="rados bench (src/common/obj_bencher.cc); L = X · R" complexity="O(1) to check each point"}
 :::
 
 ```text
 pseudocode
-rados bench -t T: همیشه دقیقاً T عملیات در پرواز ← هر completion یک op تازه می‌فرستد
-X = IOPS اندازه‌گیری‌شده ؛ R = میانگین تأخیر
-قانون Little برای سامانه‌ی بسته: L = X · R = T
-پس: R = T / X  ←  وقتی X اشباع شود، R خطی با T رشد می‌کند
+rados bench -t T: always exactly T operations in flight ← each completion sends a new op
+X = measured IOPS ; R = mean latency
+Little's law for a closed system: L = X · R = T
+so: R = T / X  ←  once X saturates, R grows linearly with T
 ```
 
-**اندازه‌گیری (نوشتن 4 KiB، ‏pool با size = 2، هر نقطه 8 ثانیه).**
+**Measurement (4 KiB writes, pool with size = 2, 8 seconds per point).**
 
-| ‎-t | IOPS | تأخیر میانگین (ms) | IOPS × تأخیر |
+| ‎-t | IOPS | Mean latency (ms) | IOPS × latency |
 |---|---|---|---|
 | 1 | 1595 | 0.62 | 1.00 |
 | 4 | 4571 | 0.87 | 3.99 |
 | 16 | 9516 | 1.68 | 15.98 |
 | 64 | 15726 | 4.07 | 63.97 |
 
-ستون آخر عملاً همان T است. این ثابت می‌کند rados bench یک بار کاری حلقه‌بسته است. نتیجه‌ی عملی: اگر با بالا بردن `-t` تأخیر بالا می‌رود ولی IOPS کمتر از نسبت بالا می‌رود (از 16 به 64، چهار برابر هم‌روندی فقط 1.65 برابر IOPS داد)، به گلوگاه رسیده‌اید. از آنجا به بعد، هم‌روندی بیشتر فقط صف را طولانی‌تر می‌کند.
+The last column is effectively T itself. This proves that rados bench is a closed-loop workload. The practical consequence: if raising `-t` increases latency but IOPS grows less than proportionally (from 16 to 64, four times the concurrency gave only 1.65 times the IOPS), you have reached a bottleneck. From there on, more concurrency only makes the queue longer.
 
-در گزارش بنچمارک همیشه `-t` را کنار IOPS بنویسید. عدد IOPS بدون هم‌روندی معنا ندارد. وقتی سنجش با iodepth ثابت (fio) یا با نرخ ثابت (حلقه‌باز) انجام شود، این رابطه شکل دیگری دارد.
+In a benchmark report, always write `-t` next to IOPS. An IOPS figure without concurrency is meaningless. When measurement is done with a fixed iodepth (fio) or a fixed rate (open loop), this relationship takes a different form.
 
-![چپ: IOPS و تأخیر میانگین نوشتن 4 KiB برحسب تعداد عملیات در پرواز (rados bench -t) روی کلاستر آزمایشی. راست: حاصل‌ضرب IOPS اندازه‌گیری‌شده در تأخیر میانگین که در همه‌ی نقطه‌ها T را بازمی‌سازد (قانون Little برای سامانه‌ی حلقه‌بسته)](figures/ch10/f09_little.png){#fig-10-f09_little}
+![Left: IOPS and mean latency of 4 KiB writes as a function of the number of operations in flight (rados bench -t) on the test cluster. Right: the product of measured IOPS and mean latency, which reconstructs T at every point (Little's law for a closed-loop system)](figures/ch10/f09_little.png){#fig-10-f09_little}
 
-## اندازه‌ی شیء: از سقف IOPS تا سقف پهنای باند {#sec-10-11-2}
+## Object size: from the IOPS ceiling to the bandwidth ceiling {#sec-10-11-2}
 
-**اندازه‌گیری (‎-t 16).** از 4 KiB تا 64 KiB، ‏IOPS تقریباً ثابت می‌ماند (8733، 6286 و 6443) و MB/s با اندازه رشد می‌کند. یعنی گلوگاه هزینه‌ی هر عملیات است: CPU، پیام‌رسانی و تراکنش RocksDB. از 256 KiB به بالا، MB/s روی حدود 650 ثابت می‌شود و IOPS با اندازه کم می‌شود. گلوگاه حالا پهنای باند است.
+**Measurement (‎-t 16).** From 4 KiB to 64 KiB, IOPS stays roughly constant (8733, 6286 and 6443) and MB/s grows with size. That is, the bottleneck is the per-operation cost: CPU, messaging and the RocksDB transaction. From 256 KiB up, MB/s levels off at about 650 and IOPS falls with size. The bottleneck is now bandwidth.
 
-نقطه‌ی شکست (حدود 64 تا 256 KiB در این کلاستر) را برای هر کلاستر جداگانه اندازه بگیرید. این نقطه می‌گوید کدام بار کاری را با «IOPS» و کدام را با «MB/s» باید سنجید.
+Measure the break point (about 64 to 256 KiB in this cluster) separately for each cluster. This point tells you which workloads should be measured in "IOPS" and which in "MB/s".
 
-در BlueStore نقطه‌ی مهم دیگری هم هست. نوشتن کوچک‌تر از `bluestore_prefer_deferred_size` ابتدا در WAL ‏RocksDB نوشته و بعداً اعمال می‌شود (فصل 12). روی HDD همین جا منحنی تأخیر می‌شکند.
+In BlueStore there is another important point. Writes smaller than `bluestore_prefer_deferred_size` are first written to the RocksDB WAL and applied later (chapter 12). On HDDs the latency curve breaks right there.
 
-![پهنای باند (نارنجی) و IOPS (آبی) نوشتن برحسب اندازه‌ی شیء با 16 عملیات در پرواز روی همان کلاستر آزمایشی، همراه با تأخیر میانگین هر نقطه. زیر حدود 64 KiB سقف IOPS حاکم است و بالای حدود 256 KiB سقف پهنای باند](figures/ch10/f10_bsweep.png){#fig-10-f10_bsweep}
+![Write bandwidth (orange) and IOPS (blue) as a function of object size with 16 operations in flight on the same test cluster, together with the mean latency of each point. Below about 64 KiB the IOPS ceiling rules, and above about 256 KiB the bandwidth ceiling](figures/ch10/f10_bsweep.png){#fig-10-f10_bsweep}
 
-## پروفایل حافظه {#sec-10-11-3}
+## Memory profiling {#sec-10-11-3}
 
-مصرف حافظه‌ی OSDها با `osd_memory_target` (پیش‌فرض ۴ گیگابایت، در cephadm با autotune) کنترل می‌شود. وقتی یک daemon بیش از انتظار حافظه مصرف می‌کند، اول ببینید حافظه کجا رفته است:
+OSD memory usage is controlled by `osd_memory_target` (default 4 GB, autotuned in cephadm). When a daemon uses more memory than expected, first see where the memory went:
 
 ```bash
 ceph tell osd.3 dump_mempools | jq '.mempool.by_pool | to_entries | sort_by(-.value.bytes) | .[0:5]'
 ceph tell osd.3 heap stats
-ceph tell osd.3 heap release           # برگرداندن حافظه‌ی آزاد tcmalloc به سیستم‌عامل
+ceph tell osd.3 heap release           # return tcmalloc's free memory to the OS
 ceph orch ps --daemon-type osd --format json | jq -r '.[] | "\(.daemon_name) \(.memory_usage)"' | sort -nk2 | tail
 ```
 
-برای اشکال‌زدایی نشت حافظه، profiler داخلی tcmalloc را موقتاً فعال کنید:
+To debug a memory leak, temporarily enable tcmalloc's built-in profiler:
 
 ```bash
 ceph tell osd.3 heap start_profiler
-# چند دقیقه یا ساعت صبر کنید تا الگو ظاهر شود
+# wait a few minutes or hours for the pattern to appear
 ceph tell osd.3 heap dump
 ceph tell osd.3 heap stop_profiler
-# فایل‌های heap در مسیر لاگ daemon ساخته می‌شوند و با pprof (google-perftools) تحلیل می‌شوند
+# heap files are created in the daemon's log path and analysed with pprof (google-perftools)
 ```
 
 ::: {.tip}
-اگر `heap stats` نشان می‌دهد مقدار زیادی حافظه «freelist» یا «unmapped» در tcmalloc است، `heap release` معمولاً فوراً مصرف RSS را پایین می‌آورد. اگر بیشتر حافظه در mempoolهای `bluestore_cache_*` است، این رفتار طبیعی است و autotune آن را در حد `osd_memory_target` نگه می‌دارد. اگر `osd_pglog` بزرگ است، احتمالاً تعداد PG هر OSD یا طول log PG زیاد است.
+If `heap stats` shows a lot of "freelist" or "unmapped" memory in tcmalloc, `heap release` usually brings RSS down immediately. If most of the memory is in the `bluestore_cache_*` mempools, this behaviour is normal and autotune keeps it within `osd_memory_target`. If `osd_pglog` is large, the number of PGs per OSD or the PG log length is probably high.
 :::
 
 ## ceph-objectstore-tool {#sec-10-11-4}
 
-![کاربرد نجات با ceph-objectstore-tool: OSD متوقف، بررسی محتوا، export یک PG و import آن روی OSD دیگر](figures/ch10/f04_cot.png){#fig-10-f04_cot}
+![A rescue with ceph-objectstore-tool: stopped OSD, content inspection, export of one PG and its import on another OSD](figures/ch10/f04_cot.png){#fig-10-f04_cot}
 
-`ceph-objectstore-tool` مستقیماً روی داده‌ی یک OSD **متوقف‌شده** کار می‌کند: می‌تواند PGها و اشیا را فهرست کند، یک PG را export یا import کند، فراداده را بخواند و در موارد خاص اصلاح کند. کاربرد کلاسیک آن نجات PGی است که همه‌ی نسخه‌های سالمش روی OSDهایی بوده که دیگر بالا نمی‌آیند، اما دیسکشان هنوز خواناست.
+`ceph-objectstore-tool` works directly on the data of a **stopped** OSD: it can list PGs and objects, export or import a PG, read metadata and, in special cases, fix it. Its classic use is rescuing a PG all of whose healthy copies were on OSDs that no longer come up, but whose disks are still readable.
 
 ```bash
 ceph orch daemon stop osd.12
 cephadm shell --name osd.12
-# درون shell
+# inside the shell
 ceph-objectstore-tool --data-path /var/lib/ceph/osd/ceph-12 --op list-pgs
 ceph-objectstore-tool --data-path /var/lib/ceph/osd/ceph-12 --pgid 5.3a --op info
 ceph-objectstore-tool --data-path /var/lib/ceph/osd/ceph-12 --pgid 5.3a --op export --file /var/log/ceph/pg5.3a.export
 exit
-# روی OSD مقصد (آن هم متوقف)
+# on the destination OSD (also stopped)
 ceph orch daemon stop osd.20
 cephadm shell --name osd.20 -- ceph-objectstore-tool --data-path /var/lib/ceph/osd/ceph-20 --op import --file /var/log/ceph/pg5.3a.export
 ceph orch daemon start osd.20
@@ -511,20 +510,20 @@ ceph pg 5.3a query | jq .state
 ```
 
 ::: {.warn}
-این ابزار هیچ محافظی ندارد: می‌تواند PG را حذف کند، فراداده را خراب کند و وضعیت را غیرقابل بازگشت کند. همیشه پیش از هر عملیات تغییردهنده، export پشتیبان بگیرید، از `--dry-run` در صورت امکان استفاده کنید و فقط وقتی سراغش بروید که روال‌های عادی (بالا آوردن OSD، بازیابی خودکار) شکست خورده‌اند. فایل export را در مسیری بنویسید که خارج از کانتینر هم باقی بماند (در cephadm مسیر لاگ daemon روی میزبان mount شده است).
+This tool has no safeguards: it can delete a PG, corrupt metadata and make the state irreversible. Always take a backup export before any modifying operation, use `--dry-run` where possible, and turn to it only when the normal procedures (bringing the OSD up, automatic recovery) have failed. Write the export file to a path that survives outside the container (in cephadm the daemon's log path is mounted on the host).
 :::
 
-## ابزارهای کنار رفته {#sec-10-11-5}
+## Retired tools {#sec-10-11-5}
 
-| ابزار سرفصل قدیمی | وضعیت امروز | جایگزین |
+| Tool in the old outline | Status today | Replacement |
 |---|---|---|
-| ceph-medic | توسعه‌ی فعال ندارد (آخرین تغییر مخزن در ۲۰۲۰) و از مستندات پایش حذف شده است | `ceph health detail`، health checkهای cephadm، هشدارهای Prometheus |
-| ماژول restful | در Tentacle حذف شد | API Dashboard |
-| rados load-gen | در راهنمای جاری rados نیست | fio با موتور rados یا rbd |
-| BlueStore «آزمایشی» | از Luminous پایدار و پیش‌فرض؛ FileStore از Reef پشتیبانی نمی‌شود | BlueStore (فصل ۱۲) |
+| ceph-medic | No active development (last repository change in 2020) and removed from the monitoring documentation | `ceph health detail`, cephadm health checks, Prometheus alerts |
+| restful module | Removed in Tentacle | Dashboard API |
+| rados load-gen | Not in the current rados manual | fio with the rados or rbd engine |
+| "Experimental" BlueStore | Stable and the default since Luminous; FileStore is unsupported since Reef | BlueStore (chapter 12) |
 
 ::: {.note}
-cephadm خودش بررسی‌های پیش‌نیاز میزبان را انجام می‌دهد (`cephadm check-host`) و orchestrator هشدارهایی مثل `CEPHADM_HOST_CHECK_FAILED` یا `CEPHADM_STRAY_DAEMON` می‌دهد. این همان نقشی است که ceph-medic برای بررسی پیکربندی در دوران ceph-deploy بازی می‌کرد.
+cephadm itself performs host prerequisite checks (`cephadm check-host`), and the orchestrator raises warnings such as `CEPHADM_HOST_CHECK_FAILED` or `CEPHADM_STRAY_DAEMON`. This is the role ceph-medic played for configuration checks in the ceph-deploy era.
 :::
 
 ```bash
@@ -532,48 +531,48 @@ cephadm check-host
 ceph health detail | grep -i cephadm
 ```
 
-::: {.summary title="نکات SRE این فصل"}
+::: {.summary title="SRE notes for this chapter"}
 
-- سنجش لایه‌ای: دیسک و شبکه، سپس RADOS، سپس رابط‌ها، سپس بار واقعی.
-- SSD برای DB/WAL را با نوشتن sync در عمق صف ۱ بسنجید.
-- MTU را سرتاسر با `ping -M do` آزمایش کنید.
-- صدک‌های تأخیر را گزارش کنید، نه فقط میانگین.
-- `dump_historic_slow_ops` مرحله‌ی معطلی را نشان می‌دهد.
-- حافظه: اول mempoolها و heap stats، بعد profiler.
-- `ceph-objectstore-tool` فقط روی OSD متوقف و پس از export پشتیبان.
+- Layered measurement: disk and network, then RADOS, then the interfaces, then the real workload.
+- Measure SSDs for DB/WAL with sync writes at queue depth 1.
+- Test the MTU end to end with `ping -M do`.
+- Report latency percentiles, not just the mean.
+- `dump_historic_slow_ops` shows the stage where an operation waits.
+- Memory: mempools and heap stats first, then the profiler.
+- `ceph-objectstore-tool` only on a stopped OSD and after a backup export.
 
 :::
 
-# تکمیلی و به‌روز {#sec-10-12}
+# Supplementary and up to date {#sec-10-12}
 
-- **FileStore** از Reef به بعد پشتیبانی نمی‌شود (هنگام ارتقا هشدار `OSD_FILESTORE` می‌دهد) و BlueStore تنها پشته‌ی ذخیره‌سازی پشتیبانی‌شده‌ی OSD کلاسیک است؛ crimson/SeaStore هنوز پیش‌نمایش فناوری‌اند (Squid و Tentacle).
-- **ماژول restful** در Tentacle حذف شد.
-- **cephadm**: بررسی میزبان و هشدارهای orchestrator جایگزین ابزارهای جانبی بررسی پیکربندی شدند.
-- **mClock** نتیجه‌ی بنچمارک را تحت تأثیر قرار می‌دهد: پروفایل فعال (balanced، high_client_ops) سهم کلاینت را تعیین می‌کند؛ در گزارش بنچمارک، پروفایل را ذکر کنید.
+- **FileStore** is unsupported from Reef on (upgrades raise the `OSD_FILESTORE` warning), and BlueStore is the only supported storage stack for the classic OSD; crimson/SeaStore are still technology previews (Squid and Tentacle).
+- **The restful module** was removed in Tentacle.
+- **cephadm**: host checks and orchestrator warnings replaced the side tools for configuration checks.
+- **mClock** affects benchmark results: the active profile (balanced, high_client_ops) sets the client's share; state the profile in the benchmark report.
 
-# تمرین عملی {#sec-10-13}
+# Hands-on exercise {#sec-10-13}
 
-1. روی یک دیسک خالی، سه آزمایش fio این فصل را اجرا کنید و نتایج را در جدول بنویسید. آزمایش sync را روی یک SSD مصرفی و یک SSD دیتاسنتری (اگر دارید) مقایسه کنید.
-2. با iperf3 و ping با MTU بزرگ، شبکه‌ی public و cluster را بین همه‌ی جفت گره‌ها بسنجید.
-3. با حلقه‌ی `ceph tell osd.N bench`، کندترین سه OSD را پیدا کنید.
-4. `rados bench` را با بلوک ۴ مگابایت و ۴ کیلوبایت اجرا کنید و نسبت توان و IOPS را با سقف نظری مقایسه کنید.
-5. فایل fio این فصل را با موتور rbd اجرا کنید و p99 تأخیر را استخراج کنید. سپس پروفایل mClock را تغییر دهید و تکرار کنید.
-6. در آزمایشگاه، یک PG از OSD متوقف را export و روی OSD دیگری import کنید و peering را مشاهده کنید.
+1. On an empty disk, run this chapter's three fio tests and write the results in a table. Compare the sync test on a consumer SSD and a datacenter SSD (if you have one).
+2. Measure the public and cluster networks between every pair of nodes with iperf3 and ping with a large MTU.
+3. Find the three slowest OSDs with a `ceph tell osd.N bench` loop.
+4. Run `rados bench` with 4 MB and 4 KB blocks and compare the throughput and IOPS ratio with the theoretical ceiling.
+5. Run this chapter's fio file with the rbd engine and extract the p99 latency. Then change the mClock profile and repeat.
+6. In a lab, export a PG from a stopped OSD, import it on another OSD and watch the peering.
 
-# پرسش‌های مرور {#sec-10-14}
+# Review questions {#sec-10-14}
 
-1. چرا سنجش کارایی باید لایه‌به‌لایه انجام شود؟
-2. چرا fio برای سنجش دیسک بر dd ترجیح دارد؟
-3. چرا آزمایش نوشتن sync با عمق صف ۱ برای انتخاب SSD مهم است؟
-4. MTU ناهماهنگ چه علائمی در Ceph ایجاد می‌کند؟
-5. در مثال سقف نظری، چرا شبکه گلوگاه شد؟
-6. تفاوت `ceph tell osd.N bench` و `rados bench` چیست؟
-7. چرا باید image RBD را پیش از سنجش نوشتن تصادفی پر کرد؟
-8. تفاوت admin socket و `ceph tell` چیست و هر کدام چه زمانی مفیدترند؟
-9. در خروجی `heap stats`، حافظه‌ی freelist چه معنایی دارد؟
-10. پیش از استفاده از `ceph-objectstore-tool` چه اقدام‌هایی لازم است؟
+1. Why should performance measurement be done layer by layer?
+2. Why is fio preferred over dd for measuring disks?
+3. Why is the sync write test at queue depth 1 important when choosing an SSD?
+4. What symptoms does a mismatched MTU cause in Ceph?
+5. In the theoretical ceiling example, why did the network become the bottleneck?
+6. What is the difference between `ceph tell osd.N bench` and `rados bench`?
+7. Why should an RBD image be filled before measuring random writes?
+8. What is the difference between the admin socket and `ceph tell`, and when is each more useful?
+9. In the output of `heap stats`, what does freelist memory mean?
+10. What steps are needed before using `ceph-objectstore-tool`?
 
-# منابع این فصل {#sec-10-15}
+# Sources for this chapter {#sec-10-15}
 
 - rados manual: https://docs.ceph.com/en/latest/man/8/rados/
 - rbd manual: https://docs.ceph.com/en/latest/man/8/rbd/

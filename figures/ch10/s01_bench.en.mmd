@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["ceph tell osd.N bench [count] [bsize] — the OSD::run_osd_bench_test path"]
+    direction LR
+    t["tell command to the OSD"] --> chk["limit checks:<br/>bsize ≤ osd_bench_max_block_size=64M<br/>small: ≤ osd_bench_small_size_max_iops=100 × 30s<br/>large: ≤ 100M/s × osd_bench_duration=30s"] --> ob["OSDBenchTest on the meta collection:<br/>Transaction write directly to the ObjectStore<br/>(no network, no PG, no replication)"]
+  end
+  subgraph R2["rados bench — ObjBencher (common/obj_bencher.cc)"]
+    direction LR
+    wb["write_bench: -t concurrency (default 16)<br/>objects benchmark_data_&lt;host&gt;_&lt;pid&gt;_objectN"] --> md["metadata in benchmark_last_metadata<br/>(for a later seq/rand, with --no-cleanup)"] --> rd["seq_read_bench / rand_read_bench<br/>status_printer: cur MB/s, lat every second"]
+  end
+  subgraph R3["at OSD boot — maybe_override_max_osd_capacity_for_qos"]
+    direction LR
+    bt["if skip_benchmark=false:<br/>run a short 4K bench"] --> th["compare with the thresholds<br/>(hdd 50..500, ssd 1000..80000)"] --> cfg["record osd_mclock_max_capacity_iops_hdd/ssd<br/>in the MON config with mon_cmd_set_config"]
+  end
+  R1 ~~~ R2 ~~~ R3
