@@ -1,0 +1,2 @@
+flowchart LR
+  DEV["spec change<br/>Merge Request"] --> REV["peer review<br/>and lint"] --> CI["CI: dry-run<br/>ceph orch apply --dry-run"] --> APP["apply<br/>in the change window"] --> VER["check<br/>ceph -s and alerts"]

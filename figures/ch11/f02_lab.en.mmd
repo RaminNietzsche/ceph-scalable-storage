@@ -1,0 +1,9 @@
+flowchart LR
+  H["lab host<br/>KVM/libvirt"] --> N1["ceph-node1<br/>2 vCPU, 4 GiB<br/>3 virtual disks"]
+  H --> N2["ceph-node2"]
+  H --> N3["ceph-node3"]
+  H --> C["client-node1"]
+  N1 --- PUB(("public network<br/>192.168.10.0/24"))
+  N2 --- PUB
+  N3 --- PUB
+  C --- PUB

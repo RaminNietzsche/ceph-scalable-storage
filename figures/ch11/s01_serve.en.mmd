@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["CephadmServe.serve() — one loop round (pybind/mgr/cephadm/serve.py)"]
+    direction LR
+    a["_refresh_hosts_and_daemons<br/>(gather-facts, ls, ceph-volume inventory)"] --> b["_check_for_strays<br/>_update_paused_health"] --> c["_run_async_actions<br/>(requested restart/redeploy)"]
+  end
+  subgraph R2["converging on the desired state"]
+    direction LR
+    d["_apply_all_services<br/>→ _apply_service(spec) for each spec"] --> e["HostAssignment.place()<br/>(schedule.py): placement,<br/>count, label, host_pattern"] --> f["add/remove daemons:<br/>run cephadm on the host over SSH"]
+  end
+  subgraph R3["maintenance and sleep"]
+    direction LR
+    g["_check_daemons<br/>_check_certificates"] --> h["_purge_deleted_services<br/>_check_for_moved_osds<br/>_retry_failed_operations"] --> i["_serve_sleep<br/>(woken by _kick_serve_loop<br/>after each orch command)"]
+  end
+  R1 ~~~ R2 ~~~ R3

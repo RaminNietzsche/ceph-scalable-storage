@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph A[1. CEPH_TYPES, with Ceph's own image]
+    direction LR
+    mgr --> mon --> crash --> osd[osd, in batches with ok-to-stop and at most max_parallel_osd_upgrades = 16]
+  end
+  subgraph A2[CEPH_TYPES continued]
+    direction LR
+    mds --> rgw --> rbdm[rbd-mirror] --> cfsm[cephfs-mirror] --> cexp[ceph-exporter]
+  end
+  subgraph B[2. GATEWAY_TYPES and 3. INGRESS_TYPES]
+    direction LR
+    iscsi --> nfs --> nvmeof --> smb --> haproxy --> keepalived
+  end
+  subgraph C[4. monitoring and 5. mgmt-gateway, with separate images]
+    direction LR
+    ne[node-exporter] --> prom[prometheus] --> am[alertmanager] --> graf[grafana] --> rest[loki, promtail, alloy, pushgateway] --> mg[mgmt-gateway] --> oa[oauth2-proxy]
+  end
+  A --> A2 --> B --> C

@@ -5,44 +5,43 @@ title: 'Deploying Ceph: Lab, cephadm, Ansible and Rook'
 part: main
 original_heading: Deploying Ceph
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-11-1}
+# Before you start {#sec-11-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-11-1-1}
+## What questions does this chapter answer? {#sec-11-1-1}
 
-سرفصل ۲۰۱۹ استقرار را با سه ابزار آموزش می‌داد: Vagrant و VirtualBox برای آزمایشگاه، `ceph-deploy` برای نصب دستی و ceph-ansible برای خودکارسازی. از آن زمان هر سه لایه تغییر کرده‌اند: مخزن ceph-deploy آرشیو شده است، README خود ceph-ansible می‌گوید پروژه «فعلاً» نگهداری می‌شود اما مهاجرت به cephadm را توصیه می‌کند، و ابزار رسمی استقرار، **cephadm** (روی سرور و VM) و **Rook** (درون Kubernetes) است. این فصل همان اهداف را با ابزار امروزی دنبال می‌کند:
+The 2019 outline taught deployment with three tools: Vagrant and VirtualBox for the lab, `ceph-deploy` for manual installation and ceph-ansible for automation. All three layers have changed since then: the ceph-deploy repository is archived, ceph-ansible's own README says the project is maintained "for now" but recommends migrating to cephadm, and the official deployment tools are **cephadm** (on servers and VMs) and **Rook** (inside Kubernetes). This chapter pursues the same goals with today's tools:
 
-- یک آزمایشگاه تکرارپذیر Ceph را چطور بسازیم؟
-- ابزارهای استقرار چه سیری داشته‌اند و امروز کدام را انتخاب کنیم؟
-- استقرار اعلانی با specهای cephadm چطور کار می‌کند؟
-- Ansible امروز چه نقشی دارد؟
-- Rook چه زمانی انتخاب درستی است؟
-- مدیریت تغییر و پیکربندی را چطور با GitOps منظم کنیم؟
+- How do we build a reproducible Ceph lab?
+- How have deployment tools evolved, and which should we choose today?
+- How does declarative deployment with cephadm specs work?
+- What role does Ansible play today?
+- When is Rook the right choice?
+- How do we organise change and configuration management with GitOps?
 
-# آزمایشگاه تکرارپذیر {#sec-11-2}
+# A reproducible lab {#sec-11-2}
 
-## چرا آزمایشگاه؟ {#sec-11-2-1}
+## Why a lab? {#sec-11-2-1}
 
-هیچ تغییر مهمی (ارتقا، تغییر CRUSH، تعویض دیسک، آزمایش خرابی) نباید اولین بار روی کلاستر واقعی امتحان شود. آزمایشگاه باید **ارزان، سریع و قابل بازسازی** باشد: اگر خرابش کردید، در چند دقیقه دوباره بسازید.
+No important change (upgrade, CRUSH change, disk replacement, failure test) should be tried for the first time on a real cluster. The lab should be **cheap, fast and rebuildable**: if you break it, rebuild it in a few minutes.
 
-![توپولوژی آزمایشگاه پیشنهادی: سه گره Ceph و یک کلاینت روی یک میزبان KVM](figures/ch11/f02_lab.png){#fig-11-f02_lab}
+![The suggested lab topology: three Ceph nodes and one client on a KVM host](figures/ch11/f02_lab.png){#fig-11-f02_lab}
 
-## منابع {#sec-11-2-2}
+## Resources {#sec-11-2-2}
 
-| نقش | vCPU | حافظه | دیسک |
+| Role | vCPU | Memory | Disk |
 |---|---|---|---|
-| هر گره Ceph (۳ عدد) | ۲ تا ۴ | ۴ تا ۸ گیگابایت | یک دیسک سیستم‌عامل ۲۰ گیگابایت و ۲ تا ۳ دیسک ۲۰ گیگابایتی برای OSD |
-| کلاینت | ۱ تا ۲ | ۲ گیگابایت | ۲۰ گیگابایت |
+| Each Ceph node (3) | 2 to 4 | 4 to 8 GB | One 20 GB OS disk and 2 to 3 disks of 20 GB for OSDs |
+| Client | 1 to 2 | 2 GB | 20 GB |
 
 ::: {.note}
-اعداد بالا برای یادگیری کافی‌اند، نه برای سنجش کارایی. با ۴ گیگابایت حافظه، cephadm با autotune حافظه‌ی OSDها را پایین می‌آورد؛ اگر OSDها مدام restart می‌شوند (OOM)، حافظه‌ی گره را بیشتر کنید یا `osd_memory_target` را دستی پایین بیاورید.
+The numbers above are enough for learning, not for performance measurement. With 4 GB of memory, cephadm's autotune lowers the OSDs' memory; if the OSDs keep restarting (OOM), give the node more memory or lower `osd_memory_target` by hand.
 :::
 
-## ابزار ساخت VM {#sec-11-2-3}
+## The VM tool {#sec-11-2-3}
 
-Vagrant هنوز ابزار مفیدی برای تعریف VMها در قالب کد است، اما VirtualBox روی لینوکس برای این کار انتخاب اول نیست: KVM و libvirt سریع‌ترند و با Vagrant (پلاگین vagrant-libvirt) یا ابزارهایی مثل `virt-install` و cloud-init کار می‌کنند. نمونه‌ی یک Vagrantfile با libvirt:
+Vagrant is still a useful tool for defining VMs as code, but VirtualBox on Linux is not the first choice for this: KVM and libvirt are faster and work with Vagrant (the vagrant-libvirt plugin) or with tools such as `virt-install` and cloud-init. An example Vagrantfile with libvirt:
 
 ```ruby
 # Vagrantfile
@@ -70,16 +69,16 @@ end
 ```bash
 vagrant up --provider=libvirt
 vagrant ssh ceph-node1 -c "lsblk"
-vagrant destroy -f          # پاک کردن کامل آزمایشگاه
+vagrant destroy -f          # wipe the lab completely
 ```
 
 ::: {.tip}
-اگر Umbrella را آزمایش می‌کنید، دقت کنید image‌های آن به CPU با سطح **x86-64-v3** نیاز دارند. در libvirt، مدل CPU را `host-passthrough` بگذارید؛ مدل‌های CPU عمومی و قدیمی ممکن است این سطح را اعلام نکنند و کانتینرها اجرا نشوند. Umbrella همچنین مبتنی بر el10 است و cephadm به پایتون ۳.۹ یا جدیدتر روی میزبان نیاز دارد.
+If you are testing Umbrella, note that its images require a CPU at the **x86-64-v3** level. In libvirt, set the CPU model to `host-passthrough`; generic and older CPU models may not advertise this level, and the containers will not run. Umbrella is also based on el10, and cephadm needs Python 3.9 or newer on the host.
 :::
 
-## کلاستر تک‌گره {#sec-11-2-4}
+## A single-node cluster {#sec-11-2-4}
 
-برای آزمایش سریع رابط‌ها (نه خرابی)، cephadm حالت تک‌میزبانی دارد. گزینه‌ی `--single-host-defaults` تنظیماتی را اعمال می‌کند که روی یک میزبان معنا دارند، مثلاً دامنه‌ی خرابی OSD به جای host:
+For quickly testing the interfaces (not failures), cephadm has a single-host mode. The `--single-host-defaults` option applies settings that make sense on one host, for example an OSD failure domain instead of host:
 
 ```bash
 cephadm bootstrap --mon-ip 192.168.10.11 --single-host-defaults
@@ -88,34 +87,34 @@ ceph -s
 ```
 
 ::: {.warn}
-کلاستر تک‌گره هیچ حفاظتی در برابر خرابی میزبان ندارد و رفتار آن در خرابی با کلاستر واقعی فرق دارد. برای تمرین تعویض دیسک، نگهداری میزبان و ارتقا، از سه گره استفاده کنید.
+A single-node cluster has no protection against host failure, and its failure behaviour differs from a real cluster. To practise disk replacement, host maintenance and upgrades, use three nodes.
 :::
 
-# سیر ابزارهای استقرار {#sec-11-3}
+# The evolution of deployment tools {#sec-11-3}
 
-![ابزارهای استقرار دیروز و امروز](figures/ch11/f01_tools.png){#fig-11-f01_tools}
+![Deployment tools of yesterday and today](figures/ch11/f01_tools.png){#fig-11-f01_tools}
 
-| ابزار | وضعیت | کاربرد امروز |
+| Tool | Status | Use today |
 |---|---|---|
-| ceph-deploy | مخزن آرشیو شده؛ با نسخه‌های جدید کار نمی‌کند | فقط برای فهم منابع قدیمی |
-| ceph-ansible | فعلاً نگهداری می‌شود؛ توصیه‌ی رسمی مهاجرت به cephadm | کلاسترهای قدیمی که هنوز مهاجرت نکرده‌اند |
-| cephadm | ابزار رسمی استقرار و چرخه‌ی عمر روی میزبان‌ها | انتخاب پیش‌فرض برای سرور و VM |
-| cephadm-ansible | playbookهای کمکی برای آماده‌سازی میزبان‌ها و کارهای پیرامونی | ترکیب با cephadm در سازمان‌هایی که Ansible دارند |
-| Rook | operator رسمی Ceph در Kubernetes (پروژه‌ی CNCF) | وقتی Ceph در خدمت Kubernetes است |
+| ceph-deploy | Repository archived; does not work with recent releases | Only for understanding old sources |
+| ceph-ansible | Maintained for now; official recommendation is to migrate to cephadm | Old clusters that have not migrated yet |
+| cephadm | The official tool for deployment and life cycle on hosts | The default choice for servers and VMs |
+| cephadm-ansible | Helper playbooks for preparing hosts and surrounding tasks | Combined with cephadm in organisations that use Ansible |
+| Rook | The official Ceph operator for Kubernetes (a CNCF project) | When Ceph serves Kubernetes |
 
 ::: {.deep}
-تفاوت فلسفی ceph-ansible و cephadm مهم است. ceph-ansible **دستوری** است: هر بار playbook را اجرا می‌کنید، مراحل را از اول اجرا می‌کند و وضعیت فقط در لحظه‌ی اجرا اصلاح می‌شود. cephadm **اعلانی** و **پیوسته** است: وضعیت مطلوب درون خود کلاستر (در MGR) ذخیره می‌شود و orchestrator مدام وضعیت واقعی را با آن مقایسه و اختلاف را برطرف می‌کند. اگر یک daemon حذف شود، cephadm بدون دخالت شما آن را برمی‌گرداند. این همان مدلی است که Kubernetes و Rook هم دارند.
+The philosophical difference between ceph-ansible and cephadm matters. ceph-ansible is **imperative**: each time you run the playbook, it runs the steps from the start, and the state is corrected only at the moment of the run. cephadm is **declarative** and **continuous**: the desired state is stored inside the cluster itself (in the MGR), and the orchestrator constantly compares the actual state with it and fixes any difference. If a daemon is removed, cephadm brings it back without your intervention. This is the same model Kubernetes and Rook have.
 :::
 
-# استقرار اعلانی با cephadm {#sec-11-4}
+# Declarative deployment with cephadm {#sec-11-4}
 
-## چرخه‌ی تطبیق {#sec-11-4-1}
+## The reconciliation loop {#sec-11-4-1}
 
-![چرخه‌ی تطبیق در cephadm: spec وضعیت مطلوب را تعیین می‌کند و orchestrator اختلاف با وضعیت واقعی را برطرف می‌کند](figures/ch11/f03_loop.png){#fig-11-f03_loop}
+![The reconciliation loop in cephadm: the spec sets the desired state and the orchestrator fixes differences from the actual state](figures/ch11/f03_loop.png){#fig-11-f03_loop}
 
-در فصل ۱ کلاستر را دستور به دستور ساختیم. در محیط واقعی بهتر است **کل کلاستر را در یک فایل spec** توصیف کنید و همان را در bootstrap یا بعد از آن اعمال کنید. مزیت‌ها: تکرارپذیری، بازبینی در Git و امکان بازسازی سریع آزمایشگاه با همان پیکربندی production.
+In chapter 1 we built the cluster command by command. In a real environment it is better to describe **the whole cluster in a spec file** and apply it at bootstrap or afterwards. The advantages: reproducibility, review in Git, and the ability to quickly rebuild a lab with the same configuration as production.
 
-## فایل spec کامل {#sec-11-4-2}
+## A complete spec file {#sec-11-4-2}
 
 ```yaml
 # cluster.yaml
@@ -171,50 +170,50 @@ placement:
 ```
 
 ```bash
-# روی گره اول، پس از کپی کلید SSH عمومی cephadm به گره‌های دیگر
+# on the first node, after copying cephadm's public SSH key to the other nodes
 cephadm bootstrap --mon-ip 192.168.10.11 --cluster-network 192.168.20.0/24 --apply-spec cluster.yaml
-# یا روی کلاستر موجود
+# or on an existing cluster
 ceph orch apply -i cluster.yaml --dry-run
 ceph orch apply -i cluster.yaml
 ```
 
 ::: {.tip}
-همیشه پیش از اعمال، `--dry-run` اجرا کنید. خروجی آن نشان می‌دهد کدام OSDها روی کدام دیسک‌ها ساخته می‌شوند. اشتباه رایج: فیلتر `rotational: 0` در محیط‌های مجازی، چون دیسک‌های مجازی ممکن است خود را چرخان یا غیرچرخان معرفی کنند بدون ارتباط با سخت‌افزار واقعی. در چنین مواردی از فیلترهای `size`، `model` یا `paths` استفاده کنید.
+Always run `--dry-run` before applying. Its output shows which OSDs will be created on which disks. A common mistake: the `rotational: 0` filter in virtual environments, because virtual disks may present themselves as rotational or non-rotational regardless of the real hardware. In such cases use the `size`, `model` or `paths` filters.
 :::
 
-## فیلترهای دستگاه {#sec-11-4-3}
+## Device filters {#sec-11-4-3}
 
-| فیلتر | مثال | کاربرد |
+| Filter | Example | Use |
 |---|---|---|
-| rotational | `rotational: 1` | تفکیک HDD و SSD |
-| size | `size: '10T:'` | دیسک‌های بزرگ‌تر از ۱۰ ترابایت |
-| model / vendor | `model: 'MZ7L3'` | یک مدل مشخص |
-| paths | `paths: [/dev/sdb, /dev/sdc]` | مسیر صریح (برای میزبان‌های ناهمگون) |
-| limit | `limit: 2` | حداکثر تعداد دیسک از این نوع |
+| rotational | `rotational: 1` | Separating HDD and SSD |
+| size | `size: '10T:'` | Disks larger than 10 TB |
+| model / vendor | `model: 'MZ7L3'` | A specific model |
+| paths | `paths: [/dev/sdb, /dev/sdc]` | Explicit paths (for heterogeneous hosts) |
+| limit | `limit: 2` | At most this many disks of this type |
 
 ::: {.warn}
-فیلترهای کلی مثل `all: true` یا `--all-available-devices` هر دیسک خالی تازه را OSD می‌کنند، از جمله دیسکی که برای کار دیگری به میزبان اضافه کرده‌اید. در production، spec OSD را با فیلترهای مشخص تعریف کنید و اگر لازم است، موقتاً `unmanaged: true` بگذارید تا ساخت خودکار OSD متوقف شود.
+Broad filters such as `all: true` or `--all-available-devices` turn every new empty disk into an OSD, including a disk you added to the host for something else. In production, define the OSD spec with specific filters, and if necessary set `unmanaged: true` temporarily to stop automatic OSD creation.
 :::
 
-## نگهداری spec {#sec-11-4-4}
+## Maintaining the spec {#sec-11-4-4}
 
 ```bash
 ceph orch ls --export > cluster-current.yaml
 diff -u cluster.yaml cluster-current.yaml
 ceph orch ls osd --export
-ceph orch rm rgw.objstore          # حذف یک سرویس (daemonهایش هم حذف می‌شوند)
+ceph orch rm rgw.objstore          # remove a service (its daemons are removed too)
 ```
 
-# Ansible در کنار cephadm {#sec-11-5}
+# Ansible alongside cephadm {#sec-11-5}
 
-## تقسیم کار {#sec-11-5-1}
+## Division of labour {#sec-11-5-1}
 
-cephadm به میزبان‌هایی نیاز دارد که پیش‌نیازها را داشته باشند: موتور کانتینر (podman یا docker)، lvm2، همگام‌سازی زمان، پایتون مناسب و کلید SSH کلاستر. این کارها تکراری‌اند و Ansible برای آن‌ها ابزار خوبی است. پروژه‌ی **cephadm-ansible** playbookهای آماده برای همین کارهای پیرامونی دارد (آماده‌سازی میزبان، توزیع فایل‌های پیکربندی و کلیدها، پاک‌سازی). تقسیم کار پیشنهادی:
+cephadm needs hosts that meet the prerequisites: a container engine (podman or docker), lvm2, time synchronisation, a suitable Python and the cluster SSH key. These tasks are repetitive, and Ansible is a good tool for them. The **cephadm-ansible** project has ready playbooks for exactly these surrounding tasks (host preparation, distributing configuration files and keys, cleanup). The suggested division of labour:
 
-- **Ansible**: سیستم‌عامل، بسته‌ها، شبکه و MTU، chrony، کاربران، فایروال، کلید SSH، تنظیمات هسته.
-- **cephadm**: همه‌چیز درون Ceph؛ daemonها، specها، ارتقا.
+- **Ansible**: OS, packages, network and MTU, chrony, users, firewall, SSH key, kernel settings.
+- **cephadm**: everything inside Ceph; daemons, specs, upgrades.
 
-## یک playbook ساده برای آماده‌سازی {#sec-11-5-2}
+## A simple preparation playbook {#sec-11-5-2}
 
 ```ini
 # inventory.ini
@@ -259,105 +258,105 @@ ansible-playbook -i inventory.ini prepare-hosts.yml
 ```
 
 ::: {.note}
-نام دقیق رابط شبکه و اتصال NetworkManager در هر محیط فرق دارد؛ تکه‌ی MTU بالا فقط الگوست. فایل `ceph.pub` را از `/etc/ceph/ceph.pub` روی گره bootstrap بردارید؛ این فقط کلید **عمومی** است و قرار دادنش در مخزن Ansible اشکالی ندارد، اما کلید خصوصی SSH کلاستر هرگز نباید در مخزن قرار گیرد.
+The exact name of the network interface and NetworkManager connection differs in each environment; the MTU snippet above is only a template. Take the `ceph.pub` file from `/etc/ceph/ceph.pub` on the bootstrap node; it is only the **public** key and putting it in the Ansible repository is fine, but the cluster's private SSH key must never go into the repository.
 :::
 
-## مهاجرت از ceph-ansible {#sec-11-5-3}
+## Migrating from ceph-ansible {#sec-11-5-3}
 
-اگر کلاستری دارید که با ceph-ansible ساخته شده، مسیر مستند **adopt** وجود دارد: cephadm daemonهای موجود را یکی‌یکی «تحویل» می‌گیرد و به کانتینرهای مدیریت‌شده‌ی خودش تبدیل می‌کند. ceph-ansible هم playbook مخصوص این کار (`cephadm-adopt`) دارد.
+If you have a cluster built with ceph-ansible, there is a documented **adopt** path: cephadm "takes over" the existing daemons one by one and converts them into containers it manages. ceph-ansible also has a playbook for this (`cephadm-adopt`).
 
 ```bash
-cephadm ls                                   # daemonهای موجود و نوع استقرارشان (legacy یا cephadm)
+cephadm ls                                   # existing daemons and their deployment type (legacy or cephadm)
 cephadm adopt --style legacy --name mon.ceph-node1
 ```
 
 ::: {.warn}
-مهاجرت را ابتدا در آزمایشگاهی که همان نسخه و همان روش استقرار را دارد تمرین کنید. پیش از شروع، کلاستر باید سالم باشد، و پس از adopt شدن MONها و MGRها، باید ماژول cephadm فعال و کلید SSH توزیع شود تا بقیه‌ی daemonها از طریق orchestrator قابل مدیریت شوند.
+Practise the migration first in a lab with the same release and deployment method. Before starting, the cluster must be healthy, and after the MONs and MGRs have been adopted, the cephadm module must be enabled and the SSH key distributed so that the remaining daemons can be managed through the orchestrator.
 :::
 
-# از آزمایشگاه به production {#sec-11-6}
+# From lab to production {#sec-11-6}
 
-## فهرست بررسی پیش از استقرار {#sec-11-6-1}
+## Pre-deployment checklist {#sec-11-6-1}
 
-پیش از bootstrap کلاستر واقعی، این موارد را یکی‌یکی تأیید و نتیجه را مستند کنید. بیشتر مشکلات ماه‌های اول یک کلاستر به همین فهرست برمی‌گردد:
+Before bootstrapping a real cluster, confirm these items one by one and document the results. Most problems in a cluster's first months come back to this list:
 
-| حوزه | بررسی | ابزار یا دستور |
+| Area | Check | Tool or command |
 |---|---|---|
-| سخت‌افزار | همه‌ی گره‌های یک نقش، سخت‌افزار و firmware یکسان دارند | `lshw`، `nvme list`، ابزار سازنده |
-| دیسک | SSDهای DB/WAL یا OSD حفاظت در برابر قطع برق دارند؛ cache نوشتن کنترلر مناسب تنظیم شده | fio با sync (فصل ۱۰) |
-| شبکه | MTU سرتاسری، پهنای باند هر لینک، افزونگی bond و سوئیچ | `iperf3`، `ping -M do` |
-| زمان | همه‌ی گره‌ها با chrony همگام‌اند | `chronyc tracking` |
-| DNS | نام کوتاه میزبان‌ها با `hostname` یکسان و قابل resolve است | `hostname`، `getent hosts` |
-| سیستم‌عامل | توزیع و هسته در فهرست پشتیبانی نسخه‌ی Ceph؛ SELinux/AppArmor مطابق مستندات | `cat /etc/os-release` |
-| فایروال | درگاه‌های MON (۳۳۰۰ و ۶۷۸۹)، OSD/MGR/MDS (۶۸۰۰ تا ۷۳۰۰) و سرویس‌ها باز است | `firewall-cmd --list-all` |
-| پشتیبان | کلیدهای admin و فایل‌های spec در مخزن امن و خارج از کلاستر | — |
+| Hardware | All nodes of a role have identical hardware and firmware | `lshw`, `nvme list`, vendor tool |
+| Disk | DB/WAL or OSD SSDs have power-loss protection; the controller write cache is set appropriately | fio with sync (chapter 10) |
+| Network | End-to-end MTU, bandwidth of each link, bond and switch redundancy | `iperf3`, `ping -M do` |
+| Time | All nodes are synchronised with chrony | `chronyc tracking` |
+| DNS | Short host names match `hostname` and resolve | `hostname`, `getent hosts` |
+| OS | Distribution and kernel on the supported list for the Ceph release; SELinux/AppArmor per the documentation | `cat /etc/os-release` |
+| Firewall | MON ports (3300 and 6789), OSD/MGR/MDS (6800 to 7300) and service ports are open | `firewall-cmd --list-all` |
+| Backup | Admin keys and spec files in a secure repository outside the cluster | — |
 
 ::: {.tip}
-نام میزبان نکته‌ی ظریفی دارد: cephadm به‌طور پیش‌فرض انتظار دارد نامی که در `ceph orch host add` می‌دهید با خروجی `hostname` روی همان میزبان یکسان باشد. ترکیب نام کوتاه روی یک گره و FQDN روی گره دیگر، بعدها در ارتقا و بررسی‌های میزبان دردسر می‌سازد. یک قرارداد انتخاب کنید و همه‌جا رعایت کنید.
+Host names have a subtle point: by default cephadm expects the name you give in `ceph orch host add` to match the output of `hostname` on that host. Mixing short names on one node and FQDNs on another causes trouble later in upgrades and host checks. Choose one convention and follow it everywhere.
 :::
 
-## محیط ایزوله (بدون اینترنت) {#sec-11-6-2}
+## An isolated (offline) environment {#sec-11-6-2}
 
-بسیاری از کلاسترهای ذخیره‌سازی به اینترنت دسترسی ندارند. cephadm برای این حالت از یک **registry محلی** پشتیبانی می‌کند: همه‌ی image‌ها (Ceph، Prometheus، Grafana، Alertmanager، node-exporter و ...) را در registry داخلی قرار می‌دهید و cephadm را به آن ارجاع می‌دهید.
+Many storage clusters have no internet access. For this case cephadm supports a **local registry**: you put all the images (Ceph, Prometheus, Grafana, Alertmanager, node-exporter, ...) in an internal registry and point cephadm at it.
 
 ```bash
-# روی ماشینی با دسترسی اینترنت: image را بکشید و به registry داخلی بفرستید
+# on a machine with internet access: pull the image and push it to the internal registry
 podman pull quay.io/ceph/ceph:v20.2.5
 podman tag quay.io/ceph/ceph:v20.2.5 registry.internal:5000/ceph/ceph:v20.2.5
 podman push registry.internal:5000/ceph/ceph:v20.2.5
-# bootstrap با image داخلی
+# bootstrap with the internal image
 cephadm --image registry.internal:5000/ceph/ceph:v20.2.5 bootstrap --mon-ip 192.168.10.11 \
   --registry-json /root/registry.json
-# ارجاع image‌های پایش به registry داخلی
+# point the monitoring images at the internal registry
 ceph config set mgr mgr/cephadm/container_image_prometheus registry.internal:5000/prometheus/prometheus:<tag>
 ceph config set mgr mgr/cephadm/container_image_grafana registry.internal:5000/ceph/grafana:<tag>
 ```
 
 ::: {.warn}
-فایل `registry.json` نام کاربری و رمز registry را دارد؛ مجوز آن را `600` بگذارید و پس از bootstrap حذفش کنید (cephadm اعتبارنامه را درون کلاستر نگه می‌دارد). برچسب دقیق image‌های پایش را از مستندات نسخه‌ی خودتان یا از خروجی `ceph config get mgr mgr/cephadm/container_image_prometheus` روی یک کلاستر آزمایشی هم‌نسخه بردارید، نه از حدس.
+The `registry.json` file contains the registry user name and password; set its permissions to `600` and delete it after bootstrap (cephadm keeps the credentials inside the cluster). Take the exact tags of the monitoring images from your release's documentation or from the output of `ceph config get mgr mgr/cephadm/container_image_prometheus` on a test cluster of the same release, not from a guess.
 :::
 
-## پس از bootstrap {#sec-11-6-3}
+## After bootstrap {#sec-11-6-3}
 
 ```bash
 ceph -s
 ceph orch host ls
 ceph orch device ls --wide
 ceph cephadm check-host ceph-node2
-ceph health mute CEPHADM_STRAY_DAEMON 1h   # فقط اگر علت را می‌دانید و موقتی است
+ceph health mute CEPHADM_STRAY_DAEMON 1h   # only if you know the cause and it is temporary
 ceph orch ls --export > /srv/ceph-gitops/specs/cluster.yaml
 ```
 
 ::: {.note}
-نخستین خروجی `ceph orch ls --export` را بلافاصله در Git ثبت کنید. این «خط مبنا» است و همه‌ی تغییرات بعدی باید از آن طریق بازبینی شوند.
+Commit the first output of `ceph orch ls --export` to Git immediately. This is the "baseline", and all later changes should be reviewed through it.
 :::
 
-# از درون کد: حلقه‌ی serve در cephadm و spec اوسدی {#sec-11-7}
+# Inside the code: the cephadm serve loop and the OSD spec {#sec-11-7}
 
-## orchestrator اعلانی {#sec-11-7-1}
+## A declarative orchestrator {#sec-11-7-1}
 
-cephadm یک ماژول mgr است (`src/pybind/mgr/cephadm/`). قلب آن کلاس `CephadmServe` در `serve.py` است که یک **حلقه‌ی هم‌گرایی (reconcile loop)** را اجرا می‌کند و به همین دلیل از نظر ایده به کنترلرهای Kubernetes شبیه است. وضعیت مطلوب specهایی است که با `ceph orch apply` ذخیره شده‌اند. وضعیت واقعی کشی از اطلاعات میزبان‌ها است که با اجرای باینری `cephadm` از طریق SSH روی هر میزبان جمع‌آوری می‌شود.
+cephadm is an mgr module (`src/pybind/mgr/cephadm/`). Its heart is the `CephadmServe` class in `serve.py`, which runs a **convergence (reconcile) loop** and is therefore similar in idea to Kubernetes controllers. The desired state is the specs stored with `ceph orch apply`. The actual state is a cache of host information collected by running the `cephadm` binary on each host over SSH.
 
-![یک دور از CephadmServe.serve() به ترتیبی که در کد فراخوانی می‌شود. ردیف اول تازه‌سازی کش میزبان‌ها و daemonها است (gather-facts، فهرست daemonها، inventory دستگاه‌ها با ceph-volume)، و پس از آن بررسی daemonهای سرگردان و اجرای اقدام‌های ناهمگام درخواستی. ردیف دوم هم‌گرایی است: _apply_all_services برای هر spec، _apply_service را صدا می‌زند و HostAssignment.place() در schedule.py بر اساس placement (count، label، host_pattern، hosts) تعیین می‌کند کدام daemon باید اضافه یا حذف شود. ردیف سوم کارهای نگهداری است: بررسی سلامت daemonها و گواهی‌ها، پاک کردن سرویس‌های حذف‌شده، تشخیص OSDهای جابه‌جاشده و تلاش دوباره برای عملیات ناموفق. در پایان حلقه می‌خوابد، ولی هر فرمان orch با _kick_serve_loop آن را فوراً بیدار می‌کند](figures/ch11/s01_serve.png){#fig-11-s01_serve}
+![One round of CephadmServe.serve() in the order in which it is called in the code. The first row refreshes the host and daemon cache (gather-facts, the daemon list, the device inventory with ceph-volume), followed by checking for stray daemons and running requested asynchronous actions. The second row is convergence: _apply_all_services calls _apply_service for each spec, and HostAssignment.place() in schedule.py decides, based on the placement (count, label, host_pattern, hosts), which daemons should be added or removed. The third row is maintenance: checking daemon and certificate health, cleaning up removed services, detecting moved OSDs and retrying failed operations. At the end the loop sleeps, but every orch command wakes it immediately with _kick_serve_loop](figures/ch11/s01_serve.png){#fig-11-s01_serve}
 
-| گزینه‌ی ماژول (module.py) | پیش‌فرض | نقش |
+| Module option (module.py) | Default | Role |
 |---|---|---|
-| device_cache_timeout | 1800 ثانیه | تازه‌سازی inventory دستگاه‌ها |
-| daemon_cache_timeout | 600 ثانیه | تازه‌سازی فهرست daemonها |
-| facts_cache_timeout | 600 ثانیه | تازه‌سازی gather-facts |
-| host_check_interval | 600 ثانیه | بررسی دسترسی SSH و سلامت میزبان |
-| max_count_per_host | 10 | سقف daemon از یک نوع روی یک میزبان |
+| device_cache_timeout | 1800 seconds | Refresh the device inventory |
+| daemon_cache_timeout | 600 seconds | Refresh the daemon list |
+| facts_cache_timeout | 600 seconds | Refresh gather-facts |
+| host_check_interval | 600 seconds | Check SSH access and host health |
+| max_count_per_host | 10 | Cap on daemons of one type on one host |
 
 ::: {.note}
-به همین دلیل یک دیسک تازه نصب‌شده ممکن است تا ۳۰ دقیقه در `ceph orch device ls` دیده نشود. برای تازه‌سازی فوری از `ceph orch device ls --refresh` استفاده کنید.
+This is why a newly installed disk may not appear in `ceph orch device ls` for up to 30 minutes. For an immediate refresh, use `ceph orch device ls --refresh`.
 :::
 
-## spec اوسدی و DriveSelection {#sec-11-7-2}
+## The OSD spec and DriveSelection {#sec-11-7-2}
 
-spec اوسدی کلاس `DriveGroupSpec` در `src/python-common/ceph/deployment/drive_group.py` است که از `ServiceSpec` ارث می‌برد. فیلترهای دستگاه (`DeviceSelection`: rotational، size، model، vendor، paths، limit، all) برای سه نقش data، db و wal تعریف می‌شوند و `DriveSelection` در `drive_selection/selector.py` آن‌ها را روی inventory هر میزبان اعمال می‌کند. ویژگی‌هایی مانند `encrypted`، `tpm2`، `osds_per_device`، `block_wal_size` و `osd_id_claims` در `_supported_features` همین کلاس فهرست شده‌اند.
+The OSD spec is the `DriveGroupSpec` class in `src/python-common/ceph/deployment/drive_group.py`, which inherits from `ServiceSpec`. The device filters (`DeviceSelection`: rotational, size, model, vendor, paths, limit, all) are defined for the three roles data, db and wal, and `DriveSelection` in `drive_selection/selector.py` applies them to each host's inventory. Features such as `encrypted`, `tpm2`, `osds_per_device`, `block_wal_size` and `osd_id_claims` are listed in this class's `_supported_features`.
 
 ```yaml
-# osd-hybrid.yaml — مثال این کتاب: HDD برای داده، NVMe مشترک برای DB
+# osd-hybrid.yaml — this book's example: HDD for data, shared NVMe for DB
 service_type: osd
 service_id: hybrid-hdd-nvme
 placement:
@@ -368,95 +367,95 @@ spec:
     size: '8T:'
   db_devices:
     rotational: 0
-    model: 'MZ'          # پیشوند مدل NVMe
+    model: 'MZ'          # NVMe model prefix
     limit: 2
   encrypted: true
   objectstore: bluestore
 ```
 
 ```text
-pseudocode: اعمال spec اوسدی (خلاصه‌ی این کتاب از serve.py و services/osd.py)
+pseudocode: applying an OSD spec (this book's summary of serve.py and services/osd.py)
   for host in HostAssignment(spec).place():
-      devs = DriveSelection(spec, inventory[host])     # data/db/wal فیلترشده
-      cmds = translate to ceph-volume lvm batch ...    # بدون دستگاه‌های در حال استفاده
-      out  = run cephadm ceph-volume --report (dry-run) سپس اجرای واقعی
+      devs = DriveSelection(spec, inventory[host])     # filtered data/db/wal
+      cmds = translate to ceph-volume lvm batch ...    # excluding devices in use
+      out  = run cephadm ceph-volume --report (dry-run), then the real run
       deploy osd daemons for new osd ids
 ```
 
 ::: {.warn}
-spec اوسدی «پایدار» است: پس از apply، هر دیسک خالی منطبق با فیلتر که بعداً به میزبان اضافه شود، **خودکار** OSD می‌شود. اگر این را نمی‌خواهید، `unmanaged: true` بگذارید. همیشه ابتدا `--dry-run` اجرا کنید.
+The OSD spec is "persistent": after apply, any empty disk matching the filter that is later added to the host becomes an OSD **automatically**. If you do not want this, set `unmanaged: true`. Always run `--dry-run` first.
 :::
 
 ::: {.debug}
-فرمان‌ها:
+Commands:
 :::
 
 ```bash
 ceph orch apply -i osd-hybrid.yaml --dry-run
 ceph orch ls osd --export
 ceph orch device ls --refresh --wide
-ceph log last cephadm 50                 # رویدادهای حلقه‌ی serve
+ceph log last cephadm 50                 # events of the serve loop
 ceph config set mgr mgr/cephadm/log_to_cluster_level debug
-ceph mgr fail                            # failover؛ حلقه روی mgr جدید از نو شروع می‌شود
+ceph mgr fail                            # failover; the loop starts afresh on the new mgr
 ```
 
-# استقرار با عدد: چهار الگوریتم cephadm و ceph-volume {#sec-11-8}
+# Deployment by the numbers: four cephadm and ceph-volume algorithms {#sec-11-8}
 
-cephadm در ظاهر فقط «spec» را می‌گیرد و daemon می‌سازد. در عمل، چند الگوریتم کوچک تصمیم می‌گیرند هر daemon روی کدام میزبان برود، دیسک سریع چطور میان OSDها تقسیم شود و هنگام ارتقا چند OSD هم‌زمان متوقف شوند. این بخش چهار الگوریتم را از کد main (بررسی‌شده در نوامبر 2026) با مثال عددی دنبال می‌کند. خروجی همه‌ی مثال‌ها با اجرای همان منطق در پایتون به دست آمده است. جزئیات این توابع در نسخه‌های مختلف تغییر کرده‌اند (مثلاً منطق «سرویس مرتبط» برای ingress جدیدتر است)، پس پیش از تکیه بر جزئیات، کد نسخه‌ی خود را بخوانید.
+On the surface cephadm just takes a "spec" and creates daemons. In practice, several small algorithms decide which host each daemon goes to, how a fast disk is divided between OSDs, and how many OSDs are stopped at once during an upgrade. This section follows four algorithms from the main code (checked in November 2026) with numerical examples. The output of every example was obtained by running the same logic in Python. The details of these functions have changed between releases (for example the "related service" logic for ingress is newer), so read your release's code before relying on the details.
 
-## انتخاب میزبان: HostAssignment {#sec-11-8-1}
+## Choosing hosts: HostAssignment {#sec-11-8-1}
 
-::: {.algo #alg-11-1 title="جای‌گذاری daemonها روی میزبان‌ها" src="src/pybind/mgr/cephadm/schedule.py :: HostAssignment.place، get_candidates" complexity="O(H log H) برای مرتب‌سازی و shuffle؛ O(D × H) برای تطبیق D daemon موجود با H شکاف"}
+::: {.algo #alg-11-1 title="Placing daemons on hosts" src="src/pybind/mgr/cephadm/schedule.py :: HostAssignment.place, get_candidates" complexity="O(H log H) for sorting and shuffling; O(D × H) for matching D existing daemons to H slots"}
 :::
 
 ```text
 pseudocode
-candidates = میزبان‌هایی که با hosts یا label یا host_pattern در placement می‌خوانند
-candidates = فیلتر شبکه (networks یا ip_addrs) و filter_new_host
+candidates = hosts matching hosts or label or host_pattern in the placement
+candidates = network filter (networks or ip_addrs) and filter_new_host
 seed = int(sha1(service_name), 16) mod 2^32
-candidates = shuffle(sorted(candidates), Random(seed))     # قطعی برای هر نام سرویس
-slots = count_per_host شکاف برای هر میزبان  یا  ceil(count / |candidates|) اگر هم‌مکانی مجاز است
-daemons = مرتب بر اساس (active اول، رتبه‌دار اول، rank کمتر، نسل جدیدتر)
-for d in daemons: اگر شکافی با d سازگار است ⇒ existing ، وگرنه to_remove
+candidates = shuffle(sorted(candidates), Random(seed))     # deterministic for each service name
+slots = count_per_host slots per host  or  ceil(count / |candidates|) if co-location is allowed
+daemons = sorted by (active first, ranked first, lower rank, newer generation)
+for d in daemons: if a slot is compatible with d ⇒ existing , otherwise to_remove
 need = count − |existing|
-if need < 0: حذف از انتهای existing (اول از میزبان‌های بدون سرویس مرتبط)
-else: ابتدا میزبان‌های دارای سرویس مرتبط، سپس others به همان ترتیب shuffle، بدون میزبان offline یا blocking
+if need < 0: remove from the end of existing (first from hosts without a related service)
+else: first hosts with a related service, then others in the same shuffle order, excluding offline or blocking hosts
 ```
 
-**مثال عددی.** کلاستر تازه‌ای با شش میزبان ceph-01 تا ceph-06 داریم و هیچ daemon موجودی نیست. برای سرویس `mon`، مقدار sha1 به seed = 2890900522 می‌رسد و ترتیب shuffle این است: ceph-03، ceph-01، ceph-06، ceph-05، ceph-04، ceph-02. با `count: 3`، سه monitor روی ceph-03، ceph-01 و ceph-06 می‌روند. سرویس `mgr` با seed = 2570336426 ترتیب دیگری دارد: ceph-04، ceph-01، ceph-05 و بقیه. پس با `count: 2` دو mgr روی ceph-04 و ceph-01 می‌نشینند.
+**Numerical example.** We have a new cluster with six hosts, ceph-01 to ceph-06, and no existing daemons. For the `mon` service, the sha1 gives seed = 2890900522 and the shuffle order is: ceph-03, ceph-01, ceph-06, ceph-05, ceph-04, ceph-02. With `count: 3`, the three monitors go to ceph-03, ceph-01 and ceph-06. The `mgr` service, with seed = 2570336426, has a different order: ceph-04, ceph-01, ceph-05 and the rest. So with `count: 2` the two mgrs land on ceph-04 and ceph-01.
 
-این دو ویژگی مهم‌اند. اول، **قطعی** است: اگر mgr فعال عوض شود یا cephadm دوباره اجرا شود، همان نتیجه به دست می‌آید و daemonها بی‌دلیل جابه‌جا نمی‌شوند. دوم، **برای هر سرویس متفاوت** است: همه‌ی سرویس‌ها روی میزبان اول جمع نمی‌شوند. اگر بعداً ceph-03 حذف شود، monitor روی آن به to_remove می‌رود. اولین میزبان آزاد بعدی در ترتیب shuffle (ceph-05) جای آن را می‌گیرد، و دو monitor دیگر دست نمی‌خورند.
+Two properties matter. First, it is **deterministic**: if the active mgr changes or cephadm runs again, the same result comes out and daemons do not move for no reason. Second, it is **different for each service**: the services do not all pile up on the first host. If ceph-03 is later removed, the monitor on it goes to to_remove. The next free host in the shuffle order (ceph-05) takes its place, and the other two monitors are untouched.
 
-![ترتیب قطعی میزبان‌ها برای پنج سرویس نمونه در یک کلاستر شش‌میزبانه. هر سطر خروجی get_candidates است: فهرست مرتب میزبان‌ها که با یک مولد تصادفی با seed برابر sha1 نام سرویس به هنگ 2^32 بُر خورده است. خانه‌های با کادر پررنگ میزبان‌هایی هستند که برای یک کلاستر خالی با count داده‌شده انتخاب می‌شوند. crash بدون count روی همه‌ی میزبان‌ها می‌رود. هر رنگ یک میزبان ثابت است تا دیده شود سرویس‌ها روی میزبان‌های متفاوتی پخش می‌شوند](figures/ch11/f06_place.png){#fig-11-f06_place}
+![The deterministic host order for five sample services in a six-host cluster. Each row is the output of get_candidates: the sorted host list shuffled with a random generator seeded with the sha1 of the service name modulo 2^32. Cells with a bold border are the hosts chosen for an empty cluster with the given count. crash, with no count, goes to every host. Each colour is a fixed host, so you can see the services spread across different hosts](figures/ch11/f06_place.png){#fig-11-f06_place}
 
-![سه مرحله‌ی HostAssignment.place. مرحله‌ی اول نامزدها را از placement می‌سازد و با seed نام سرویس بُر می‌زند. مرحله‌ی دوم شکاف‌ها را گسترش می‌دهد و هر daemon موجود را به نخستین شکاف سازگار نسبت می‌دهد. daemonهای فعال و رتبه‌دار زودتر جای خود را می‌گیرند تا جابه‌جا نشوند. مرحله‌ی سوم کمبود یا مازاد را جبران می‌کند: هنگام کاهش، ابتدا daemonهایی حذف می‌شوند که کنار سرویس مرتبط نیستند (مثلاً ingress بدون backend). هنگام افزایش، ابتدا میزبان‌های سرویس مرتبط و سپس بقیه به ترتیب shuffle انتخاب می‌شوند](figures/ch11/f10_placeflow.png){#fig-11-f10_placeflow}
+![The three stages of HostAssignment.place. The first stage builds the candidates from the placement and shuffles them with the service name's seed. The second stage expands the slots and assigns each existing daemon to the first compatible slot. Active and ranked daemons take their places first so that they do not move. The third stage makes up the shortfall or surplus: when scaling down, daemons not next to a related service are removed first (for example an ingress without a backend). When scaling up, hosts of the related service are chosen first and then the rest in shuffle order](figures/ch11/f10_placeflow.png){#fig-11-f10_placeflow}
 
-## تقسیم NVMe میان OSDها: ceph-volume batch {#sec-11-8-2}
+## Dividing NVMe between OSDs: ceph-volume batch {#sec-11-8-2}
 
-::: {.algo #alg-11-2 title="اندازه‌ی شکاف DB/WAL روی دستگاه سریع" src="src/ceph-volume/ceph_volume/devices/lvm/batch.py :: Batch.fast_allocations، get_physical_fast_allocs" complexity="O(F × S) برای F دستگاه سریع و S شکاف"}
+::: {.algo #alg-11-2 title="The DB/WAL slot size on the fast device" src="src/ceph-volume/ceph_volume/devices/lvm/batch.py :: Batch.fast_allocations, get_physical_fast_allocs" complexity="O(F × S) for F fast devices and S slots"}
 :::
 
 ```text
 pseudocode
-fast_slots_per_device = ceil((OSDهای خواسته‌شده − LVهای سریع آماده) / max(1, دستگاه‌های سریع فیزیکی))
-requested_slots = db_slots از spec  (اگر کمتر بود نادیده و برابر fast_slots_per_device)
-requested_size  = block_db_size از spec یا ceph.conf (پیش‌فرض 0 یعنی خودکار)
-برای هر دستگاه سریع:
+fast_slots_per_device = ceil((requested OSDs − ready fast LVs) / max(1, physical fast devices))
+requested_slots = db_slots from the spec  (if smaller, ignored and set to fast_slots_per_device)
+requested_size  = block_db_size from the spec or ceph.conf (default 0 means automatic)
+for each fast device:
     abs_size = vg_size / slots_for_vg
-    اگر abs_size > vg_free: abs_size = vg_free / fast_slots_per_device      # VG نیمه‌پر
-    اگر requested_size ≤ abs_size: abs_size = requested_size
-    اگر requested_size تا 1٪ بزرگ‌تر است: همان abs_size (خطای هم‌ترازی PE)
-    وگرنه: خطا و خروج
-    تا وقتی جا هست و OSD کم است و شکاف‌ها پر نشده‌اند: یک LV با abs_size بساز
+    if abs_size > vg_free: abs_size = vg_free / fast_slots_per_device      # half-full VG
+    if requested_size ≤ abs_size: abs_size = requested_size
+    if requested_size is up to 1% larger: keep abs_size (PE alignment error)
+    otherwise: error and exit
+    while there is room and OSDs are short and the slots are not full: create an LV of abs_size
 ```
 
-**مثال عددی.** یک میزبان 12 HDD و 2 NVMe دارد. فرض کنید VG هر NVMe پس از هم‌ترازی LVM حدود 1490 GiB باشد (عدد مثال است، نه اندازه‌گیری). fast_slots_per_device = ⌈12 / 2⌉ = 6، پس هر DB برابر 1490 / 6 ≈ 248.3 GiB است و هر NVMe دقیقاً شش DB می‌گیرد. حالا 10 HDD و 3 NVMe را در نظر بگیرید. fast_slots_per_device = ⌈10 / 3⌉ = 4 و هر DB برابر 1490 / 4 = 372.5 GiB است. NVMe اول و دوم هر کدام چهار DB می‌گیرند و NVMe سوم فقط دو DB، چون شرط `len(ret) < new_osds` پس از ده DB متوقف می‌شود. نیمی از NVMe سوم خالی می‌ماند. اگر تقسیم متوازن می‌خواهید (مثلاً سه NVMe با 4، 3 و 3 DB)، باید `db_slots` یا `block_db_size` را صریح بدهید، یا تعداد HDDها را مضربی از NVMeها بگیرید. اندازه‌ی DB تنها عامل مهم نیست. با عدد بالا و جای‌گذاری RocksDB که در فصل ۱۶ دیدیم، 248 GiB فضای کافی برای سطوح سریع می‌دهد.
+**Numerical example.** A host has 12 HDDs and 2 NVMes. Suppose each NVMe's VG is about 1490 GiB after LVM alignment (an example number, not a measurement). fast_slots_per_device = ⌈12 / 2⌉ = 6, so each DB is 1490 / 6 ≈ 248.3 GiB and each NVMe gets exactly six DBs. Now consider 10 HDDs and 3 NVMes. fast_slots_per_device = ⌈10 / 3⌉ = 4 and each DB is 1490 / 4 = 372.5 GiB. The first and second NVMe each get four DBs and the third NVMe only two, because the `len(ret) < new_osds` condition stops after ten DBs. Half of the third NVMe stays empty. If you want a balanced division (for example three NVMes with 4, 3 and 3 DBs), you must give `db_slots` or `block_db_size` explicitly, or make the number of HDDs a multiple of the number of NVMes. DB size is not the only important factor. With the number above and the RocksDB placement we saw in chapter 16, 248 GiB gives enough room for the fast levels.
 
-![تقسیم خودکار NVMe میان DBهای OSD در دو میزبان نمونه. چپ: 12 HDD و 2 NVMe، شش شکاف هم‌اندازه روی هر NVMe. راست: 10 HDD و 3 NVMe، چهار شکاف 372.5 گیگابایتی روی هر NVMe. NVMe سوم فقط دو شکاف پر دارد و دو شکاف هاشورخورده خالی می‌مانند، چون batch پس از رسیدن به تعداد OSD می‌ایستد. اندازه‌ی 1490 GiB برای VG فرضی است](figures/ch11/f07_dbslots.png){#fig-11-f07_dbslots}
+![Automatic division of NVMe between OSD DBs on two sample hosts. Left: 12 HDDs and 2 NVMes, six equal slots on each NVMe. Right: 10 HDDs and 3 NVMes, four slots of 372.5 GB on each NVMe. The third NVMe has only two filled slots, and two hatched slots stay empty, because batch stops once the OSD count is reached. The 1490 GiB VG size is hypothetical](figures/ch11/f07_dbslots.png){#fig-11-f07_dbslots}
 
-## ارتقای مرحله‌ای: ترتیب daemonها {#sec-11-8-3}
+## Staged upgrades: the daemon order {#sec-11-8-3}
 
-::: {.algo #alg-11-3 title="ترتیب ارتقا در cephadm" src="src/pybind/mgr/cephadm/utils.py :: CEPH_UPGRADE_ORDER؛ src/pybind/mgr/cephadm/upgrade.py :: CephadmUpgrade._do_upgrade، _to_upgrade" complexity="O(T × D) برای T نوع daemon و D daemon؛ هر OSD با یک بررسی ok-to-stop"}
+::: {.algo #alg-11-3 title="The upgrade order in cephadm" src="src/pybind/mgr/cephadm/utils.py :: CEPH_UPGRADE_ORDER; src/pybind/mgr/cephadm/upgrade.py :: CephadmUpgrade._do_upgrade, _to_upgrade" complexity="O(T × D) for T daemon types and D daemons; one ok-to-stop check per OSD"}
 :::
 
 ```text
@@ -465,67 +464,67 @@ ORDER = [mgr, mon, crash, osd, mds, rgw, rbd-mirror, cephfs-mirror, ceph-exporte
       + [iscsi, nfs, nvmeof, smb] + [haproxy, keepalived]
       + [node-exporter, prometheus, alertmanager, grafana, loki, promtail, alloy, pushgateway]
       + [mgmt-gateway, oauth2-proxy]
-for type in ORDER (یا زیرمجموعه‌ی --daemon-types / --services):
-    for d in daemonهای آن نوع که image قدیمی دارند:
-        mon: فقط اگر monmap بیش از 2 monitor دارد، ok-to-stop بپرس
-        osd: یک دسته با «osd ok-to-stop … --max max_parallel_osd_upgrades (16)»
-        mgr: ابتدا mgr آماده‌به‌کار ارتقا می‌یابد و سپس failover
-        redeploy با image جدید ؛ منتظر بمان تا daemon بالا بیاید
+for type in ORDER (or the --daemon-types / --services subset):
+    for d in daemons of that type with the old image:
+        mon: ask ok-to-stop only if the monmap has more than 2 monitors
+        osd: a batch with "osd ok-to-stop … --max max_parallel_osd_upgrades (16)"
+        mgr: the standby mgr is upgraded first, then failover
+        redeploy with the new image ; wait until the daemon comes up
 ```
 
-**مثال عددی.** کلاستری با 3 mon، 2 mgr، 36 OSD (سه میزبان، دوازده OSD در هر میزبان، replicated size 3 و failure domain = host) و 2 RGW داریم. ترتیب: mgr آماده‌به‌کار و failover، سپس mgr دیگر. بعد سه mon یکی‌یکی. سپس OSDها در دسته‌های حداکثر 16 تایی. چون الگوریتم ok-to-stop (بخش بعد) هر دسته را درون یک میزبان نگه می‌دارد، هر دسته 12 OSD است و سه دسته لازم است. آخر هم RGWها. در هر لحظه حداکثر یک میزبان OSD متوقف است و هیچ PG زیر min_size نمی‌رود.
+**Numerical example.** We have a cluster with 3 mons, 2 mgrs, 36 OSDs (three hosts, twelve OSDs per host, replicated size 3 and failure domain = host) and 2 RGWs. The order: the standby mgr and failover, then the other mgr. Then the three mons one by one. Then the OSDs in batches of at most 16. Because the ok-to-stop algorithm (next section) keeps each batch within one host, each batch is 12 OSDs and three batches are needed. Finally the RGWs. At any moment at most one OSD host is stopped and no PG goes below min_size.
 
-![ترتیب انواع daemon در ارتقای cephadm، از روی CEPH_UPGRADE_ORDER در کد main. ردیف اول و دوم انواعی هستند که image خود Ceph را دارند. mgr پیش از mon می‌آید، چون خود orchestrator در mgr اجرا می‌شود و باید نسخه‌ی تازه را بشناسد. OSDها دسته‌ای و پس از بررسی ok-to-stop ارتقا می‌یابند. ردیف سوم gatewayها و ingress هستند و ردیف آخر پشته‌ی پایش و mgmt-gateway که imageهای جداگانه‌ی خود را دارند](figures/ch11/f08_upgrade.png){#fig-11-f08_upgrade}
+![The order of daemon types in a cephadm upgrade, from CEPH_UPGRADE_ORDER in the main code. The first and second rows are the types that use Ceph's own image. mgr comes before mon because the orchestrator itself runs in the mgr and must know the new release. OSDs are upgraded in batches after the ok-to-stop check. The third row is the gateways and ingress, and the last row the monitoring stack and mgmt-gateway, which have their own separate images](figures/ch11/f08_upgrade.png){#fig-11-f08_upgrade}
 
-## چند OSD را می‌توان هم‌زمان خاموش کرد؟ {#sec-11-8-4}
+## How many OSDs can be stopped at once? {#sec-11-8-4}
 
-::: {.algo #alg-11-4 title="بیشینه کردن مجموعه‌ی ok-to-stop" src="src/mgr/DaemonServer.cc :: DaemonServer::_maximize_ok_to_stop_set، _check_offlines_pgs" complexity="هر آزمایش O(P × r) برای P PG با r عضو؛ حداکثر O(N) آزمایش برای N OSD"}
+::: {.algo #alg-11-4 title="Maximising the ok-to-stop set" src="src/mgr/DaemonServer.cc :: DaemonServer::_maximize_ok_to_stop_set, _check_offlines_pgs" complexity="each test O(P × r) for P PGs with r members; at most O(N) tests for N OSDs"}
 :::
 
 ```text
 pseudocode
-check(S): برای هر PG که عضوی در S دارد:
-    acting' = acting − S   (اگر degraded: فقط عضوهای بدون missing)
-    اگر PG فعال نیست یا pool ندارد یا |acting'| < min_size ⇒ not_ok
+check(S): for each PG with a member in S:
+    acting' = acting − S   (if degraded: only members without missing objects)
+    if the PG is not active or has no pool or |acting'| < min_size ⇒ not_ok
 maximize(S0, max):
-    اگر check(S0) ناامن ⇒ پایان ؛ اگر |S0| ≥ max ⇒ پایان
-    parent = نخستین OSD در S0
+    if check(S0) unsafe ⇒ stop ; if |S0| ≥ max ⇒ stop
+    parent = the first OSD in S0
     loop:
-        parent = والد بی‌واسطه‌ی parent در CRUSH (host، سپس rack، … ، root)
-        برای هر OSD بالای (up) زیر parent به ترتیب شناسه:
-            S += o ؛ اگر check(S) ناامن ⇒ S −= o ، failed++
-            اگر |S| == max ⇒ پایان
-        اگر failed > 0 ⇒ پایان (با آنچه تا اینجا امن بوده)
+        parent = the immediate parent of parent in CRUSH (host, then rack, … , root)
+        for each up OSD under parent in id order:
+            S += o ; if check(S) unsafe ⇒ S −= o , failed++
+            if |S| == max ⇒ stop
+        if failed > 0 ⇒ stop (with what has been safe so far)
 ```
 
-**مثال عددی.** شبیه‌سازی ما 4 میزبان با 3 OSD در هر کدام دارد، و 128 PG با size = 3 و min_size = 2 که هر PG روی سه میزبان متفاوت است. از osd.0 شروع می‌کنیم. والد اول host-a است: osd.1 و osd.2 اضافه می‌شوند، چون هیچ PG دو عضو روی یک میزبان ندارد و هر PG با از دست دادن یک میزبان دو عضو باقی دارد. والد بعدی root است. افزودن osd.3 روی host-b هجده PG را به یک عضو می‌رساند، پس رد می‌شود. همه‌ی OSDهای دیگر هم با 15 تا 28 PG ناامن رد می‌شوند. چون failed > 0 است، نتیجه {0، 1، 2} است، یعنی دقیقاً یک میزبان. برای pool با EC 4+2 روی شش میزبان (دو OSD در هر میزبان)، با min_size پیش‌فرض k + 1 = 5 فقط OSDهای یک میزبان مجازند. اگر min_size را به k = 4 کم کنیم، دو میزبان مجاز می‌شوند، اما در آن حالت هر خرابی دیگری PG را غیرفعال می‌کند و داده‌ی تازه بدون هیچ افزونگی نوشته می‌شود.
+**Numerical example.** Our simulation has 4 hosts with 3 OSDs each, and 128 PGs with size = 3 and min_size = 2, each PG on three different hosts. We start from osd.0. The first parent is host-a: osd.1 and osd.2 are added, because no PG has two members on one host and every PG keeps two members after losing one host. The next parent is root. Adding osd.3 on host-b leaves eighteen PGs with one member, so it is rejected. All the other OSDs are rejected too, with 15 to 28 unsafe PGs. Because failed > 0, the result is {0, 1, 2}, i.e. exactly one host. For an EC 4+2 pool on six hosts (two OSDs per host), with the default min_size k + 1 = 5 only the OSDs of one host are allowed. If we lower min_size to k = 4, two hosts become allowed, but then any further failure makes the PG inactive and new data is written with no redundancy at all.
 
-![رشد مجموعه‌ی OSDهای قابل توقف در شبیه‌سازی 4 میزبان و 3 OSD در هر میزبان (replicated size 3، min_size 2). الگوریتم از osd.0 شروع می‌کند و ابتدا هم‌میزبان‌های آن را امتحان می‌کند (سبز: پذیرفته). در سطح root، افزودن هر OSD از میزبان دیگر تعدادی PG را زیر min_size می‌برد (قرمز، با تعداد PGهای ناامن در زیر هر OSD) و رد می‌شود. چون حداقل یک رد وجود داشت، الگوریتم به سطح بالاتر نمی‌رود و همان یک میزبان را برمی‌گرداند](figures/ch11/f09_oktostop.png){#fig-11-f09_oktostop}
+![The growth of the set of stoppable OSDs in a simulation with 4 hosts and 3 OSDs per host (replicated size 3, min_size 2). The algorithm starts from osd.0 and first tries its host-mates (green: accepted). At the root level, adding any OSD from another host takes some PGs below min_size (red, with the number of unsafe PGs under each OSD) and is rejected. Because there was at least one rejection, the algorithm does not go up a level and returns that one host](figures/ch11/f09_oktostop.png){#fig-11-f09_oktostop}
 
-این الگوریتم حریصانه است، نه بهینه. ممکن است مجموعه‌ی بزرگ‌تری وجود داشته باشد که از OSD دیگری شروع شود، اما الگوریتم آن را پیدا نمی‌کند. ترتیب پیمایش بر اساس شناسه‌ی عددی OSD است، نه بر اساس ساختار درخت. نکته‌ی عملی: اگر کلاستری PG degraded داشته باشد، check فقط عضوهای «بدون missing» را می‌شمارد. بنابراین در کلاستر نیمه‌سالم، ارتقا ممکن است هر بار فقط یک OSD را متوقف کند یا اصلاً پیش نرود. پیام `upgrade: waiting for ok-to-stop` در `ceph orch upgrade status` معمولاً همین است و راه‌حلش رسیدن به HEALTH_OK پیش از ارتقاست، نه بالا بردن max_parallel_osd_upgrades.
+This algorithm is greedy, not optimal. A larger set starting from another OSD may exist, but the algorithm does not find it. The traversal order is by numeric OSD id, not by the tree structure. A practical point: if a cluster has degraded PGs, check counts only members "without missing objects". So in a half-healthy cluster, the upgrade may stop only one OSD at a time or not progress at all. The message `upgrade: waiting for ok-to-stop` in `ceph orch upgrade status` is usually this, and the fix is to reach HEALTH_OK before upgrading, not to raise max_parallel_osd_upgrades.
 
-# Ceph درون Kubernetes با Rook {#sec-11-9}
+# Ceph inside Kubernetes with Rook {#sec-11-9}
 
-## معماری {#sec-11-9-1}
+## Architecture {#sec-11-9-1}
 
-![Rook: operator منابع سفارشی (CRD) را به daemonهای Ceph تبدیل می‌کند و ceph-csi volumeها را در اختیار podها می‌گذارد](figures/ch11/f04_rook.png){#fig-11-f04_rook}
+![Rook: the operator turns custom resources (CRDs) into Ceph daemons, and ceph-csi makes volumes available to pods](figures/ch11/f04_rook.png){#fig-11-f04_rook}
 
-**Rook** یک operator در Kubernetes است که کلاستر Ceph را از روی منابع سفارشی (CRD) می‌سازد و نگه می‌دارد. همان ایده‌ی اعلانی cephadm، این بار با ابزارهای بومی Kubernetes: `kubectl apply`، Helm و GitOps. درایور **ceph-csi** هم PVCهای RBD (ReadWriteOnce) و CephFS (ReadWriteMany) را برای podها فراهم می‌کند.
+**Rook** is a Kubernetes operator that builds and maintains a Ceph cluster from custom resources (CRDs). It is the same declarative idea as cephadm, this time with Kubernetes-native tools: `kubectl apply`, Helm and GitOps. The **ceph-csi** driver provides RBD (ReadWriteOnce) and CephFS (ReadWriteMany) PVCs for pods.
 
-## چه زمانی Rook؟ {#sec-11-9-2}
+## When Rook? {#sec-11-9-2}
 
-| معیار | cephadm | Rook |
+| Criterion | cephadm | Rook |
 |---|---|---|
-| مصرف‌کننده‌ی اصلی | VMها، OpenStack، سرویس‌های عمومی | بارهای Kubernetes |
-| وابستگی | فقط سیستم‌عامل و موتور کانتینر | کلاستر Kubernetes سالم و پایدار |
-| دامنه‌ی خرابی | مستقل از لایه‌ی بالاتر | خرابی Kubernetes بر مدیریت Ceph اثر دارد |
-| تجربه‌ی تیم | مدیر سامانه و ذخیره‌سازی | تیم پلتفرم Kubernetes |
+| Main consumer | VMs, OpenStack, general services | Kubernetes workloads |
+| Dependency | Only the OS and a container engine | A healthy, stable Kubernetes cluster |
+| Failure domain | Independent of the layer above | Kubernetes failures affect Ceph management |
+| Team experience | System and storage administrators | Kubernetes platform team |
 
 ::: {.warn}
-Ceph درون همان کلاستر Kubernetesی که برنامه‌ها را اجرا می‌کند (hyperconverged) وابستگی چرخه‌ای می‌سازد: اگر Kubernetes به مشکل بخورد، ذخیره‌سازی هم مختل می‌شود و برعکس. برای کلاسترهای بزرگ، گره‌های ذخیره‌سازی را با taint و label جدا کنید یا Ceph را بیرون از Kubernetes با cephadm مستقر و از Rook در حالت **external cluster** فقط برای اتصال استفاده کنید.
+Running Ceph inside the same Kubernetes cluster that runs the applications (hyperconverged) creates a circular dependency: if Kubernetes runs into trouble, storage is disrupted too, and vice versa. For large clusters, separate the storage nodes with taints and labels, or deploy Ceph outside Kubernetes with cephadm and use Rook in **external cluster** mode only for the connection.
 :::
 
-## نصب پایه {#sec-11-9-3}
+## Basic installation {#sec-11-9-3}
 
 ```bash
 helm repo add rook-release https://charts.rook.io/release
@@ -534,7 +533,7 @@ kubectl -n rook-ceph get pods
 ```
 
 ```yaml
-# cluster.yaml (خلاصه)
+# cluster.yaml (abridged)
 apiVersion: ceph.rook.io/v1
 kind: CephCluster
 metadata:
@@ -564,31 +563,31 @@ spec:
 ```bash
 kubectl apply -f cluster.yaml
 kubectl -n rook-ceph get cephcluster
-kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph -s     # نیازمند استقرار toolbox
+kubectl -n rook-ceph exec deploy/rook-ceph-tools -- ceph -s     # requires the toolbox deployment
 ```
 
 ::: {.note}
-نسخه‌ی image بالا همان چیزی است که مثال رسمی مستندات Rook در زمان نگارش استفاده می‌کند. هنگام استفاده، جدول نسخه‌های پشتیبانی‌شده‌ی Ceph در مستندات نسخه‌ی Rook خود را بررسی کنید. `useAllDevices: true` در production خطرناک است؛ دیسک‌ها را صریحاً نام ببرید یا با فیلتر مشخص کنید.
+The image version above is what the official Rook documentation example uses at the time of writing. When you use it, check the table of supported Ceph versions in the documentation for your Rook release. `useAllDevices: true` is dangerous in production; name the disks explicitly or select them with a specific filter.
 :::
 
-# مدیریت تغییر و پیکربندی {#sec-11-10}
+# Change and configuration management {#sec-11-10}
 
-## GitOps برای ذخیره‌سازی {#sec-11-10-1}
+## GitOps for storage {#sec-11-10-1}
 
-![چرخه‌ی تغییر پیشنهادی: هر تغییر spec از بازبینی، dry-run و پنجره‌ی تغییر می‌گذرد و پس از اعمال بررسی می‌شود](figures/ch11/f05_gitops.png){#fig-11-f05_gitops}
+![The suggested change cycle: every spec change goes through review, dry-run and a change window, and is checked after it is applied](figures/ch11/f05_gitops.png){#fig-11-f05_gitops}
 
-ذخیره‌سازی جایی نیست که «تغییر سریع در کنسول» قابل قبول باشد. اصولی که پیشنهاد می‌کنیم:
+Storage is not a place where a "quick change in the console" is acceptable. The principles we suggest:
 
-- **یک منبع حقیقت**: specهای cephadm (یا CRDهای Rook) و خروجی `ceph config dump` در Git.
-- **بازبینی همتا**: هر تغییر از طریق Merge Request با توضیح انگیزه، ریسک و روش بازگشت.
-- **dry-run خودکار**: CI خروجی `ceph orch apply --dry-run` را به Merge Request پیوست کند.
-- **پنجره‌ی تغییر**: تغییرات پرخطر (CRUSH، tunable، EC profile، ارتقا) در ساعات کم‌بار و با اپراتور آماده.
-- **بررسی پس از تغییر**: `ceph -s`، هشدارها و نمودارهای تأخیر تا دست‌کم یک ساعت.
-- **تشخیص drift**: کار زمان‌بندی‌شده‌ای که `ceph orch ls --export` و `ceph config dump` را با Git مقایسه کند و اختلاف را گزارش دهد.
+- **A single source of truth**: cephadm specs (or Rook CRDs) and the output of `ceph config dump` in Git.
+- **Peer review**: every change goes through a Merge Request explaining the motivation, the risk and the rollback method.
+- **Automatic dry-run**: CI attaches the output of `ceph orch apply --dry-run` to the Merge Request.
+- **Change window**: risky changes (CRUSH, tunables, EC profile, upgrades) in off-peak hours with an operator on hand.
+- **Post-change check**: `ceph -s`, alerts and latency charts for at least an hour.
+- **Drift detection**: a scheduled job that compares `ceph orch ls --export` and `ceph config dump` with Git and reports differences.
 
 ```bash
 #!/usr/bin/env bash
-# drift-check.sh: مقایسه‌ی وضعیت کلاستر با مخزن
+# drift-check.sh: compare the cluster state with the repository
 set -euo pipefail
 cd /srv/ceph-gitops
 ceph orch ls --export > /tmp/live-specs.yaml
@@ -598,52 +597,52 @@ diff -u config/config.json /tmp/live-config.json || echo "CONFIG DRIFT"
 ```
 
 ::: {.tip}
-drift همیشه بد نیست: تعویض دیسک یا autotune حافظه ممکن است تغییراتی ایجاد کنند. هدف این است که هر اختلاف یا آگاهانه به Git برگردد یا در کلاستر اصلاح شود، نه این‌که بی‌صدا انباشته شود.
+Drift is not always bad: disk replacements or memory autotune may create changes. The goal is that every difference is either deliberately brought back into Git or fixed in the cluster, not silently accumulated.
 :::
 
-::: {.summary title="نکات SRE این فصل"}
+::: {.summary title="SRE notes for this chapter"}
 
-- آزمایشگاه سه‌گره‌ای قابل بازسازی، با همان نسخه و روش استقرار production.
-- cephadm برای میزبان‌ها، Rook برای Kubernetes؛ ceph-deploy را کنار بگذارید.
-- کل کلاستر در spec؛ همیشه `--dry-run` پیش از apply.
-- فیلتر دستگاه مشخص؛ از `all-available-devices` در production پرهیز کنید.
-- Ansible برای سیستم‌عامل، cephadm برای Ceph.
-- مهاجرت از ceph-ansible با adopt و پس از تمرین در آزمایشگاه.
-- Git منبع حقیقت؛ drift را پایش کنید.
+- A rebuildable three-node lab with the same release and deployment method as production.
+- cephadm for hosts, Rook for Kubernetes; put ceph-deploy aside.
+- The whole cluster in a spec; always `--dry-run` before apply.
+- Specific device filters; avoid `all-available-devices` in production.
+- Ansible for the OS, cephadm for Ceph.
+- Migrate from ceph-ansible with adopt, after practising in a lab.
+- Git is the source of truth; monitor drift.
 
 :::
 
-# تکمیلی و به‌روز {#sec-11-11}
+# Supplementary and up to date {#sec-11-11}
 
-- **ceph-deploy**: مخزن در GitHub آرشیو شده است.
-- **ceph-ansible**: طبق README خود پروژه فعلاً نگهداری می‌شود، اما مهاجرت به cephadm توصیه شده است؛ playbook `cephadm-adopt.yml` برای همین کار وجود دارد.
-- **cephadm-ansible**: playbookهای کمکی برای آماده‌سازی میزبان‌ها.
-- **Umbrella**: image‌های el10، نیاز به CPU x86-64-v3 و پایتون ۳.۹ یا جدیدتر برای cephadm.
-- **Rook**: نسخه‌ی v1.21.2 در زمان نگارش؛ مثال رسمی CephCluster از image Tentacle استفاده می‌کند.
+- **ceph-deploy**: the repository is archived on GitHub.
+- **ceph-ansible**: according to the project's own README it is maintained for now, but migrating to cephadm is recommended; the `cephadm-adopt.yml` playbook exists for this.
+- **cephadm-ansible**: helper playbooks for preparing hosts.
+- **Umbrella**: el10 images, a requirement for an x86-64-v3 CPU, and Python 3.9 or newer for cephadm.
+- **Rook**: version v1.21.2 at the time of writing; the official CephCluster example uses a Tentacle image.
 
-# تمرین عملی {#sec-11-12}
+# Hands-on exercise {#sec-11-12}
 
-1. با Vagrant و libvirt (یا ابزار دلخواه) سه گره و یک کلاینت بسازید، سپس با `vagrant destroy` پاک و دوباره بسازید و زمان کل را یادداشت کنید.
-2. فایل `cluster.yaml` این فصل را با نام میزبان‌ها و دیسک‌های خود تطبیق دهید و با `--apply-spec` در bootstrap اعمال کنید.
-3. با `--dry-run` دو spec OSD متفاوت (بر اساس rotational و بر اساس size) را مقایسه کنید.
-4. playbook آماده‌سازی را با `--check --diff` اجرا کنید و سپس واقعاً اعمال کنید.
-5. در یک کلاستر Kubernetes آزمایشی (مثلاً با سه VM)، Rook را نصب و یک PVC از نوع RBD ایجاد کنید.
-6. اسکریپت drift-check را اجرا کنید، سپس یک تنظیم را دستی تغییر دهید و ببینید drift گزارش می‌شود.
+1. Build three nodes and one client with Vagrant and libvirt (or a tool of your choice), then wipe them with `vagrant destroy`, rebuild, and note the total time.
+2. Adapt this chapter's `cluster.yaml` to your host names and disks and apply it at bootstrap with `--apply-spec`.
+3. Compare two different OSD specs (based on rotational and based on size) with `--dry-run`.
+4. Run the preparation playbook with `--check --diff` and then apply it for real.
+5. In a test Kubernetes cluster (for example with three VMs), install Rook and create an RBD PVC.
+6. Run the drift-check script, then change a setting by hand and see the drift reported.
 
-# پرسش‌های مرور {#sec-11-13}
+# Review questions {#sec-11-13}
 
-1. چرا ceph-deploy دیگر گزینه‌ی مناسبی نیست؟
-2. تفاوت فلسفی ceph-ansible و cephadm چیست؟
-3. چرا برای آزمایشگاه Umbrella باید مدل CPU مجازی را بررسی کرد؟
-4. گزینه‌ی `--single-host-defaults` چه کاری می‌کند و محدودیت کلاستر تک‌گره چیست؟
-5. چرا `--dry-run` پیش از اعمال spec OSD مهم است؟
-6. چرا فیلتر `rotational` در محیط مجازی ممکن است گمراه‌کننده باشد؟
-7. تقسیم کار پیشنهادی بین Ansible و cephadm چیست؟
-8. مسیر مهاجرت از ceph-ansible به cephadm چیست؟
-9. ریسک اجرای Ceph درون همان کلاستر Kubernetes برنامه‌ها چیست و راه کاهش آن کدام است؟
-10. تشخیص drift چه فایده‌ای دارد؟
+1. Why is ceph-deploy no longer a suitable option?
+2. What is the philosophical difference between ceph-ansible and cephadm?
+3. Why must the virtual CPU model be checked for an Umbrella lab?
+4. What does the `--single-host-defaults` option do, and what is the limitation of a single-node cluster?
+5. Why is `--dry-run` important before applying an OSD spec?
+6. Why can the `rotational` filter be misleading in a virtual environment?
+7. What is the suggested division of labour between Ansible and cephadm?
+8. What is the migration path from ceph-ansible to cephadm?
+9. What is the risk of running Ceph inside the same Kubernetes cluster as the applications, and how can it be reduced?
+10. What is the benefit of drift detection?
 
-# منابع این فصل {#sec-11-14}
+# Sources for this chapter {#sec-11-14}
 
 - Deploying a new cluster (cephadm): https://docs.ceph.com/en/latest/cephadm/install/
 - Host management: https://docs.ceph.com/en/latest/cephadm/host-management/

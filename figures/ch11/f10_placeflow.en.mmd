@@ -1,0 +1,16 @@
+flowchart TB
+  subgraph R1[1. candidates]
+    direction LR
+    a[get_candidates: hosts, label or host_pattern] --> b[network filter and filter_new_host] --> c[sorted, then shuffle seeded by the sha1 of the service name]
+  end
+  subgraph R2[2. expansion and matching]
+    direction LR
+    d["slots per host: count_per_host, or ceil(count / n) when co-location is allowed"] --> e[existing daemons: active, ranked, low rank, new generation] --> f[each existing daemon takes the first compatible slot, otherwise to_remove]
+  end
+  subgraph R3[3. shortfall or surplus]
+    direction LR
+    g[need = count − existing] --> h{need negative?}
+    h -- yes --> i[remove from hosts without a related service, then the rest]
+    h -- no --> j[first the related service's hosts, then others in shuffle order, excluding offline or blocking hosts]
+  end
+  R1 --> R2 --> R3

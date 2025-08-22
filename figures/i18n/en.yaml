@@ -696,87 +696,68 @@ ch10/s01_bench:
   مقایسه با آستانه‌ها<br/>(hdd 50..500، ssd 1000..80000): compare with the thresholds<br/>(hdd 50..500, ssd 1000..80000)
   ثبت osd_mclock_max_capacity_iops_hdd/ssd<br/>در config MON با mon_cmd_set_config: record osd_mclock_max_capacity_iops_hdd/ssd<br/>in the MON config with mon_cmd_set_config
 ch11/f01_tools:
-  دیروز: null
-  آرشیو شده: null
-  نگهداری محدود؛ توصیه به مهاجرت: null
-  امروز: null
-  سرورهای فیزیکی و: null
-  درون: null
-  آماده‌سازی میزبان‌ها: null
+  دیروز: yesterday
+  ceph-deploy<br/>آرشیو شده: ceph-deploy<br/>archived
+  ceph-ansible<br/>نگهداری محدود؛ توصیه به مهاجرت: ceph-ansible<br/>limited maintenance; migration recommended
+  امروز: today
+  cephadm<br/>سرورهای فیزیکی و VM: cephadm<br/>physical servers and VMs
+  Rook<br/>درون Kubernetes: Rook<br/>inside Kubernetes
+  cephadm-ansible<br/>آماده‌سازی میزبان‌ها: cephadm-ansible<br/>host preparation
 ch11/f02_lab:
-  میزبان آزمایشگاه: null
-  ۳ دیسک مجازی: null
-  شبکه‌ی: null
+  میزبان آزمایشگاه<br/>KVM/libvirt: lab host<br/>KVM/libvirt
+  ۲ vCPU، ۴ GiB<br/>۳ دیسک مجازی: 2 vCPU, 4 GiB<br/>3 virtual disks
+  شبکه‌ی public<br/>192.168.10.0/24: public network<br/>192.168.10.0/24
 ch11/f03_loop:
-  در: null
-  وضعیت مطلوب: null
-  مقایسه‌ی دوره‌ای: null
-  وضعیت واقعی: null
-  ها روی میزبان‌ها: null
-  اختلاف؟: null
-  یا: null
+  spec در Git<br/>cluster.yaml: spec in Git<br/>cluster.yaml
+  MGR / cephadm<br/>وضعیت مطلوب: MGR / cephadm<br/>desired state
+  مقایسه‌ی دوره‌ای: periodic comparison
+  وضعیت واقعی<br/>daemonها روی میزبان‌ها: actual state<br/>daemons on the hosts
+  اختلاف؟ deploy یا remove: difference? deploy or remove
 ch11/f04_rook:
-  کلاستر: null
-  تطبیق: null
-  ها: null
-  های: null
-  و: null
-  های برنامه: null
+  کلاستر Kubernetes: Kubernetes cluster
+  تطبیق CRDها: reconcile CRDs
+  podهای MON، MGR، OSD، MDS، RGW: MON, MGR, OSD, MDS, RGW pods
+  'CRDها: CephCluster، CephBlockPool،<br/>CephFilesystem، CephObjectStore': 'CRDs: CephCluster, CephBlockPool,<br/>CephFilesystem, CephObjectStore'
+  ceph-csi<br/>RBD و CephFS: ceph-csi<br/>RBD and CephFS
+  podهای برنامه<br/>PVC: application pods<br/>PVC
 ch11/f05_gitops:
-  تغییر: null
-  بازبینی همکار: null
-  و: null
-  اعمال: null
-  در پنجره‌ی تغییر: null
-  بررسی: null
-  و هشدارها: null
+  تغییر spec<br/>Merge Request: spec change<br/>Merge Request
+  بازبینی همکار<br/>و lint: peer review<br/>and lint
+  اعمال<br/>در پنجره‌ی تغییر: apply<br/>in the change window
+  بررسی<br/>ceph -s و هشدارها: check<br/>ceph -s and alerts
 ch11/f08_upgrade:
-  ، با: null
-  خود: null
-  ، دسته‌ای با: null
-  و حداکثر: null
-  ادامه‌ی: null
-  و ۳: null
-  پایش و ۵: null
-  های جداگانه: null
+  ۱. CEPH_TYPES، با image خود Ceph: 1. CEPH_TYPES, with Ceph's own image
+  osd، دسته‌ای با ok-to-stop و حداکثر max_parallel_osd_upgrades = 16: osd, in batches with ok-to-stop and at most max_parallel_osd_upgrades = 16
+  ادامه‌ی CEPH_TYPES: CEPH_TYPES continued
+  ۲. GATEWAY_TYPES و ۳. INGRESS_TYPES: 2. GATEWAY_TYPES and 3. INGRESS_TYPES
+  ۴. پایش و ۵. mgmt-gateway، با imageهای جداگانه: 4. monitoring and 5. mgmt-gateway, with separate images
+  loki، promtail، alloy، pushgateway: loki, promtail, alloy, pushgateway
 ch11/f10_placeflow:
-  نامزدها: null
-  یا: null
-  فیلتر شبکه و: null
-  سپس: null
-  با: null
-  از: null
-  نام سرویس: null
-  گسترش و تطبیق: null
-  تعداد شکاف هر میزبان: null
-  ، یا: null
-  وقتی هم‌مکانی مجاز است: null
-  های موجود: null
-  ، رتبه‌دار،: null
-  کم، نسل جدید: null
-  هر: null
-  موجود اولین شکاف سازگار را می‌گیرد وگرنه: null
-  کمبود یا مازاد: null
-  موجود: null
-  منفی؟: null
-  بله: null
-  حذف از میزبان‌های بدون سرویس مرتبط، سپس بقیه: null
-  خیر: null
-  اول میزبان‌های سرویس مرتبط، سپس: null
-  به ترتیب: null
-  ، بدون میزبان: null
+  ۱. نامزدها: 1. candidates
+  'get_candidates: hosts، label یا host_pattern': 'get_candidates: hosts, label or host_pattern'
+  فیلتر شبکه و filter_new_host: network filter and filter_new_host
+  sorted سپس shuffle با seed از sha1 نام سرویس: sorted, then shuffle seeded by the sha1 of the service name
+  ۲. گسترش و تطبیق: 2. expansion and matching
+  'تعداد شکاف هر میزبان: count_per_host، یا ceil(count / n) وقتی هم‌مکانی مجاز است': 'slots per host: count_per_host, or ceil(count / n) when co-location is allowed'
+  'daemonهای موجود: active، رتبه‌دار، rank کم، نسل جدید': 'existing daemons: active, ranked, low rank, new generation'
+  هر daemon موجود اولین شکاف سازگار را می‌گیرد وگرنه to_remove: each existing daemon takes the first compatible slot, otherwise to_remove
+  ۳. کمبود یا مازاد: 3. shortfall or surplus
+  need = count − موجود: need = count − existing
+  need منفی؟: need negative?
+  بله: 'yes'
+  حذف از میزبان‌های بدون سرویس مرتبط، سپس بقیه: remove from hosts without a related service, then the rest
+  خیر: 'no'
+  اول میزبان‌های سرویس مرتبط، سپس others به ترتیب shuffle، بدون میزبان offline یا blocking: first the related service's hosts, then others in shuffle order, excluding offline or blocking hosts
 ch11/s01_serve:
-  یک دور حلقه: null
-  درخواستی: null
-  هم‌گرایی وضعیت مطلوب: null
-  برای هر: null
-  افزودن: null
-  حذف: null
-  اجرای: null
-  روی میزبان با: null
-  نگهداری و خواب: null
-  بیدار با: null
-  پس از هر فرمان: null
+  CephadmServe.serve() — یک دور حلقه (pybind/mgr/cephadm/serve.py): CephadmServe.serve() — one loop round (pybind/mgr/cephadm/serve.py)
+  _refresh_hosts_and_daemons<br/>(gather-facts، ls، ceph-volume inventory): _refresh_hosts_and_daemons<br/>(gather-facts, ls, ceph-volume inventory)
+  _run_async_actions<br/>(restart/redeploy درخواستی): _run_async_actions<br/>(requested restart/redeploy)
+  هم‌گرایی وضعیت مطلوب: converging on the desired state
+  _apply_all_services<br/>→ _apply_service(spec) برای هر spec: _apply_all_services<br/>→ _apply_service(spec) for each spec
+  'HostAssignment.place()<br/>(schedule.py): placement،<br/>count، label، host_pattern': 'HostAssignment.place()<br/>(schedule.py): placement,<br/>count, label, host_pattern'
+  افزودن/حذف daemon:<br/>اجرای cephadm روی میزبان با SSH: add/remove daemons:<br/>run cephadm on the host over SSH
+  نگهداری و خواب: maintenance and sleep
+  _serve_sleep<br/>(بیدار با _kick_serve_loop<br/>پس از هر فرمان orch): _serve_sleep<br/>(woken by _kick_serve_loop<br/>after each orch command)
 ch12/f01_stack:
   منسوخ: null
   جدا: null

@@ -1,0 +1,8 @@
+flowchart TB
+  subgraph K8S["Kubernetes cluster"]
+    direction TB
+    OP["Rook operator"] -->|"reconcile CRDs"| P["MON, MGR, OSD, MDS, RGW pods"]
+    CR["CRDs: CephCluster, CephBlockPool,<br/>CephFilesystem, CephObjectStore"] --> OP
+    CSI["ceph-csi<br/>RBD and CephFS"] --> P
+    APP["application pods<br/>PVC"] --> CSI
+  end
