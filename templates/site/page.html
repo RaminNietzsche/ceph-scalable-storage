@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="$lang" dir="$dir" data-theme="light" data-kind="$kind">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>$title</title>
+<link rel="alternate" hreflang="$other" href="../$other/$slug.html">
+$links
+<link rel="stylesheet" href="../assets/fonts.css">
+<link rel="stylesheet" href="../assets/site.css">
+<link rel="stylesheet" href="../assets/pygments.css">
+<script>(function(){var d=document.documentElement;try{var t=localStorage.getItem('book-theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';d.dataset.theme=t;if(localStorage.getItem('book-sidebar')==='hidden')d.classList.add('sb-collapsed');}catch(e){}})();</script>
+<script type="application/json" id="site-data">$site_data</script>
+</head>
+<body class="$has_toc">
+<a class="skip" href="#main">$skip</a>
+$header
+<div class="backdrop" data-close-menu hidden></div>
+<div class="layout">
+$sidebar
+<main id="main" tabindex="-1">
+$crumbs
+$toc_inline
+$main
+$pager
+<footer class="site-foot"><p>$book · $version · $date<br>$lic</p></footer>
+</main>
+$toc
+</div>
+<div class="search-dlg" id="search-dlg" role="dialog" aria-modal="true" aria-label="$search_title" hidden>
+<div class="search-box">
+<div class="search-row"><input type="search" id="search-input" placeholder="$search_placeholder" autocomplete="off" spellcheck="false" aria-controls="search-results" aria-describedby="search-status"><button type="button" class="icon-btn" data-close-search aria-label="$close">✕</button></div>
+<p class="search-status" id="search-status" role="status" aria-live="polite">$search_hint</p>
+<ul class="search-results" id="search-results" role="listbox" aria-label="$search_title"></ul>
+</div>
+</div>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

@@ -9,6 +9,14 @@ restructures the book.
 
 ### Changed
 
+- `make html` now builds a multi-page web book (`tools/build_site.py`,
+  `templates/site/`): one page per chapter and appendix with stable source anchors,
+  collapsible sidebar and in-page contents, previous/next and breadcrumbs, offline
+  Persian-aware search, figure lightbox with wheel/drag/pinch zoom, light/dark theme,
+  Pygments highlighting with copy buttons, fa/en switcher, print stylesheet and
+  self-hosted fonts. The Pandoc single file moved to `make html-single`.
+  `make check-site` and `make shoot-site` test the result.
+
 - Relicensed the whole repository (text, figures, templates, tools and scripts)
   under a single licence, CC BY-NC-SA 4.0 (previously CC BY-SA 4.0). Quoted
   upstream code excerpts keep their original licences.

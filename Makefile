@@ -2,7 +2,8 @@
 #
 #   make                 # PDF of the default edition (LANG=fa)
 #   make pdf LANG=en     # PDF of the English edition
-#   make all             # pdf + html + epub + docx for fa and en
+#   make html            # multi-page web book for LANG (build/site/LANG)
+#   make all             # pdf + web book + single HTML + epub + docx for fa and en
 #   make check           # lint, spell, refs, links (offline), parity
 #   make help            # list targets
 #
@@ -44,9 +45,13 @@ BOOK_HTML   := $(B)/book.html
 HTML        := $(B)/$(NAME)-$(L).html
 EPUB        := $(B)/$(NAME)-$(L).epub
 DOCX        := $(B)/$(NAME)-$(L).docx
+SITE        := build/site
+SITE_STAMP  := $(SITE)/$(L)/.stamp
+SITE_SRC    := tools/build_site.py $(wildcard templates/site/*)
 
 .PHONY: help all pdf html epub docx book figures cover lint markdownlint spell \
         check check-links check-links-online check-refs check-parity \
+        html-single site check-site shoot-site \
         sync-translations stats clean distclean dist
 
 help: ## show this help
@@ -55,10 +60,13 @@ help: ## show this help
 	@echo "  LANG=fa|en (current: $(L)); version $(VERSION)"
 
 all: ## every format for both editions
-	@for l in $(EDITIONS); do $(MAKE) --no-print-directory LANG=$$l pdf html epub docx; done
+	@for l in $(EDITIONS); do $(MAKE) --no-print-directory LANG=$$l pdf html html-single epub docx; done
 
 pdf: $(PDF) ## print PDF (WeasyPrint, two-pass index) for LANG
-html: $(HTML) ## single-file HTML (Pandoc, embedded resources) for LANG
+html: $(SITE_STAMP) ## multi-page web book (offline search, zoom, themes) into build/site/LANG
+html-single: $(HTML) ## single-file HTML (Pandoc, embedded resources) for LANG
+site: ## web book for both editions (build/site, with language switcher)
+	@for l in $(EDITIONS); do $(MAKE) --no-print-directory LANG=$$l html; done
 epub: $(EPUB) ## EPUB 3 for LANG
 docx: $(DOCX) ## Word document for LANG
 book: $(BOOK_HTML) ## intermediate print HTML only
@@ -81,6 +89,17 @@ $(BOOK_HTML): $(CONTENT) $(TEMPLATES) $(COVER) $(TOOLS) $(FIG_STAMP)
 
 $(PDF): $(BOOK_HTML) tools/render_pdf.py
 	$(PYTHON) tools/render_pdf.py --lang $(L) --build $(B) --out $@
+
+# ---- web edition -----------------------------------------------------------
+$(SITE_STAMP): $(BOOK_HTML) $(SITE_SRC)
+	$(PYTHON) tools/build_site.py --lang $(L) --book $(B) --out $(SITE)
+	@touch $@
+
+check-site: ## links, anchors and offline-only resources of the built web book
+	$(PYTHON) tools/check_site.py --site $(SITE)
+
+shoot-site: ## headless-Chrome smoke test + screenshots of the web book (needs playwright)
+	$(PYTHON) tools/shoot_site.py --site $(SITE) --out build/site-shots
 
 # ---- Pandoc exports --------------------------------------------------------
 $(B)/$(NAME)-$(L).%: $(CONTENT) $(PANDOC_TPL) tools/export_pandoc.py $(FIG_STAMP)
@@ -130,5 +149,6 @@ dist: ## build/fa+en outputs into dist/ and a source archive (git archive)
 	$(MAKE) --no-print-directory all
 	mkdir -p $(DIST)
 	for l in $(EDITIONS); do cp build/$$l/$(NAME)-$$l.{pdf,html,epub,docx} $(DIST)/; done
+	cd build && rm -f ../$(DIST)/$(NAME)-$(VERSION)-site.zip && zip -qr ../$(DIST)/$(NAME)-$(VERSION)-site.zip site -x 'site/*/.stamp'
 	git archive --format=tar.gz --prefix=$(NAME)-$(VERSION)/ -o $(DIST)/$(NAME)-$(VERSION)-src.tar.gz HEAD
 	cd $(DIST) && sha256sum * > SHA256SUMS
