@@ -1,0 +1,6 @@
+flowchart LR
+  subgraph H["node with 12 HDDs and 2 NVMe"]
+    direction TB
+    N1["NVMe 1<br/>6 LVs for block.db"] --> O1["osd.0 … osd.5<br/>block on HDD"]
+    N2["NVMe 2<br/>6 LVs for block.db"] --> O2["osd.6 … osd.11<br/>block on HDD"]
+  end

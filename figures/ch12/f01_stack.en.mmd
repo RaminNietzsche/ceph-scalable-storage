@@ -1,0 +1,11 @@
+flowchart LR
+  subgraph FS["FileStore (obsolete)"]
+    direction TB
+    A1["OSD"] --> A2["separate journal<br/>(double write)"] --> A3["XFS file system"] --> A4["disk"]
+  end
+  subgraph BS["BlueStore"]
+    direction TB
+    B1["OSD"] --> B2["BlueStore<br/>data directly on the raw device"] --> B4["disk"]
+    B2 --> B3["RocksDB on BlueFS<br/>metadata"]
+  end
+  FS ~~~ BS

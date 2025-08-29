@@ -1,0 +1,6 @@
+flowchart LR
+  ON["Onode (in memory)<br/>bluestore_onode_t"] --> EM["ExtentMap<br/>logical offset → Extent"]
+  EM --> E1["Extent 0x0~0x10000"] --> B1["Blob<br/>csum, compression"]
+  EM --> E2["Extent 0x10000~0x8000"] --> B2["Blob"]
+  B1 --> PE1["pextent on block<br/>0x3a40000~0x10000"]
+  B2 --> SB["SharedBlob<br/>(shared in a clone)"] --> PE2["pextent<br/>0x7c00000~0x8000"]

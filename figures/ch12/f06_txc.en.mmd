@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["1. data path"]
+    direction LR
+    A["PREPARE<br/>create txc"] -->|"data aio"| B["AIO_WAIT"] --> C["IO_DONE"]
+    A -->|"no aio"| C
+  end
+  subgraph R2["2. metadata commit in kv_sync_thread"]
+    direction LR
+    D["KV_QUEUED"] --> E["KV_SUBMITTED<br/>submit to RocksDB"] --> F["KV_DONE<br/>sync, on_commit to the OSD"]
+  end
+  subgraph R3["3. apply deferred and finish"]
+    direction LR
+    G["DEFERRED_QUEUED<br/>aio to block"] --> H["DEFERRED_CLEANUP<br/>delete the L key"] --> I["DEFERRED_DONE"] --> J["FINISHING"] --> K["DONE"]
+  end
+  R1 ~~~ R2 ~~~ R3

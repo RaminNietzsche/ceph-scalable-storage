@@ -1,0 +1,4 @@
+flowchart TB
+  W["incoming write"] --> Q{"size below the<br/>deferred threshold?"}
+  Q -->|"yes"| D1["record data in the RocksDB WAL<br/>and ack quickly"] --> D2["later write to block<br/>in the background"]
+  Q -->|"no"| N1["write data to new block space<br/>(copy-on-write)"] --> N2["commit metadata in RocksDB<br/>and ack"]

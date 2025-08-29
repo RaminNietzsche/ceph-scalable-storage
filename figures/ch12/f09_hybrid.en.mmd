@@ -1,0 +1,7 @@
+flowchart LR
+  REQ["allocate(want, unit)"] --> AVL{"AvlAllocator<br/>tree of free extents<br/>up to the memory cap"}
+  AVL -->|"enough"| OK["return the extents"]
+  AVL -->|"not enough"| BM["BitmapAllocator<br/>spilled-over extents"]
+  BM --> OK
+  REL["release(extents)"] --> AVL
+  AVL -.->|"tree memory cap reached:<br/>_spillover_range"| BM

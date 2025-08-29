@@ -1,0 +1,9 @@
+flowchart TB
+  OSD["OSD: RADOS transaction"] --> BS["BlueStore"]
+  BS -->|"data"| ALLOC["Allocator<br/>free space of the block device"]
+  BS -->|"metadata: onode, extent, omap"| RDB["RocksDB"]
+  RDB --> BFS["BlueFS<br/>small file system for RocksDB"]
+  BFS --> WAL[("block.wal")]
+  BFS --> DB[("block.db")]
+  ALLOC --> BLK[("block (data)")]
+  BFS -.->|"spillover when the DB fills up"| BLK

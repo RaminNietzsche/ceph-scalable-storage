@@ -1,0 +1,2 @@
+flowchart LR
+  A["old OSD<br/>FileStore or wrong layout"] --> B["mark out and<br/>drain, or --replace"] --> C["zap the disk"] --> D["create a new OSD<br/>BlueStore with the new spec"] --> E["backfill and<br/>the next OSD"]
