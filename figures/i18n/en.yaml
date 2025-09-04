@@ -827,84 +827,64 @@ ch12/f09_hybrid:
   BitmapAllocator<br/>بازه‌های سرریز‌شده: BitmapAllocator<br/>spilled-over extents
   سقف حافظه‌ی درخت پر شد:<br/>_spillover_range: tree memory cap reached:<br/>_spillover_range
 ch13/f01_km:
-  شیء ۱۶: null
-  یک: null
-  با: null
-  و: null
-  داده: null
-  ماتریس: null
+  شیء ۱۶ KiB<br/>(یک stripe با stripe_unit=4K و k=4): 16 KiB object<br/>(one stripe with stripe_unit=4K and k=4)
+  'shard 0: داده<br/>4K': 'shard 0: data<br/>4K'
+  'shard 1: داده': 'shard 1: data'
+  'shard 2: داده': 'shard 2: data'
+  'shard 3: داده': 'shard 3: data'
+  encode<br/>ماتریس Reed-Solomon: encode<br/>Reed-Solomon matrix
 ch13/f03_rmw:
-  کلاینت: null
-  های داده: null
-  های: null
-  در وسط: null
-  قدیمی: null
-  خواندن کل: null
-  کامل: null
-  بقیه‌ی داده‌ی: null
-  داده: null
-  دوباره‌ی کل: null
-  های تغییرکرده: null
-  جدید: null
-  فقط: null
-  تغییرکرده و: null
-  نوشتن جزئی،: null
+  as کلاینت: as client
+  as shardهای داده: as data shards
+  as shardهای parity: as parity shards
+  write 4K در وسط stripe: write 4K in the middle of a stripe
+  'قدیمی: خواندن کل stripe (RMW کامل)': 'old: read the whole stripe (full RMW)'
+  read بقیه‌ی داده‌ی stripe: read the rest of the stripe's data
+  داده: data
+  encode دوباره‌ی کل stripe: re-encode the whole stripe
+  write shardهای تغییرکرده: write the changed shards
+  write parity جدید: write the new parity
+  'FastEC: فقط shard تغییرکرده و parity<br/>(نوشتن جزئی، parity delta)': 'FastEC: only the changed shard and parity<br/>(partial write, parity delta)'
 ch13/f04_decode:
-  با: null
-  از دست رفته: null
-  انتخاب: null
-  در دسترس: null
-  خواندن: null
-  های: null
-  معکوس زیرماتریس: null
-  بازسازی: null
-  و برگرداندن داده: null
+  read با shard 1 از دست رفته: read with shard 1 lost
+  minimum_to_decode<br/>انتخاب k shard در دسترس: minimum_to_decode<br/>choose k available shards
+  خواندن shardهای 0، 2، 3، 4: read shards 0, 2, 3, 4
+  decode<br/>معکوس زیرماتریس: decode<br/>invert the submatrix
+  بازسازی shard 1<br/>و برگرداندن داده: rebuild shard 1<br/>and return the data
 ch13/f05_plugins:
-  ؛ پیش‌فرض از: null
-  دیگر نگهداری نمی‌شود: null
-  محلی، بازیابی ارزان‌تر: null
-  بازیابی ارزان با هزینه‌ی دوام: null
-  کاهش ترافیک بازیابی با: null
+  ErasureCodeInterface<br/>init، encode، decode، minimum_to_decode: ErasureCodeInterface<br/>init, encode, decode, minimum_to_decode
+  isa<br/>Intel ISA-L؛ پیش‌فرض از Tentacle: isa<br/>Intel ISA-L, the default from Tentacle
+  jerasure<br/>دیگر نگهداری نمی‌شود: jerasure<br/>no longer maintained
+  lrc<br/>parity محلی، بازیابی ارزان‌تر: lrc<br/>local parity, cheaper recovery
+  shec<br/>بازیابی ارزان با هزینه‌ی دوام: shec<br/>cheap recovery at a cost in durability
+  clay<br/>کاهش ترافیک بازیابی با sub-chunk: clay<br/>less recovery traffic with sub-chunks
 ch13/f06_pgtemp:
-  از دست رفته: null
-  های مجاز: null
-  جلو: null
-  که همیشه به‌روز است: null
+  acting = NONE، 6، 7، 8، 9، 10<br/>(shard 0 از دست رفته): acting = NONE, 6, 7, 8, 9, 10<br/>(shard 0 lost)
+  pgtemp_primaryfirst<br/>shardهای مجاز primary جلو: pgtemp_primaryfirst<br/>shards allowed as primary first
+  pg_temp = NONE، 9، 10، 6، 7، 8: pg_temp = NONE, 9, 10, 6, 7, 8
+  primary = osd.9<br/>(parity که همیشه به‌روز است): primary = osd.9<br/>(a parity, always up to date)
 ch13/f07_ecwrite:
-  کلاینت: null
-  های: null
-  تقسیم به: null
-  ، تعیین: null
-  در صورت نیاز: null
-  خواندن: null
-  های قدیمی: null
-  داده‌ی قدیمی: null
-  هر: null
-  با: null
-  نوشتن: null
-  پس از: null
-  همه‌ی: null
-  اگر پیش از: null
-  همه خرابی رخ دهد: null
-  بازگردانده می‌شود: null
+  as کلاینت: as client
+  as shardهای 1..k+m−1: as shards 1..k+m−1
+  'ECTransaction: تقسیم به stripe، تعیین RMW': 'ECTransaction: split into stripes, decide RMW'
+  (در صورت نیاز) خواندن chunkهای قدیمی: (if needed) read the old chunks
+  داده‌ی قدیمی: old data
+  ECSubWrite (chunk هر shard + log entry با ObjectModDesc): ECSubWrite (each shard's chunk + log entry with ObjectModDesc)
+  'BlueStore: نوشتن chunk + pg log': 'BlueStore: write chunk + pg log'
+  ack پس از commit همه‌ی shardهای acting: ack after all acting shards commit
+  اگر پیش از commit همه خرابی رخ دهد:<br/>log entry با rollback (APPEND/ROLLBACK_EXTENTS/...) بازگردانده می‌شود: if a failure happens before all commit:<br/>the log entry is undone by rollback (APPEND/ROLLBACK_EXTENTS/...)
 ch13/f08_ecrecover:
-  خواندن: null
-  های داده‌ی بازه: null
-  فقط: null
-  لازم: null
-  همه را بخوان،: null
-  با اولین: null
-  پاسخ: null
-  یک: null
-  از: null
-  خواندن از: null
-  سالم: null
-  یا کمتر در: null
-  گم‌شده: null
-  به: null
-  جدید: null
-  پیش‌فرض: null
-  خطرناک: null
+  خواندن: read
+  want = shardهای داده‌ی بازه: want = data shards of the range
+  'fast_read=false: فقط k shard لازم': 'fast_read=false: only the k needed shards'
+  'fast_read=true: همه را بخوان،<br/>با اولین k پاسخ decode': 'fast_read=true: read all,<br/>decode on the first k replies'
+  recovery یک shard: recovery of one shard
+  'primary: missing set از pg log': 'primary: missing set from the pg log'
+  خواندن از k shard سالم<br/>(یا کمتر در LRC/CLAY): read from k healthy shards<br/>(or fewer with LRC/CLAY)
+  decode → فقط chunk گم‌شده: decode → only the missing chunk
+  push به OSD جدید: push to the new OSD
+  min_size پیش‌فرض: default min_size
+  k=2,m=1 → 2 (خطرناک): k=2,m=1 → 2 (dangerous)
 ch14/f01_stack:
   برنامه‌ها و کتابخانه‌های بالادستی: null
   برنامه‌ی شما: null

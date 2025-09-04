@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant C as client
+  participant P as primary (shard 0)
+  participant D as data shards
+  participant Q as parity shards
+  C->>P: write 4K in the middle of a stripe
+  Note over P: old: read the whole stripe (full RMW)
+  P->>D: read the rest of the stripe's data
+  D-->>P: data
+  P->>P: re-encode the whole stripe
+  P->>D: write the changed shards
+  P->>Q: write the new parity
+  Note over P: FastEC: only the changed shard and parity<br/>(partial write, parity delta)
+  Q-->>P: ack
+  D-->>P: ack
+  P-->>C: ack

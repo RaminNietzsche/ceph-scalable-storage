@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["read"]
+    direction LR
+    A["want = data shards of the range"] --> B["minimum_to_decode(want, have)"] --> C["fast_read=false: only the k needed shards"] --> D["fast_read=true: read all,<br/>decode on the first k replies"]
+  end
+  subgraph R2["recovery of one shard"]
+    direction LR
+    E["primary: missing set from the pg log"] --> F["read from k healthy shards<br/>(or fewer with LRC/CLAY)"] --> G["decode → only the missing chunk"] --> H["push to the new OSD"]
+  end
+  subgraph R3["default min_size"]
+    direction LR
+    I["k + min(1, m−1)"] --> J["k=4,m=2 → 5"] --> K["k=2,m=1 → 2 (dangerous)"]
+  end
+  R1 ~~~ R2 ~~~ R3

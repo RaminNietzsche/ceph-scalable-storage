@@ -1,0 +1,6 @@
+flowchart TB
+  I["ErasureCodeInterface<br/>init, encode, decode, minimum_to_decode"] --> ISA["isa<br/>Intel ISA-L, the default from Tentacle"]
+  I --> JER["jerasure<br/>no longer maintained"]
+  I --> LRC["lrc<br/>local parity, cheaper recovery"]
+  I --> SHEC["shec<br/>cheap recovery at a cost in durability"]
+  I --> CLAY["clay<br/>less recovery traffic with sub-chunks"]

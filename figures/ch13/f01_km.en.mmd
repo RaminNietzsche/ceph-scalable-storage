@@ -1,0 +1,8 @@
+flowchart LR
+  OBJ["16 KiB object<br/>(one stripe with stripe_unit=4K and k=4)"] --> D0["shard 0: data<br/>4K"]
+  OBJ --> D1["shard 1: data"]
+  OBJ --> D2["shard 2: data"]
+  OBJ --> D3["shard 3: data"]
+  D0 & D1 & D2 & D3 --> ENC["encode<br/>Reed-Solomon matrix"]
+  ENC --> P0["shard 4: parity"]
+  ENC --> P1["shard 5: parity"]

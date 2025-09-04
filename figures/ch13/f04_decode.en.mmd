@@ -1,0 +1,5 @@
+flowchart LR
+  R["read with shard 1 lost"] --> MTD["minimum_to_decode<br/>choose k available shards"]
+  MTD --> RD["read shards 0, 2, 3, 4"]
+  RD --> DEC["decode<br/>invert the submatrix"]
+  DEC --> OUT["rebuild shard 1<br/>and return the data"]

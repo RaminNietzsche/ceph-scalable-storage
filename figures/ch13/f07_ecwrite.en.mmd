@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant C as client
+  participant P as primary (shard 0)
+  participant S as shards 1..k+m−1
+  C->>P: MOSDOp write(off, len)
+  P->>P: ECTransaction: split into stripes, decide RMW
+  P->>S: (if needed) read the old chunks
+  S-->>P: old data
+  P->>P: encode / parity delta
+  P->>S: ECSubWrite (each shard's chunk + log entry with ObjectModDesc)
+  S->>S: BlueStore: write chunk + pg log
+  S-->>P: ECSubWriteReply (committed)
+  P-->>C: ack after all acting shards commit
+  Note over P,S: if a failure happens before all commit:<br/>the log entry is undone by rollback (APPEND/ROLLBACK_EXTENTS/...)
