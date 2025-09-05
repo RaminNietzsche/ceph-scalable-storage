@@ -257,7 +257,7 @@
   function openLb(img) {
     if (!lb) buildLb();
     lbReturn = img;
-    lbImg.src = img.currentSrc || img.src;
+    lbImg.src = img.dataset.zoom || img.currentSrc || img.src;
     lbImg.alt = img.alt;
     var cap = img.closest('figure') && img.closest('figure').querySelector('figcaption');
     lbCap.innerHTML = cap ? cap.innerHTML : '';
@@ -266,7 +266,7 @@
     d.body.style.overflow = 'hidden';
     var fit = function () {
       var nat = lbImg.naturalWidth || 1;
-      maxS = Math.max(4, 2.5 * nat / Math.max(1, lbImg.clientWidth));
+      maxS = /\.svg$/.test(lbImg.src) ? 10 : Math.max(4, 2 * nat / Math.max(1, lbImg.clientWidth));
       setT(1, 0, 0);
     };
     if (lbImg.complete) fit(); else lbImg.onload = fit;

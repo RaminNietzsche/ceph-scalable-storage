@@ -48,10 +48,11 @@ DOCX        := $(B)/$(NAME)-$(L).docx
 SITE        := build/site
 SITE_STAMP  := $(SITE)/$(L)/.stamp
 SITE_SRC    := tools/build_site.py $(wildcard templates/site/*)
+WEBFIG_STAMP := build/webfig/.stamp
 
 .PHONY: help all pdf html epub docx book figures cover lint markdownlint spell \
         check check-links check-links-online check-refs check-parity \
-        html-single site check-site shoot-site \
+        html-single site check-site shoot-site webfig \
         sync-translations stats clean distclean dist
 
 help: ## show this help
@@ -91,7 +92,12 @@ $(PDF): $(BOOK_HTML) tools/render_pdf.py
 	$(PYTHON) tools/render_pdf.py --lang $(L) --build $(B) --out $@
 
 # ---- web edition -----------------------------------------------------------
-$(SITE_STAMP): $(BOOK_HTML) $(SITE_SRC)
+webfig: $(WEBFIG_STAMP) ## high-resolution web figure variants (3x Mermaid, 2x byte layouts, SVG plots) in build/webfig
+$(WEBFIG_STAMP): $(FIG_STAMP) tools/render_web_figures.py $(wildcard figures/scripts/*.py figures/scripts/lib/*.py)
+	$(PYTHON) tools/render_web_figures.py || echo "webfig: some variants failed; the web book falls back to the print PNGs"
+	@mkdir -p $(@D) && touch $@
+
+$(SITE_STAMP): $(BOOK_HTML) $(SITE_SRC) $(WEBFIG_STAMP)
 	$(PYTHON) tools/build_site.py --lang $(L) --book $(B) --out $(SITE)
 	@touch $@
 

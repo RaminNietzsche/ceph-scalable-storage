@@ -257,6 +257,7 @@ html[lang="fa"] .content figcaption { line-height: 1.85; }
 .lb-stage { flex: 1; position: relative; overflow: hidden; touch-action: none; cursor: grab; display: flex; align-items: center; justify-content: center; }
 .lb-stage.dragging { cursor: grabbing; }
 .lb-img { max-width: 94vw; max-height: calc(100vh - 120px); background: #fff; border-radius: 4px; transform-origin: 50% 50%; user-select: none; -webkit-user-drag: none; will-change: transform; }
+.lb-img[src$=".svg"] { width: 94vw; height: auto; object-fit: contain; }
 .lb-bar { position: absolute; top: 10px; inset-inline-end: 10px; display: flex; gap: 6px; direction: ltr; }
 .lb-bar button { width: 42px; height: 42px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25); background: rgba(30,32,38,.85); color: #fff; font-size: 1.15rem; cursor: pointer; }
 .lb-bar button:hover { background: rgba(60,64,72,.95); }

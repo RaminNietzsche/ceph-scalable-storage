@@ -37,7 +37,7 @@ make check                                   # lint, spell, refs, links, parity
 <div dir="rtl">
 
 - `make` و `make pdf` نسخه‌ی فارسی را می‌سازند. نسخه‌ی انگلیسی را با `make pdf LANG=en` بسازید.
-- `make html` نسخه‌ی وب چندصفحه‌ای کتاب را در `build/site/<lang>/` می‌سازد: یک صفحه برای هر فصل و پیوست، فهرست کناری تاشو (در نسخه‌ی فارسی سمت راست)، فهرست «در این صفحه»، قبلی/بعدی، جست‌وجوی آفلاین با یکسان‌سازی ی/ي، ک/ك، نیم‌فاصله و ارقام فارسی، بزرگ‌نمایی شکل‌ها با چرخ، کشیدن و دو انگشت، پوسته‌ی روشن و تیره، رنگ‌آمیزی کد و دکمه‌ی کپی، تعویض زبان و برگه‌ی چاپ. فونت‌ها، اسکریپت‌ها و شکل‌ها کنار صفحه‌ها کپی می‌شوند و سایت بدون اینترنت و حتی با `file://` کار می‌کند. `make site` هر دو زبان را می‌سازد و `make check-site` پیوندها و anchorها را بررسی می‌کند.
+- `make html` نسخه‌ی وب چندصفحه‌ای کتاب را در `build/site/<lang>/` می‌سازد: یک صفحه برای هر فصل و پیوست، فهرست کناری تاشو (در نسخه‌ی فارسی سمت راست)، فهرست «در این صفحه»، قبلی/بعدی، جست‌وجوی آفلاین با یکسان‌سازی ی/ي، ک/ك، نیم‌فاصله و ارقام فارسی، بزرگ‌نمایی شکل‌ها با چرخ، کشیدن و دو انگشت، پوسته‌ی روشن و تیره، رنگ‌آمیزی کد و دکمه‌ی کپی، تعویض زبان و برگه‌ی چاپ. فونت‌ها، اسکریپت‌ها و شکل‌ها کنار صفحه‌ها کپی می‌شوند و سایت بدون اینترنت و حتی با `file://` کار می‌کند. `make site` هر دو زبان را می‌سازد و `make check-site` پیوندها و anchorها را بررسی می‌کند. `make webfig` نسخه‌ی پرتراکم شکل‌ها را برای وب می‌سازد (نمودارهای mermaid با مقیاس ۳ و نمودارهای matplotlib به‌صورت SVG) تا بزرگ‌نمایی تیز بماند؛ در نسخه‌ی انگلیسی هنگام ساخت، نشانه‌ی شکستن کلمه (soft hyphen) با الگوهای Pyphen افزوده می‌شود تا متن هم‌تراز در موبایل فاصله‌ی زیاد نگیرد.
 - `make html-single`، `make epub` و `make docx` خروجی‌های Pandoc را در `build/<lang>/` می‌سازند.
 - شکل‌ها در مخزن ثبت شده‌اند، پس برای ساختن کتاب به Chrome نیازی نیست. `make figures` فقط شکل‌هایی را دوباره رندر می‌کند که منبعشان (`.mmd`، `.bf.json` یا برچسب‌های `figures/i18n`) تغییر کرده است. تشخیص تغییر با hash محتوا است، نه زمان فایل.
 - اگر نمی‌خواهید چیزی نصب کنید، Docker کافی است: `docker build -t ceph-book . && docker run --rm -v "$PWD":/book ceph-book make all`.
@@ -58,6 +58,7 @@ edition is `fa`.
 | `pdf` | Print PDF (WeasyPrint, two-pass page-number index) for `LANG` |
 | `html` | Multi-page web book for `LANG` in `build/site/LANG/`: one page per chapter and appendix, collapsible sidebar (right-hand in Persian), in-page contents, previous/next, breadcrumbs, offline Persian-aware search, figure zoom (wheel, drag, pinch), light/dark theme, highlighted code with copy buttons, language switcher, print stylesheet; self-hosted fonts and no network access (works from `file://`) |
 | `site` | `html` for both editions; open `build/site/index.html` |
+| `webfig` | Render high-resolution web figures (3x mermaid / 2x byte-layout WebP, SVG plots) into `build/webfig/`; `make html` runs it |
 | `check-site` / `shoot-site` | Check every link, anchor and offline resource of the web book / headless-Chrome smoke test with screenshots |
 | `html-single` / `epub` / `docx` | Pandoc exports for `LANG`; `html-single` is one self-contained file |
 | `all` | Every format for both editions |

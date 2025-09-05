@@ -111,6 +111,7 @@ APPSRC = {'appC': os.path.join(C, 'appendices', 'troubleshooting.md'),
 
 # ---------------------------------------------------------------- helpers
 FIGDIR = os.path.join(OUT, 'figures')
+WEBFIG = os.path.join(ROOT, 'build', 'webfig')   # tools/render_web_figures.py (optional)
 fmt = HtmlFormatter(nowrap=True, classprefix='')
 LEX = {'text': None, '': None, 'console': 'console', 'sh': 'bash', 'shell': 'bash'}
 
@@ -150,6 +151,20 @@ def copy_figure(abspath):
     if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(abspath):
         shutil.copy2(abspath, dst)
     return '../figures/' + rel.replace(os.sep, '/')
+
+
+def hires(abspath):
+    """Site URL of the high-resolution variant of a committed PNG, or None."""
+    rel = os.path.relpath(abspath, os.path.join(ROOT, 'figures'))[:-4]
+    for ext in ('.svg', '.webp'):
+        src = os.path.join(WEBFIG, rel + ext)
+        if os.path.exists(src):
+            dst = os.path.join(FIGDIR, rel + ext)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
+                shutil.copy2(src, dst)
+            return '../figures/' + (rel + ext).replace(os.sep, '/'), ext
+    return None, None
 
 
 def code_block(div):
@@ -249,6 +264,13 @@ def decorate(body, page):
         img = fig.find('img')
         p = img['src'].replace('file://', '')
         img['src'] = copy_figure(p)
+        hi, ext = hires(p)
+        if ext == '.svg':
+            img['src'] = hi
+            img['data-zoom'] = hi
+        elif ext:
+            img['srcset'] = f"{img['src']} 1x, {hi} 2x"
+            img['data-zoom'] = hi
         w, h = Image.open(p).size
         img['width'], img['height'] = str(w), str(h)
         img['loading'] = 'lazy'
@@ -536,6 +558,26 @@ def emit(cur, main_html, title_text):
     open(os.path.join(LOUT, f'{slug}.html'), 'w', encoding='utf-8').write(doc)
 
 
+# ---------------------------------------------------------------- hyphenation
+HYPH = None
+if LANG == 'en':
+    import pyphen
+    _dic = pyphen.Pyphen(lang='en_US', left=3, right=3)
+    _word = re.compile(r'[A-Za-z]{7,}')
+    SKIP = ('pre', 'code', 'kbd', 'h1', 'h2', 'h3', 'h4', 'h5', 'script', 'style', 'th')
+
+    def HYPH(body):
+        """Insert soft hyphens (U+00AD) into long English words of justified prose,
+        so justified text does not gap in browsers without hyphenation dictionaries."""
+        for t in list(body.find_all(string=True)):
+            if type(t) is not NavigableString or not t.strip():
+                continue
+            if t.find_parent(SKIP) or t.find_parent(class_=['url', 'code', 'hanchor', 'term', 'cmd', 'src']):
+                continue
+            new_t = _word.sub(lambda m: m.group(0) if any(c.isupper() for c in m.group(0)[1:]) else _dic.inserted(m.group(0), hyphen='\u00ad'), str(t))
+            if new_t != str(t):
+                t.replace_with(NavigableString(new_t))
+
 # ---------------------------------------------------------------- write pages
 docs = []
 
@@ -564,6 +606,10 @@ def index_docs(p):
 
 
 for p in pages:
+    if p.kind not in ('list',):
+        index_docs(p)
+    if HYPH:
+        HYPH(p.body)
     eyebrow = f'<div class="eyebrow">{esc(p.eyebrow)}</div>' if p.eyebrow else ''
     extra = ''
     if p.kind == 'part':
@@ -572,8 +618,6 @@ for p in pages:
     main = f'<article class="content" id="top"><header class="page-head">{eyebrow}<h1>{p.title_html}</h1></header>{"".join(str(c) for c in p.body.contents)}{extra}</article>'
     tt = (f'{p.eyebrow}: ' if p.kind in ('chapter', 'appendix') else '') + p.title_text + ' · ' + BOOK
     emit(p, main, tt)
-    if p.kind not in ('list',):
-        index_docs(p)
 
 # home ----------------------------------------------------------------------
 grp = []

@@ -9,6 +9,13 @@ restructures the book.
 
 ### Changed
 
+- The web book serves high-resolution figures: `make webfig` (`tools/render_web_figures.py`)
+  renders mermaid diagrams at 3x and byte-layout figures at 2x as WebP (`srcset` 1x/2x) and
+  re-runs the matplotlib scripts as SVG with text converted to paths, so zoomed figures stay
+  sharp. Variants live in `build/webfig/`; any figure that fails falls back to the print PNG.
+- English web pages are hyphenated at build time (Pyphen en_US patterns insert soft hyphens
+  into long words outside code, headings and URLs), so justified text on narrow screens does
+  not open wide gaps even where the browser has no English hyphenation dictionary.
 - `make html` now builds a multi-page web book (`tools/build_site.py`,
   `templates/site/`): one page per chapter and appendix with stable source anchors,
   collapsible sidebar and in-page contents, previous/next and breadcrumbs, offline
