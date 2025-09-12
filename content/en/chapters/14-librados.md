@@ -5,47 +5,46 @@ title: Programming with librados
 part: main
 original_heading: Developing with Librados
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-14-1}
+# Before you start {#sec-14-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-14-1-1}
+## What questions does this chapter answer? {#sec-14-1-1}
 
-RBD، RGW و CephFS همه در نهایت مشتری‌های **librados** هستند: کتابخانه‌ای که دسترسی مستقیم به اشیای RADOS را فراهم می‌کند. وقتی هیچ‌کدام از رابط‌های آماده با نیاز شما جور نیست (مثلاً یک صف پیام، یک سامانه‌ی قفل توزیع‌شده یا ذخیره‌ی کلید-مقدار با تضمین اتمی)، می‌توانید مستقیماً روی RADOS برنامه بنویسید. این فصل librados را از سه زاویه بررسی می‌کند: API، الگوهای کاربردی (عملیات اتمی، watch/notify) و درون کتابخانه (Objecter).
+RBD, RGW and CephFS are all ultimately clients of **librados**: the library that gives direct access to RADOS objects. When none of the ready-made interfaces fits your need (for example a message queue, a distributed lock system or a key-value store with atomic guarantees), you can program directly on top of RADOS. This chapter looks at librados from three angles: the API, practical patterns (atomic operations, watch/notify) and the inside of the library (the Objecter).
 
-- librados چیست و در کجای پشته قرار دارد؟
-- اتصال، IoCtx، namespace و عملیات پایه چطور انجام می‌شوند؟
-- عملیات مرکب و اتمی چه تضمینی دارند؟
-- watch/notify چطور کار می‌کند و برای چه مناسب است؟
-- Objecter چطور هدف هر درخواست را محاسبه و تغییرات نقشه را مدیریت می‌کند؟
-- چه دام‌هایی در برنامه‌نویسی RADOS هست؟
+- What is librados, and where does it sit in the stack?
+- How do connections, IoCtx, namespaces and basic operations work?
+- What guarantees do compound and atomic operations give?
+- How does watch/notify work, and what is it good for?
+- How does the Objecter compute each request's target and handle map changes?
+- What pitfalls are there in RADOS programming?
 
-# librados چیست؟ {#sec-14-2}
+# What is librados? {#sec-14-2}
 
-![جایگاه librados: کتابخانه‌های بالادستی و برنامه‌ی شما از طریق IoCtx با librados کار می‌کنند؛ Objecter هدف هر عملیات را محاسبه می‌کند و MonClient نقشه‌ها و احراز هویت را مدیریت می‌کند](figures/ch14/f01_stack.png){#fig-14-f01_stack}
+![Where librados sits: upstream libraries and your application work with librados through an IoCtx; the Objecter computes each operation's target and the MonClient manages maps and authentication](figures/ch14/f01_stack.png){#fig-14-f01_stack}
 
-librados رابط بومی RADOS است و در چند زبان در دسترس است: C (`librados.h`)، C++ (`librados.hpp`)، Python (ماژول `rados`)، و از طریق bindingهای جامعه در Go و Rust. مفاهیم پایه:
+librados is the native RADOS interface and is available in several languages: C (`librados.h`), C++ (`librados.hpp`), Python (the `rados` module), and through community bindings in Go and Rust. The basic concepts:
 
-| مفهوم | معنی |
+| Concept | Meaning |
 |---|---|
-| Rados / cluster handle | اتصال به کلاستر با هویت cephx و فایل پیکربندی |
-| IoCtx | زمینه‌ی I/O روی یک pool (و اختیاری یک namespace)؛ همه‌ی عملیات شیء از طریق آن |
-| شیء | نام (رشته‌ی دلخواه)، داده‌ی بایتی، xattrها و omap (کلید-مقدار مرتب) |
-| namespace | زیرفضای نام درون pool برای جداسازی مستأجران بدون pool جدا |
-| locator key | کلید جایگزین برای محاسبه‌ی PG، تا اشیای مرتبط در یک PG قرار گیرند |
-| snap context | برای snapshotهای self-managed (روشی که RBD استفاده می‌کند) |
+| Rados / cluster handle | A connection to the cluster with a cephx identity and a configuration file |
+| IoCtx | An I/O context on one pool (and optionally a namespace); every object operation goes through it |
+| Object | A name (an arbitrary string), byte data, xattrs and an omap (sorted key-value) |
+| namespace | A name subspace inside a pool, for separating tenants without a separate pool |
+| locator key | An alternative key for computing the PG, so that related objects land in the same PG |
+| snap context | For self-managed snapshots (the method RBD uses) |
 
 ::: {.note}
-یک شیء RADOS سه بخش مستقل دارد: **داده** (مانند فایل، با offset)، **xattr** (چند ویژگی کوچک) و **omap** (کلید-مقدار مرتب، در RocksDB زیر BlueStore). omap برای شاخص‌ها و فراداده عالی است، اما در pool EC پشتیبانی نمی‌شود و omapهای بسیار بزرگ (میلیون‌ها کلید در یک شیء) مشکلاتی مثل scrub طولانی و هشدار `LARGE_OMAP_OBJECTS` ایجاد می‌کنند.
+A RADOS object has three independent parts: **data** (like a file, with offsets), **xattrs** (a few small attributes) and the **omap** (sorted key-value, in RocksDB under BlueStore). The omap is excellent for indexes and metadata, but it is not supported in EC pools, and very large omaps (millions of keys in one object) cause problems such as long scrubs and the `LARGE_OMAP_OBJECTS` warning.
 :::
 
-# شروع کار {#sec-14-3}
+# Getting started {#sec-14-3}
 
-## آماده‌سازی {#sec-14-3-1}
+## Preparation {#sec-14-3-1}
 
 ```bash
-sudo dnf install -y python3-rados librados-devel     # یا apt install python3-rados librados-dev
+sudo dnf install -y python3-rados librados-devel     # or apt install python3-rados librados-dev
 ceph osd pool create devpool 32
 ceph osd pool application enable devpool myapp
 ceph auth get-or-create client.devapp mon 'allow r' osd 'allow rwx pool=devpool' \
@@ -53,10 +52,10 @@ ceph auth get-or-create client.devapp mon 'allow r' osd 'allow rwx pool=devpool'
 ```
 
 ::: {.tip}
-پرچم `x` در capability OSD برای فراخوانی متدهای کلاس RADOS (`exec`) لازم است (فصل ۱۵). اگر برنامه‌ی شما فقط داده می‌خواند و می‌نویسد، `rw` کافی است؛ کمترین دسترسی لازم را بدهید.
+The `x` flag in the OSD capability is needed for calling RADOS class methods (`exec`) (chapter 15). If your application only reads and writes data, `rw` is enough; grant the least access required.
 :::
 
-## یک برنامه‌ی پایتونی ساده {#sec-14-3-2}
+## A simple Python program {#sec-14-3-2}
 
 ```python
 #!/usr/bin/env python3
@@ -70,7 +69,7 @@ with rados.Rados(conffile='/etc/ceph/ceph.conf', name='client.devapp') as cluste
         io.set_xattr('greeting', 'lang', b'fa')
         print(io.read('greeting'))
         print(dict(io.get_xattrs('greeting')))
-        # omap با WriteOp
+        # omap with a WriteOp
         with rados.WriteOpCtx() as op:
             io.set_omap(op, ('k1', 'k2'), (b'v1', b'v2'))
             io.operate_write_op(op, 'index')
@@ -82,10 +81,10 @@ with rados.Rados(conffile='/etc/ceph/ceph.conf', name='client.devapp') as cluste
             print(obj.nspace, obj.key)
 ```
 
-## همان در C++ {#sec-14-3-3}
+## The same in C++ {#sec-14-3-3}
 
 ```cpp
-// my_app.cc — نمونه‌ی نوشته‌شده برای این فصل
+// my_app.cc — example written for this chapter
 #include <rados/librados.hpp>
 #include <iostream>
 int main() {
@@ -110,9 +109,9 @@ int main() {
 g++ -std=c++20 my_app.cc -lrados -o my_app && ./my_app
 ```
 
-## ناهمگام (aio) {#sec-14-3-4}
+## Asynchronous (aio) {#sec-14-3-4}
 
-برای توان بالا، عملیات را ناهمگام بفرستید تا چند درخواست هم‌زمان در جریان باشد:
+For high throughput, send operations asynchronously so that several requests are in flight at once:
 
 ```python
 import rados, threading
@@ -128,22 +127,22 @@ with rados.Rados(conffile='/etc/ceph/ceph.conf', name='client.devapp') as c, c.o
 ```
 
 ::: {.warn}
-در حلقه‌های ناهمگام، تعداد درخواست‌های در جریان را محدود کنید (مثلاً با semaphore). فرستادن صدها هزار درخواست هم‌زمان حافظه‌ی کلاینت را پر می‌کند و throttleهای Objecter (`objecter_inflight_ops` و `objecter_inflight_op_bytes`) درخواست‌ها را معطل می‌کنند.
+In asynchronous loops, limit the number of in-flight requests (for example with a semaphore). Sending hundreds of thousands of concurrent requests fills the client's memory, and the Objecter throttles (`objecter_inflight_ops` and `objecter_inflight_op_bytes`) stall the requests.
 :::
 
-# عملیات اتمی {#sec-14-4}
+# Atomic operations {#sec-14-4}
 
-## عملیات مرکب {#sec-14-4-1}
+## Compound operations {#sec-14-4-1}
 
-![ساختار یک عملیات مرکب: guardها، تغییرها و فراخوانی کلاس در یک تراکنش اتمی روی یک شیء اجرا می‌شوند](figures/ch14/f05_compound.png){#fig-14-f05_compound}
+![Structure of a compound operation: guards, modifications and a class call run in one atomic transaction on a single object](figures/ch14/f05_compound.png){#fig-14-f05_compound}
 
-RADOS روی **یک شیء** تراکنش اتمی می‌دهد: چند عملیات (نوشتن داده، تغییر xattr، به‌روزرسانی omap، شرط‌ها) را در یک `ObjectWriteOperation` جمع می‌کنید و OSD همه را با هم اجرا می‌کند یا هیچ‌کدام را. اگر یکی از **guard**ها (شرط‌ها) شکست بخورد، هیچ تغییری اعمال نمی‌شود. تراکنش بین چند شیء وجود ندارد؛ این مهم‌ترین محدودیت طراحی روی RADOS است.
+RADOS gives atomic transactions on **a single object**: you gather several operations (writing data, changing an xattr, updating the omap, conditions) into one `ObjectWriteOperation`, and the OSD executes all of them together or none of them. If one of the **guards** (conditions) fails, no change is applied. There are no transactions across several objects; this is the most important design limitation when building on RADOS.
 
-## الگوی compare-and-swap با نسخه {#sec-14-4-2}
+## The compare-and-swap pattern with versions {#sec-14-4-2}
 
-هر شیء یک **user_version** دارد که با هر تغییر افزایش می‌یابد. با `assert_version` می‌توان «فقط اگر از وقتی خواندم کسی تغییرش نداده» نوشت:
+Each object has a **user_version** that increases with every change. With `assert_version` you can write "only if nobody has changed it since I read it":
 
-![کنترل هم‌زمانی خوش‌بینانه با assert_version: کلاینت B که نسخه‌ی قدیمی را دیده، خطا می‌گیرد و پس از خواندن دوباره تلاش می‌کند](figures/ch14/f03_atomic.png){#fig-14-f03_atomic}
+![Optimistic concurrency control with assert_version: client B, which saw the old version, gets an error and retries after reading again](figures/ch14/f03_atomic.png){#fig-14-f03_atomic}
 
 ```python
 import rados, errno
@@ -151,14 +150,14 @@ import rados, errno
 def increment(io, oid):
     while True:
         try:
-            data = io.read(oid, length=64)   # پیش‌فرض length در binding برابر 8192 است
+            data = io.read(oid, length=64)   # the binding's default length is 8192
             ver = io.get_last_version()
         except rados.ObjectNotFound:
             data, ver = b'0', None
         new = str(int(data) + 1).encode()
         with rados.WriteOpCtx() as op:
             if ver is None:
-                op.new(rados.LIBRADOS_CREATE_EXCLUSIVE)    # فقط اگر وجود ندارد
+                op.new(rados.LIBRADOS_CREATE_EXCLUSIVE)    # only if it does not exist
             else:
                 op.assert_version(ver)
             op.write_full(new)
@@ -166,10 +165,10 @@ def increment(io, oid):
                 io.operate_write_op(op, oid)
                 return int(new)
             except (rados.OSError, rados.ObjectExists) as e:
-                continue    # کسی زودتر نوشت؛ دوباره
+                continue    # someone wrote first; retry
 ```
 
-در OSD، این بررسی در `PrimaryLogPG::do_osd_ops` انجام می‌شود:
+In the OSD, this check happens in `PrimaryLogPG::do_osd_ops`:
 
 ```cpp
 // from ceph/ceph, LGPL — src/osd/PrimaryLogPG.cc (excerpt)
@@ -184,36 +183,36 @@ case CEPH_OSD_OP_ASSERT_VER:
   }
 ```
 
-پس نسخه‌ی کهنه `-ERANGE` و نسخه‌ای که هنوز وجود ندارد `-EOVERFLOW` برمی‌گرداند. guardهای دیگر: `cmpxattr` (مقایسه‌ی یک xattr)، `cmpext` (مقایسه‌ی بخشی از داده)، `assert_exists` و `omap_cmp`.
+So a stale version returns `-ERANGE`, and a version that does not exist yet returns `-EOVERFLOW`. Other guards: `cmpxattr` (compare an xattr), `cmpext` (compare part of the data), `assert_exists` and `omap_cmp`.
 
-## قفل توزیع‌شده {#sec-14-4-3}
+## Distributed locks {#sec-14-4-3}
 
-librados قفل‌های مشورتی (advisory) روی اشیا دارد که با کلاس `lock` در OSD پیاده شده‌اند؛ RBD برای exclusive-lock از همین استفاده می‌کند:
+librados has advisory locks on objects, implemented with the `lock` class in the OSD; RBD uses the same mechanism for exclusive-lock:
 
 ```python
 io.lock_exclusive('jobs', 'scheduler', cookie='node-a', desc='leader', duration=30)
-# ... کار ...
+# ... work ...
 io.unlock('jobs', 'scheduler', 'node-a')
 ```
 
 ::: {.warn}
-قفل مشورتی فقط وقتی کار می‌کند که همه‌ی کلاینت‌ها آن را رعایت کنند. با `duration`، قفل کلاینتی که مرده خودبه‌خود منقضی می‌شود؛ اما کلاینتی که فقط کند شده هم ممکن است قفلش را از دست بدهد و بی‌خبر ادامه دهد. برای ایمنی واقعی، قفل را با guard در عملیات نوشتن ترکیب کنید (مثلاً `assert_locked` در کلاس lock) یا مانند RBD، کلاینت قبلی را **blocklist** کنید.
+An advisory lock only works if every client respects it. With `duration`, the lock of a client that has died expires automatically; but a client that has merely become slow can also lose its lock and carry on unaware. For real safety, combine the lock with a guard in the write operation (for example `assert_locked` in the lock class) or, as RBD does, **blocklist** the previous client.
 :::
 
-# watch و notify {#sec-14-5}
+# watch and notify {#sec-14-5}
 
-![watch/notify: watcherها روی یک شیء ثبت‌نام می‌کنند؛ notify به همه می‌رسد و notifier پس از دریافت ackها یا timeout پاسخ تجمیعی می‌گیرد](figures/ch14/f04_watch.png){#fig-14-f04_watch}
+![watch/notify: watchers register on an object; a notify reaches all of them, and the notifier gets an aggregated reply after the acks arrive or a timeout](figures/ch14/f04_watch.png){#fig-14-f04_watch}
 
-watch/notify یک کانال اعلان سبک روی یک شیء است: هر کلاینت روی شیء **watch** ثبت می‌کند و هر کلاینتی می‌تواند **notify** بفرستد که به همه‌ی watcherها می‌رسد. RBD از آن برای اطلاع‌رسانی تغییر header image (مثلاً resize یا snapshot) به همه‌ی کلاینت‌هایی که image را باز کرده‌اند استفاده می‌کند. RGW هم برای همگام‌سازی cache بین نمونه‌ها از آن بهره می‌برد.
+watch/notify is a lightweight notification channel on an object: each client registers a **watch** on the object, and any client can send a **notify** that reaches all the watchers. RBD uses it to tell every client that has the image open about changes to the image header (for example a resize or a snapshot). RGW also uses it to synchronize caches between instances.
 
 ```python
 # watcher.py
 import rados, time
 def on_notify(notify_id, notifier_id, watch_id, data):
     print("got:", data)
-    return b'ok'           # payload پاسخ (در نسخه‌های جدید binding)
+    return b'ok'           # reply payload (in newer binding versions)
 def on_error(err):
-    print("watch error:", err)    # باید watch را دوباره ثبت کنید
+    print("watch error:", err)    # you must register the watch again
 with rados.Rados(conffile='/etc/ceph/ceph.conf', name='client.devapp') as c, c.open_ioctx('devpool') as io:
     io.write_full('config', b'v1')
     with io.watch('config', on_notify, on_error):
@@ -227,183 +226,183 @@ with rados.Rados(conffile='/etc/ceph/ceph.conf', name='client.devapp') as c, c.o
 ```
 
 ::: {.deep}
-watch در کلاینت به شکل یک عملیات **linger** در Objecter پیاده شده است: درخواستی که «تمام نمی‌شود» و Objecter هر بار که نقشه تغییر کند یا اتصال قطع شود، آن را دوباره به primary فعلی شیء می‌فرستد (`Objecter::_recalc_linger_op_target`). در OSD، watch بخشی از وضعیت شیء است و با ping دوره‌ای زنده نگه داشته می‌شود؛ اگر کلاینت در مهلت ping نکند، watch حذف می‌شود و callback خطای کلاینت باید watch را دوباره بسازد. notify اگر همه‌ی watcherها در مهلت ack ندهند، با timeout تمام می‌شود و فهرست watcherهای بی‌پاسخ را برمی‌گرداند؛ مهلت پیش‌فرض سمت OSD `osd_default_notify_timeout` است (در کد جاری ۳۰ ثانیه).
+On the client, a watch is implemented as a **linger** operation in the Objecter: a request that "never finishes", which the Objecter resends to the object's current primary whenever the map changes or the connection drops (`Objecter::_recalc_linger_op_target`). In the OSD, the watch is part of the object's state and is kept alive by periodic pings; if the client does not ping within the deadline, the watch is removed and the client's error callback must rebuild it. If not all watchers ack within the deadline, a notify ends with a timeout and returns the list of watchers that did not reply; the OSD-side default deadline is `osd_default_notify_timeout` (30 seconds in current code).
 :::
 
 ::: {.tip}
-watch/notify برای **اعلان** است، نه انتقال داده‌ی حجیم یا صف قابل اتکا: اگر watcher در لحظه‌ی notify قطع باشد، پیام را از دست می‌دهد. الگوی درست: داده‌ی واقعی را در شیء (یا omap) بنویسید و notify فقط بگوید «چیزی تغییر کرد، دوباره بخوان». watcher پس از اتصال دوباره هم باید یک بار وضعیت را بخواند.
+watch/notify is for **notification**, not for moving bulk data or for a reliable queue: if a watcher is disconnected at the moment of the notify, it misses the message. The right pattern: write the real data into the object (or the omap), and let the notify only say "something changed, read again". After reconnecting, a watcher should also read the state once.
 :::
 
-# زیر librados: پیام MOSDOp، session و backoff {#sec-14-6}
+# Beneath librados: the MOSDOp message, sessions and backoff {#sec-14-6}
 
-بخش «از درون کد: Objecter» در ادامه‌ی همین فصل نشان می‌دهد librados چگونه یک op را به Objecter می‌دهد. اینجا یک لایه پایین‌تر می‌رویم: پیامی که روی سیم می‌رود دقیقاً چه چیزی دارد، Objecter چگونه opها را بر اساس OSD در sessionها نگه می‌دارد، و OSD چگونه می‌تواند به کلاینت بگوید «فعلاً نفرست» (backoff). همه‌ی ساختارها از main هستند (`src/osdc/Objecter.cc`، `src/messages/MOSDOp.h` و `src/include/rados.h`).
+The section "Inside the code: the Objecter" later in this chapter shows how librados hands an op to the Objecter. Here we go one layer lower: what exactly the message on the wire contains, how the Objecter keeps ops in per-OSD sessions, and how an OSD can tell a client "don't send for now" (backoff). All structures are from main (`src/osdc/Objecter.cc`, `src/messages/MOSDOp.h` and `src/include/rados.h`).
 
-![ترتیب فیلدها در payload پیام MOSDOp با HEAD_VERSION=9 (COMPAT_VERSION=3). ابتدا pgid و hash شیء، epoch نقشه و flags، شناسه‌ی درخواست (reqid)، client_inc و mtime، سپس object_locator و نام شیء، تعداد و ساختار هر op، و در پایان اطلاعات snapshot، retry_attempt و features می‌آیند. در msgr2 همه‌ی این‌ها در segment از نوع front هستند و داده‌ی ورودی همه‌ی opها پشت سر هم در segment data قرار می‌گیرد](figures/ch14/f06_mosdop.png){#fig-14-f06_mosdop}
+![Field order in the MOSDOp message payload with HEAD_VERSION=9 (COMPAT_VERSION=3). First come the pgid and object hash, the map epoch and flags, the request id (reqid), client_inc and mtime, then the object_locator and object name, the number and structure of each op, and finally the snapshot information, retry_attempt and features. In msgr2 all of these are in the front segment, and the input data of all ops is placed back to back in the data segment](figures/ch14/f06_mosdop.png){#fig-14-f06_mosdop}
 
-## چرا pgid پیش از نام شیء می‌آید؟ {#sec-14-6-1}
+## Why does the pgid come before the object name? {#sec-14-6-1}
 
-OSD پیام را در دو مرحله decode می‌کند (`partial_decode_needed` و `final_decode_needed` در کلاس). در مرحله‌ی اول فقط pgid، hash، epoch و flags خوانده می‌شوند. این کافی است تا پیام بدون decode کامل به shard درست صف عملیاتی (`OSDShard`) فرستاده شود. decode کامل (نام، opها و snapها) بعداً در thread همان shard انجام می‌شود. این طراحی، کار thread مربوط به messenger را کم و موازی‌سازی را بیشتر می‌کند. به همین دلیل MOSDOp از `MOSDFastDispatchOp` ارث می‌برد.
+The OSD decodes the message in two stages (`partial_decode_needed` and `final_decode_needed` in the class). In the first stage only the pgid, hash, epoch and flags are read. That is enough to send the message to the right operation-queue shard (`OSDShard`) without a full decode. The full decode (name, ops and snaps) happens later in that shard's thread. This design reduces the work of the messenger thread and increases parallelism. That is why MOSDOp inherits from `MOSDFastDispatchOp`.
 
-| فیلد | نقش در OSD |
+| Field | Role in the OSD |
 |---|---|
-| `osdmap_epoch` | اگر از epoch فعلی OSD جدیدتر باشد، OSD ابتدا نقشه را می‌گیرد. اگر قدیمی‌تر باشد و PG جابه‌جا شده باشد، op دور ریخته می‌شود و کلاینت با نقشه‌ی جدید دوباره می‌فرستد. |
-| `reqid` (client.N:tid) | کلید تشخیص تکرار. OSD در pg log آن را جست‌وجو می‌کند و برای op تکراری (پس از resend) پاسخ قبلی را برمی‌گرداند. |
-| `flags` | مثلاً `ONDISK`، `READ`، `WRITE`، `BALANCE_READS`، `LOCALIZE_READS`، `FULL_TRY` |
-| `retry_attempt` | شمارنده‌ی ارسال مجدد؛ در لاگ OSD و `dump_ops_in_flight` دیده می‌شود |
-| `snap_seq`، `snaps` | SnapContext نویسنده برای COW snapshot (فصل ۲) |
+| `osdmap_epoch` | If it is newer than the OSD's current epoch, the OSD first fetches the map. If it is older and the PG has moved, the op is dropped and the client resends with the new map. |
+| `reqid` (client.N:tid) | The key for duplicate detection. The OSD looks it up in the pg log and, for a duplicate op (after a resend), returns the previous reply. |
+| `flags` | For example `ONDISK`, `READ`, `WRITE`, `BALANCE_READS`, `LOCALIZE_READS`, `FULL_TRY` |
+| `retry_attempt` | The resend counter; visible in the OSD log and in `dump_ops_in_flight` |
+| `snap_seq`, `snaps` | The writer's SnapContext for COW snapshots (chapter 2) |
 
-## sessionها و op «بی‌خانمان» {#sec-14-6-2}
+## Sessions and "homeless" ops {#sec-14-6-2}
 
-Objecter برای هر OSD یک `OSDSession` دارد که opهای در جریان آن OSD را با tid نگه می‌دارد. هر op در `_calc_target` به یک OSD نگاشت می‌شود. اگر هدفی وجود نداشته باشد (pool حذف شده، PG بدون primary یا نقشه هنوز نرسیده)، op به `homeless_session` منتقل می‌شود. با هر نقشه‌ی جدید، Objecter همه‌ی opها را دوباره هدف‌یابی می‌کند و آن‌هایی را که هدفشان تغییر کرده، به session تازه منتقل و دوباره ارسال می‌کند.
+The Objecter has one `OSDSession` per OSD, which holds the in-flight ops for that OSD by tid. In `_calc_target`, each op is mapped to an OSD. If there is no target (the pool was deleted, the PG has no primary, or the map has not arrived yet), the op is moved to `homeless_session`. With each new map, the Objecter retargets all ops and moves those whose target changed to the new session and resends them.
 
-| گزینه | پیش‌فرض | اثر |
+| Option | Default | Effect |
 |---|---|---|
-| `objecter_inflight_ops` | 1_K | سقف opهای در جریان؛ بیش از آن، `op_submit` بلوک می‌شود (throttle بودجه) |
-| `objecter_inflight_op_bytes` | 100_M | سقف بایت‌های در جریان |
-| `objecter_tick_interval` | 5 | ثانیه؛ بررسی opهای کند و ارسال keepalive |
-| `objecter_timeout` | 10 | ثانیه؛ پس از آن، برای sessionهای بی‌پاسخ درخواست نقشه یا ping |
-| `rados_osd_op_timeout` | 0 | ۰ یعنی بدون timeout؛ مقدار مثبت خطای `ETIMEDOUT` می‌دهد |
-| `objecter_completion_locks_per_session` | 32 | قفل‌های شاردشده برای ترتیب completionها |
+| `objecter_inflight_ops` | 1_K | Cap on in-flight ops; beyond it, `op_submit` blocks (budget throttle) |
+| `objecter_inflight_op_bytes` | 100_M | Cap on in-flight bytes |
+| `objecter_tick_interval` | 5 | Seconds; checks for slow ops and sends keepalives |
+| `objecter_timeout` | 10 | Seconds; after this, request a map or ping for unresponsive sessions |
+| `rados_osd_op_timeout` | 0 | 0 means no timeout; a positive value gives an `ETIMEDOUT` error |
+| `objecter_completion_locks_per_session` | 32 | Sharded locks for ordering completions |
 
 ::: {.warn}
-`objecter_inflight_ops=1024` برای برنامه‌ای که با `aio_write` هزاران op هم‌زمان می‌فرستد، یک گلوگاه پنهان است: فراخوانی `aio_*` **بلوک** می‌شود تا بودجه آزاد شود. اگر callbackهای completion در همان thread منتظر باشند، بن‌بست ایجاد می‌شود. عمق صف را در برنامه کنترل کنید یا گزینه را آگاهانه افزایش دهید.
+`objecter_inflight_ops=1024` is a hidden bottleneck for an application that sends thousands of concurrent ops with `aio_write`: the `aio_*` call **blocks** until budget is freed. If completion callbacks are waiting on the same thread, a deadlock results. Control the queue depth in the application, or raise the option deliberately.
 :::
 
-# backoff: OSD می‌گوید «صبر کن» {#sec-14-7}
+# backoff: the OSD says "wait" {#sec-14-7}
 
-![سازوکار backoff. وقتی PG در حال peering است یا شیء unfound است، OSD به‌جای نگه داشتن op در صف خودش (که حافظه و thread مصرف می‌کند)، یک MOSDBackoff با عمل BLOCK برای یک بازه‌ی hobject به کلاینت می‌فرستد. کلاینت تأیید می‌کند و opهای آن بازه را نزد خودش نگه می‌دارد. پس از فعال شدن PG، OSD با UNBLOCK آزادسازی را اعلام می‌کند و کلاینت opها را دوباره می‌فرستد](figures/ch14/f07_backoff.png){#fig-14-f07_backoff}
+![The backoff mechanism. When a PG is peering or an object is unfound, instead of holding the op in its own queue (which consumes memory and threads), the OSD sends the client an MOSDBackoff with the BLOCK action for a range of hobjects. The client acknowledges and holds the ops for that range on its side. Once the PG becomes active, the OSD announces the release with UNBLOCK, and the client resends the ops](figures/ch14/f07_backoff.png){#fig-14-f07_backoff}
 
-عمل‌ها در `rados.h` عبارت‌اند از `CEPH_OSD_BACKOFF_OP_BLOCK=1`، `ACK_BLOCK=2` و `UNBLOCK=3`. پیش‌فرض‌های OSD (در main): `osd_backoff_on_unfound=true`، `osd_backoff_on_degraded=false` و `osd_backoff_on_peering=false`. پس به‌طور پیش‌فرض فقط برای اشیای unfound، backoff فرستاده می‌شود. در حالت‌های دیگر op در OSD صف می‌شود. backoff به ویژگی `RADOS_BACKOFF` در کلاینت نیاز دارد که کلاینت‌های Luminous به بعد آن را دارند.
+The actions in `rados.h` are `CEPH_OSD_BACKOFF_OP_BLOCK=1`, `ACK_BLOCK=2` and `UNBLOCK=3`. The OSD defaults (in main) are `osd_backoff_on_unfound=true`, `osd_backoff_on_degraded=false` and `osd_backoff_on_peering=false`. So by default, backoff is only sent for unfound objects. In the other cases the op is queued in the OSD. backoff needs the `RADOS_BACKOFF` feature on the client, which Luminous and later clients have.
 
 ```bash
 ceph daemon osd.4 dump_blocked_ops
-ceph daemon client.admin.<pid>.<cookie> objecter_requests     # از admin socket کلاینت
+ceph daemon client.admin.<pid>.<cookie> objecter_requests     # from the client's admin socket
 ceph tell osd.4 config get osd_backoff_on_peering
 ```
 
-# SplitOp (فقط main) {#sec-14-8}
+# SplitOp (main only) {#sec-14-8}
 
-شاخه‌ی main یک کلاس تازه به نام `SplitOp` در `src/osdc/` دارد (مجوز LGPL 2.1، ۲۰۲۵). توضیح خود کد آن را «پایه‌ای برای تقسیم عملیات بین چند OSD برای کارایی بهتر» معرفی می‌کند: در poolهای EC، یک خواندن بزرگ مستقیم به shardهای داده فرستاده می‌شود، و در poolهای replicated، یک خواندن بزرگ بین replicaها تقسیم می‌شود. سپس پاسخ‌ها در کلاینت به هم وصل می‌شوند. شمارنده‌ای با توضیح «Client read ops split by SplitOp» هم به Objecter اضافه شده است. این کلاس در شاخه‌ی Tentacle نیست (فایل آن در آن شاخه وجود ندارد). پس این قابلیت مربوط به انتشار بعدی است و جزئیات، گزینه‌ها و پیش‌فرض‌هایش ممکن است پیش از انتشار تغییر کند.
+The main branch has a new class called `SplitOp` in `src/osdc/` (LGPL 2.1 licence, 2025). The code's own description introduces it as "a basis for splitting operations across several OSDs for better performance": in EC pools, a large read is sent directly to the data shards, and in replicated pools, a large read is split between replicas. The replies are then joined on the client. A counter described as "Client read ops split by SplitOp" has also been added to the Objecter. This class is not in the Tentacle branch (its file does not exist there). So this feature belongs to the next release, and its details, options and defaults may change before release.
 
 ::: {.deep}
-**چرا خواندن مستقیم از shard در EC ممکن شد؟** در EC قدیمی، کلاینت همیشه به primary می‌فرستاد و primary از k shard می‌خواند و decode می‌کرد. با `FLAG_EC_PLUGIN_PARTIAL_READ_OPTIMIZATION` (فصل ۲۷)، داده‌ی یک بازه دقیقاً در یک shard داده قرار دارد. اگر کلاینت چیدمان stripe را بداند (stripe_unit و k از پروفایل pool)، می‌تواند بازه را خودش به shardها نگاشت کند و یک رفت‌وبرگشت شبکه (کلاینت→primary→shard) حذف شود. ترکیب این با `SplitOp`، پایه‌ی خواندن‌های سریع‌تر از EC در نسخه‌های آینده است.
+**Why did reading directly from a shard become possible in EC?** In old EC, the client always sent to the primary, and the primary read from k shards and decoded. With `FLAG_EC_PLUGIN_PARTIAL_READ_OPTIMIZATION` (chapter 27), the data of a range lies exactly in one data shard. If the client knows the stripe layout (stripe_unit and k from the pool profile), it can map the range to shards itself and remove one network round trip (client→primary→shard). Combined with `SplitOp`, this is the basis for faster reads from EC in future versions.
 :::
 
-# Objecter با عدد: بودجه‌ی op، سقف در جریان، زنده‌بودن watch و timeout ‏notify {#sec-14-9}
+# The Objecter in numbers: op budget, in-flight cap, watch liveness and notify timeout {#sec-14-9}
 
-این بخش چهار سازوکار کوچک در کلاینت RADOS را بررسی می‌کند که در برنامه‌های واقعی رفتار غیرمنتظره ایجاد می‌کنند. ارجاع‌ها به main در نوامبر 2026 است. همه‌ی پیش‌فرض‌ها از فایل‌های src/common/options خوانده شده‌اند.
+This section examines four small mechanisms in the RADOS client that produce unexpected behaviour in real applications. References are to main as of November 2026. All defaults were read from the files in src/common/options.
 
-## بودجه‌ی هر op {#sec-14-9-1}
+## The budget of each op {#sec-14-9-1}
 
-::: {.algo #alg-14-1 title="محاسبه‌ی بودجه و throttle دوگانه" src="src/osdc/Objecter.cc :: Objecter::calc_op_budget، _throttle_op؛ src/common/Throttle.h :: Throttle::_should_wait" complexity="O(تعداد زیرعملیات op)"}
+::: {.algo #alg-14-1 title="Budget calculation and the dual throttle" src="src/osdc/Objecter.cc :: Objecter::calc_op_budget, _throttle_op; src/common/Throttle.h :: Throttle::_should_wait" complexity="O(number of sub-operations in the op)"}
 :::
 
 ```text
 pseudocode
 budget = 0
-برای هر زیرعملیات:
-    if حالت WR: budget += طول indata
-    elif حالت RD و از extent استفاده می‌کند (READ، SPARSE_READ، CMPEXT…): budget += extent.length
-    elif RD و نوع ATTR: budget += name_len + value_len
-    # بقیه (STAT، OMAPGETVALS، CALL با حالت RD|EXEC…) صفر
-op_throttle_bytes.get(budget)   # سقف objecter_inflight_op_bytes = 100 MiB
-op_throttle_ops.get(1)          # سقف objecter_inflight_ops = 1024
-_should_wait(c) = (c ≤ max و cur + c > max) یا (c ≥ max و cur > max)
+for each sub-operation:
+    if mode is WR: budget += indata length
+    elif mode is RD and it uses an extent (READ, SPARSE_READ, CMPEXT…): budget += extent.length
+    elif RD and type ATTR: budget += name_len + value_len
+    # the rest (STAT, OMAPGETVALS, CALL with mode RD|EXEC…) count zero
+op_throttle_bytes.get(budget)   # cap objecter_inflight_op_bytes = 100 MiB
+op_throttle_ops.get(1)          # cap objecter_inflight_ops = 1024
+_should_wait(c) = (c ≤ max and cur + c > max) or (c ≥ max and cur > max)
 ```
 
-| عملیات | budget بایت | توضیح |
+| Operation | Budget (bytes) | Explanation |
 |---|---|---|
-| write ‏4 KiB | 4096 | طول داده |
-| writefull ‏4 MiB | 4194304 | 25تا از آن کل سقف 100 MiB را پر می‌کند |
-| read ‏64 KiB | 65536 | طول extent، نه طول پاسخ واقعی |
-| getxattr «user.x» با مقدار 100 بایتی | 106 | طول نام و مقدار |
-| omap_get_vals | 0 | فقط یک واحد از سقف 1024 تایی |
-| omap_set_vals با 1 MiB کلید و مقدار | 1048576 | حالت WR، پس indata شمرده می‌شود |
-| CALL (کلاس) با ورودی 10 MiB | 0 | حالت CALL فقط RD است، پس ورودی شمرده نمی‌شود |
+| write 4 KiB | 4096 | Data length |
+| writefull 4 MiB | 4194304 | 25 of them fill the whole 100 MiB cap |
+| read 64 KiB | 65536 | The extent length, not the length of the actual reply |
+| getxattr "user.x" with a 100-byte value | 106 | Name length plus value length |
+| omap_get_vals | 0 | Only one unit of the 1024 cap |
+| omap_set_vals with 1 MiB of keys and values | 1048576 | WR mode, so indata is counted |
+| CALL (class) with 10 MiB of input | 0 | CALL mode is only RD, so the input is not counted |
 
-**نتیجه.** سقف بایت برای opهای بزرگ و سقف تعداد برای opهای کوچک تعیین‌کننده است. op بزرگ‌تر از 100 MiB قفل نمی‌شود. اگر cur ≤ max باشد، بی‌درنگ رد می‌شود، اما بعد از آن cur > max است و همه‌ی opهای بعدی صبر می‌کنند تا آن op تمام شود. فراخوانی کلاس با ورودی حجیم عملاً throttle بایتی ندارد. برنامه‌ای که با aio_exec بلاک‌های بزرگ می‌فرستد باید خودش محدودیت بگذارد.
+**Conclusion.** The byte cap is decisive for large ops, and the count cap for small ones. An op larger than 100 MiB does not deadlock. If cur ≤ max it passes immediately, but afterwards cur > max, and all following ops wait until that op finishes. A class call with bulky input effectively has no byte throttle. An application that sends large blocks with aio_exec must impose its own limit.
 
-## سقف در جریان و قانون Little {#sec-14-9-2}
+## The in-flight cap and Little's law {#sec-14-9-2}
 
-::: {.algo #alg-14-2 title="سقف throughput یک نمونه‌ی Objecter" src="src/osdc/Objecter.cc :: _throttle_op (با پیش‌فرض‌های objecter_inflight_ops و objecter_inflight_op_bytes)" complexity="O(1)"}
+::: {.algo #alg-14-2 title="Throughput cap of one Objecter instance" src="src/osdc/Objecter.cc :: _throttle_op (with the defaults of objecter_inflight_ops and objecter_inflight_op_bytes)" complexity="O(1)"}
 :::
 
 ```text
 pseudocode
-N(s) = s > 100 MiB ? 1 : min(1024, ⌊104857600 / s⌋)      # op هم‌زمان با اندازه‌ی s
+N(s) = s > 100 MiB ? 1 : min(1024, ⌊104857600 / s⌋)      # concurrent ops of size s
 throughput ≤ N(s) × s / latency
 IOPS ≤ N(s) / latency
-نقطه‌ی تغییر: s = 104857600 / 1024 = 102400 بایت (100 KiB)
+crossover point: s = 104857600 / 1024 = 102400 bytes (100 KiB)
 ```
 
-**مثال عددی.** برای op چهار کیلوبایتی N = 1024 است. با تأخیر 2 میلی‌ثانیه، سقف 512000 IOPS ‏(2 GiB/s) است و با 10 میلی‌ثانیه، 102400 IOPS. برای op ‏128 KiB، ‏N = 800 است. برای 4 MiB ‏N = 25 است: با تأخیر 10 میلی‌ثانیه حدود 9.8 GiB/s و با 50 میلی‌ثانیه (EC روی HDD زیر بار) فقط 1.95 GiB/s برای کل یک نمونه‌ی librados، صرف‌نظر از تعداد threadها. برای 16 MiB، ‏N = 6 است. این سقف برای **هر نمونه‌ی Rados/Objecter** است. پس یا آن را با `objecter_inflight_op_bytes` بالا ببرید، یا چند نمونه‌ی مستقل بسازید. در فرایندهای QEMU یا rbd-nbd، تنظیم معادل در بخش [client] قرار می‌گیرد.
+**Numerical example.** For a 4 KiB op, N = 1024. With 2 ms latency the cap is 512000 IOPS (2 GiB/s), and with 10 ms, 102400 IOPS. For a 128 KiB op, N = 800. For 4 MiB, N = 25: with 10 ms latency about 9.8 GiB/s, and with 50 ms (EC on HDD under load) only 1.95 GiB/s for an entire librados instance, regardless of the number of threads. For 16 MiB, N = 6. This cap applies to **each Rados/Objecter instance**. So either raise it with `objecter_inflight_op_bytes`, or create several independent instances. In QEMU or rbd-nbd processes, the equivalent setting goes in the [client] section.
 
-![چپ: تعداد op هم‌زمان مجاز برحسب اندازه‌ی op. تا 100 KiB سقف 1024 حاکم است و بالاتر از آن ⌊100 MiB / s⌋. بالاتر از 100 MiB فقط یک op در جریان است. راست: سقف throughput یک نمونه‌ی Objecter با قانون Little، برای سه تأخیر نمونه. تأخیرها فرضی‌اند و فرمول از کد است](figures/ch14/f08_budget.png){#fig-14-f08_budget}
+![Left: the number of concurrent ops allowed as a function of op size. Up to 100 KiB the cap of 1024 governs, and above that ⌊100 MiB / s⌋. Above 100 MiB only one op is in flight. Right: the throughput cap of one Objecter instance by Little's law, for three sample latencies. The latencies are hypothetical; the formula comes from the code](figures/ch14/f08_budget.png){#fig-14-f08_budget}
 
-## زنده‌بودن watch {#sec-14-9-3}
+## Watch liveness {#sec-14-9-3}
 
-::: {.algo #alg-14-3 title="ping ‏linger و انقضای watch در OSD" src="src/osdc/Objecter.cc :: Objecter::tick، _send_linger_ping؛ src/osd/PrimaryLogPG.cc (CEPH_OSD_WATCH_OP_WATCH)؛ src/osd/Watch.cc" complexity="O(sessionها + linger opها) در هر tick"}
+::: {.algo #alg-14-3 title="Linger pings and watch expiry in the OSD" src="src/osdc/Objecter.cc :: Objecter::tick, _send_linger_ping; src/osd/PrimaryLogPG.cc (CEPH_OSD_WATCH_OP_WATCH); src/osd/Watch.cc" complexity="O(sessions + linger ops) per tick"}
 :::
 
 ```text
 pseudocode
-Objecter::tick هر objecter_tick_interval (5 s):
-    opهای قدیمی‌تر از objecter_timeout (10 s) ← session «laggy» ← MPing و درخواست osdmap تازه
-    برای هر watch ثبت‌شده و بی‌خطا: _send_linger_ping
-OSD: watch_info_t(cookie, timeout = op.watch.timeout یا osd_client_watch_timeout (30 s))
-    هر ping تایمر را تازه می‌کند ؛ اگر timeout بگذرد: watch حذف می‌شود
-کلاینت پس از وصل شدن دوباره: watch_check یا callback خطا ← ENOTCONN ← watch دوباره و خواندن دوباره‌ی وضعیت
+Objecter::tick every objecter_tick_interval (5 s):
+    ops older than objecter_timeout (10 s) ← session "laggy" ← MPing and request a fresh osdmap
+    for each registered, error-free watch: _send_linger_ping
+OSD: watch_info_t(cookie, timeout = op.watch.timeout or osd_client_watch_timeout (30 s))
+    each ping refreshes the timer ; if the timeout passes: the watch is removed
+client after reconnecting: watch_check or error callback ← ENOTCONN ← watch again and re-read the state
 ```
 
-**مثال عددی.** آخرین ping موفق در ثانیه‌ی 10 به OSD می‌رسد و از ثانیه‌ی 12 شبکه قطع می‌شود. حدود ثانیه‌ی 40، یعنی 30 ثانیه پس از آخرین ping، OSD watch را حذف می‌کند. هر notify که در این فاصله به آن شیء فرستاده شود به این کلاینت نمی‌رسد و در فهرست timeout یا missed ‏notify ثبت می‌شود. برنامه‌ی درست (مانند exclusive-lock در RBD) پس از خطای watch، وضعیت را دوباره از خود شیء می‌خواند و به notifyهای گذشته اعتماد نمی‌کند.
+**Numerical example.** The last successful ping reaches the OSD at second 10, and the network drops from second 12. Around second 40, that is 30 seconds after the last ping, the OSD removes the watch. Any notify sent to that object in the meantime does not reach this client and is recorded in the timeout or missed notify list. A correct application (like exclusive-lock in RBD) re-reads the state from the object itself after a watch error and does not trust past notifies.
 
-![زمان‌بندی زنده‌بودن watch. pingها هر 5 ثانیه فرستاده می‌شوند. پس از قطع شبکه در ثانیه‌ی 12، دیگر هیچ pingی نمی‌رسد. OSD حدود ثانیه‌ی 40 watch را حذف می‌کند (30 ثانیه پس از آخرین ping). Objecter زودتر، پس از 10 ثانیه، session را laggy می‌داند و نقشه‌ی تازه درخواست می‌کند](figures/ch14/f09_watch.png){#fig-14-f09_watch}
+![Timeline of watch liveness. Pings are sent every 5 seconds. After the network drops at second 12, no more pings arrive. The OSD removes the watch around second 40 (30 seconds after the last ping). The Objecter, earlier, after 10 seconds, considers the session laggy and requests a fresh map](figures/ch14/f09_watch.png){#fig-14-f09_watch}
 
-![کار هر tick در Objecter: شمردن opهای laggy، ping برای watchهای ثبت‌شده، و در صورت وجود op بی‌خانمان یا session مشکوک، درخواست osdmap تازه از MON و فرستادن MPing. پاسخ OSD سیاست lossy دارد، پس ping لازم است تا ریست شدن session کشف شود](figures/ch14/f11_tick.png){#fig-14-f11_tick}
+![The work of each Objecter tick: counting laggy ops, pinging registered watches and, when there is a homeless op or a suspect session, requesting a fresh osdmap from the MON and sending MPing. The OSD reply side has a lossy policy, so the ping is needed to discover a session reset](figures/ch14/f11_tick.png){#fig-14-f11_tick}
 
-## timeout ‏notify: گرد شدن به ثانیه {#sec-14-9-4}
+## Notify timeout: rounding to seconds {#sec-14-9-4}
 
-::: {.algo #alg-14-4 title="تعیین timeout مؤثر notify" src="src/librados/IoCtxImpl.cc :: IoCtxImpl::notify، aio_notify؛ src/osd/PrimaryLogPG.cc (CEPH_OSD_OP_NOTIFY)" complexity="O(1)"}
+::: {.algo #alg-14-4 title="Determining the effective notify timeout" src="src/librados/IoCtxImpl.cc :: IoCtxImpl::notify, aio_notify; src/osd/PrimaryLogPG.cc (CEPH_OSD_OP_NOTIFY)" complexity="O(1)"}
 :::
 
 ```text
 pseudocode
-timeout = notify_timeout                         # client_notify_timeout، پیش‌فرض 10 s
-if timeout_ms: timeout = timeout_ms / 1000       # تقسیم صحیح
-روی سیم: timeout (ثانیه)
+timeout = notify_timeout                         # client_notify_timeout, default 10 s
+if timeout_ms: timeout = timeout_ms / 1000       # integer division
+on the wire: timeout (seconds)
 OSD: if timeout == 0: timeout = osd_default_notify_timeout   # 30 s
 ```
 
-**مثال عددی.** timeout_ms برابر 0 یعنی 10 ثانیه. 1500 میلی‌ثانیه به 1 ثانیه تبدیل می‌شود. اما 500 میلی‌ثانیه به 0 تبدیل می‌شود و OSD آن را «پیش‌فرض» تعبیر می‌کند، پس notify تا **30 ثانیه** منتظر ack می‌ماند، یعنی 60 برابر چیزی که برنامه‌نویس خواسته بود. برای timeoutهای کمتر از یک ثانیه، از timeout خود notify استفاده نکنید و در برنامه تایمر جداگانه بگذارید.
+**Numerical example.** A timeout_ms of 0 means 10 seconds. 1500 milliseconds becomes 1 second. But 500 milliseconds becomes 0, and the OSD interprets it as "default", so the notify waits up to **30 seconds** for acks, that is 60 times what the programmer asked for. For timeouts under one second, do not use the notify's own timeout; set a separate timer in the application.
 
-![timeout مؤثر notify برحسب timeout_ms ورودی. صفر به client_notify_timeout (10 ثانیه) می‌رسد. 1 تا 999 میلی‌ثانیه پس از تقسیم صحیح صفر می‌شود و OSD پیش‌فرض 30 ثانیه را به کار می‌برد. از 1000 به بعد، ثانیه‌های کامل اعمال می‌شوند](figures/ch14/f10_notify.png){#fig-14-f10_notify}
+![Effective notify timeout as a function of the input timeout_ms. Zero leads to client_notify_timeout (10 seconds). 1 to 999 milliseconds become zero after integer division, and the OSD applies its 30-second default. From 1000 upward, whole seconds are applied](figures/ch14/f10_notify.png){#fig-14-f10_notify}
 
-# از درون کد: Objecter {#sec-14-10}
+# Inside the code: the Objecter {#sec-14-10}
 
-## نقش Objecter {#sec-14-10-1}
+## The role of the Objecter {#sec-14-10-1}
 
-Objecter (`src/osdc/Objecter.cc`) قلب سمت کلاینت librados است: هر عملیات را به یک `Op` تبدیل می‌کند، هدفش (PG و OSD primary) را محاسبه و ارسال می‌کند، پاسخ را به درخواست‌کننده برمی‌گرداند و مهم‌تر از همه، **با هر تغییر نقشه، درخواست‌های در جریان را بازبینی و در صورت نیاز دوباره ارسال می‌کند**. librbd، RGW و ceph-fuse همه از همین کلاس استفاده می‌کنند.
+The Objecter (`src/osdc/Objecter.cc`) is the heart of the librados client side: it turns each operation into an `Op`, computes and sends it to its target (the PG and primary OSD), returns the reply to the requester and, most importantly, **reviews in-flight requests on every map change and resends them when needed**. librbd, RGW and ceph-fuse all use this same class.
 
-| تابع در Objecter.cc | کار |
+| Function in Objecter.cc | Job |
 |---|---|
-| _op_submit() | ثبت Op، محاسبه‌ی هدف، اعمال throttle و ارسال |
-| _calc_target() | محاسبه‌ی PG و acting primary بر اساس نقشه‌ی فعلی |
-| _send_op() | ساخت پیام MOSDOp و ارسال روی اتصال OSD |
-| handle_osd_map() | دریافت نقشه‌ی جدید و بازبینی همه‌ی Opها و lingerها |
-| _recalc_linger_op_target() | محاسبه‌ی دوباره‌ی هدف برای watchها |
+| _op_submit() | Register the Op, compute the target, apply the throttle and send |
+| _calc_target() | Compute the PG and acting primary from the current map |
+| _send_op() | Build the MOSDOp message and send it on the OSD connection |
+| handle_osd_map() | Receive a new map and review all Ops and lingers |
+| _recalc_linger_op_target() | Recompute the target for watches |
 
-## محاسبه‌ی هدف {#sec-14-10-2}
+## Computing the target {#sec-14-10-2}
 
-![گام‌های _calc_target: وجود pool، نگاشت شیء به PG، محاسبه‌ی up/acting با CRUSH و pg_temp و upmap، و تصمیم به ارسال دوباره در صورت تغییر interval](figures/ch14/f02_calc.png){#fig-14-f02_calc}
+![The steps of _calc_target: pool existence, mapping the object to a PG, computing up/acting with CRUSH, pg_temp and upmap, and deciding to resend if the interval changed](figures/ch14/f02_calc.png){#fig-14-f02_calc}
 
-خلاصه‌ی منطق `Objecter::_calc_target()`:
+A summary of the logic of `Objecter::_calc_target()`:
 
-1. epoch نقشه‌ی فعلی در هدف ثبت می‌شود.
-2. `osdmap->get_pg_pool()`: اگر pool وجود ندارد، نتیجه `RECALC_OP_TARGET_POOL_DNE` است و Op منتظر نقشه‌ی جدیدتر می‌ماند (شاید pool تازه ساخته شده و کلاینت هنوز نقشه‌اش را ندارد).
-3. اگر pool خراب یا با پرچم EIO است، `RECALC_OP_TARGET_POOL_EIO`.
-4. `osdmap->object_locator_to_pg()`: hash نام شیء (یا locator key) و نگاشت به PG.
-5. محاسبه‌ی up و acting و primary (CRUSH، pg_temp، upmap؛ فصل ۸).
-6. مقایسه با هدف قبلی: اگر primary، acting، اندازه‌ی pool یا تقسیم PG تغییر کرده باشد (**interval جدید**)، Op باید دوباره ارسال شود.
+1. The epoch of the current map is recorded in the target.
+2. `osdmap->get_pg_pool()`: if the pool does not exist, the result is `RECALC_OP_TARGET_POOL_DNE` and the Op waits for a newer map (perhaps the pool was just created and the client does not have its map yet).
+3. If the pool is broken or has the EIO flag, `RECALC_OP_TARGET_POOL_EIO`.
+4. `osdmap->object_locator_to_pg()`: hash the object name (or the locator key) and map it to a PG.
+5. Compute up, acting and primary (CRUSH, pg_temp, upmap; chapter 8).
+6. Compare with the previous target: if the primary, the acting set, the pool size or the PG split has changed (**a new interval**), the Op must be resent.
 
 ```text
 on new osdmap (handle_osd_map):
@@ -411,84 +410,84 @@ on new osdmap (handle_osd_map):
      r = calc_target(op.target)
      if r == NEED_RESEND: cancel on old session; send to new primary
      if r == POOL_DNE and map is new enough: fail op with -ENOENT
-  for linger in watches: recalc_linger_op_target(linger)   # watch دوباره ثبت می‌شود
+  for linger in watches: recalc_linger_op_target(linger)   # the watch is registered again
 ```
 
 ::: {.deep}
-چرا ارسال دوباره ایمن است؟ هر Op یک شناسه‌ی یکتا (`reqid`: شناسه‌ی کلاینت و tid) دارد. OSD در log هر PG شناسه‌ی درخواست‌های اخیر را نگه می‌دارد؛ اگر نوشتنی که قبلاً اعمال شده دوباره برسد (مثلاً چون ack در راه گم شده)، OSD آن را تکراری تشخیص می‌دهد و همان نتیجه را بدون اجرای دوباره برمی‌گرداند. این **idempotency** است که بازارسال پس از تغییر نقشه را بی‌خطر می‌کند.
+Why is resending safe? Each Op has a unique identifier (`reqid`: the client id and the tid). The OSD keeps the ids of recent requests in each PG's log; if a write that was already applied arrives again (for example because the ack was lost on the way), the OSD recognizes it as a duplicate and returns the same result without executing it again. This **idempotency** is what makes resending after a map change harmless.
 :::
 
-## throttle و پیکربندی کلاینت {#sec-14-10-3}
+## Throttles and client configuration {#sec-14-10-3}
 
 ```bash
 ceph config get client objecter_inflight_ops
 ceph config get client objecter_inflight_op_bytes
-ceph config set client.devapp rados_osd_op_timeout 30      # بدون این، Op ممکن است بی‌نهایت منتظر بماند
+ceph config set client.devapp rados_osd_op_timeout 30      # without this, an Op may wait forever
 ```
 
 ::: {.note}
-پیش‌فرض‌های کد جاری: `objecter_inflight_ops=1_K`، `objecter_inflight_op_bytes=100_M`، `rados_osd_op_timeout=0` (یعنی بدون timeout) و `osd_max_object_size=128_M`.
+Defaults in current code: `objecter_inflight_ops=1_K`, `objecter_inflight_op_bytes=100_M`, `rados_osd_op_timeout=0` (meaning no timeout) and `osd_max_object_size=128_M`.
 :::
 
 ::: {.warn}
-پیش‌فرض librados این است که Op را **تا ابد** منتظر نگه دارد تا PG دوباره active شود؛ این برای ذخیره‌سازی درست است (داده از دست نمی‌رود) اما برنامه‌ی شما ممکن است بی‌پاسخ بماند. اگر برنامه باید سریع خطا بدهد (مثلاً یک API با SLA)، `rados_osd_op_timeout` و `rados_mon_op_timeout` را تنظیم کنید و خطای `-ETIMEDOUT` را مدیریت کنید.
+librados's default is to keep an Op waiting **forever** until the PG becomes active again; this is right for storage (no data is lost), but your application may hang. If the application must fail fast (for example an API with an SLA), set `rados_osd_op_timeout` and `rados_mon_op_timeout` and handle the `-ETIMEDOUT` error.
 :::
 
-# دام‌ها و الگوهای طراحی {#sec-14-11}
+# Pitfalls and design patterns {#sec-14-11}
 
-| دام | پیامد | راه درست |
+| Pitfall | Consequence | The right way |
 |---|---|---|
-| شیء خیلی بزرگ (گیگابایت‌ها) | بازیابی و scrub کند؛ محدودیت `osd_max_object_size` | شکستن به اشیای چندمگابایتی (مانند striper یا RBD) |
-| omap خیلی بزرگ در یک شیء | `LARGE_OMAP_OBJECTS`، تأخیر deep-scrub | shard کردن شاخص روی چند شیء (مانند bucket index در RGW) |
-| یک شیء «داغ» | همه‌ی بار روی یک PG و یک OSD | توزیع کلیدها روی چند شیء |
-| فهرست‌گیری مکرر pool | پیمایش همه‌ی PGها؛ بسیار کند | نگه داشتن شاخص خودتان در omap |
-| فرض تراکنش چندشیئی | ناسازگاری پس از خرابی میانه‌ی کار | طراحی idempotent یا journal در یک شیء |
+| A very large object (gigabytes) | Slow recovery and scrub; the `osd_max_object_size` limit | Split into objects of a few megabytes (like the striper or RBD) |
+| A very large omap in one object | `LARGE_OMAP_OBJECTS`, deep-scrub latency | Shard the index over several objects (like the bucket index in RGW) |
+| One "hot" object | All load on one PG and one OSD | Spread the keys over several objects |
+| Frequent pool listing | Walks every PG; very slow | Keep your own index in an omap |
+| Assuming multi-object transactions | Inconsistency after a failure mid-way | Idempotent design or a journal in a single object |
 
 ::: {.tip}
-اندازه‌ی بیشینه‌ی شیء با `osd_max_object_size` محدود است. برای داده‌ی بزرگ از **libradosstriper** یا الگوی خودتان برای شکستن به اشیای ۴ مگابایتی استفاده کنید؛ RBD و CephFS دقیقاً همین کار را می‌کنند.
+The maximum object size is limited by `osd_max_object_size`. For large data, use **libradosstriper** or your own pattern for splitting into 4 MB objects; RBD and CephFS do exactly this.
 :::
 
-::: {.summary title="نکات SRE این فصل"}
+::: {.summary title="SRE notes for this chapter"}
 
-- برای هر برنامه کاربر cephx جدا با دسترسی به pool یا namespace خودش.
-- عملیات مرکب فقط روی یک شیء اتمی است.
-- برای هم‌زمانی از assert_version، cmpxattr یا قفل همراه blocklist استفاده کنید.
-- watch/notify برای اعلان است، نه انتقال قابل اتکای داده.
-- timeout کلاینت را برای برنامه‌های تعاملی تنظیم کنید.
-- اشیا و omapها را کوچک و توزیع‌شده نگه دارید.
+- A separate cephx user for each application, with access to its own pool or namespace.
+- Compound operations are atomic only on a single object.
+- For concurrency use assert_version, cmpxattr, or a lock together with blocklisting.
+- watch/notify is for notification, not for reliable data transfer.
+- Set the client timeout for interactive applications.
+- Keep objects and omaps small and distributed.
 
 :::
 
-# تکمیلی و به‌روز {#sec-14-12}
+# Supplementary and up to date {#sec-14-12}
 
-- **watch2/notify2** (C++) و `watch3` (C) نسخه‌های جدیدتر با مدیریت خطای بهتر هستند؛ نسخه‌های قدیمی watch در API باقی مانده‌اند.
-- در `librados.hpp` کد جاری، شکل نوع‌دار `exec(const ClsMethod<...>&, ...)` برای فراخوانی متدهای کلاس دیده می‌شود (علاوه بر شکل رشته‌ای قدیمی).
-- binding پایتون از `aio_*`، WriteOp/ReadOp، omap، watch و قفل پشتیبانی می‌کند.
-- **msgr2** با حالت secure ترافیک librados را رمزنگاری می‌کند (فصل ۸).
+- **watch2/notify2** (C++) and `watch3` (C) are newer versions with better error handling; the old watch versions remain in the API.
+- In the current code's `librados.hpp`, a typed form `exec(const ClsMethod<...>&, ...)` appears for calling class methods (in addition to the old string form).
+- The Python binding supports `aio_*`, WriteOp/ReadOp, omap, watch and locks.
+- **msgr2** in secure mode encrypts librados traffic (chapter 8).
 
-# تمرین عملی {#sec-14-13}
+# Hands-on exercise {#sec-14-13}
 
-1. برنامه‌ی پایتونی این فصل را اجرا کنید و با `rados -p devpool --namespace tenant-a ls` اشیا را ببینید.
-2. شمارنده‌ی اتمی را با ده فرایند هم‌زمان اجرا کنید و تأیید کنید مقدار نهایی درست است. سپس guard را حذف کنید و نتیجه را مقایسه کنید.
-3. یک watcher و یک notifier بنویسید؛ watcher را قطع و وصل کنید و ببینید چه زمانی پیام از دست می‌رود.
-4. با `rados_osd_op_timeout` رفتار برنامه را هنگام توقف OSDهای یک PG آزمایش کنید.
-5. ده هزار کلید omap در یک شیء بنویسید و زمان `rados listomapkeys` را اندازه بگیرید؛ سپس روی ده شیء shard کنید.
-6. در کد Objecter، جایی که `RECALC_OP_TARGET_POOL_DNE` مدیریت می‌شود را پیدا کنید و رفتار را توضیح دهید.
+1. Run this chapter's Python program and look at the objects with `rados -p devpool --namespace tenant-a ls`.
+2. Run the atomic counter with ten concurrent processes and confirm that the final value is correct. Then remove the guard and compare the result.
+3. Write a watcher and a notifier; disconnect and reconnect the watcher and see when a message is lost.
+4. With `rados_osd_op_timeout`, test the application's behaviour when the OSDs of one PG are stopped.
+5. Write ten thousand omap keys into one object and time `rados listomapkeys`; then shard over ten objects.
+6. In the Objecter code, find where `RECALC_OP_TARGET_POOL_DNE` is handled and explain the behaviour.
 
-# پرسش‌های مرور {#sec-14-14}
+# Review questions {#sec-14-14}
 
-1. سه بخش مستقل یک شیء RADOS کدام‌اند؟
-2. namespace چه فرقی با pool دارد و چه زمانی مفید است؟
-3. چرا omap در pool EC پشتیبانی نمی‌شود و چه پیامدی برای طراحی دارد؟
-4. عملیات مرکب چه تضمینی می‌دهد و چه تضمینی نمی‌دهد؟
-5. assert_version در چه حالت‌هایی ERANGE و EOVERFLOW برمی‌گرداند؟
-6. چرا قفل مشورتی به تنهایی برای ایمنی کافی نیست؟
-7. watch در Objecter چگونه پس از تغییر نقشه حفظ می‌شود؟
-8. چرا بازارسال Op پس از تغییر نقشه ایمن است؟
-9. چه زمانی باید rados_osd_op_timeout را تنظیم کرد؟
-10. برای ذخیره‌ی داده‌ی چندگیگابایتی روی RADOS چه الگویی مناسب است؟
+1. What are the three independent parts of a RADOS object?
+2. How does a namespace differ from a pool, and when is it useful?
+3. Why is the omap not supported in EC pools, and what does that imply for design?
+4. What does a compound operation guarantee, and what does it not guarantee?
+5. In which cases does assert_version return ERANGE and EOVERFLOW?
+6. Why is an advisory lock alone not enough for safety?
+7. How is a watch preserved in the Objecter after a map change?
+8. Why is resending an Op after a map change safe?
+9. When should rados_osd_op_timeout be set?
+10. What pattern is suitable for storing multi-gigabyte data on RADOS?
 
-# منابع این فصل {#sec-14-15}
+# Sources for this chapter {#sec-14-15}
 
 - librados introduction: https://docs.ceph.com/en/latest/rados/api/librados-intro/
 - librados C API: https://docs.ceph.com/en/latest/rados/api/librados/

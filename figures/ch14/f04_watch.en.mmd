@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant W1 as watcher 1
+  participant W2 as watcher 2
+  participant O as OSD (object config)
+  participant N as notifier
+  W1->>O: watch(config) and hold the linger
+  W2->>O: watch(config)
+  N->>O: notify(config, "reload", timeout)
+  O->>W1: notify event
+  O->>W2: notify event
+  W1-->>O: notify_ack(payload)
+  W2-->>O: notify_ack(payload)
+  O-->>N: aggregated reply of acks (or timeout)

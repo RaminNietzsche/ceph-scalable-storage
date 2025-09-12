@@ -1,0 +1,12 @@
+sequenceDiagram
+  participant C as Objecter (client)
+  participant O as OSD (primary)
+  C->>O: MOSDOp on PG 3.15 (epoch 812)
+  O->>O: PG peering or object unfound
+  O->>C: MOSDBackoff BLOCK [begin,end) id=7
+  C->>O: MOSDBackoff ACK_BLOCK
+  C->>C: hold the ops for this range in the session
+  O->>O: PG becomes active
+  O->>C: MOSDBackoff UNBLOCK id=7
+  C->>O: resend the held ops
+  O-->>C: MOSDOpReply

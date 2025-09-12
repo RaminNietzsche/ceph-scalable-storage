@@ -886,61 +886,55 @@ ch13/f08_ecrecover:
   min_size پیش‌فرض: default min_size
   k=2,m=1 → 2 (خطرناک): k=2,m=1 → 2 (dangerous)
 ch14/f01_stack:
-  برنامه‌ها و کتابخانه‌های بالادستی: null
-  برنامه‌ی شما: null
-  محاسبه‌ی هدف و ارسال: null
-  نقشه‌ها و احراز هویت: null
-  اتصال به: null
-  ها: null
-  اتصال مستقیم به: null
+  برنامه‌ها و کتابخانه‌های بالادستی: Upstream applications and libraries
+  برنامه‌ی شما<br/>C، C++، Python، Go، Rust: Your application<br/>C, C++, Python, Go, Rust
+  Objecter<br/>محاسبه‌ی هدف و ارسال: Objecter<br/>target computation and sending
+  MonClient<br/>نقشه‌ها و احراز هویت: MonClient<br/>maps and authentication
+  اتصال به MONها: Connection to the MONs
+  اتصال مستقیم به OSDها: Direct connection to the OSDs
 ch14/f02_calc:
-  وجود دارد؟: null
-  خیر: null
-  منتظر نقشه‌ی جدید: null
-  بله: null
-  هدف عوض شد؟: null
-  جدید: null
-  ارسال دوباره به: null
+  'Op: oid، oloc': 'Op: oid, oloc'
+  pool وجود دارد؟<br/>get_pg_pool: Does the pool exist?<br/>get_pg_pool
+  خیر: 'no'
+  POOL_DNE<br/>منتظر نقشه‌ی جدید: POOL_DNE<br/>wait for a new map
+  بله: 'yes'
+  هدف عوض شد؟<br/>(interval جدید): Did the target change?<br/>(new interval)
+  ارسال دوباره به primary جدید: Resend to the new primary
 ch14/f03_atomic:
-  کلاینت: null
-  موفق؛: null
-  نسخه عوض شده: null
-  دوباره: null
-  موفق: null
+  as کلاینت A: as client A
+  as کلاینت B: as client B
+  read(counter) → v=7، ver=41: read(counter) → v=7, ver=41
+  WriteOp{assert_version(41)، write_full(8)}: WriteOp{assert_version(41), write_full(8)}
+  موفق؛ ver=42: success, ver=42
+  -ERANGE (نسخه عوض شده): -ERANGE (version changed)
+  read دوباره → v=8، ver=42: read again → v=8, ver=42
+  WriteOp{assert_version(42)، write_full(9)}: WriteOp{assert_version(42), write_full(9)}
+  موفق: success
 ch14/f04_watch:
-  شیء: null
-  و نگه داشتن: null
-  پاسخ تجمیعی: null
-  ها: null
-  یا: null
+  as OSD (شیء config): as OSD (object config)
+  watch(config) و نگه داشتن linger: watch(config) and hold the linger
+  notify(config، "reload"، timeout): notify(config, "reload", timeout)
+  پاسخ تجمیعی ackها (یا timeout): aggregated reply of acks (or timeout)
 ch14/f05_compound:
-  ها: null
-  تغییرها: null
-  فراخوانی متد کلاس: null
-  یک تراکنش اتمی روی یک شیء: null
-  همه یا هیچ: null
+  guardها<br/>assert_exists، assert_version،<br/>cmpxattr، cmpext: guards<br/>assert_exists, assert_version,<br/>cmpxattr, cmpext
+  تغییرها<br/>write، write_full، append،<br/>setxattr، omap_set، remove: modifications<br/>write, write_full, append,<br/>setxattr, omap_set, remove
+  exec<br/>فراخوانی متد کلاس RADOS: exec<br/>call a RADOS class method
+  یک تراکنش اتمی روی یک شیء<br/>همه یا هیچ: one atomic transaction on one object<br/>all or nothing
 ch14/f06_mosdop:
-  یک: null
-  به ترتیب: null
-  شیء: null
-  ادامه: null
-  نام: null
-  ها در: null
-  همین: null
-  همه‌ی: null
-  ها: null
-  پشت سر هم: null
-  هم‌تراز: null
+  payload یک MOSDOp (HEAD_VERSION=9) به ترتیب encode: payload of an MOSDOp (HEAD_VERSION=9) in encode order
+  pgid (spg_t)<br/>hash شیء: pgid (spg_t)<br/>object hash
+  ادامه: continued
+  oid (نام): oid (name)
+  segmentها در msgr2: segments in msgr2
+  'front: همین payload': 'front: this payload'
+  'data: indata همه‌ی opها<br/>پشت سر هم (هم‌تراز 4K)': 'data: indata of all ops<br/>back to back (4K aligned)'
 ch14/f07_backoff:
-  کلاینت: null
-  روی: null
-  در: null
-  یا شیء: null
-  نگه‌داشتن: null
-  های این بازه در: null
-  فعال می‌شود: null
-  ارسال دوباره‌ی: null
-  های نگه‌داشته: null
+  as Objecter (کلاینت): as Objecter (client)
+  MOSDOp روی PG 3.15 (epoch 812): MOSDOp on PG 3.15 (epoch 812)
+  PG در peering یا شیء unfound: PG peering or object unfound
+  نگه‌داشتن opهای این بازه در session: hold the ops for this range in the session
+  PG فعال می‌شود: PG becomes active
+  ارسال دوباره‌ی opهای نگه‌داشته: resend the held ops
 ch15/f01_flow:
   کلاینت: null
   برنامه: null

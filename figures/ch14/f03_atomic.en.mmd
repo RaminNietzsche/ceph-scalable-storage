@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant A as client A
+  participant O as OSD primary
+  participant B as client B
+  A->>O: read(counter) → v=7, ver=41
+  B->>O: read(counter) → v=7, ver=41
+  A->>O: WriteOp{assert_version(41), write_full(8)}
+  O-->>A: success, ver=42
+  B->>O: WriteOp{assert_version(41), write_full(8)}
+  O-->>B: -ERANGE (version changed)
+  B->>O: read again → v=8, ver=42
+  B->>O: WriteOp{assert_version(42), write_full(9)}
+  O-->>B: success

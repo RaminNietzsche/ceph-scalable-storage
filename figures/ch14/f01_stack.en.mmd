@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph APPS["Upstream applications and libraries"]
+    direction LR
+    A1["librbd"] ~~~ A2["RGW"] ~~~ A3["libcephfs / MDS"] ~~~ A4["Your application<br/>C, C++, Python, Go, Rust"]
+  end
+  subgraph LR["librados"]
+    direction LR
+    L1["IoCtx<br/>pool + namespace"] ~~~ L2["Objecter<br/>target computation and sending"] ~~~ L3["MonClient<br/>maps and authentication"]
+  end
+  subgraph NET["messenger v2"]
+    direction LR
+    M1["Connection to the MONs"] ~~~ M2["Direct connection to the OSDs"]
+  end
+  APPS ~~~ LR ~~~ NET

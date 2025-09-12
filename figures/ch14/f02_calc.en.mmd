@@ -1,0 +1,8 @@
+flowchart LR
+  OP["Op: oid, oloc"] --> POOL{"Does the pool exist?<br/>get_pg_pool"}
+  POOL -->|"no"| DNE["POOL_DNE<br/>wait for a new map"]
+  POOL -->|"yes"| PG["object_locator_to_pg<br/>hash → raw pg"]
+  PG --> UA["pg_to_up_acting_osds<br/>CRUSH + pg_temp + upmap"]
+  UA --> CMP{"Did the target change?<br/>(new interval)"}
+  CMP -->|"yes"| RS["Resend to the new primary"]
+  CMP -->|"no"| SEND["_send_op"]

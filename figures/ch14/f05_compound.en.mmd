@@ -1,0 +1,7 @@
+flowchart TB
+  WO["ObjectWriteOperation"] --> G1["guards<br/>assert_exists, assert_version,<br/>cmpxattr, cmpext"]
+  WO --> M1["modifications<br/>write, write_full, append,<br/>setxattr, omap_set, remove"]
+  WO --> X1["exec<br/>call a RADOS class method"]
+  G1 --> T["one atomic transaction on one object<br/>all or nothing"]
+  M1 --> T
+  X1 --> T
