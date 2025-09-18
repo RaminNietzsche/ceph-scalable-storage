@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph C["1. Client"]
+    direction LR
+    APP["Application"] --> EX["ioctx.execute(oid,<br/>'numops', 'add', in)"] --> OBJR["Objecter: compute<br/>PG and primary"] --> OP["send MOSDOp with<br/>CEPH_OSD_OP_CALL"]
+  end
+  subgraph O["2. Primary OSD — PrimaryLogPG::do_osd_ops"]
+    direction LR
+    DEC["decode class name,<br/>method name, indata"] --> CH["ClassHandler::open_class<br/>(osd_class_load_list)"] --> GM["get_method<br/>missing: -EOPNOTSUPP"]
+  end
+  subgraph X["3. Execution and checks"]
+    direction LR
+    RUN["method->exec(hctx, in, out)<br/>cls_cxx_read / map_get_val"] --> CHK["compare num_read/num_write<br/>with the RD/WR flags, violation: -EIO"] --> TXN["changes in the same PG transaction<br/>and replication to replicas"]
+  end
+  C ~~~ O ~~~ X

@@ -1,0 +1,7 @@
+flowchart LR
+  RBD["librbd"] --> CR["cls_rbd: image header, snapshots,<br/>object map, mirroring"]
+  RGW["RGW"] --> CG["cls_rgw: bucket index and bilog"]
+  RGW --> CGC["cls_rgw_gc, cls_2pc_queue,<br/>cls_fifo: GC, queues and logs"]
+  FS["CephFS"] --> CF["cls_cephfs: recovery tools"]
+  ANY["all consumers"] --> CL["cls_lock: advisory locks"]
+  ANY --> CV["cls_version, cls_refcount,<br/>cls_log, cls_timeindex"]

@@ -936,80 +936,63 @@ ch14/f07_backoff:
   PG فعال می‌شود: PG becomes active
   ارسال دوباره‌ی opهای نگه‌داشته: resend the held ops
 ch15/f01_flow:
-  کلاینت: null
-  برنامه: null
-  محاسبه‌ی: null
-  و: null
-  ارسال: null
-  با: null
-  نام کلاس،: null
-  نام متد،: null
-  نبود: null
-  اجرا و کنترل: null
-  مقایسه‌ی: null
-  با پرچم: null
-  ؛ نقض: null
-  تغییرات در همان تراکنش: null
-  و تکثیر به: null
-  ها: null
+  ۱. کلاینت: 1. Client
+  برنامه: Application
+  'Objecter: محاسبه‌ی<br/>PG و primary': 'Objecter: compute<br/>PG and primary'
+  ارسال MOSDOp با<br/>CEPH_OSD_OP_CALL: send MOSDOp with<br/>CEPH_OSD_OP_CALL
+  ۲. OSD primary — PrimaryLogPG::do_osd_ops: 2. Primary OSD — PrimaryLogPG::do_osd_ops
+  decode نام کلاس،<br/>نام متد، indata: decode class name,<br/>method name, indata
+  'get_method<br/>نبود: -EOPNOTSUPP': 'get_method<br/>missing: -EOPNOTSUPP'
+  ۳. اجرا و کنترل: 3. Execution and checks
+  'مقایسه‌ی num_read/num_write<br/>با پرچم RD/WR؛ نقض: -EIO': 'compare num_read/num_write<br/>with the RD/WR flags, violation: -EIO'
+  تغییرات در همان تراکنش PG<br/>و تکثیر به replicaها: changes in the same PG transaction<br/>and replication to replicas
 ch15/f02_load:
-  بارگذاری کلاس: null
-  نخستین: null
-  به کلاس: null
-  در: null
-  ؟: null
-  خیر: null
-  رد: null
-  بله: null
-  از: null
-  اجرای: null
-  ثبت متدها و مجوز: null
-  نام، پرچم: null
-  ، تابع: null
-  برای: null
-  عمومی مجاز: null
-  فقط با: null
-  صریح: null
+  بارگذاری کلاس: Loading the class
+  نخستین CALL به کلاس X: first CALL to class X
+  X در osd_class_load_list؟: X in osd_class_load_list?
+  خیر: 'no'
+  'رد: not permitted to load': 'rejected: not permitted to load'
+  بله: 'yes'
+  dlopen از osd_class_dir<br/>libcls_X.so: dlopen from osd_class_dir<br/>libcls_X.so
+  اجرای __cls_init<br/>(CLS_INIT): run __cls_init<br/>(CLS_INIT)
+  ثبت متدها و مجوز: Method registration and permission
+  cls_register + register_cxx_method<br/>نام، پرچم RD/WR/PROMOTE، تابع: cls_register + register_cxx_method<br/>name, RD/WR/PROMOTE flags, function
+  X در osd_class_default_list؟: X in osd_class_default_list?
+  'allowed: برای caps عمومی مجاز': 'allowed: permitted for generic caps'
+  فقط با cap صریح class X: only with an explicit class X cap
 ch15/f03_rmw:
-  کلاینت ۱: null
-  کلاینت ۲: null
-  روش سمت کلاینت: null
-  بدون کلاس: null
-  دو رفت‌وبرگشت و خطر رقابت: null
-  به‌روزرسانی گم شد: null
-  روش کلاس: null
-  یک رفت‌وبرگشت، اجرای سریال در: null
-  زیر قفل: null
+  as کلاینت ۱: as client 1
+  as کلاینت ۲: as client 2
+  'روش سمت کلاینت (بدون کلاس): دو رفت‌وبرگشت و خطر رقابت': 'client-side method (no class): two round trips and a race risk'
+  write 11  (به‌روزرسانی گم شد): write 11  (update lost)
+  'روش کلاس: یک رفت‌وبرگشت، اجرای سریال در PG': 'class method: one round trip, serial execution in the PG'
+  get_val → 11 → set_val 12 (زیر قفل PG): get_val → 11 → set_val 12 (under the PG lock)
 ch15/f04_users:
-  سرآیند تصویر،: null
-  ها،: null
-  شاخص: null
-  و: null
-  ، صف و: null
-  ابزار بازیابی: null
-  همه‌ی مصرف‌کنندگان: null
-  قفل مشورتی: null
+  'cls_rbd: سرآیند تصویر، snapshotها،<br/>object map، mirroring': 'cls_rbd: image header, snapshots,<br/>object map, mirroring'
+  'cls_rgw: شاخص bucket و bilog': 'cls_rgw: bucket index and bilog'
+  'cls_rgw_gc، cls_2pc_queue،<br/>cls_fifo: GC، صف و log': 'cls_rgw_gc, cls_2pc_queue,<br/>cls_fifo: GC, queues and logs'
+  'cls_cephfs: ابزار بازیابی': 'cls_cephfs: recovery tools'
+  همه‌ی مصرف‌کنندگان: all consumers
+  'cls_lock: قفل مشورتی': 'cls_lock: advisory locks'
+  cls_version، cls_refcount،<br/>cls_log، cls_timeindex: cls_version, cls_refcount,<br/>cls_log, cls_timeindex
 ch15/f05_callcheck:
-  پیش از اجرا: null
-  هنگام رسیدن: null
-  نه در: null
-  باز شد: null
-  نیست: null
-  پرچم‌ها و مجوز: null
-  در: null
-  همچنین: null
-  در کش: null
-  بررسی: null
-  اجرا: null
-  ثبت: null
-  و: null
-  پیش از: null
-  خواند بی: null
-  یا نوشت بی: null
-  ؟: null
-  بله: null
-  خیر: null
-  به پاسخ: null
+  'پیش از اجرا: OpInfo::set_from_op هنگام رسیدن MOSDOp': 'Before execution: OpInfo::set_from_op when the MOSDOp arrives'
+  CEPH_OSD_OP_CALL<br/>cname، mname: CEPH_OSD_OP_CALL<br/>cname, mname
+  نه در load_list: not in load_list
+  باز شد: opened
+  نیست: missing
+  پرچم‌ها و مجوز: Flags and permission
+  RD ⇒ CLASS_READ<br/>(در EC همچنین CLASS_READ_DATA): RD ⇒ CLASS_READ<br/>(in EC also CLASS_READ_DATA)
+  PROMOTE ⇒ promote در کش: PROMOTE ⇒ promote in the cache
+  add_class(name، rd، wr، allowed)<br/>⇒ بررسی OSDCap: add_class(name, rd, wr, allowed)<br/>⇒ OSDCap check
+  'اجرا: PrimaryLogPG::do_osd_ops': 'Execution: PrimaryLogPG::do_osd_ops'
+  ثبت num_read و num_write<br/>پیش از exec: record num_read and num_write<br/>before exec
+  method->exec(ctx، in، out): method->exec(ctx, in, out)
+  خواند بی RD یا نوشت بی WR؟: read without RD or wrote without WR?
+  بله: 'yes'
+  EIO و derr: EIO and derr
+  خیر: 'no'
+  outdata به پاسخ: outdata into the reply
 ch16/f01_tier:
   مسیر کلاینت با: null
   کلاینت: null

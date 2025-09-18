@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["Loading the class"]
+    direction LR
+    A["first CALL to class X"] --> B{"X in osd_class_load_list?"}
+    B -- no --> B2["rejected: not permitted to load"]
+    B -- yes --> C["dlopen from osd_class_dir<br/>libcls_X.so"]
+    C --> D["run __cls_init<br/>(CLS_INIT)"]
+  end
+  subgraph R2["Method registration and permission"]
+    direction LR
+    E["cls_register + register_cxx_method<br/>name, RD/WR/PROMOTE flags, function"] --> F{"X in osd_class_default_list?"}
+    F -- yes --> G["allowed: permitted for generic caps"]
+    F -- no --> H["only with an explicit class X cap"]
+  end
+  R1 ~~~ R2

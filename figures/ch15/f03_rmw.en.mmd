@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant C1 as client 1
+  participant C2 as client 2
+  participant P as OSD primary (PG)
+  Note over C1,P: client-side method (no class): two round trips and a race risk
+  C1->>P: read counter (v=10)
+  C2->>P: read counter (v=10)
+  C1->>P: write 11
+  C2->>P: write 11  (update lost)
+  Note over C1,P: class method: one round trip, serial execution in the PG
+  C1->>P: CALL numops.add(key, 1)
+  P->>P: get_val → 11 → set_val 12 (under the PG lock)
+  C2->>P: CALL numops.add(key, 1)
+  P->>P: get_val → 12 → set_val 13
+  P-->>C1: 0
+  P-->>C2: 0

@@ -1,0 +1,21 @@
+flowchart TB
+  subgraph P["Before execution: OpInfo::set_from_op when the MOSDOp arrives"]
+    direction LR
+    p1["CEPH_OSD_OP_CALL<br/>cname, mname"] --> p2{"open_class(cname)"}
+    p2 -- "ENOENT" --> p3["EOPNOTSUPP"]
+    p2 -- "not in load_list" --> p4["EPERM"]
+    p2 -- "opened" --> p5{"get_method_flags(mname)"}
+    p5 -- "missing" --> p3
+  end
+  subgraph F["Flags and permission"]
+    direction LR
+    f1["RD ⇒ CLASS_READ<br/>(in EC also CLASS_READ_DATA)"] --> f2["WR ⇒ CLASS_WRITE"] --> f3["PROMOTE ⇒ promote in the cache"] --> f4["add_class(name, rd, wr, allowed)<br/>⇒ OSDCap check"]
+  end
+  subgraph E["Execution: PrimaryLogPG::do_osd_ops"]
+    direction LR
+    e1["WR ⇒ user_modify = true"] --> e2["record num_read and num_write<br/>before exec"] --> e3["method->exec(ctx, in, out)"] --> e4{"read without RD or wrote without WR?"}
+    e4 -- "yes" --> e5["EIO and derr"]
+    e4 -- "no" --> e6["outdata into the reply"]
+  end
+  P ~~~ F
+  F ~~~ E
