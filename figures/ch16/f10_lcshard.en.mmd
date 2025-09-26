@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph K["Registering a rule: PutBucketLifecycle"]
+    direction LR
+    k1["key = tenant:bucket:marker<br/>(get_bucket_lc_key)"] --> k2["ceph_str_hash_linux(key)<br/>% 7877 % rgw_lc_max_objs"] --> k3["object lc.N in the log pool<br/>(N between 0 and 31)"] --> k4["bucket entry with state<br/>UNINITIAL in lc.N"]
+  end
+  subgraph W["Execution: RGWLC::process in the rgw_lifecycle_work_time window"]
+    direction LR
+    w1["each LCWorker (rgw_lc_max_worker=3)<br/>visits the shards in random order"] --> w2["lock object lc.N<br/>(rgw_lc_lock_max_time=90 s)"] --> w3["next entry: PROCESSING<br/>and record the start time"] --> w4["bucket_lc_process<br/>with rgw_lc_max_wp_worker=128 coroutines"]
+  end
+  subgraph O["For each object version"]
+    direction LR
+    o1["obj_has_expired(mtime, days)"] --> o2["Expiration ⇒ delete or a delete marker"] --> o3["Transition ⇒ copy to the target class's pool<br/>and update the manifest"] --> o4["end: COMPLETE"]
+  end
+  K --> W --> O

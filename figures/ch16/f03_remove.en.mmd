@@ -1,0 +1,4 @@
+flowchart LR
+  A["cache-mode proxy<br/>stop new promotions"] --> B["rados -p hot-storage<br/>cache-flush-evict-all"] --> C{"rados -p hot-storage ls<br/>empty?"}
+  C -- no --> B
+  C -- yes --> D["tier remove-overlay<br/>cold-storage"] --> E["tier remove<br/>cold-storage hot-storage"] --> F["delete or reuse<br/>the cache pool"]

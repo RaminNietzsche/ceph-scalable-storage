@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Scheduling"]
+    direction LR
+    A["rgw_lifecycle_work_time<br/>00:00-06:00"] --> B["lc shards<br/>rgw_lc_max_objs=32"] --> C["lock per shard<br/>(rgw_lc_lock_max_time=90s)"]
+  end
+  subgraph R2["Processing"]
+    direction LR
+    D["rgw_lc_max_worker=3<br/>LCWorker"] --> E["each worker:<br/>128 coroutines (wp)"] --> F["walk the bucket index<br/>(ordered or unordered)"] --> G["expire / transition /<br/>abort multipart"]
+  end
+  subgraph R3["Tools"]
+    direction LR
+    H["radosgw-admin lc list"] --> I["lc get --bucket"] --> J["lc process --bucket"]
+  end
+  R1 ~~~ R2 ~~~ R3

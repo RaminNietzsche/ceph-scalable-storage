@@ -994,101 +994,72 @@ ch15/f05_callcheck:
   خیر: 'no'
   outdata به پاسخ: outdata into the reply
 ch16/f01_tier:
-  مسیر کلاینت با: null
-  کلاینت: null
-  پایه: null
-  کش: null
-  ، تکثیری: null
-  درون: null
-  شیء در کش هست؟: null
-  بررسی: null
-  کپی از: null
-  عامل کش: null
-  نوشتن شیء: null
-  در: null
-  حذف شیء: null
-  سرد: null
+  ۱. مسیر کلاینت با overlay: 1. Client path with the overlay
+  کلاینت (Objecter): Client (Objecter)
+  'pool پایه: cold-storage<br/>read_tier/write_tier = hot-storage': 'base pool: cold-storage<br/>read_tier/write_tier = hot-storage'
+  'pool کش: hot-storage<br/>(SSD، تکثیری)': 'cache pool: hot-storage<br/>(SSD, replicated)'
+  ۲. درون OSD کش (PrimaryLogPG): 2. Inside the cache OSD (PrimaryLogPG)
+  maybe_handle_cache_detail<br/>شیء در کش هست؟: maybe_handle_cache_detail<br/>is the object in the cache?
+  HitSet (bloom)<br/>بررسی recency: HitSet (bloom)<br/>recency check
+  promote_object<br/>کپی از pool پایه: promote_object<br/>copy from the base pool
+  ۳. عامل کش (Tier Agent): 3. The tier agent
+  agent_maybe_flush<br/>نوشتن شیء dirty در pool پایه: agent_maybe_flush<br/>write dirty objects to the base pool
+  agent_maybe_evict<br/>حذف شیء clean سرد: agent_maybe_evict<br/>remove cold clean objects
 ch16/f02_modes:
-  حالت‌های: null
-  متناسب با فاصله: null
-  هدف: null
-  هر شیء: null
-  هیسترزیس: null
-  ورود: null
-  ، خروج: null
+  حالت‌های flush (TierAgentState::flush_mode_t): flush modes (TierAgentState::flush_mode_t)
+  حالت‌های evict (TierAgentState::evict_mode_t): evict modes (TierAgentState::evict_mode_t)
+  SOME<br/>full > cache_target_full_ratio<br/>effort متناسب با فاصله: SOME<br/>full > cache_target_full_ratio<br/>effort proportional to the gap
+  FULL<br/>full > 100% هدف<br/>evict هر شیء clean: FULL<br/>full > 100% of target<br/>evict every clean object
+  هیسترزیس: Hysteresis
+  'osd_agent_slop = 0.02<br/>ورود: هدف + slop، خروج: هدف − slop': 'osd_agent_slop = 0.02<br/>entry: target + slop, exit: target − slop'
 ch16/f03_remove:
-  توقف: null
-  جدید: null
-  خالی است؟: null
-  خیر: null
-  بله: null
-  حذف یا بازاستفاده‌ی: null
-  کش: null
+  cache-mode proxy<br/>توقف promote جدید: cache-mode proxy<br/>stop new promotions
+  rados -p hot-storage ls<br/>خالی است؟: rados -p hot-storage ls<br/>empty?
+  خیر: 'no'
+  بله: 'yes'
+  حذف یا بازاستفاده‌ی<br/>pool کش: delete or reuse<br/>the cache pool
 ch16/f04_alt:
-  لایه‌بندی در سطح: null
-  با: null
-  ها: null
-  قانون‌های: null
-  جدا: null
-  سریع روی: null
-  ظرفیتی: null
-  روی: null
-  لایه‌بندی درون: null
-  داده روی: null
-  و نوشتن‌های: null
-  لایه‌بندی شیء در: null
-  سریع: null
-  قانون: null
-  پس از: null
-  روز: null
-  یا: null
+  لایه‌بندی در سطح pool با device class: Pool-level tiering with device classes
+  'OSDها: class hdd / ssd / nvme': 'OSDs: class hdd / ssd / nvme'
+  قانون‌های CRUSH جدا<br/>create-replicated ... class: separate CRUSH rules<br/>create-replicated ... class
+  pool سریع روی nvme<br/>pool ظرفیتی EC روی hdd: fast pool on nvme<br/>EC capacity pool on hdd
+  لایه‌بندی درون OSD: Tiering inside the OSD
+  داده روی HDD: data on HDD
+  block.db / WAL روی NVMe<br/>(RocksDB و نوشتن‌های deferred): block.db / WAL on NVMe<br/>(RocksDB and deferred writes)
+  لایه‌بندی شیء در RGW: Object tiering in RGW
+  'STANDARD: pool سریع': 'STANDARD: fast pool'
+  قانون lifecycle<br/>Transition پس از N روز: lifecycle rule<br/>Transition after N days
+  'STANDARD_IA / COLD: pool ظرفیتی<br/>یا cloud transition': 'STANDARD_IA / COLD: capacity pool<br/>or cloud transition'
 ch16/f05_rgwlayout:
-  شیء: null
-  بزرگ: null
-  در: null
-  پیش‌فرض: null
-  اول: null
-  پس از: null
-  به: null
-  فقط فراداده،: null
-  جدید: null
-  ها در: null
-  مربوط به: null
-  مثلاً: null
-  روی: null
-  داده‌ی قدیمی: null
+  شیء S3 بزرگ (10M) در storage class پیش‌فرض: A large S3 object (10M) in the default storage class
+  'HEAD rados object<br/>xattr: manifest، acl، etag<br/>+ 4M اول (inline)': 'HEAD rados object<br/>xattr: manifest, acl, etag<br/>+ first 4M (inline)'
+  پس از transition به COLD: After the transition to COLD
+  HEAD در pool پیش‌فرض<br/>(فقط فراداده، manifest جدید): HEAD in the default pool<br/>(metadata only, new manifest)
+  tailها در data_pool<br/>مربوط به COLD (مثلاً EC روی HDD): tails in the data_pool<br/>of COLD (e.g. EC on HDD)
+  داده‌ی قدیمی → GC: old data → GC
 ch16/f06_lc:
-  زمان‌بندی: null
-  قفل هر: null
-  پردازش: null
-  هر: null
-  پیمایش: null
-  یا: null
-  ابزار: null
+  زمان‌بندی: Scheduling
+  قفل هر shard<br/>(rgw_lc_lock_max_time=90s): lock per shard<br/>(rgw_lc_lock_max_time=90s)
+  پردازش: Processing
+  هر worker:<br/>128 coroutine (wp): each worker:<br/>128 coroutines (wp)
+  پیمایش bucket index<br/>(ordered یا unordered): walk the bucket index<br/>(ordered or unordered)
+  ابزار: Tools
 ch16/f10_lcshard:
-  ثبت قانون: null
-  کلید: null
-  شیء: null
-  در: null
-  لاگ: null
-  بین: null
-  و: null
-  ورودی: null
-  با وضعیت: null
-  اجرا: null
-  در پنجره‌ی: null
-  هر: null
-  ها را به ترتیب تصادفی می‌گردد: null
-  قفل شیء: null
-  ورودی بعدی: null
-  و ثبت: null
-  با: null
-  برای هر نسخه‌ی شیء: null
-  حذف یا: null
-  کپی به: null
-  کلاس هدف: null
-  و به‌روزرسانی: null
-  پایان: null
+  'ثبت قانون: PutBucketLifecycle': 'Registering a rule: PutBucketLifecycle'
+  کلید = tenant:bucket:marker<br/>(get_bucket_lc_key): key = tenant:bucket:marker<br/>(get_bucket_lc_key)
+  ceph_str_hash_linux(کلید)<br/>% 7877 % rgw_lc_max_objs: ceph_str_hash_linux(key)<br/>% 7877 % rgw_lc_max_objs
+  شیء lc.N در pool لاگ<br/>(N بین 0 و 31): object lc.N in the log pool<br/>(N between 0 and 31)
+  ورودی bucket با وضعیت<br/>UNINITIAL در lc.N: bucket entry with state<br/>UNINITIAL in lc.N
+  'اجرا: RGWLC::process در پنجره‌ی rgw_lifecycle_work_time': 'Execution: RGWLC::process in the rgw_lifecycle_work_time window'
+  هر LCWorker (rgw_lc_max_worker=3)<br/>shardها را به ترتیب تصادفی می‌گردد: each LCWorker (rgw_lc_max_worker=3)<br/>visits the shards in random order
+  قفل شیء lc.N<br/>(rgw_lc_lock_max_time=90 s): lock object lc.N<br/>(rgw_lc_lock_max_time=90 s)
+  'ورودی بعدی: PROCESSING<br/>و ثبت start time': 'next entry: PROCESSING<br/>and record the start time'
+  bucket_lc_process<br/>با rgw_lc_max_wp_worker=128 coroutine: bucket_lc_process<br/>with rgw_lc_max_wp_worker=128 coroutines
+  برای هر نسخه‌ی شیء: For each object version
+  obj_has_expired(mtime، days): obj_has_expired(mtime, days)
+  Expiration ⇒ حذف یا delete marker: Expiration ⇒ delete or a delete marker
+  Transition ⇒ کپی به pool کلاس هدف<br/>و به‌روزرسانی manifest: Transition ⇒ copy to the target class's pool<br/>and update the manifest
+  'پایان: COMPLETE': 'end: COMPLETE'
 ch17/f01_method:
   کدام لایه؟: null
   کارایی: null

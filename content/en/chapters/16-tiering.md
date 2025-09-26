@@ -5,30 +5,29 @@ title: 'Storage Tiering: From Cache Tiering to Device Classes and Storage Classe
 part: main
 original_heading: Tiering with Ceph
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-16-1}
+# Before you start {#sec-16-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-16-1-1}
+## What questions does this chapter answer? {#sec-16-1-1}
 
-هر کلاستر بزرگی دیر یا زود با این پرسش روبه‌رو می‌شود: چطور داده‌ی داغ را روی رسانه‌ی سریع و گران و داده‌ی سرد را روی رسانه‌ی ارزان و پرظرفیت نگه داریم؟ Ceph سال‌ها پاسخ «رسمی» به این پرسش داشت: **Cache Tiering**. امروز وضعیت متفاوت است. مستندات رسمی صریحاً می‌گوید cache tiering در Reef منسوخ (deprecated) شده، مدت‌هاست نگه‌دارنده ندارد و ممکن است در نسخه‌ای آینده بدون اطلاع قبلی حذف شود؛ نباید cache tier جدید ساخت و استقرارهای موجود باید هرچه زودتر مهاجرت کنند. این فصل هر دو روی سکه را پوشش می‌دهد:
+Every large cluster sooner or later faces this question: how do we keep hot data on fast, expensive media and cold data on cheap, high-capacity media? For years Ceph had an "official" answer to this question: **Cache Tiering**. Today the situation is different. The official documentation states explicitly that cache tiering was deprecated in Reef, has long had no maintainer, and may be removed in a future release without notice; no new cache tiers should be built, and existing deployments should migrate as soon as possible. This chapter covers both sides of the coin:
 
-- cache tiering چگونه کار می‌کرد و چرا برای بیشتر بارها کارایی را **کاهش** می‌داد؟
-- عامل کش (tier agent) درون OSD با چه الگوریتمی flush و evict می‌کرد؟
-- اگر هنوز cache tier دارید، چگونه آن را **بی‌خطر حذف** کنید؟
-- جایگزین‌های امروزی کدام‌اند: device class و قانون‌های CRUSH، block.db روی NVMe، storage class و lifecycle در RGW؟
+- How did cache tiering work, and why did it **reduce** performance for most workloads?
+- With what algorithm did the tier agent inside the OSD flush and evict?
+- If you still have a cache tier, how do you **remove it safely**?
+- What are today's alternatives: device classes and CRUSH rules, block.db on NVMe, and storage classes and lifecycle in RGW?
 
-# Cache Tiering: معماری {#sec-16-2}
+# Cache Tiering: architecture {#sec-16-2}
 
-## overlay و pool کش {#sec-16-2-1}
+## The overlay and the cache pool {#sec-16-2-1}
 
-در cache tiering، یک pool سریع (کش) جلوی یک pool پایه (backing) قرار می‌گیرد. با `set-overlay`، OSDMap برای pool پایه فیلدهای `read_tier` و `write_tier` را به pool کش اشاره می‌دهد. Objecter کلاینت این فیلدها را می‌بیند و درخواست‌ها را به‌طور شفاف به pool کش می‌فرستد؛ کلاینت لازم نیست چیزی درباره‌ی کش بداند.
+In cache tiering, a fast pool (the cache) sits in front of a base (backing) pool. With `set-overlay`, the OSDMap points the base pool's `read_tier` and `write_tier` fields at the cache pool. The client's Objecter sees these fields and transparently sends requests to the cache pool; the client does not need to know anything about the cache.
 
-![معماری cache tiering در سه ردیف: کلاینت درخواست pool پایه را به دلیل overlay به pool کش می‌فرستد؛ OSD کش در maybe_handle_cache_detail بررسی می‌کند شیء موجود است یا با توجه به HitSet باید promote شود؛ عامل کش در پس‌زمینه اشیای dirty را flush و اشیای clean سرد را evict می‌کند](figures/ch16/f01_tier.png){#fig-16-f01_tier}
+![Cache tiering architecture in three rows: because of the overlay, the client sends requests for the base pool to the cache pool; the cache OSD checks in maybe_handle_cache_detail whether the object is present or should be promoted according to the HitSet; in the background the tier agent flushes dirty objects and evicts cold clean objects](figures/ch16/f01_tier.png){#fig-16-f01_tier}
 
 ```bash
-# فقط برای درک یا آزمایشگاه؛ در کلاستر تولیدی cache tier جدید نسازید
+# only for understanding or a lab; do not build a new cache tier in a production cluster
 ceph osd tier add cold-storage hot-storage
 ceph osd tier cache-mode hot-storage writeback
 ceph osd tier set-overlay cold-storage hot-storage
@@ -38,289 +37,289 @@ ceph osd pool set hot-storage hit_set_period 14400
 ceph osd pool set hot-storage target_max_bytes 1099511627776
 ```
 
-| حالت کش | رفتار |
+| Cache mode | Behaviour |
 |---|---|
-| writeback | نوشتن در کش و ack فوری؛ عامل بعداً flush می‌کند؛ خواندن‌ها promote می‌شوند |
-| readproxy | اشیای موجود در کش استفاده می‌شوند؛ اشیای غایب بدون promote از پایه proxy می‌شوند |
-| readonly | promote فقط روی خواندن؛ نوشتن مستقیم به پایه؛ داده‌ی کش ممکن است کهنه باشد |
-| proxy | همه‌ی عملیات به پایه proxy می‌شود؛ برای تخلیه‌ی کش writeback |
-| none | کش کاملاً غیرفعال |
+| writeback | Writes go to the cache and are acked immediately; the agent flushes later; reads are promoted |
+| readproxy | Objects in the cache are used; missing objects are proxied from the base without promotion |
+| readonly | Promotion only on reads; writes go straight to the base; cached data may be stale |
+| proxy | All operations are proxied to the base; used for draining a writeback cache |
+| none | The cache is completely disabled |
 
 ::: {.warn}
-حالت **readonly** سازگاری را تضمین نمی‌کند: پس از نوشتن در pool پایه، نسخه‌ی قدیمی در کش ممکن است همچنان خوانده شود. فقط برای داده‌ی تغییرناپذیر مناسب بود.
+**readonly** mode does not guarantee consistency: after a write to the base pool, the old version in the cache may still be read. It was only suitable for immutable data.
 :::
 
-## HitSet: کدام شیء داغ است؟ {#sec-16-2-2}
+## HitSet: which object is hot? {#sec-16-2-2}
 
-OSD کش برای تصمیم promote باید بداند شیء اخیراً دسترسی داشته یا نه. هر PG در هر بازه‌ی `hit_set_period` ثانیه یک **HitSet** می‌سازد: مجموعه‌ای از اشیایی که در آن بازه دسترسی داشته‌اند. نوع پیشنهادی `bloom` است (`src/osd/BloomHitSet.h`): فیلتر Bloom با حافظه‌ی کم و احتمال خطای مثبت کنترل‌شده. انواع دیگر `explicit_hash` و `explicit_object` حافظه‌ی بیشتری مصرف می‌کنند. `hit_set_count` تعداد HitSetهای نگه‌داشته‌شده و `min_read_recency_for_promote` تعداد HitSetهای اخیری است که شیء باید در آن‌ها دیده شده باشد تا روی خواندن promote شود؛ مقدار ۰ یعنی همیشه promote.
+To decide on promotion, the cache OSD must know whether an object has been accessed recently. Every `hit_set_period` seconds, each PG builds a **HitSet**: the set of objects accessed in that interval. The recommended type is `bloom` (`src/osd/BloomHitSet.h`): a Bloom filter with low memory use and a controlled false-positive probability. The other types, `explicit_hash` and `explicit_object`, use more memory. `hit_set_count` is the number of HitSets kept, and `min_read_recency_for_promote` is the number of recent HitSets in which an object must have been seen to be promoted on a read; a value of 0 means always promote.
 
 ```text
-pseudocode: تصمیم promote (خلاصه‌ی این کتاب از maybe_handle_cache_detail)
+pseudocode: the promotion decision (this book's summary of maybe_handle_cache_detail)
   if object in cache pool:            serve locally
   elif mode == writeback/readproxy:
       recent = count(h in last min_read_recency HitSets if obj in h)
-      if recent >= min_read_recency_for_promote:  promote_object(obj)  # کپی از پایه
-      else:                                        proxy_read(obj)     # خواندن مستقیم از پایه
+      if recent >= min_read_recency_for_promote:  promote_object(obj)  # copy from the base
+      else:                                        proxy_read(obj)     # read directly from the base
 ```
 
 ::: {.deep}
-HitSetها خودشان به صورت اشیای مخفی در همان PG کش ذخیره می‌شوند (`hit_set_persist()` در `PrimaryLogPG.cc`) و با `hit_set_trim()` کوتاه می‌شوند. این یعنی کش برای ردیابی داغی هم I/O اضافه دارد. هر promote هم یک خواندن از pool پایه و یک نوشتن در کش است؛ اگر الگوی دسترسی پراکنده باشد (بیشتر بارهای RBD)، کش دائماً در حال promote و evict است و کارایی از pool بدون کش هم بدتر می‌شود. مستندات رسمی همین را صریحاً می‌گوید: cache tiering برای بیشتر بارها کارایی را کاهش می‌دهد و فقط وقتی مؤثر است که دسترسی‌ها به مجموعه‌ی کوچکی از اشیا متمرکز باشد (مثلاً RGW با خواندن عمدتاً اشیای تازه‌نوشته).
+HitSets themselves are stored as hidden objects in the same cache PG (`hit_set_persist()` in `PrimaryLogPG.cc`) and trimmed with `hit_set_trim()`. This means the cache has extra I/O just for tracking hotness. Each promotion is also a read from the base pool plus a write to the cache; if the access pattern is scattered (most RBD workloads), the cache is constantly promoting and evicting, and performance becomes worse than a pool with no cache at all. The official documentation says exactly this: cache tiering reduces performance for most workloads and is only effective when accesses concentrate on a small set of objects (for example RGW reading mostly freshly written objects).
 :::
 
-# از درون کد: عامل کش {#sec-16-3}
+# Inside the code: the tier agent {#sec-16-3}
 
-## agent_choose_mode: سنجش پری و کثیفی {#sec-16-3-1}
+## agent_choose_mode: measuring fullness and dirtiness {#sec-16-3-1}
 
-عامل کش در هر PG کش با `agent_setup()` فعال می‌شود و OSD در یک thread جدا، `agent_work()` را روی PGهای فعال اجرا می‌کند (حداکثر عملیات هم‌زمان با `osd_agent_max_ops` کنترل می‌شود که در کد جاری پیش‌فرضش ۴ است). تصمیم اصلی در `PrimaryLogPG::agent_choose_mode()` گرفته می‌شود. نکته‌ی جالب این است که اهداف **کل pool** (مثلاً `target_max_bytes`) با یک «مقسوم‌علیه» به سهم هر PG تبدیل می‌شوند: `pg_pool_t::get_pg_num_divisor()` تعداد PGها را با در نظر گرفتن تقسیم ناتمام (وقتی pg_num توان ۲ نیست) برمی‌گرداند. همه‌ی نسبت‌ها با واحد **میکرو** (یک‌میلیونیم) و عدد صحیح محاسبه می‌شوند تا از ممیز شناور پرهیز شود.
+The tier agent is enabled in each cache PG with `agent_setup()`, and the OSD runs `agent_work()` on the active PGs in a separate thread (the maximum concurrent operations are controlled by `osd_agent_max_ops`, whose default in current code is 4). The main decision is made in `PrimaryLogPG::agent_choose_mode()`. The interesting point is that the **whole-pool** targets (for example `target_max_bytes`) are turned into each PG's share with a "divisor": `pg_pool_t::get_pg_num_divisor()` returns the number of PGs, accounting for an unfinished split (when pg_num is not a power of 2). All ratios are computed in **micro** units (millionths) with integers to avoid floating point.
 
 ```text
-pseudocode: agent_choose_mode (بازنویسی این کتاب از PrimaryLogPG.cc)
-  divisor   = pool.get_pg_num_divisor(pgid)         # سهم این PG از هدف pool
+pseudocode: agent_choose_mode (this book's rewrite from PrimaryLogPG.cc)
+  divisor   = pool.get_pg_num_divisor(pgid)         # this PG's share of the pool target
   avg_size  = user_bytes / user_objects
   dirty_µ   = dirty_objs * avg_size * 1e6 / (target_max_bytes / divisor)
   full_µ    = user_objs  * avg_size * 1e6 / (target_max_bytes / divisor)
-  if target_max_objects:                            # هر کدام بزرگ‌تر باشد
+  if target_max_objects:                            # whichever is larger
       dirty_µ = max(dirty_µ, dirty_objs * 1e6 / (target_max_objects / divisor))
       full_µ  = max(full_µ,  user_objs  * 1e6 / (target_max_objects / divisor))
 
-  slop = target * osd_agent_slop                    # هیسترزیس (پیش‌فرض 0.02)
+  slop = target * osd_agent_slop                    # hysteresis (default 0.02)
   target' = target + slop  if currently IDLE  else target - slop
 
   flush_mode = HIGH if dirty_µ > dirty_high' else LOW if dirty_µ > dirty' else IDLE
-  if   full_µ > 1e6:        evict_mode = FULL; effort = 1e6     # هر شیء clean را بیرون کن
+  if   full_µ > 1e6:        evict_mode = FULL; effort = 1e6     # evict every clean object
   elif full_µ > full':      evict_mode = SOME
       effort = max((full_µ - full') * 1e6 / (1e6 - full'), osd_agent_min_evict_effort)
-      effort = quantize(effort, osd_agent_quantize_effort)   # کاهش جابه‌جایی در صف عامل
+      effort = quantize(effort, osd_agent_quantize_effort)   # less reshuffling in the agent queue
   else:                     evict_mode = IDLE
 ```
 
-![ماشین حالت عامل کش: سه حالت flush (IDLE، LOW، HIGH) بر اساس نسبت اشیای dirty به هدف و سه حالت evict (IDLE، SOME، FULL) بر اساس پری؛ هیسترزیس با osd_agent_slop از نوسان سریع بین حالت‌ها جلوگیری می‌کند چون آستانه‌ی ورود کمی بالاتر و آستانه‌ی خروج کمی پایین‌تر از هدف است](figures/ch16/f02_modes.png){#fig-16-f02_modes}
+![The tier agent's state machine: three flush modes (IDLE, LOW, HIGH) based on the ratio of dirty objects to the target, and three evict modes (IDLE, SOME, FULL) based on fullness; hysteresis with osd_agent_slop prevents rapid oscillation between modes, because the entry threshold is slightly above the target and the exit threshold slightly below it](figures/ch16/f02_modes.png){#fig-16-f02_modes}
 
-## انتخاب قربانی: دمای شیء {#sec-16-3-2}
+## Choosing a victim: object temperature {#sec-16-3-2}
 
-در حالت SOME، `agent_maybe_evict()` برای هر شیء clean «دما»ی آن را با `agent_estimate_temp()` از روی HitSetهای اخیر تخمین می‌زند (برای هر HitSet که شیء در آن هست، وزن `pool.info.get_grade(i)` جمع می‌شود؛ وزن‌ها با `hit_set_grade_decay_rate` برای HitSetهای قدیمی‌تر کاهش می‌یابند و شیئی که در HitSet جاری باشد دمای بیشینه می‌گیرد) و آن را در یک هیستوگرام (`temp_hist`) قرار می‌دهد. سپس جایگاه شیء در توزیع دما (`get_position_micro`) را با `evict_effort` مقایسه می‌کند: نیت طراحی این است که شیء داغ نگه داشته شود، اما شرط واقعی کد main وارونه است (بخش «دما با عدد» را ببینید). بنابراین evict یک LRU دقیق نیست، بلکه **نمونه‌گیری آماری** روی دما است که هزینه‌ی حافظه‌ی کم دارد.
+In SOME mode, `agent_maybe_evict()` estimates the "temperature" of each clean object with `agent_estimate_temp()` from the recent HitSets (for each HitSet containing the object, the weight `pool.info.get_grade(i)` is added; the weights decrease for older HitSets according to `hit_set_grade_decay_rate`, and an object in the current HitSet gets the maximum temperature) and puts it into a histogram (`temp_hist`). It then compares the object's position in the temperature distribution (`get_position_micro`) with `evict_effort`: the design intent is that hot objects are kept, but the actual condition in main's code is inverted (see the section "Temperature in numbers"). So eviction is not an exact LRU but **statistical sampling** over temperature, with a low memory cost.
 
 ```text
-pseudocode: agent_maybe_evict (خلاصه)
+pseudocode: agent_maybe_evict (summary)
   if obj dirty or in use or age < cache_min_evict_age: skip
   if evict_mode != FULL:
-      temp = estimate_temp(obj, hitsets)             # مجموع وزن‌دار حضور در HitSetها
+      temp = estimate_temp(obj, hitsets)             # weighted sum of presence in HitSets
       hist.add(temp); (lower, upper) = hist.position_µ(temp)
-      if 1e6 - upper >= evict_effort: keep           # شرط لفظی کد؛ معنایش در بخش «دما با عدد» بررسی شده است
-  evict(obj)                                         # حذف از کش؛ نسخه‌ی معتبر در pool پایه است
+      if 1e6 - upper >= evict_effort: keep           # the code's literal condition; its meaning is examined in "Temperature in numbers"
+  evict(obj)                                         # remove from the cache; the valid copy is in the base pool
 ```
 
 ::: {.deep}
-flush در `agent_maybe_flush()` و `start_flush()` انجام می‌شود: شیء dirty (همراه snapshotهایش) با عملیات copy-from به pool پایه نوشته می‌شود و پس از تأیید، پرچم dirty پاک می‌شود. `cache_min_flush_age` جلوی flush شیئی را که تازه نوشته شده می‌گیرد. اگر کش به `target_max_bytes` یا `target_max_objects` برسد و عامل نتواند به اندازه‌ی کافی flush و evict کند، OSD **درخواست‌های کلاینت را مسدود می‌کند**؛ این یکی از رایج‌ترین علت‌های قطع سرویس در کلاسترهای دارای کش بود.
+Flushing happens in `agent_maybe_flush()` and `start_flush()`: the dirty object (with its snapshots) is written to the base pool with a copy-from operation, and after confirmation the dirty flag is cleared. `cache_min_flush_age` prevents flushing an object that was just written. If the cache reaches `target_max_bytes` or `target_max_objects` and the agent cannot flush and evict enough, the OSD **blocks client requests**; this was one of the most common causes of outages in clusters with a cache.
 :::
 
 ::: {.warn}
-اگر هیچ‌کدام از `target_max_bytes` و `target_max_objects` تنظیم نشده باشد، نسبت‌های پری صفر محاسبه می‌شوند و عامل هرگز بر اساس پری evict نمی‌کند؛ کش تا پر شدن OSDها رشد می‌کند. در شبه‌کد بالا هم دیدید که پری فقط وقتی محاسبه می‌شود که این اهداف تنظیم شده باشند.
+If neither `target_max_bytes` nor `target_max_objects` is set, the fullness ratios compute as zero and the agent never evicts based on fullness; the cache grows until the OSDs fill up. You also saw in the pseudocode above that fullness is only computed when these targets are set.
 :::
 
-# مهاجرت: حذف بی‌خطر cache tier {#sec-16-4}
+# Migration: safely removing a cache tier {#sec-16-4}
 
-![روال حذف cache tier حالت writeback: تغییر به proxy برای توقف promote، تخلیه با cache-flush-evict-all و تکرار تا خالی شدن pool کش، سپس حذف overlay و جدا کردن tier](figures/ch16/f03_remove.png){#fig-16-f03_remove}
+![The procedure for removing a writeback cache tier: switch to proxy to stop promotion, drain with cache-flush-evict-all and repeat until the cache pool is empty, then remove the overlay and detach the tier](figures/ch16/f03_remove.png){#fig-16-f03_remove}
 
 ```bash
-# ۱. وضعیت فعلی
+# 1. current state
 ceph osd pool ls detail | grep -E "tier|cache_mode|read_tier|write_tier"
 ceph df detail
-# ۲. توقف promote و نوشتن در کش
+# 2. stop promotion and writes into the cache
 ceph osd tier cache-mode hot-storage proxy
-# ۳. تخلیه (ممکن است ساعت‌ها طول بکشد؛ پیشرفت را پایش کنید)
+# 3. drain (may take hours; monitor progress)
 rados -p hot-storage cache-flush-evict-all
 rados -p hot-storage ls | head
-# ۴. حذف overlay و tier
+# 4. remove the overlay and the tier
 ceph osd tier remove-overlay cold-storage
 ceph osd tier remove cold-storage hot-storage
 ```
 
 ::: {.tip}
-پیش از شروع، ظرفیت آزاد pool پایه را بررسی کنید: همه‌ی اشیای dirty باید آنجا نوشته شوند. اگر pool پایه EC روی HDD است، flush انبوه بار سنگینی می‌سازد؛ در ساعات کم‌بار انجام دهید و `ceph -s` و تأخیر کلاینت را پایش کنید.
+Before starting, check the free capacity of the base pool: every dirty object must be written there. If the base pool is EC on HDD, a bulk flush creates a heavy load; do it during quiet hours and monitor `ceph -s` and client latency.
 :::
 
 ::: {.note}
-مستندات رسمی برای ارتقاهای قدیمی (۱۴.۲.۶ به ۱۴.۲.۷) موردی از **اشیای unfound** پس از راه‌اندازی دوباره‌ی OSDها در pool کش را ثبت کرده است. اگر پس از ارتقا یا راه‌اندازی دوباره چنین چیزی دیدید، پیش از هر اقدام `ceph pg <pgid> list_unfound` را بررسی کنید و راهنمای همان صفحه را دنبال کنید.
+For old upgrades (14.2.6 to 14.2.7), the official documentation recorded a case of **unfound objects** after restarting OSDs in a cache pool. If you see something like this after an upgrade or restart, check `ceph pg <pgid> list_unfound` before taking any action, and follow the guidance on that page.
 :::
 
-## اگر pool پایه EC است {#sec-16-4-1}
+## If the base pool is EC {#sec-16-4-1}
 
-دلیل تاریخی بسیاری از cache tierها این بود که پیش از Luminous، pool EC از overwrite پشتیبانی نمی‌کرد و RBD یا CephFS نمی‌توانستند مستقیم روی آن کار کنند. امروز با `allow_ec_overwrites` (و در Tentacle، بهینه‌سازی‌های FastEC؛ فصل ۱۳) این محدودیت برطرف شده است: فراداده در pool تکثیری و داده در pool EC قرار می‌گیرد (`rbd create --data-pool`، یا افزودن data pool EC به CephFS).
+The historical reason for many cache tiers was that before Luminous, EC pools did not support overwrites, and RBD or CephFS could not work on them directly. Today, with `allow_ec_overwrites` (and in Tentacle, the FastEC optimizations; chapter 13), this limitation is gone: metadata goes in a replicated pool and data in an EC pool (`rbd create --data-pool`, or adding an EC data pool to CephFS).
 
-# لایه‌بندی در سطح بایت: storage class در RGW و lifecycle {#sec-16-5}
+# Tiering at the byte level: storage classes and lifecycle in RGW {#sec-16-5}
 
-در بخش‌های قبل دیدیم cache tiering از Reef منسوخ اعلام شده است (هشدار ابتدای مستند `cache-tiering.rst`) و جایگزین‌های امروزی، یعنی device class، pool جدا برای داده و فراداده و storage class در RGW، چیست. این بخش نشان می‌دهد یک شیء S3 هنگام «جابه‌جایی بین لایه‌ها» واقعاً در RADOS چه تغییری می‌کند.
+In the previous sections we saw that cache tiering has been deprecated since Reef (the warning at the top of the `cache-tiering.rst` document) and what today's alternatives are: device classes, separate pools for data and metadata, and storage classes in RGW. This section shows what actually changes in RADOS when an S3 object "moves between tiers".
 
-## چیدمان یک شیء RGW {#sec-16-5-1}
+## The layout of an RGW object {#sec-16-5-1}
 
-![شیء S3 ده‌مگابایتی در RADOS. شیء HEAD فراداده (manifest، ACL، etag و سایر xattrها) و در storage class پیش‌فرض، اولین تکه‌ی داده (تا rgw_max_chunk_size=4M) را به‌صورت inline نگه می‌دارد. بقیه‌ی داده در اشیای tail با اندازه‌ی rgw_obj_stripe_size=4M قرار دارد. پس از transition به یک storage class دیگر، HEAD در pool پیش‌فرض می‌ماند ولی manifest آن به tailهای تازه در data_pool کلاس جدید اشاره می‌کند و داده‌ی قدیمی به garbage collection سپرده می‌شود. پایین شکل poolهای یک placement target را نشان می‌دهد](figures/ch16/f05_rgwlayout.png){#fig-16-f05_rgwlayout}
+![A ten-megabyte S3 object in RADOS. The HEAD object holds the metadata (manifest, ACL, etag and other xattrs) and, in the default storage class, the first piece of data (up to rgw_max_chunk_size=4M) inline. The rest of the data is in tail objects of size rgw_obj_stripe_size=4M. After a transition to another storage class, the HEAD stays in the default pool, but its manifest points to new tails in the new class's data_pool, and the old data is handed to garbage collection. The bottom of the figure shows the pools of one placement target](figures/ch16/f05_rgwlayout.png){#fig-16-f05_rgwlayout}
 
-**manifest** (در xattr با نام `user.rgw.manifest`) نقشه‌ی شیء منطقی به اشیای RADOS است: اندازه‌ی head، اندازه‌ی stripe، prefix اشیای tail و قواعد نام‌گذاری آن‌ها. این توضیح می‌دهد چرا transition «ارزان» به نظر می‌رسد ولی در واقع **کپی کامل داده** است: RGW داده را از tailهای قدیمی می‌خواند، در pool کلاس جدید می‌نویسد، manifest را به‌روز می‌کند و اشیای قدیمی را برای حذف به GC می‌دهد. پهنای باند lifecycle همان پهنای باند خوشه است.
+The **manifest** (in the xattr named `user.rgw.manifest`) maps the logical object to RADOS objects: the head size, the stripe size, the prefix of the tail objects and their naming rules. This explains why a transition looks "cheap" but is in fact a **full copy of the data**: RGW reads the data from the old tails, writes it into the new class's pool, updates the manifest and gives the old objects to GC for deletion. The bandwidth of lifecycle is the cluster's bandwidth.
 
-| گزینه / ویژگی | مقدار (main) | اثر |
+| Option / attribute | Value (main) | Effect |
 |---|---|---|
-| `rgw_max_chunk_size` | 4_M | اندازه‌ی تکه‌ی head و واحد خواندن و نوشتن RGW |
-| `rgw_obj_stripe_size` | 4_M | اندازه‌ی اشیای tail |
-| `--placement-inline-data` | true (پیش‌فرض) | داده‌ی اول در head؛ طبق مستندات، inline فقط در کلاس پیش‌فرض انجام می‌شود |
-| `data_extra_pool` | مثلاً `default.rgw.buckets.non-ec` | فراداده‌ی multipart ناتمام؛ باید replicated باشد (omap) |
-| `index_pool` | مثلاً `default.rgw.buckets.index` | bucket index (فقط omap)؛ بهترین جا برای SSD یا NVMe |
+| `rgw_max_chunk_size` | 4_M | Size of the head chunk and RGW's read/write unit |
+| `rgw_obj_stripe_size` | 4_M | Size of the tail objects |
+| `--placement-inline-data` | true (default) | The first data goes in the head; per the documentation, inlining happens only in the default class |
+| `data_extra_pool` | e.g. `default.rgw.buckets.non-ec` | Metadata of unfinished multipart uploads; must be replicated (omap) |
+| `index_pool` | e.g. `default.rgw.buckets.index` | Bucket index (omap only); the best place for SSD or NVMe |
 
 ::: {.tip}
-طبق مستند `placement.rst`، اگر DB مربوط به BlueStore روی دستگاه سریع‌تر از داده‌ی bucket باشد، خاموش کردن inline (`--placement-inline-data=false`) می‌تواند حذف‌های کلاینت را سریع‌تر کند، چون RGW هنگام DELETE دیگر لازم نیست هم‌گام به دستگاه کند دست بزند و داده بعداً توسط GC حذف می‌شود. بده‌بستان آن یک رفت‌وبرگشت اضافه برای خواندن و نوشتن اشیای کوچک است.
+According to the `placement.rst` document, if BlueStore's DB is on a faster device than the bucket data, turning off inlining (`--placement-inline-data=false`) can make client deletes faster, because on DELETE RGW no longer has to touch the slow device synchronously, and the data is removed later by GC. The trade-off is an extra round trip for reading and writing small objects.
 :::
 
-## lifecycle چگونه اجرا می‌شود؟ {#sec-16-5-2}
+## How does lifecycle run? {#sec-16-5-2}
 
-![اجرای lifecycle در RGW. فهرست bucketهای دارای قاعده در rgw_lc_max_objs=32 شیء RADOS (shardهای lc) نگه داشته می‌شود. فقط در پنجره‌ی rgw_lifecycle_work_time (پیش‌فرض 00:00 تا 06:00 به وقت محلی) کار انجام می‌شود. هر shard با قفلی با عمر rgw_lc_lock_max_time=90 ثانیه برداشته می‌شود. rgw_lc_max_worker=3 worker موازی، هرکدام با ۱۲۸ coroutine (rgw_lc_max_wp_worker)، bucket index را پیمایش و expire، transition یا abort multipart را اجرا می‌کنند](figures/ch16/f06_lc.png){#fig-16-f06_lc}
+![Running lifecycle in RGW. The list of buckets with rules is kept in rgw_lc_max_objs=32 RADOS objects (the lc shards). Work is done only in the rgw_lifecycle_work_time window (default 00:00 to 06:00 local time). Each shard is taken with a lock lasting rgw_lc_lock_max_time=90 seconds. rgw_lc_max_worker=3 parallel workers, each with 128 coroutines (rgw_lc_max_wp_worker), walk the bucket index and perform expire, transition or abort multipart](figures/ch16/f06_lc.png){#fig-16-f06_lc}
 
 ```bash
-radosgw-admin lc list                          # وضعیت هر bucket: UNINITIAL / PROCESSING / COMPLETE
+radosgw-admin lc list                          # state of each bucket: UNINITIAL / PROCESSING / COMPLETE
 radosgw-admin lc get --bucket photos
-radosgw-admin lc process --bucket photos       # اجرای دستی (خارج از پنجره)
+radosgw-admin lc process --bucket photos       # manual run (outside the window)
 radosgw-admin gc list --include-all | head
-ceph config set client.rgw rgw_lifecycle_work_time "00:00-23:59"   # فقط برای آزمایش
+ceph config set client.rgw rgw_lifecycle_work_time "00:00-23:59"   # for testing only
 ```
 
 ::: {.warn}
-**محاسبه‌ی ظرفیت:** با ۳ worker و ۱۲۸ coroutine، در هر لحظه تا حدود ۳۸۴ شیء هم‌زمان پردازش می‌شود. اگر هر شب ۵۰ ترابایت باید از STANDARD به COLD برود و پنجره‌ی کار ۶ ساعت باشد، خوشه باید حدود 50 TB / 21600 s ≈ 2.3 GB/s خواندن و همان اندازه نوشتن (به‌علاوه‌ی سربار EC یا replication) را **علاوه بر** بار عادی تحمل کند. در غیر این صورت lifecycle هر شب عقب می‌افتد و صف آن رشد می‌کند. پیش از تعریف قواعد transition، این عدد را حساب کنید.
+**Capacity calculation:** with 3 workers and 128 coroutines, up to about 384 objects are processed concurrently at any moment. If 50 terabytes must move from STANDARD to COLD every night and the work window is 6 hours, the cluster must sustain about 50 TB / 21600 s ≈ 2.3 GB/s of reads and the same amount of writes (plus EC or replication overhead) **on top of** the normal load. Otherwise lifecycle falls behind every night and its queue grows. Compute this number before defining transition rules.
 :::
 
-## لایه‌بندی داخل یک OSD {#sec-16-5-3}
+## Tiering inside an OSD {#sec-16-5-3}
 
-لایه‌بندی فقط بین poolها نیست. یک OSD با دستگاه‌های block.db و block.wal سه لایه دارد. فصل ۲۵ نشان داد BlueFS سطوح RocksDB را با سیاست `use_some_extra` بین WAL، DB و دستگاه کند پخش می‌کند. فصل ۲۴ نشان داد deferred writeهای کوچک‌تر از `bluestore_prefer_deferred_size` (در HDD برابر 64K) ابتدا در WAL مربوط به RocksDB (یعنی روی دستگاه سریع) نوشته و بعداً به HDD منتقل می‌شوند. این عملاً یک **write-back cache کوچک** برای نوشتن‌های کوچک روی HDD است، بدون پیچیدگی‌های cache tiering. فصل ۲۸ هم نشان داد device classها با shadow treeهای جداگانه تضمین می‌کنند افزودن دستگاه به یک کلاس هیچ داده‌ای را در poolهای کلاس دیگر جابه‌جا نکند.
+Tiering is not only between pools. An OSD with block.db and block.wal devices has three tiers. Chapter 25 showed that BlueFS spreads RocksDB levels across WAL, DB and the slow device with the `use_some_extra` policy. Chapter 24 showed that deferred writes smaller than `bluestore_prefer_deferred_size` (64K on HDD) are first written to RocksDB's WAL (that is, on the fast device) and moved to the HDD later. This is effectively a **small write-back cache** for small writes on HDD, without the complexities of cache tiering. Chapter 28 also showed that device classes, with separate shadow trees, guarantee that adding a device to one class moves no data in the pools of another class.
 
-| لایه | سازوکار | فصل |
+| Tier | Mechanism | Chapter |
 |---|---|---|
-| PG→دستگاه | device class + قاعده‌ی CRUSH | ۸ و ۲۸ |
-| فراداده‌ی RGW | index_pool و data_extra_pool روی SSD | ۴ و همین فصل |
-| داده‌ی سرد | storage class و lifecycle transition | همین فصل |
-| فراداده‌ی OSD | block.db و block.wal (BlueFS) | ۱۲، ۲۴ و ۲۵ |
-| نوشتن کوچک روی HDD | deferred write | ۱۲ و ۲۴ |
-| فراداده‌ی RBD | pool داده‌ی جدا (`--data-pool`) روی EC | ۲ و ۱۳ |
+| PG→device | device class + CRUSH rule | 8 and 28 |
+| RGW metadata | index_pool and data_extra_pool on SSD | 4 and this chapter |
+| Cold data | storage class and lifecycle transition | this chapter |
+| OSD metadata | block.db and block.wal (BlueFS) | 12, 24 and 25 |
+| Small writes on HDD | deferred writes | 12 and 24 |
+| RBD metadata | a separate data pool (`--data-pool`) on EC | 2 and 13 |
 
-# لایه‌بندی با عدد: شش الگوریتم از کد {#sec-16-6}
+# Tiering in numbers: six algorithms from the code {#sec-16-6}
 
-این بخش سازوکارهای لایه‌بندی را که بالاتر توصیف شدند، با کد و عدد بررسی می‌کند. سه الگوریتم مربوط به cache tiering است (منسوخ، اما هنوز در کد main)، دو الگوریتم به lifecycle در RGW، و یکی به جای‌گذاری داده‌ی RocksDB میان دستگاه سریع و کند درون OSD.
+This section examines the tiering mechanisms described above with code and numbers. Three algorithms concern cache tiering (deprecated, but still in main's code), two concern lifecycle in RGW, and one concerns placing RocksDB data between the fast and slow devices inside an OSD.
 
-## اندازه‌ی HitSet {#sec-16-6-1}
+## HitSet size {#sec-16-6-1}
 
-::: {.algo #alg-16-1 title="اندازه‌ی فیلتر Bloom در HitSet" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::hit_set_create؛ src/osd/BloomHitSet.h :: BloomHitSet" complexity="O(1) برای تعیین اندازه؛ حافظه −n·ln(p)/(ln 2)^2 بیت"}
+::: {.algo #alg-16-1 title="Size of the Bloom filter in a HitSet" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::hit_set_create; src/osd/BloomHitSet.h :: BloomHitSet" complexity="O(1) to determine the size; memory −n·ln(p)/(ln 2)^2 bits"}
 :::
 
 ```text
 pseudocode
 p = fpp_pool / hit_set_count ; if p ≤ 0: p = 0.01
-if target_size == 0 and hit_set قبلی هست:
-    target_size = unique_inserts(قبلی) × hit_set_period / مدت واقعی قبلی
+if target_size == 0 and a previous hit_set exists:
+    target_size = unique_inserts(previous) × hit_set_period / actual duration of previous
 target_size = clamp(target_size, osd_hit_set_min_size = 1000, osd_hit_set_max_size = 100000)
 seed = now.sec ; BloomHitSet(target_size, p, seed)
 ```
 
-**مثال عددی.** با پیش‌فرض‌های `osd_tier_default_cache_*` که `ceph osd tier add-cache` اعمال می‌کند (bloom، hit_set_count = 4، hit_set_period = 1200 s) و `osd_pool_default_hit_set_bloom_fpp = 0.05`، نرخ مثبت کاذب هر مجموعه 0.05/4 = 0.0125 است. اگر HitSet قبلی در 1200 ثانیه 30000 شیء یکتا دیده باشد، target_size = 30000 و فیلتر حدود 2.7×10^5 بیت (حدود 33 KiB) با 6 تابع hash است. سقف 100000 شیء فیلتری حدود 111 KiB می‌دهد و کف 1000 حدود 1.1 KiB. دلیل تقسیم fpp بر تعداد مجموعه‌ها این است که دما از جمع حضور در چند مجموعه به دست می‌آید و خطای هر مجموعه جمع می‌شود.
+**Numerical example.** With the `osd_tier_default_cache_*` defaults that `ceph osd tier add-cache` applies (bloom, hit_set_count = 4, hit_set_period = 1200 s) and `osd_pool_default_hit_set_bloom_fpp = 0.05`, the false-positive rate of each set is 0.05/4 = 0.0125. If the previous HitSet saw 30000 unique objects in 1200 seconds, target_size = 30000, and the filter is about 2.7×10^5 bits (about 33 KiB) with 6 hash functions. The cap of 100000 objects gives a filter of about 111 KiB, and the floor of 1000 about 1.1 KiB. The reason for dividing the fpp by the number of sets is that temperature comes from summing presence across several sets, and each set's error adds up.
 
-![اندازه‌ی فیلتر Bloom یک HitSet برحسب تعداد اشیای یکتای مجموعه‌ی قبلی، برای دو مقدار hit_set_period. اندازه‌ی هدف به نسبت دوره‌ی تازه به مدت واقعی مجموعه‌ی قبلی مقیاس می‌شود و میان کف و سقف OSD بریده می‌شود. خط‌چین‌ها همین دو حد هستند. هر PG کش در هر دوره یک فیلتر می‌سازد و آن را به‌صورت شیء در namespace جداگانه‌ی همان pool بایگانی می‌کند](figures/ch16/f12_hitset.png){#fig-16-f12_hitset}
+![Size of a HitSet's Bloom filter as a function of the number of unique objects in the previous set, for two values of hit_set_period. The target size scales by the ratio of the new period to the actual duration of the previous set and is clipped between the OSD's floor and cap. The dashed lines are these two limits. Each cache PG builds one filter per period and archives it as an object in a separate namespace of the same pool](figures/ch16/f12_hitset.png){#fig-16-f12_hitset}
 
-## دما با عدد {#sec-16-6-2}
+## Temperature in numbers {#sec-16-6-2}
 
-::: {.algo #alg-16-2 title="جدول درجه و دمای شیء" src="src/osd/osd_types.h :: pg_pool_t::calc_grade_table، get_grade؛ src/osd/PrimaryLogPG.cc :: agent_estimate_temp، agent_maybe_evict؛ src/common/histogram.h :: pow2_hist_t::get_position_micro" complexity="O(hit_set_count) برای هر شیء؛ هیستوگرام توانی O(log temp)"}
+::: {.algo #alg-16-2 title="The grade table and object temperature" src="src/osd/osd_types.h :: pg_pool_t::calc_grade_table, get_grade; src/osd/PrimaryLogPG.cc :: agent_estimate_temp, agent_maybe_evict; src/common/histogram.h :: pow2_hist_t::get_position_micro" complexity="O(hit_set_count) per object; power-of-two histogram O(log temp)"}
 :::
 
 ```text
 pseudocode
 calc_grade_table: v = 10^6 ; for i < count: v = v × (1 − decay/100) ; grade[i] = v
 estimate_temp(o): t = (o ∈ current) ? 10^6 : 0
-    for i, set in archived (جدید به قدیم) while last_n > 0: if o ∈ set: t += grade[i] ; last_n−−
-agent_maybe_evict (حالت SOME):
-    hist.add(t) ; (lower, upper) = hist.position_µ(t)   # upper = سهم اشیای با bin ≤ bin(t)
-    if 10^6 − upper ≥ evict_effort: نگه دار  else: evict   # شرط لفظی main؛ نسبت به نیت «سرد را بیرون کن» وارونه است
+    for i, set in archived (newest to oldest) while last_n > 0: if o ∈ set: t += grade[i] ; last_n−−
+agent_maybe_evict (SOME mode):
+    hist.add(t) ; (lower, upper) = hist.position_µ(t)   # upper = share of objects with bin ≤ bin(t)
+    if 10^6 − upper ≥ evict_effort: keep  else: evict   # main's literal condition; inverted relative to the intent "evict the cold"
 ```
 
-**مثال عددی.** با پیش‌فرض‌های `osd_tier_default_cache_*` (decay_rate = 20، search_last_n = 1)، جدول درجه 800000، 640000، 512000 و 409600 است. چهار شیء نمونه:
+**Numerical example.** With the `osd_tier_default_cache_*` defaults (decay_rate = 20, search_last_n = 1), the grade table is 800000, 640000, 512000 and 409600. Four sample objects:
 
-- A فقط در مجموعه‌ی جاری است: دما 1000000.
-- B در جاری و در مجموعه‌ی 0 است: 1800000.
-- C فقط در مجموعه‌ی 1 است: 640000.
-- D در هیچ مجموعه‌ای نیست: 0.
+- A is only in the current set: temperature 1000000.
+- B is in the current set and in set 0: 1800000.
+- C is only in set 1: 640000.
+- D is in no set: 0.
 
-اکنون معنای شرط کد: get_position_micro مقدار upper را برابر سهم اشیایی می‌گذارد که bin توانی دمایشان (`cbits(temp)`، یعنی شماره‌ی بالاترین بیت یک) کوچک‌تر یا مساوی bin این شیء است، و lower را سهم اشیای bin کوچک‌تر. یک هیستوگرام ده‌نمونه‌ای بسازیم: پنج نمونه با دمای 0 (bin 0)، دو نمونه 640000 و دو نمونه 1000000 (هر دو bin 20) و یک نمونه 1800000 (bin 21). با evict_effort = 400000 نتیجه این است:
+Now the meaning of the code's condition: get_position_micro sets upper to the share of objects whose power-of-two temperature bin (`cbits(temp)`, that is, the index of the highest set bit) is less than or equal to this object's bin, and lower to the share of objects in smaller bins. Let us build a ten-sample histogram: five samples with temperature 0 (bin 0), two samples at 640000 and two at 1000000 (both bin 20), and one sample at 1800000 (bin 21). With evict_effort = 400000 the result is:
 
-| شیء | دما | bin | lower | upper | 10^6 − upper | تصمیم کد main | تصمیم با اصلاح پیشنهادی (lower ≥ effort ⇒ نگه دار) |
+| Object | Temperature | bin | lower | upper | 10^6 − upper | main's decision | Decision with the proposed fix (lower ≥ effort ⇒ keep) |
 |---|---|---|---|---|---|---|---|
-| D | 0 | 0 | 0 | 500000 | 500000 | نگه می‌دارد | بیرون می‌کند |
-| C | 640000 | 20 | 500000 | 900000 | 100000 | بیرون می‌کند | نگه می‌دارد |
-| A | 1000000 | 20 | 500000 | 900000 | 100000 | بیرون می‌کند | نگه می‌دارد |
-| B | 1800000 | 21 | 900000 | 1000000 | 0 | بیرون می‌کند | نگه می‌دارد |
+| D | 0 | 0 | 0 | 500000 | 500000 | keeps | evicts |
+| C | 640000 | 20 | 500000 | 900000 | 100000 | evicts | keeps |
+| A | 1000000 | 20 | 500000 | 900000 | 100000 | evicts | keeps |
+| B | 1800000 | 21 | 900000 | 1000000 | 0 | evicts | keeps |
 
-این عددها با یک بازپیاده‌سازی پایتونی از `pow2_hist_t::get_position_micro` به دست آمده‌اند. پس شرط کد main واقعاً **وارونه** است: سردترین شیء (D) می‌ماند و داغ‌ها بیرون می‌روند. این وارونگی سابقه‌ی مستند دارد. پیش از Jewel، عامل به‌جای دما از «فاصله از آخرین دسترسی» (atime) استفاده می‌کرد که برای داده‌ی سرد **بزرگ‌تر** است، و شرط `1000000 − atime_upper ≥ evict_effort ⇒ نگه دار` با آن معنا درست بود. PR شماره‌ی 4737 (شاخه‌ی wip-temp-based-object-eviction) معیار را به دما تغییر داد، که برای داده‌ی سرد **کوچک‌تر** است، اما فقط نام متغیر را در شرط عوض کرد. در نوامبر 2017 در فهرست ceph-devel (رشته‌ی «About the "temperature histogram" of tier-agent») همین مسئله گزارش شد و Sage Weil آن را برای بررسی به نویسندگان آن PR ارجاع داد. پیشنهاد شد شرط به `temp_upper ≥ evict_effort` یا `temp_lower ≥ evict_effort` تغییر کند، اما در کد main امروز (بررسی‌شده در نوامبر 2026) شرط همچنان همان شکل قدیمی را دارد. در حالت EVICT_MODE_FULL این شرط اصلاً اجرا نمی‌شود و هر شیء clean و واجد شرایط بیرون می‌رود؛ پس اثر وارونگی فقط در حالت SOME دیده می‌شود. این یکی دیگر از دلیل‌هایی است که cache tiering (که از Reef منسوخ اعلام شده است) نباید برای کارهای تازه انتخاب شود.
+These numbers were obtained with a Python reimplementation of `pow2_hist_t::get_position_micro`. So main's condition really is **inverted**: the coldest object (D) stays and the hot ones are evicted. This inversion has a documented history. Before Jewel, the agent used "time since last access" (atime) instead of temperature, which is **larger** for cold data, and the condition `1000000 − atime_upper ≥ evict_effort ⇒ keep` was correct with that meaning. PR number 4737 (branch wip-temp-based-object-eviction) changed the metric to temperature, which is **smaller** for cold data, but only renamed the variable in the condition. In November 2017 this exact issue was reported on the ceph-devel list (thread "About the "temperature histogram" of tier-agent"), and Sage Weil referred it to that PR's authors for review. It was proposed to change the condition to `temp_upper ≥ evict_effort` or `temp_lower ≥ evict_effort`, but in today's main code (checked in November 2026) the condition still has the same old form. In EVICT_MODE_FULL this condition is not executed at all, and every clean, eligible object is evicted; so the effect of the inversion is only seen in SOME mode. This is one more reason why cache tiering (deprecated since Reef) should not be chosen for new work.
 
-![شرط evict در حالت SOME برای هیستوگرام ده‌نمونه‌ای مثال. محور افقی bin توانی دما و ستون‌ها تعداد نمونه‌ها در هر bin هستند. سمت چپ تصمیم کد main است، با شرط 10^6 − upper ≥ effort برای نگه داشتن: فقط bin سرد صفر می‌ماند (سبز) و همه‌ی binهای داغ بیرون می‌روند (قرمز). سمت راست تصمیم با اصلاح پیشنهادی ceph-devel در 2017 است، با شرط lower ≥ effort برای نگه داشتن: سردها بیرون می‌روند و داغ‌ها می‌مانند. خط‌چین در هر دو نیمه مرز تصمیم روی محور سهم تجمعی است: در کد main مرز upper = 0.6 (یعنی 1 − 0.4) و در اصلاح پیشنهادی مرز lower = 0.4 است](figures/ch16/f13_evictinv.png){#fig-16-f13_evictinv}
+![The evict condition in SOME mode for the example's ten-sample histogram. The horizontal axis is the power-of-two temperature bin, and the bars are the number of samples in each bin. The left side is main's decision, with the condition 10^6 − upper ≥ effort for keeping: only the cold bin zero stays (green) and all the hot bins are evicted (red). The right side is the decision with the fix proposed on ceph-devel in 2017, with the condition lower ≥ effort for keeping: the cold are evicted and the hot stay. In both halves the dashed line is the decision boundary on the cumulative-share axis: in main's code the boundary is upper = 0.6 (that is, 1 − 0.4), and in the proposed fix it is lower = 0.4](figures/ch16/f13_evictinv.png){#fig-16-f13_evictinv}
 
-![سمت چپ جدول درجه‌ی HitSetهای بایگانی‌شده برای دو نرخ کاهش است: با decay 20 وزن قدیمی‌ترین مجموعه هنوز 41٪ است و با decay 50 فقط 6٪. سمت راست دمای چهار شیء نمونه است: حضور در مجموعه‌ی جاری همیشه یک میلیون واحد می‌گیرد و با search_last_n = 1 فقط نخستین مجموعه‌ی بایگانی که شیء در آن پیدا شود، سهمش را اضافه می‌کند](figures/ch16/f07_grade.png){#fig-16-f07_grade}
+![Left: the grade table of archived HitSets for two decay rates: with decay 20 the weight of the oldest set is still 41%, and with decay 50 only 6%. Right: the temperature of the four sample objects: presence in the current set always earns one million units, and with search_last_n = 1 only the first archived set in which the object is found adds its share](figures/ch16/f07_grade.png){#fig-16-f07_grade}
 
-## evict_effort با عدد {#sec-16-6-3}
+## evict_effort in numbers {#sec-16-6-3}
 
-::: {.algo #alg-16-3 title="محاسبه‌ی evict_effort" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::agent_choose_mode" complexity="O(1) برای هر PG در هر اجرای عامل"}
+::: {.algo #alg-16-3 title="Computing evict_effort" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::agent_choose_mode" complexity="O(1) per PG per agent run"}
 :::
 
 ```text
 pseudocode
 target = cache_target_full_ratio × 10^6 ; slop = target × osd_agent_slop (0.02)
-target = (IDLE یا restart) ? target + slop : target − slop        # هیسترزیس
+target = (IDLE or restart) ? target + slop : target − slop        # hysteresis
 if full_µ > 10^6: FULL ; effort = 10^6
 elif full_µ > target: SOME
     effort = max((full_µ − target) × 10^6 / (10^6 − target), 0.1 × 10^6)
     effort −= effort % (0.1 × 10^6) ; effort = max(effort, 0.1 × 10^6)
 ```
 
-**مثال عددی.** cache_target_full_ratio = 0.8 (پیش‌فرض)، پس target = 800000 و slop = 16000. عامل از IDLE شروع می‌کند، پس آستانه 816000 است. با full = 0.90: over = 84000، span = 184000 و effort خام 456521 است که به 400000 گرد می‌شود. وقتی پری به 0.80 برمی‌گردد، آستانه‌ی خروج 784000 است. پس عامل تا full ≤ 0.784 در SOME می‌ماند. فاصله‌ی 3.2 درصدی میان ورود و خروج از رفت‌وبرگشت سریع جلوگیری می‌کند. گرد کردن به گام‌های 0.1 هم ترتیب صف عامل در OSD را پایدار نگه می‌دارد.
+**Numerical example.** cache_target_full_ratio = 0.8 (the default), so target = 800000 and slop = 16000. The agent starts from IDLE, so the threshold is 816000. With full = 0.90: over = 84000, span = 184000, and the raw effort is 456521, which rounds to 400000. When fullness returns to 0.80, the exit threshold is 784000. So the agent stays in SOME until full ≤ 0.784. The 3.2 percent gap between entry and exit prevents rapid back-and-forth. Rounding to steps of 0.1 also keeps the order of the agent queue in the OSD stable.
 
-![evict_effort برحسب نسبت پری برای دو حالت هیسترزیس. منحنی آبی وقتی است که عامل بی‌کار بوده و آستانه‌ی ورود 0.816 است. منحنی قرمز وقتی است که عامل در حال بیرون کردن است و آستانه به 0.784 پایین می‌آید. پله‌ها ناشی از کوانتش 0.1 هستند و بالای پری 100٪ تلاش یکباره به 1.0 می‌پرد](figures/ch16/f08_effort.png){#fig-16-f08_effort}
+![evict_effort as a function of the fullness ratio for the two hysteresis states. The blue curve is when the agent has been idle and the entry threshold is 0.816. The red curve is when the agent is evicting and the threshold drops to 0.784. The steps come from the 0.1 quantization, and above 100% fullness the effort jumps straight to 1.0](figures/ch16/f08_effort.png){#fig-16-f08_effort}
 
-## شارد lifecycle و انتخاب شیء lc.N {#sec-16-6-4}
+## The lifecycle shard and choosing the lc.N object {#sec-16-6-4}
 
-::: {.algo #alg-16-4 title="نگاشت bucket به شارد lifecycle و پیمایش کارگرها" src="src/rgw/rgw_lc.cc :: get_lc_index، get_bucket_lc_key، random_sequence، RGWLC::process؛ src/common/ceph_hash.cc :: ceph_str_hash_linux" complexity="hash O(طول کلید)؛ هر کارگر O(rgw_lc_max_objs) شارد در هر دور"}
+::: {.algo #alg-16-4 title="Mapping a bucket to a lifecycle shard, and the workers' traversal" src="src/rgw/rgw_lc.cc :: get_lc_index, get_bucket_lc_key, random_sequence, RGWLC::process; src/common/ceph_hash.cc :: ceph_str_hash_linux" complexity="hash O(key length); each worker O(rgw_lc_max_objs) shards per round"}
 :::
 
 ```text
 pseudocode
 key = tenant + ":" + bucket + ":" + marker
 h = 0 ; for c in key: h = (h + (c ≪ 4) + (c ≫ 4)) × 11   (mod 2^32)
-index = h % 7877 % min(rgw_lc_max_objs, 7877)    # پیش‌فرض 32 ⇒ lc.0 .. lc.31
+index = h % 7877 % min(rgw_lc_max_objs, 7877)    # default 32 ⇒ lc.0 .. lc.31
 RGWLC::process(worker): for shard in shuffle(0..31):
-    lock lc.shard (حداکثر rgw_lc_lock_max_time = 90 s) ; ورودی بعدی را PROCESSING کن ; unlock
-    bucket_lc_process(bucket) با استخر rgw_lc_max_wp_worker coroutine
+    lock lc.shard (at most rgw_lc_lock_max_time = 90 s) ; mark the next entry PROCESSING ; unlock
+    bucket_lc_process(bucket) with a pool of rgw_lc_max_wp_worker coroutines
 ```
 
-**مثال عددی.** marker یک bucket در RADOS هنگام ساخت با `RGWRados::create_bucket_id` ساخته می‌شود و قالب آن `<zone id>.<instance id>.<شمارنده>` است: شناسه‌ی zone (یک UUID)، شناسه‌ی نمونه‌ی کلاینت RADOS آن radosgw و یک شمارنده‌ی افزایشی. marker زیر قالب واقعی را دارد، اما UUID و دو عدد آن **مثال** هستند و از کلاستر واقعی نیامده‌اند. برای bucket با نام `photos`، tenant خالی و marker `3f6e1c2a-77b1-4e0b-9d2c-1a2b3c4d5e6f.4137.1`، کلید (که `get_bucket_lc_key` با جداکننده‌ی «:» می‌سازد) `:photos:3f6e…4137.1` است. ceph_str_hash_linux عدد 2997460109 را می‌دهد. 2997460109 mod 7877 = 1668 و 1668 mod 32 = 4، پس ورودی این bucket در شیء `lc.4` نوشته می‌شود. سه کارگر (rgw_lc_max_worker) شاردها را به ترتیب تصادفی می‌گردند تا همه هم‌زمان سراغ lc.0 نروند. چون hash ضعیف است و فقط 32 شارد وجود دارد، چند bucket بزرگ ممکن است در یک شارد بیفتند و پشت هم پردازش شوند. `radosgw-admin lc list` وضعیت هر bucket را نشان می‌دهد.
+**Numerical example.** A bucket's marker in RADOS is created at bucket creation by `RGWRados::create_bucket_id`, and its format is `<zone id>.<instance id>.<counter>`: the zone id (a UUID), the id of that radosgw's RADOS client instance, and an increasing counter. The marker below has the real format, but its UUID and two numbers are **examples** and do not come from a real cluster. For a bucket named `photos`, an empty tenant and the marker `3f6e1c2a-77b1-4e0b-9d2c-1a2b3c4d5e6f.4137.1`, the key (which `get_bucket_lc_key` builds with the ":" separator) is `:photos:3f6e…4137.1`. ceph_str_hash_linux gives 2997460109. 2997460109 mod 7877 = 1668 and 1668 mod 32 = 4, so this bucket's entry is written in the object `lc.4`. The three workers (rgw_lc_max_worker) visit the shards in random order so that they do not all go to lc.0 at the same time. Because the hash is weak and there are only 32 shards, several large buckets may fall into one shard and be processed one after another. `radosgw-admin lc list` shows the state of each bucket.
 
-![مسیر یک قانون lifecycle از ثبت تا اجرا. کلید bucket با hash ساده‌ی لینوکسی به یکی از 32 شیء lc.N نگاشت می‌شود. در پنجره‌ی کاری (پیش‌فرض 00:00 تا 06:00 به وقت محلی سرور)، هر کارگر شاردها را به ترتیب تصادفی قفل می‌کند و bucket بعدی را برمی‌دارد. سپس اشیای bucket را با استخری از coroutineها بررسی می‌کند و برای هر نسخه انقضا یا انتقال را اعمال می‌کند](figures/ch16/f10_lcshard.png){#fig-16-f10_lcshard}
+![The path of a lifecycle rule from registration to execution. The bucket key is mapped to one of 32 lc.N objects with a simple Linux hash. In the work window (default 00:00 to 06:00 in the server's local time), each worker locks the shards in random order and takes the next bucket. It then examines the bucket's objects with a pool of coroutines and applies expiration or transition to each version](figures/ch16/f10_lcshard.png){#fig-16-f10_lcshard}
 
-## چه روزی یک شیء منقضی می‌شود؟ {#sec-16-6-5}
+## On what day does an object expire? {#sec-16-6-5}
 
-::: {.algo #alg-16-5 title="محاسبه‌ی انقضا با گرد کردن به نیمه‌شب" src="src/rgw/rgw_lc.cc :: obj_has_expired؛ src/include/utime.h :: utime_t::round_to_day" complexity="O(1) برای هر نسخه‌ی شیء"}
+::: {.algo #alg-16-5 title="Computing expiry with rounding to midnight" src="src/rgw/rgw_lc.cc :: obj_has_expired; src/include/utime.h :: utime_t::round_to_day" complexity="O(1) per object version"}
 :::
 
 ```text
 pseudocode
 if rgw_lc_debug_interval ≤ 0:
-    cmp = days × 86400 ; base = round_to_day(now)        # نیمه‌شب محلی امروز (localtime_r/mktime)
-else: cmp = days × rgw_lc_debug_interval ; base = now     # حالت آزمایشی: هر «روز» چند ثانیه
+    cmp = days × 86400 ; base = round_to_day(now)        # today's local midnight (localtime_r/mktime)
+else: cmp = days × rgw_lc_debug_interval ; base = now     # test mode: each "day" is a few seconds
 expired = (base − mtime) ≥ cmp ; expire_time = mtime + cmp
 ```
 
-**مثال عددی.** شیئی در روز 0 ساعت 14:24 نوشته شده و قانون Expiration با Days = 30 دارد. اجرای روز 30: base = نیمه‌شب روز 30، فاصله 29.4 روز است و کمتر از 30، پس می‌ماند. اجرای روز 31: فاصله 30.4 روز است، پس حذف می‌شود. پس شیء عملاً بین 30.4 تا 31.25 روز (بسته به زمان اجرای کارگر در پنجره) زنده می‌ماند. چون base از ساعت محلی سرور RGW می‌آید، دو RGW با منطقه‌ی زمانی متفاوت ممکن است یک روز با هم اختلاف داشته باشند. با `rgw_lc_debug_interval = 10` هر روز قانون 10 ثانیه است و Days = 30 یعنی 300 ثانیه، که برای آزمودن قانون‌ها در آزمایشگاه کاربرد دارد.
+**Numerical example.** An object was written on day 0 at 14:24 and has an Expiration rule with Days = 30. The run on day 30: base = midnight of day 30, the gap is 29.4 days, less than 30, so it stays. The run on day 31: the gap is 30.4 days, so it is deleted. So the object effectively lives between 30.4 and 31.25 days (depending on when the worker runs in the window). Because base comes from the RGW server's local clock, two RGWs in different time zones may differ by a day. With `rgw_lc_debug_interval = 10`, each rule day is 10 seconds and Days = 30 means 300 seconds, which is useful for testing rules in a lab.
 
-![خط زمانی انقضای شیئی با Days = 30. شیء در میانه‌ی روز 0 نوشته شده است. obj_has_expired زمان مبنا را به نیمه‌شب گرد می‌کند، پس اجرای روز 30 فاصله‌ی 29.4 روز می‌بیند و شیء را نگه می‌دارد. نخستین اجرایی که حذف می‌کند، در پنجره‌ی روز 31 است](figures/ch16/f11_lcexpire.png){#fig-16-f11_lcexpire}
+![Expiry timeline of an object with Days = 30. The object was written in the middle of day 0. obj_has_expired rounds the base time to midnight, so the run on day 30 sees a gap of 29.4 days and keeps the object. The first run that deletes it is in the window of day 31](figures/ch16/f11_lcexpire.png){#fig-16-f11_lcexpire}
 
-## جای‌گذاری سطوح RocksDB میان DB و دستگاه کند {#sec-16-6-6}
+## Placing RocksDB levels between the DB and the slow device {#sec-16-6-6}
 
-::: {.algo #alg-16-6 title="ظرفیت اضافه‌ی DB در use_some_extra" src="src/os/bluestore/BlueFS.h :: RocksDBBlueFSVolumeSelector (سازنده، get_extra_level، get_hint_by_dir)؛ src/os/bluestore/BlueStore.cc :: BlueStore::_open_bluefs (ساخت vselector)" complexity="O(log_multiplier(DB/base)) برای حلقه‌ی سطوح، یک‌بار هنگام mount"}
+::: {.algo #alg-16-6 title="Extra DB capacity in use_some_extra" src="src/os/bluestore/BlueFS.h :: RocksDBBlueFSVolumeSelector (constructor, get_extra_level, get_hint_by_dir); src/os/bluestore/BlueStore.cc :: BlueStore::_open_bluefs (building the vselector)" complexity="O(log_multiplier(DB/base)) for the level loop, once at mount"}
 :::
 
 ```text
 pseudocode
-db_total = 0.95 × اندازه‌ی DB ; L0 = write_buffer_size × max_write_buffer_number
+db_total = 0.95 × DB size ; L0 = write_buffer_size × max_write_buffer_number
 if bluestore_volume_selection_reserved == 0:
     prev = L0 ; cur = base ; extra_level = 1
     loop: next = cur × mult ; extra_level++
@@ -330,28 +329,28 @@ if bluestore_volume_selection_reserved == 0:
 else: db_avail4slow = max(0, db_total − reserved) ; extra_level = 0
 ```
 
-**مثال عددی (پیش‌فرض‌های Ceph: L0 = 16 MiB × 64 = 1 GiB، base = 1 GiB، mult = 8، reserved_factor = 2).**
+**Numerical example (Ceph defaults: L0 = 16 MiB × 64 = 1 GiB, base = 1 GiB, mult = 8, reserved_factor = 2).**
 
-- **DB سی گیگابایتی (28.5 GiB قابل استفاده):** حلقه در آستانه‌ی 2 + 8 + 64 متوقف می‌شود و cur_threshold = 2 + 8×2 = 18، پس 10.5 GiB برای داده‌ی سطح کند روی DB می‌ماند.
-- **DB شصت گیگابایتی:** 57 − 18 = 39 GiB.
-- **DB صد و بیست گیگابایتی (114 GiB):** حلقه یک سطح جلوتر می‌رود (آستانه 10 + 64 + 512). cur_threshold = 10 + 64×2 = 138 از 114 بزرگ‌تر است، پس db_avail4slow = 0.
-- **DB سیصد گیگابایتی:** 285 − 138 = 147 GiB.
+- **A 30 GB DB (28.5 GiB usable):** the loop stops at the threshold 2 + 8 + 64, and cur_threshold = 2 + 8×2 = 18, so 10.5 GiB remains on the DB for slow-level data.
+- **A 60 GB DB:** 57 − 18 = 39 GiB.
+- **A 120 GB DB (114 GiB):** the loop goes one level further (threshold 10 + 64 + 512). cur_threshold = 10 + 64×2 = 138 is larger than 114, so db_avail4slow = 0.
+- **A 300 GB DB:** 285 − 138 = 147 GiB.
 
-پس DB بزرگ‌تر همیشه فضای اضافه‌ی بیشتری نمی‌دهد. اندازه‌هایی که درست پس از یک مرز سطح قرار می‌گیرند، کمترین بهره را دارند. این همان دلیل توصیه‌های قدیمی «DB را 30، 300 یا 3000 گیگابایت بگیرید» است. سیاست `fit_to_fast` این محاسبه را کنار می‌گذارد و تا 95٪ دستگاه سریع را پر می‌کند.
+So a larger DB does not always give more extra space. Sizes that fall just after a level boundary benefit the least. This is the reason behind the old advice "make the DB 30, 300 or 3000 gigabytes". The `fit_to_fast` policy sets this calculation aside and fills up to 95% of the fast device.
 
-![فضای DB که سیاست پیش‌فرض use_some_extra برای فایل‌های سطح‌های بالاتر RocksDB مجاز می‌داند، برحسب اندازه‌ی دستگاه DB. منحنی دندانه‌ای است: پس از هر مرز سطح، فرمول دو برابر اندازه‌ی سطح جاری را رزرو می‌کند و فضای اضافه به صفر می‌افتد. نقطه‌های قرمز چهار اندازه‌ی مثال متن‌اند. خط‌چین سقف 95 درصدی دستگاه است](figures/ch16/f09_vsel.png){#fig-16-f09_vsel}
+![The DB space that the default use_some_extra policy allows for files of the higher RocksDB levels, as a function of the DB device size. The curve is saw-toothed: after each level boundary, the formula reserves twice the size of the current level and the extra space drops to zero. The red points are the text's four example sizes. The dashed line is the device's 95 percent cap](figures/ch16/f09_vsel.png){#fig-16-f09_vsel}
 
 ::: {.note}
-این محاسبه فقط تعیین می‌کند BlueFS فایل‌های سطح‌های بالا را **ترجیحاً** کجا بگذارد. اگر DB پر شود، BlueFS باز هم به دستگاه کند می‌ریزد (spillover) و هشدار `BLUEFS_SPILLOVER` در `ceph health` ظاهر می‌شود. `ceph daemon osd.N bluefs stats` توزیع واقعی هر سطح را میان WAL، DB و SLOW نشان می‌دهد.
+This calculation only determines where BlueFS **prefers** to put the files of the higher levels. If the DB fills up, BlueFS still spills onto the slow device (spillover), and the `BLUEFS_SPILLOVER` warning appears in `ceph health`. `ceph daemon osd.N bluefs stats` shows the real distribution of each level across WAL, DB and SLOW.
 :::
 
-# جایگزین‌های امروزی {#sec-16-7}
+# Today's alternatives {#sec-16-7}
 
-![سه سطح لایه‌بندی امروزی در Ceph: در سطح pool با device class و قانون‌های CRUSH جدا برای nvme و hdd، درون OSD با قرار دادن block.db و WAL روی NVMe کنار داده‌ی HDD، و در سطح شیء با storage class و قانون lifecycle در RGW که اشیا را پس از مدتی به pool ظرفیتی یا فضای ابری منتقل می‌کند](figures/ch16/f04_alt.png){#fig-16-f04_alt}
+![Three levels of tiering in Ceph today: at the pool level with device classes and separate CRUSH rules for nvme and hdd, inside the OSD by placing block.db and the WAL on NVMe next to HDD data, and at the object level with storage classes and lifecycle rules in RGW that move objects to a capacity pool or cloud storage after a while](figures/ch16/f04_alt.png){#fig-16-f04_alt}
 
-## ۱. device class و pool جدا برای هر لایه {#sec-16-7-1}
+## 1. Device classes and a separate pool for each tier {#sec-16-7-1}
 
-ساده‌ترین و قابل‌پیش‌بینی‌ترین روش: داده‌ی داغ و سرد را **در سطح برنامه** جدا کنید و هر کدام را در pool مناسب بگذارید. از Luminous، هر OSD یک device class (hdd، ssd، nvme یا نام دلخواه) دارد و قانون CRUSH می‌تواند فقط OSDهای یک کلاس را انتخاب کند.
+The simplest and most predictable method: separate hot and cold data **at the application level** and put each in a suitable pool. Since Luminous, each OSD has a device class (hdd, ssd, nvme or a custom name), and a CRUSH rule can select only the OSDs of one class.
 
 ```bash
 ceph osd crush class ls
@@ -360,17 +359,17 @@ ceph osd erasure-code-profile set cold-ec k=4 m=2 crush-failure-domain=host crus
 ceph osd pool create vm-fast 128 128 replicated fast-rule
 ceph osd pool create archive 256 256 erasure cold-ec
 ceph osd pool set archive allow_ec_overwrites true
-# RBD با فراداده روی pool سریع و داده روی EC
+# RBD with metadata on the fast pool and data on EC
 rbd create --size 1T --data-pool archive vm-fast/backup01
 ```
 
 ::: {.tip}
-**انتقال یک pool به لایه‌ی دیگر** فقط با تغییر قانون CRUSH ممکن است: `ceph osd pool set <pool> crush_rule fast-rule`. Ceph داده را با backfill جابه‌جا می‌کند؛ با `osd_max_backfills` و برنامه‌ریز mclock (فصل ۲۱) اثرش را روی کلاینت محدود کنید.
+**Moving a pool to another tier** takes only a CRUSH rule change: `ceph osd pool set <pool> crush_rule fast-rule`. Ceph moves the data with backfill; limit its effect on clients with `osd_max_backfills` and the mclock scheduler (chapter 21).
 :::
 
-## ۲. لایه‌بندی درون OSD با BlueStore {#sec-16-7-2}
+## 2. Tiering inside the OSD with BlueStore {#sec-16-7-2}
 
-برای OSDهای HDD، قرار دادن `block.db` (RocksDB) و WAL روی NVMe بیشترین اثر را در ازای کمترین پیچیدگی دارد: فراداده، omap و نوشتن‌های کوچک deferred (فصل ۱۲؛ `bluestore_prefer_deferred_size_hdd=64K`) روی رسانه‌ی سریع انجام می‌شوند و HDD فقط نوشتن‌های بزرگ و ترتیبی را می‌بیند. در cephadm با مشخصات سرویس OSD:
+For HDD OSDs, placing `block.db` (RocksDB) and the WAL on NVMe gives the biggest effect for the least complexity: metadata, omap and small deferred writes (chapter 12; `bluestore_prefer_deferred_size_hdd=64K`) happen on fast media, and the HDD sees only large, sequential writes. In cephadm, with an OSD service specification:
 
 ```yaml
 service_type: osd
@@ -384,9 +383,9 @@ spec:
     rotational: 0
 ```
 
-## ۳. storage class و lifecycle در RGW {#sec-16-7-3}
+## 3. Storage classes and lifecycle in RGW {#sec-16-7-3}
 
-برای ذخیره‌سازی شیء، الگوی S3 یعنی **storage class** و انتقال با lifecycle، نزدیک‌ترین جایگزین «کش» است با این تفاوت مهم که تصمیم‌ها قطعی و قابل حسابرسی‌اند، نه آماری.
+For object storage, the S3 pattern, that is **storage classes** and transitions with lifecycle, is the closest replacement for a "cache", with the important difference that the decisions are deterministic and auditable, not statistical.
 
 ```bash
 radosgw-admin zonegroup placement add --rgw-zonegroup default \
@@ -409,63 +408,63 @@ radosgw-admin lc list
 ```
 
 ::: {.note}
-RGW از **cloud transition** هم پشتیبانی می‌کند: storage class از نوع `cloud-s3` که اشیا را به یک endpoint S3 بیرونی منتقل می‌کند (صفحه‌ی Cloud Transition در مستندات). این برای بایگانی بلندمدت در فضای دیگر مناسب است.
+RGW also supports **cloud transition**: a storage class of type `cloud-s3` that moves objects to an external S3 endpoint (the Cloud Transition page in the documentation). This is suitable for long-term archiving in another location.
 :::
 
-## ۴. سایر ابزارها {#sec-16-7-4}
+## 4. Other tools {#sec-16-7-4}
 
-- **primary affinity**: با `ceph osd primary-affinity <osd> <weight>` می‌توان احتمال primary شدن OSDهای کند را کم کرد تا خواندن‌ها بیشتر از OSDهای سریع سرویس شوند (در pool تکثیری با OSDهای ترکیبی).
-- **read balancer** (از Reef): توزیع primaryها برای متوازن کردن بار خواندن؛ صفحه‌ی Read Balancer در مستندات.
-- **کش سمت کلاینت**: کش librbd، کش persistent write-back در librbd (PWL) و fscache برای CephFS هسته.
+- **primary affinity**: with `ceph osd primary-affinity <osd> <weight>` you can lower the probability that slow OSDs become primary, so that more reads are served from the fast OSDs (in a replicated pool with mixed OSDs).
+- **read balancer** (since Reef): distributing primaries to balance the read load; the Read Balancer page in the documentation.
+- **Client-side caches**: the librbd cache, librbd's persistent write-back cache (PWL), and fscache for kernel CephFS.
 
-| نیاز | راه پیشنهادی امروز |
+| Need | Recommended approach today |
 |---|---|
-| VMهای حساس به تأخیر | pool تکثیری روی nvme با device class |
-| بایگانی و پشتیبان | pool EC روی hdd، RBD با --data-pool |
-| OSD HDD با بار ترکیبی | block.db/WAL روی NVMe |
-| داده‌ی شیء با عمر مشخص | storage class و lifecycle در RGW |
-| بایگانی خارج از کلاستر | cloud transition در RGW |
+| Latency-sensitive VMs | A replicated pool on nvme with a device class |
+| Archive and backup | An EC pool on hdd, RBD with --data-pool |
+| HDD OSDs with a mixed workload | block.db/WAL on NVMe |
+| Object data with a known lifetime | Storage classes and lifecycle in RGW |
+| Archiving outside the cluster | Cloud transition in RGW |
 
-::: {.summary title="نکات SRE این فصل"}
+::: {.summary title="SRE notes for this chapter"}
 
-- cache tier جدید نسازید؛ از Reef منسوخ است و ممکن است بدون اطلاع حذف شود.
-- پیش از ارتقای کلاستر دارای cache tier، مهاجرت را کامل کنید.
-- برای حذف tier writeback: proxy، flush-evict-all، remove-overlay، remove.
-- لایه‌بندی را در سطح pool و برنامه انجام دهید؛ رفتار قابل پیش‌بینی است.
-- برای OSDهای HDD، block.db روی NVMe بزرگ‌ترین بهبود ارزان است.
+- Do not build a new cache tier; it is deprecated since Reef and may be removed without notice.
+- Before upgrading a cluster with a cache tier, complete the migration.
+- To remove a writeback tier: proxy, flush-evict-all, remove-overlay, remove.
+- Do tiering at the pool and application level; the behaviour is predictable.
+- For HDD OSDs, block.db on NVMe is the biggest cheap improvement.
 
 :::
 
-# تکمیلی و به‌روز {#sec-16-8}
+# Supplementary and up to date {#sec-16-8}
 
-- از ۲۰۱۹ تاکنون، مهم‌ترین تغییر این حوزه منسوخ شدن cache tiering در Reef است؛ مستندات latest همچنان این هشدار را دارد.
-- overwrite در pool EC از Luminous و FastEC در Tentacle، دلیل اصلی تاریخی cache tier جلوی pool EC را از میان برده است.
-- RGW storage class، lifecycle و cloud transition مسیر رسمی لایه‌بندی شیء هستند.
-- کد عامل کش (`agent_*` در `PrimaryLogPG.cc` و `TierAgentState.h`) هنوز در شاخه‌ی main وجود دارد، اما بدون نگه‌دارنده است.
+- From 2019 to today, the most important change in this area is the deprecation of cache tiering in Reef; the latest documentation still carries this warning.
+- Overwrites in EC pools since Luminous, and FastEC in Tentacle, have removed the main historical reason for a cache tier in front of an EC pool.
+- RGW storage classes, lifecycle and cloud transition are the official path for object tiering.
+- The tier agent code (`agent_*` in `PrimaryLogPG.cc` and `TierAgentState.h`) still exists in the main branch, but without a maintainer.
 
-# تمرین عملی {#sec-16-9}
+# Hands-on exercise {#sec-16-9}
 
-1. در کلاستر آزمایشی یک cache tier writeback بسازید، با `rados bench` بار تصادفی بدهید و تأخیر را با pool بدون کش مقایسه کنید.
-2. `target_max_bytes` را کوچک بگذارید و انتقال حالت flush و evict را در log OSD (سطح ۲۰) دنبال کنید.
-3. روال حذف tier را کامل اجرا کنید و تأیید کنید هیچ شیئی از دست نرفته است.
-4. دو قانون CRUSH با device class بسازید و یک pool را با تغییر crush_rule بین لایه‌ها جابه‌جا کنید.
-5. یک storage class COLD در RGW بسازید و با lifecycle یک روزه انتقال را آزمایش کنید (برای آزمایش، `rgw_lc_debug_interval` را در محیط آزمایشی تنظیم کنید).
-6. `agent_choose_mode` را در کد بخوانید و برای یک pool با ۱۲۸ PG و target_max_bytes یک ترابایت، سهم هر PG را حساب کنید.
+1. In a test cluster, build a writeback cache tier, apply a random load with `rados bench`, and compare the latency with a pool without a cache.
+2. Set `target_max_bytes` small and follow the flush and evict mode transitions in the OSD log (level 20).
+3. Run the tier removal procedure completely and confirm that no object was lost.
+4. Build two CRUSH rules with device classes and move a pool between tiers by changing crush_rule.
+5. Build a COLD storage class in RGW and test the transition with a one-day lifecycle (for testing, set `rgw_lc_debug_interval` in the test environment).
+6. Read `agent_choose_mode` in the code and compute each PG's share for a pool with 128 PGs and a target_max_bytes of one terabyte.
 
-# پرسش‌های مرور {#sec-16-10}
+# Review questions {#sec-16-10}
 
-1. وضعیت رسمی cache tiering در نسخه‌های جاری چیست؟
-2. overlay چگونه درخواست کلاینت را به pool کش می‌برد؟
-3. HitSet نوع bloom چه مزیتی دارد و min_read_recency_for_promote چه می‌کند؟
-4. چرا cache tiering برای بیشتر بارهای RBD کارایی را کاهش می‌داد؟
-5. عامل کش چگونه هدف کل pool را به سهم هر PG تبدیل می‌کند؟
-6. نقش osd_agent_slop چیست؟
-7. evict در حالت SOME چگونه قربانی را انتخاب می‌کند؟
-8. مراحل حذف یک cache tier writeback را بنویسید.
-9. چه چیزی دلیل تاریخی cache tier جلوی pool EC را از بین برد؟
-10. برای داده‌ی شیء با عمر مشخص چه جایگزینی پیشنهاد می‌شود؟
+1. What is the official status of cache tiering in current releases?
+2. How does the overlay route a client request to the cache pool?
+3. What advantage does a bloom-type HitSet have, and what does min_read_recency_for_promote do?
+4. Why did cache tiering reduce performance for most RBD workloads?
+5. How does the tier agent turn the whole-pool target into each PG's share?
+6. What is the role of osd_agent_slop?
+7. How does eviction in SOME mode choose a victim?
+8. Write down the steps for removing a writeback cache tier.
+9. What removed the historical reason for a cache tier in front of an EC pool?
+10. What alternative is recommended for object data with a known lifetime?
 
-# منابع این فصل {#sec-16-11}
+# Sources for this chapter {#sec-16-11}
 
 - Cache Tiering (deprecation notice): https://docs.ceph.com/en/latest/rados/operations/cache-tiering/
 - CRUSH maps and device classes: https://docs.ceph.com/en/latest/rados/operations/crush-map/
@@ -476,4 +475,4 @@ RGW از **cloud transition** هم پشتیبانی می‌کند: storage class
 - Source: src/osd/PrimaryLogPG.cc (agent_*, hit_set_*): https://github.com/ceph/ceph/blob/main/src/osd/PrimaryLogPG.cc
 - Source: src/osd/TierAgentState.h: https://github.com/ceph/ceph/blob/main/src/osd/TierAgentState.h
 - Source: src/osd/HitSet.h: https://github.com/ceph/ceph/blob/main/src/osd/HitSet.h
-- ceph-devel (2017-11), «About the "temperature histogram" of tier-agent»: https://www.spinics.net/lists/ceph-devel/msg39274.html
+- ceph-devel (2017-11), "About the "temperature histogram" of tier-agent": https://www.spinics.net/lists/ceph-devel/msg39274.html

@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["1. Client path with the overlay"]
+    direction LR
+    CL["Client (Objecter)"] --> OV["base pool: cold-storage<br/>read_tier/write_tier = hot-storage"] --> HOT["cache pool: hot-storage<br/>(SSD, replicated)"]
+  end
+  subgraph R2["2. Inside the cache OSD (PrimaryLogPG)"]
+    direction LR
+    MH["maybe_handle_cache_detail<br/>is the object in the cache?"] --> HS["HitSet (bloom)<br/>recency check"] --> PR["promote_object<br/>copy from the base pool"]
+  end
+  subgraph R3["3. The tier agent"]
+    direction LR
+    AG["agent_work"] --> FL["agent_maybe_flush<br/>write dirty objects to the base pool"] --> EV["agent_maybe_evict<br/>remove cold clean objects"]
+  end
+  R1 ~~~ R2 ~~~ R3

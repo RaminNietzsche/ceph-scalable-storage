@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph A1["Pool-level tiering with device classes"]
+    direction LR
+    OSDS["OSDs: class hdd / ssd / nvme"] --> RULES["separate CRUSH rules<br/>create-replicated ... class"] --> POOLS["fast pool on nvme<br/>EC capacity pool on hdd"]
+  end
+  subgraph A2["Tiering inside the OSD"]
+    direction LR
+    HDD["data on HDD"] --> DB["block.db / WAL on NVMe<br/>(RocksDB and deferred writes)"]
+  end
+  subgraph A3["Object tiering in RGW"]
+    direction LR
+    STD["STANDARD: fast pool"] --> LC["lifecycle rule<br/>Transition after N days"] --> COLD["STANDARD_IA / COLD: capacity pool<br/>or cloud transition"]
+  end
+  A1 ~~~ A2 ~~~ A3

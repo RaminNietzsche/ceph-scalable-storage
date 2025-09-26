@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph M1["flush modes (TierAgentState::flush_mode_t)"]
+    direction LR
+    FI["IDLE<br/>dirty ≤ dirty_ratio"] --> FLW["LOW<br/>dirty > cache_target_dirty_ratio"] --> FH["HIGH<br/>dirty > cache_target_dirty_high_ratio"]
+  end
+  subgraph M2["evict modes (TierAgentState::evict_mode_t)"]
+    direction LR
+    EI["IDLE<br/>full ≤ full_ratio"] --> ES["SOME<br/>full > cache_target_full_ratio<br/>effort proportional to the gap"] --> EF["FULL<br/>full > 100% of target<br/>evict every clean object"]
+  end
+  subgraph M3["Hysteresis"]
+    direction LR
+    SL["osd_agent_slop = 0.02<br/>entry: target + slop, exit: target − slop"]
+  end
+  M1 ~~~ M2 ~~~ M3
