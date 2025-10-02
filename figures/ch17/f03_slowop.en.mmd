@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph A["1. Arrival and queueing"]
+    direction LR
+    I["initiated<br/>MOSDOp received"] --> Q["queued_for_pg<br/>OSD shard queue (mclock)"] --> R["reached_pg<br/>take the PG lock"]
+  end
+  subgraph B["2. Common waits (waiting for ... events)"]
+    direction LR
+    W1["waiting for active / peered<br/>the PG is not active yet"] ~~~ W2["waiting for degraded / missing object<br/>the object is being recovered"] ~~~ W3["waiting for readable<br/>read lease"]
+  end
+  subgraph C["3. Execution and replication"]
+    direction LR
+    ST["started"] --> SS["sub_op_sent<br/>sent to the replicas"] --> SC["sub_op_commit_rec<br/>ack from each replica"] --> CS["commit_sent<br/>reply to the client"]
+  end
+  A ~~~ B ~~~ C

@@ -1061,54 +1061,40 @@ ch16/f10_lcshard:
   Transition ⇒ کپی به pool کلاس هدف<br/>و به‌روزرسانی manifest: Transition ⇒ copy to the target class's pool<br/>and update the manifest
   'پایان: COMPLETE': 'end: COMPLETE'
 ch17/f01_method:
-  کدام لایه؟: null
-  کارایی: null
-  فرضیه: null
-  آزمون: null
-  اصلاح کوچک: null
-  ثبت در لاگ حادثه: null
+  کدام لایه؟: Which layer?
+  quorum، clock skew،<br/>ceph mon stat: quorum, clock skew,<br/>ceph mon stat
+  کارایی: performance
+  فرضیه ← آزمون ← اصلاح کوچک<br/>ثبت در لاگ حادثه: hypothesis → test → small fix<br/>record in the incident log
 ch17/f02_peering:
-  جمع‌آوری: null
-  از: null
-  های: null
-  و: null
-  محاسبه‌ی: null
-  هر: null
-  ثبت: null
-  در: null
-  شاخه‌های شکست: null
-  های لازم: null
-  در دسترس نیستند: null
-  هیچ: null
-  کافی برای: null
-  قابل‌قبول نیست: null
-  درخواست شد: null
+  GetInfo<br/>جمع‌آوری pg_info از<br/>OSDهای prior set: GetInfo<br/>collect pg_info from<br/>the prior set OSDs
+  GetLog<br/>choose_acting و<br/>find_best_info: GetLog<br/>choose_acting and<br/>find_best_info
+  GetMissing<br/>محاسبه‌ی missing<br/>هر replica: GetMissing<br/>compute each<br/>replica's missing
+  WaitUpThru<br/>ثبت up_thru در OSDMap: WaitUpThru<br/>record up_thru in the OSDMap
+  شاخه‌های شکست Peering: Peering failure branches
+  Down<br/>OSDهای لازم prior set در دسترس نیستند: Down<br/>the needed prior set OSDs are unavailable
+  Incomplete<br/>هیچ log کافی برای<br/>last_update قابل‌قبول نیست: Incomplete<br/>no log is sufficient for<br/>an acceptable last_update
+  WaitActingChange<br/>pg_temp درخواست شد: WaitActingChange<br/>pg_temp requested
 ch17/f03_slowop:
-  ورود و صف: null
-  دریافت: null
-  صف شارد: null
-  گرفتن قفل: null
-  انتظارهای رایج: null
-  رویداد: null
-  هنوز فعال نیست: null
-  شیء در حال بازیابی: null
-  خواندن: null
-  اجرا و تکثیر: null
-  ارسال به: null
-  ها: null
-  هر: null
-  پاسخ به کلاینت: null
+  ۱. ورود و صف: 1. Arrival and queueing
+  initiated<br/>دریافت MOSDOp: initiated<br/>MOSDOp received
+  queued_for_pg<br/>صف شارد OSD (mclock): queued_for_pg<br/>OSD shard queue (mclock)
+  reached_pg<br/>گرفتن قفل PG: reached_pg<br/>take the PG lock
+  ۲. انتظارهای رایج (رویداد waiting for ...): 2. Common waits (waiting for ... events)
+  waiting for active / peered<br/>PG هنوز فعال نیست: waiting for active / peered<br/>the PG is not active yet
+  waiting for degraded / missing object<br/>شیء در حال بازیابی: waiting for degraded / missing object<br/>the object is being recovered
+  waiting for readable<br/>lease خواندن: waiting for readable<br/>read lease
+  ۳. اجرا و تکثیر: 3. Execution and replication
+  sub_op_sent<br/>ارسال به replicaها: sub_op_sent<br/>sent to the replicas
+  sub_op_commit_rec<br/>ack هر replica: sub_op_commit_rec<br/>ack from each replica
+  commit_sent<br/>پاسخ به کلاینت: commit_sent<br/>reply to the client
 ch17/f04_scrub:
-  انتخاب بازه‌ی اشیا: null
-  نقشه‌ی محلی: null
-  دریافت نقشه‌ها: null
-  ارسال: null
-  مقایسه: null
-  انتخاب نسخه‌ی معتبر و: null
-  مقایسه‌ی اندازه،: null
-  و: null
-  ثبت: null
-  در: null
+  NewChunk<br/>انتخاب بازه‌ی اشیا: NewChunk<br/>choose a range of objects
+  BuildMap<br/>نقشه‌ی محلی: BuildMap<br/>local map
+  WaitReplicas<br/>دریافت نقشه‌ها: WaitReplicas<br/>receive the maps
+  ReplicaBuildingMap<br/>ارسال ScrubMap: ReplicaBuildingMap<br/>send the ScrubMap
+  مقایسه (scrub_backend): Comparison (scrub_backend)
+  انتخاب نسخه‌ی معتبر و<br/>مقایسه‌ی اندازه، digest و attr: choose the authoritative copy and<br/>compare size, digest and attrs
+  ثبت inconsistent در ScrubStore<br/>OSD_SCRUB_ERRORS / PG_DAMAGED: record inconsistent in the ScrubStore<br/>OSD_SCRUB_ERRORS / PG_DAMAGED
 ch18/f01_layers:
   درون یک کلاستر: null
   خودکار: null

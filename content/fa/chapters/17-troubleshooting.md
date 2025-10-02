@@ -219,15 +219,10 @@ for info (فقط up/acting اگر restrict):
 **مثال عددی.** یک PG replicated چهار info می‌گیرد (eversion به شکل epoch'version):
 
 | OSD | les | last_update | log_tail |
-
 |---|---|---|---|
-
 | osd.1 (primary) | 40 | 41'120 | 41'20 |
-
 | osd.4 | 40 | 41'118 | 40'10 |
-
 | osd.7 | 38 | 38'300 | 37'50 |
-
 | osd.9 | 40 | 41'120 | 40'90 |
 
 مراحل انتخاب:

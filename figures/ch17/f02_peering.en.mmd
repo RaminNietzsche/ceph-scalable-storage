@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Started/Primary/Peering (PeeringState.h)"]
+    direction LR
+    GI["GetInfo<br/>collect pg_info from<br/>the prior set OSDs"] --> GL["GetLog<br/>choose_acting and<br/>find_best_info"] --> GM["GetMissing<br/>compute each<br/>replica's missing"] --> WU["WaitUpThru<br/>record up_thru in the OSDMap"]
+  end
+  subgraph R2["Peering failure branches"]
+    direction LR
+    DN["Down<br/>the needed prior set OSDs are unavailable"] ~~~ IC["Incomplete<br/>no log is sufficient for<br/>an acceptable last_update"] ~~~ WAC["WaitActingChange<br/>pg_temp requested"]
+  end
+  subgraph R3["Started/Primary/Active"]
+    direction LR
+    AC["Activating"] --> RC["WaitLocal/RemoteRecoveryReserved<br/>→ Recovering"] --> BF["WaitLocal/RemoteBackfillReserved<br/>→ Backfilling"] --> CL["Recovered → Clean"]
+  end
+  R1 ~~~ R2 ~~~ R3

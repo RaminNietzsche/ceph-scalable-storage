@@ -5,113 +5,112 @@ title: 'Troubleshooting Ceph: From HEALTH_WARN to the Peering State Machine'
 part: main
 original_heading: Troubleshooting
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-17-1}
+# Before you start {#sec-17-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-17-1-1}
+## What questions does this chapter answer? {#sec-17-1-1}
 
-عیب‌یابی Ceph در لحظه‌ی حادثه بیشتر از هر چیز به **روش** نیاز دارد تا حافظه: اینکه از کجا شروع کنیم، کدام فرمان کدام لایه را نشان می‌دهد و کی باید دست نگه داشت. این فصل یک روش منظم ارائه می‌دهد و سپس به درون کد می‌رود تا ببینیم وضعیت‌هایی مثل `down`، `incomplete` یا `peering` دقیقاً از کجای ماشین حالت PG می‌آیند.
+Troubleshooting Ceph in the middle of an incident needs **method** more than memory: where to start, which command shows which layer, and when to hold back. This chapter presents a systematic method and then goes into the code to see exactly where in the PG state machine states such as `down`, `incomplete` or `peering` come from.
 
-- روش گام‌به‌گام عیب‌یابی از `ceph -s` تا ریشه‌ی مشکل چیست؟
-- مشکلات MON، OSD و شبکه را چگونه جدا کنیم؟
-- وضعیت‌های PG چه معنایی دارند و ماشین حالت Peering چگونه کار می‌کند؟
-- slow ops را چگونه تا رویداد دقیق در مسیر عملیات دنبال کنیم؟
-- scrub چگونه ناسازگاری را پیدا می‌کند و تعمیر کی بی‌خطر است؟
-- کدام فرمان‌ها **خطرناک**اند و فقط در آخرین مرحله به کار می‌روند؟
+- What is the step-by-step troubleshooting method, from `ceph -s` to the root of the problem?
+- How do we separate MON, OSD and network problems?
+- What do the PG states mean, and how does the Peering state machine work?
+- How do we follow slow ops down to the exact event in the operation's path?
+- How does scrub find inconsistencies, and when is repair safe?
+- Which commands are **dangerous** and used only as a last resort?
 
-# روش عیب‌یابی {#sec-17-2}
+# The troubleshooting method {#sec-17-2}
 
-![روش عیب‌یابی لایه‌ای: از خلاصه‌ی ceph -s و ceph health detail شروع کنید، لایه‌ی درگیر (MON، OSD، PG یا کارایی) را تشخیص دهید، با فرمان‌های همان لایه شواهد جمع کنید و سپس با چرخه‌ی فرضیه، آزمون و اصلاح کوچک پیش بروید و همه‌چیز را در لاگ حادثه ثبت کنید](figures/ch17/f01_method.png){#fig-17-f01_method}
+![The layered troubleshooting method: start from the ceph -s summary and ceph health detail, identify the layer involved (MON, OSD, PG or performance), gather evidence with that layer's commands, then proceed with a cycle of hypothesis, test and small fix, and record everything in the incident log](figures/ch17/f01_method.png){#fig-17-f01_method}
 
 ```bash
-ceph -s                           # نمای کلی: health، mon، osd، pgs، io
-ceph health detail                # کد هر هشدار با جزئیات
+ceph -s                           # overview: health, mon, osd, pgs, io
+ceph health detail                # each warning's code with details
 ceph health detail --format json-pretty | jq '.checks | keys'
-ceph versions                     # ناهمگونی نسخه پس از ارتقای ناتمام
-ceph crash ls-new                 # crashهای تازه (RECENT_CRASH)
-ceph log last 100                 # log کلاستر در MON
+ceph versions                     # version mismatch after an unfinished upgrade
+ceph crash ls-new                 # new crashes (RECENT_CRASH)
+ceph log last 100                 # the cluster log in the MON
 ```
 
 ::: {.tip}
-پیش از هر اقدام، وضعیت را **ثبت** کنید: خروجی `ceph -s`، `ceph health detail`، `ceph osd tree` و `ceph pg dump_stuck` را در فایلی با زمان ذخیره کنید. در بازبینی پس از حادثه، این داده‌ها از همه چیز ارزشمندترند.
+Before any action, **record** the state: save the output of `ceph -s`, `ceph health detail`, `ceph osd tree` and `ceph pg dump_stuck` in a timestamped file. In the post-incident review, this data is more valuable than anything else.
 :::
 
 ::: {.warn}
-در لحظه‌ی بحران وسوسه‌ی «یک کاری بکن» شدید است. Ceph در بیشتر موارد خودش را ترمیم می‌کند (recovery و backfill). مداخله‌ی شتاب‌زده، مثل `ceph osd out` گروهی یا راه‌اندازی دوباره‌ی همه‌ی OSDها، معمولاً وضعیت را بدتر می‌کند. قاعده: **یک تغییر در هر زمان، و مشاهده‌ی اثر آن.**
+In a crisis the temptation to "do something" is strong. In most cases Ceph heals itself (recovery and backfill). Hasty intervention, such as marking many OSDs `ceph osd out` or restarting all OSDs, usually makes things worse. The rule: **one change at a time, and observe its effect.**
 :::
 
-## هشدارهای پرتکرار {#sec-17-2-1}
+## Common warnings {#sec-17-2-1}
 
-| کد سلامت | معنای کوتاه | نخستین فرمان |
+| Health code | Short meaning | First command |
 |---|---|---|
-| OSD_DOWN | یک یا چند OSD پایین‌اند | ceph osd tree down |
-| PG_AVAILABILITY | PGهایی غیرفعال‌اند و I/O ندارند | ceph pg dump_stuck inactive |
-| PG_DEGRADED | نسخه‌های کمتر از size | ceph pg dump_stuck degraded |
-| SLOW_OPS | عملیات بیش از osd_op_complaint_time در جریان | ceph daemon osd.N dump_historic_slow_ops |
-| OSD_NEARFULL / OSD_FULL | پر شدن OSD | ceph osd df tree |
-| OSD_SCRUB_ERRORS / PG_DAMAGED | ناسازگاری یافته‌شده در scrub | rados list-inconsistent-obj PGID |
-| OBJECT_UNFOUND | نسخه‌ی معتبر شیء پیدا نمی‌شود | ceph pg PGID list_unfound |
-| MON_CLOCK_SKEW | اختلاف ساعت MONها | chronyc tracking |
-| LARGE_OMAP_OBJECTS | شیء با omap بسیار بزرگ | ceph log last و grep Large omap |
-| BLUEFS_SPILLOVER | RocksDB از block.db به دیسک کند سرریز کرده | ceph daemon osd.N bluefs stats |
-| BLUESTORE_SLOW_OP_ALERT | عملیات کند در لایه‌ی BlueStore | ceph health detail |
-| RECENT_CRASH | crash تازه‌ی daemon | ceph crash info ID |
+| OSD_DOWN | One or more OSDs are down | ceph osd tree down |
+| PG_AVAILABILITY | Some PGs are inactive and serve no I/O | ceph pg dump_stuck inactive |
+| PG_DEGRADED | Fewer copies than size | ceph pg dump_stuck degraded |
+| SLOW_OPS | Operations in flight longer than osd_op_complaint_time | ceph daemon osd.N dump_historic_slow_ops |
+| OSD_NEARFULL / OSD_FULL | OSDs filling up | ceph osd df tree |
+| OSD_SCRUB_ERRORS / PG_DAMAGED | Inconsistency found by scrub | rados list-inconsistent-obj PGID |
+| OBJECT_UNFOUND | No valid copy of an object can be found | ceph pg PGID list_unfound |
+| MON_CLOCK_SKEW | Clock difference between MONs | chronyc tracking |
+| LARGE_OMAP_OBJECTS | An object with a very large omap | ceph log last and grep Large omap |
+| BLUEFS_SPILLOVER | RocksDB has spilled over from block.db to the slow disk | ceph daemon osd.N bluefs stats |
+| BLUESTORE_SLOW_OP_ALERT | Slow operations in the BlueStore layer | ceph health detail |
+| RECENT_CRASH | A recent daemon crash | ceph crash info ID |
 
 ::: {.note}
-همه‌ی کدهای جدول بالا در صفحه‌ی Health Checks مستندات latest ثبت شده‌اند. پیوست «کتاب‌چه‌ی عیب‌یابی» فهرست کامل‌تر را دارد.
+All codes in the table above are listed on the Health Checks page of the latest documentation. The "Troubleshooting runbook" appendix has a more complete list.
 :::
 
-# مشکلات MON {#sec-17-3}
+# MON problems {#sec-17-3}
 
-- **از دست رفتن quorum**: هیچ فرمانی پاسخ نمی‌دهد. روی هر میزبان MON با سوکت مدیریت بررسی کنید: `ceph daemon mon.$(hostname -s) mon_status` (در cephadm: `cephadm shell --name mon.<host>` و سپس همان فرمان). فیلدهای `state`، `quorum` و `outside_quorum` را ببینید.
-- **clock skew**: Paxos به lease زمانی وابسته است؛ `chronyc sources` و `chronyc tracking` روی همه‌ی MONها.
-- **رشد store.db**: در دوره‌های طولانی ناسالم، MON نقشه‌های قدیمی را trim نمی‌کند. `ceph tell mon.* compact` و رفع علت ناسالمی.
+- **Loss of quorum**: no command responds. On each MON host, check with the admin socket: `ceph daemon mon.$(hostname -s) mon_status` (in cephadm: `cephadm shell --name mon.<host>` and then the same command). Look at the `state`, `quorum` and `outside_quorum` fields.
+- **Clock skew**: Paxos depends on a time lease; `chronyc sources` and `chronyc tracking` on all MONs.
+- **store.db growth**: during long unhealthy periods, the MON does not trim old maps. `ceph tell mon.* compact`, and fix the cause of the unhealthiness.
 
 ::: {.deep}
-چرا MON بدون quorum هیچ کاری نمی‌کند؟ هر تغییر نقشه یک پیشنهاد Paxos است که باید به تأیید اکثریت برسد (`src/mon/Paxos.cc`). حتی خواندن‌ها از MONی که lease معتبر ندارد سرویس داده نمی‌شوند تا کلاینت نقشه‌ی کهنه نگیرد. پس با سه MON، از دست رفتن دو MON یعنی توقف کامل مدیریت کلاستر، هرچند OSDها با آخرین نقشه به سرویس I/O ادامه می‌دهند تا وقتی که به تغییر نقشه نیاز باشد.
+Why does a MON without quorum do nothing? Every map change is a Paxos proposal that must be approved by a majority (`src/mon/Paxos.cc`). Even reads are not served from a MON without a valid lease, so that clients do not get a stale map. So with three MONs, losing two MONs means a complete halt of cluster management, although the OSDs keep serving I/O with the last map until a map change is needed.
 :::
 
-# مشکلات OSD {#sec-17-4}
+# OSD problems {#sec-17-4}
 
 ```bash
 ceph osd tree down
-ceph osd find 12                         # میزبان و مسیر
-cephadm logs --name osd.12 -- -n 200     # روی میزبان
+ceph osd find 12                         # host and path
+cephadm logs --name osd.12 -- -n 200     # on the host
 ceph crash ls | grep osd.12
-ceph daemon osd.12 status                # اگر بالا است
+ceph daemon osd.12 status                # if it is up
 ceph osd dump | grep -E "^osd.12 "
 ```
 
-| نشانه | علت محتمل | اقدام |
+| Symptom | Likely cause | Action |
 |---|---|---|
-| OSD مدام down/up می‌شود (flapping) | شبکه‌ی cluster، heartbeat، بار سنگین | بررسی شبکه، `ceph osd set nodown` فقط موقت |
-| OSD بالا نمی‌آید با خطای BlueStore | خرابی دیسک یا فراداده | `ceph-bluestore-tool fsck`، بررسی SMART |
-| OSD با OOM کشته می‌شود | osd_memory_target بیش از RAM | کاهش هدف حافظه، بررسی cache |
-| OSD «wrongly marked me down» | تأخیر heartbeat | شبکه، `osd_heartbeat_grace` (پیش‌فرض ۲۰ ثانیه) |
+| The OSD keeps going down/up (flapping) | Cluster network, heartbeat, heavy load | Check the network; `ceph osd set nodown` only temporarily |
+| The OSD will not start, with a BlueStore error | Disk or metadata corruption | `ceph-bluestore-tool fsck`, check SMART |
+| The OSD is killed by OOM | osd_memory_target exceeds RAM | Lower the memory target, check the caches |
+| The OSD says "wrongly marked me down" | Heartbeat delay | Network, `osd_heartbeat_grace` (default 20 seconds) |
 
 ::: {.warn}
-`nodown` و `noout` ابزارهای موقت‌اند. `nodown` روی OSD واقعاً مرده باعث می‌شود کلاینت‌ها منتظر OSDی بمانند که هرگز پاسخ نمی‌دهد. پس از رفع مشکل حتماً `ceph osd unset` کنید؛ هشدار `OSDMAP_FLAGS` یادآور شماست. OSDی که down است پس از `mon_osd_down_out_interval` (پیش‌فرض ۱۰ دقیقه) به‌طور خودکار out می‌شود و backfill آغاز می‌شود.
+`nodown` and `noout` are temporary tools. `nodown` on a truly dead OSD makes clients wait for an OSD that will never respond. After fixing the problem, always run `ceph osd unset`; the `OSDMAP_FLAGS` warning reminds you. An OSD that is down is automatically marked out after `mon_osd_down_out_interval` (default 10 minutes), and backfill begins.
 :::
 
-# وضعیت‌های PG {#sec-17-5}
+# PG states {#sec-17-5}
 
-| وضعیت | معنا | نگرانی |
+| State | Meaning | Concern |
 |---|---|---|
-| active+clean | سالم: همه‌ی نسخه‌ها هم‌گام | ندارد |
-| peering | OSDها در حال توافق بر سر تاریخچه‌ی PG | اگر طولانی شود |
-| activating | peering تمام شده، در حال فعال‌سازی | معمولاً کوتاه |
-| degraded | برخی اشیا نسخه‌ی کمتر از size دارند | متوسط |
-| undersized | تعداد OSDهای acting کمتر از size | متوسط |
-| remapped | acting با up متفاوت است (pg_temp) | معمولاً گذرا |
-| backfill_wait / backfilling | انتظار برای رزرو یا کپی کامل PG | گذرا |
-| recovery_wait / recovering | انتظار یا بازیابی بر پایه‌ی log | گذرا |
-| down | OSDهای لازم برای peering در دسترس نیستند | بالا: I/O متوقف |
-| incomplete | هیچ OSDی تاریخچه‌ی کافی ندارد | بالا |
-| stale | MON مدتی از primary خبری نگرفته | بالا |
-| inconsistent | scrub ناسازگاری یافته | بالا |
-| recovery_unfound / backfill_unfound | شیء بدون نسخه‌ی معتبر | بحرانی |
+| active+clean | Healthy: all copies in sync | None |
+| peering | OSDs are agreeing on the PG's history | If it lasts long |
+| activating | Peering finished, being activated | Usually brief |
+| degraded | Some objects have fewer copies than size | Medium |
+| undersized | Fewer acting OSDs than size | Medium |
+| remapped | acting differs from up (pg_temp) | Usually transient |
+| backfill_wait / backfilling | Waiting for a reservation, or full copy of the PG | Transient |
+| recovery_wait / recovering | Waiting for, or doing, log-based recovery | Transient |
+| down | The OSDs needed for peering are unavailable | High: I/O stopped |
+| incomplete | No OSD has enough history | High |
+| stale | The MON has not heard from the primary for a while | High |
+| inconsistent | Scrub found an inconsistency | High |
+| recovery_unfound / backfill_unfound | An object without a valid copy | Critical |
 
 ```bash
 ceph pg stat
@@ -123,247 +122,242 @@ ceph pg 2.1f query | jq '.state, .recovery_state[0]'
 ```
 
 ::: {.tip}
-خروجی `ceph pg <pgid> query` بخشی به نام `recovery_state` دارد که **مسیر ماشین حالت** PG را نشان می‌دهد؛ مثلاً `Started/Primary/Peering/GetInfo` یا `Started/Primary/Peering/Down` همراه با `blocked` و `down_osds_we_would_probe`. این همان نام‌هایی است که در `PeeringState.h` تعریف شده‌اند.
+The output of `ceph pg <pgid> query` has a section called `recovery_state` that shows the PG's **path through the state machine**; for example `Started/Primary/Peering/GetInfo` or `Started/Primary/Peering/Down`, together with `blocked` and `down_osds_we_would_probe`. These are the same names defined in `PeeringState.h`.
 :::
 
-# از درون کد: ماشین حالت Peering {#sec-17-6}
+# Inside the code: the Peering state machine {#sec-17-6}
 
-## ساختار سلسله‌مراتبی {#sec-17-6-1}
+## The hierarchical structure {#sec-17-6-1}
 
-`src/osd/PeeringState.h` ماشین حالت PG را با **boost::statechart** تعریف می‌کند. هر حالت یک struct است که والدش را مشخص می‌کند؛ مثلاً `struct GetInfo : boost::statechart::state<GetInfo, Peering>`. بنابراین نام کامل حالت یک مسیر است: `Started/Primary/Peering/GetInfo`. رویدادها (مانند `AdvMap` برای نقشه‌ی جدید، `MNotifyRec` برای دریافت اطلاعات از OSD دیگر، `GotLog`، `Activate`) بین حالت‌ها جابه‌جا می‌کنند.
+`src/osd/PeeringState.h` defines the PG state machine with **boost::statechart**. Each state is a struct that names its parent; for example `struct GetInfo : boost::statechart::state<GetInfo, Peering>`. So the full name of a state is a path: `Started/Primary/Peering/GetInfo`. Events (such as `AdvMap` for a new map, `MNotifyRec` for receiving information from another OSD, `GotLog`, `Activate`) move between states.
 
-![ماشین حالت Peering در سه ردیف: مسیر اصلی GetInfo، GetLog، GetMissing و WaitUpThru زیر Started/Primary/Peering؛ شاخه‌های شکست Down، Incomplete و WaitActingChange؛ و پس از فعال‌سازی، مسیر Active شامل رزرو و Recovering، رزرو و Backfilling، و در نهایت Recovered و Clean](figures/ch17/f02_peering.png){#fig-17-f02_peering}
+![The Peering state machine in three rows: the main path GetInfo, GetLog, GetMissing and WaitUpThru under Started/Primary/Peering; the failure branches Down, Incomplete and WaitActingChange; and after activation, the Active path, including reservation and Recovering, reservation and Backfilling, and finally Recovered and Clean](figures/ch17/f02_peering.png){#fig-17-f02_peering}
 
-| حالت | کار |
+| State | Job |
 |---|---|
-| GetInfo | از همه‌ی OSDهای prior set (OSDهایی که ممکن است از آخرین interval فعال، نوشتن داشته باشند) pg_info می‌خواهد |
-| GetLog | با choose_acting بهترین log را انتخاب و در صورت نیاز از آن OSD می‌گیرد |
-| GetMissing | log هر replica را با log معتبر مقایسه و فهرست missing را می‌سازد |
-| WaitUpThru | منتظر می‌ماند تا MON ثبت up_thru این OSD را در نقشه منتشر کند |
-| Down | اطلاعات کافی از prior set نیست؛ منتظر بازگشت OSDها |
-| Incomplete | log کافی برای ادامه نیست؛ نیاز به مداخله‌ی دستی |
-| WaitActingChange | primary درخواست pg_temp داده و منتظر نقشه‌ی جدید است |
+| GetInfo | Asks all OSDs of the prior set (OSDs that may have taken writes since the last active interval) for pg_info |
+| GetLog | Chooses the best log with choose_acting and fetches it from that OSD if needed |
+| GetMissing | Compares each replica's log with the authoritative log and builds the missing list |
+| WaitUpThru | Waits for the MON to publish this OSD's up_thru in the map |
+| Down | Not enough information from the prior set; waiting for OSDs to return |
+| Incomplete | Not enough log to continue; needs manual intervention |
+| WaitActingChange | The primary has requested pg_temp and is waiting for a new map |
 
-## prior set و up_thru: چرا PG «down» می‌شود {#sec-17-6-2}
+## The prior set and up_thru: why a PG goes "down" {#sec-17-6-2}
 
-مسئله‌ی اصلی peering این است: **آیا ممکن است نوشتنی تأییدشده وجود داشته باشد که ما از آن خبر نداریم؟** هر بار که acting set عوض می‌شود، یک interval جدید آغاز می‌شود. PG برای هر interval گذشته از زمان آخرین active شدن، بررسی می‌کند آیا در آن interval ممکن بوده PG فعال شده و نوشتن پذیرفته باشد. این «ممکن بودن» با **up_thru** سنجیده می‌شود: primary پیش از active شدن باید منتظر بماند تا MON در OSDMap ثبت کند که این OSD تا این epoch زنده بوده است (حالت WaitUpThru). اگر intervalی وجود داشته باشد که در آن up_thru ثبت شده (پس شاید نوشتن رخ داده) و هیچ‌یک از OSDهای آن interval اکنون در دسترس نباشند، PG نمی‌تواند مطمئن شود و به `Down` می‌رود.
+The central question of peering is: **could there be an acknowledged write that we do not know about?** Every time the acting set changes, a new interval begins. For each past interval since the last time it became active, the PG checks whether the PG could have become active in that interval and accepted writes. This "could have" is measured with **up_thru**: before becoming active, the primary must wait until the MON records in the OSDMap that this OSD was alive up to this epoch (the WaitUpThru state). If there is an interval in which up_thru was recorded (so writes may have happened) and none of that interval's OSDs is available now, the PG cannot be sure and goes to `Down`.
 
 ```text
-pseudocode: ساختن prior set (خلاصه‌ی این کتاب از PastIntervals در osd_types)
+pseudocode: building the prior set (this book's summary of PastIntervals in osd_types)
   for interval in past_intervals since last_epoch_started:
-      if not interval.maybe_went_rw: continue        # up_thru ثبت نشده → نوشتن ممکن نبوده
+      if not interval.maybe_went_rw: continue        # up_thru not recorded → writes were impossible
       up_now = [osd for osd in interval.acting if osd is up]
-      # تکثیری: اگر هیچ OSD زنده‌ای از آن interval نمانده باشد → down
-      if not recoverable(up_now):             pg_down = true            # EC: کمتر از k shard (ساده‌شده؛ predicate واقعی IsPGRecoverablePredicate)
+      # replicated: if no live OSD remains from that interval → down
+      if not recoverable(up_now):             pg_down = true            # EC: fewer than k shards (simplified; the real predicate is IsPGRecoverablePredicate)
       probe += up_now
   return (probe, pg_down, down_osds_we_would_probe)
 ```
 
 ::: {.deep}
-به همین دلیل خروجی `pg query` در وضعیت down فیلد `down_osds_we_would_probe` را نشان می‌دهد: OSDهایی که اگر برگردند، PG می‌تواند peering را کامل کند. راه درست تقریباً همیشه **برگرداندن همان OSDها** است، نه علامت زدن آن‌ها به عنوان lost. فرمان `ceph osd lost` به PG اجازه می‌دهد بدون آن OSD ادامه دهد، اما هر نوشتن تأییدشده‌ای که فقط روی آن OSD بوده **برای همیشه از دست می‌رود**.
+That is why the `pg query` output in the down state shows the `down_osds_we_would_probe` field: the OSDs which, if they come back, let the PG complete peering. The right move is almost always **to bring those same OSDs back**, not to mark them lost. The `ceph osd lost` command lets the PG continue without that OSD, but any acknowledged write that existed only on that OSD **is lost forever**.
 :::
 
-## find_best_info: کدام log معتبر است؟ {#sec-17-6-3}
+## find_best_info: which log is authoritative? {#sec-17-6-3}
 
-در GetLog، تابع `PeeringState::find_best_info()` از میان pg_infoهای دریافت‌شده بهترین را انتخاب می‌کند. منطق آن (بازنویسی این کتاب):
+In GetLog, the function `PeeringState::find_best_info()` chooses the best of the received pg_infos. Its logic (this book's rewrite):
 
 ```text
 pseudocode: find_best_info(infos)
-  (max_les, min_lu) = calculate_maxles_and_minlua(infos)   # بیشینه‌ی last_epoch_started
-  if min_lu == max: return none                              # هیچ نامزد قابل قبولی نیست
+  (max_les, min_lu) = calculate_maxles_and_minlua(infos)   # the maximum last_epoch_started
+  if min_lu == max: return none                              # no acceptable candidate
   best = none
   for (shard, info) in infos:
       skip if info.last_update < min_lu
       skip if info.last_epoch_started < max_les
       skip if info.is_incomplete()
       if best is none: best = info; continue
-      if pool.require_rollback():          # EC: کمترین last_update ایمن است (rollback ممکن)
+      if pool.require_rollback():          # EC: the smallest last_update is safe (rollback possible)
           prefer smaller last_update
-      else:                                # تکثیری: بیشترین last_update
+      else:                                # replicated: the largest last_update
           prefer larger last_update
-      then prefer smaller log_tail          # log بلندتر → recovery بر پایه‌ی log برای بیشتر replicaها
+      then prefer smaller log_tail          # a longer log → log-based recovery for more replicas
       then prefer complete (no missing)
       then prefer current primary / up set
   return best
 ```
 
 ::: {.note}
-تفاوت تکثیری و EC آموزنده است: در pool تکثیری، replica با جدیدترین نوشتن مرجع می‌شود و بقیه با log به آن می‌رسند. در EC، نوشتن ناقص روی چند shard قابل بازسازی نیست؛ بنابراین Ceph نسخه‌ای را مرجع می‌گیرد که همه‌ی shardها بتوانند به آن **برگردند** (rollback). این همان دلیلی است که EC به rollback info در log نیاز دارد (`require_rollback()`).
+The difference between replicated and EC is instructive: in a replicated pool, the replica with the newest write becomes the reference and the others catch up with it via the log. In EC, a partial write across a few shards cannot be reconstructed; so Ceph takes as reference the version that all shards can **roll back** to. This is why EC needs rollback info in the log (`require_rollback()`).
 :::
 
 ::: {.warn}
-گزینه‌ی `osd_find_best_info_ignore_history_les` (که در `PeeringState.cc` بررسی می‌شود) فقط برای بازیابی اضطراری PGهای incomplete است و می‌تواند داده‌ی تأییدشده را دور بریزد. آن را فقط با درک کامل، روی یک OSD، به‌طور موقت و ترجیحاً با راهنمایی متخصص به کار ببرید و بلافاصله برگردانید.
+The option `osd_find_best_info_ignore_history_les` (checked in `PeeringState.cc`) is only for emergency recovery of incomplete PGs and can throw away acknowledged data. Use it only with full understanding, on one OSD, temporarily and preferably with expert guidance, and revert it immediately.
 :::
 
-# سه الگوریتم عیب‌یابی با عدد {#sec-17-7}
+# Three troubleshooting algorithms in numbers {#sec-17-7}
 
-عیب‌یاب خوب باید بداند خروجی‌هایی مثل «PG down است»، «slow request 61 seconds old» یا «deep scrub عقب افتاده» دقیقاً از کدام محاسبه بیرون می‌آیند. این بخش سه محاسبه را با داده‌ی نمونه دنبال می‌کند.
+A good troubleshooter should know exactly which calculation produces outputs such as "PG is down", "slow request 61 seconds old" or "deep scrub is behind". This section follows three calculations with sample data.
 
-## کدام OSD log معتبر را دارد؟ {#sec-17-7-1}
+## Which OSD has the authoritative log? {#sec-17-7-1}
 
-::: {.algo #alg-17-1 title="انتخاب info معتبر در peering" src="src/osd/PeeringState.cc :: PeeringState::calculate_maxles_and_minlua، PeeringState::find_best_info" complexity="O(R) برای R info دریافتی، دو گذر خطی"}
+::: {.algo #alg-17-1 title="Choosing the authoritative info in peering" src="src/osd/PeeringState.cc :: PeeringState::calculate_maxles_and_minlua, PeeringState::find_best_info" complexity="O(R) for R received infos, two linear passes"}
 :::
 
 ```text
 pseudocode
 max_les = 0
-for info: max_les = max(max_les, info.history.les)            # مگر osd_find_best_info_ignore_history_les
+for info: max_les = max(max_les, info.history.les)            # unless osd_find_best_info_ignore_history_les
           if !incomplete: max_les = max(max_les, info.les)
-min_lua = min(info.last_update | info.les ≥ max_les)          # اگر هیچ: PG بدون info معتبر
+min_lua = min(info.last_update | info.les ≥ max_les)          # if none: the PG has no valid info
 best = ∅
-for info (فقط up/acting اگر restrict):
-    رد شو اگر lu < min_lua یا les < max_les یا incomplete
-    replicated: lu بزرگ‌تر بهتر ؛ EC (require_rollback): lu کوچک‌تر بهتر
-    در تساوی: log_tail کوچک‌تر (log بلندتر) ؛ سپس بدون missing ؛ سپس primary فعلی
+for info (only up/acting if restrict):
+    skip if lu < min_lua or les < max_les or incomplete
+    replicated: larger lu is better ; EC (require_rollback): smaller lu is better
+    on a tie: smaller log_tail (longer log) ; then no missing ; then the current primary
 ```
 
-**مثال عددی.** یک PG replicated چهار info می‌گیرد (eversion به شکل epoch'version):
+**Numerical example.** A replicated PG receives four infos (eversion in the form epoch'version):
 
 | OSD | les | last_update | log_tail |
-
 |---|---|---|---|
-
 | osd.1 (primary) | 40 | 41'120 | 41'20 |
-
 | osd.4 | 40 | 41'118 | 40'10 |
-
 | osd.7 | 38 | 38'300 | 37'50 |
-
 | osd.9 | 40 | 41'120 | 40'90 |
 
-مراحل انتخاب:
+The selection steps:
 
 1. max_les = 40.
-2. min_lua از میان les ≥ 40 برابر 41'118 است. مقایسه‌ی eversion نخست epoch را می‌سنجد، پس 38'300 از 41'118 کوچک‌تر است، هرچند version آن بزرگ‌تر است.
-3. osd.7 به خاطر les 38 حذف می‌شود.
-4. از میان سه نامزد باقی‌مانده، osd.1 و osd.9 جدیدترین last_update را دارند.
-5. tail کوچک‌تر، یعنی 40'90 < 41'20، برنده است، پس osd.9 مرجع می‌شود، نه primary.
+2. min_lua among les ≥ 40 is 41'118. eversion comparison looks at the epoch first, so 38'300 is smaller than 41'118 even though its version is larger.
+3. osd.7 is dropped because of its les of 38.
+4. Of the three remaining candidates, osd.1 and osd.9 have the newest last_update.
+5. The smaller tail, that is 40'90 < 41'20, wins, so osd.9 becomes the reference, not the primary.
 
-primary پس از این مرحله log معتبر را از osd.9 می‌گیرد (GetLog). اگر همه‌ی OSDهای les = 40 از کار افتاده باشند، min_lua تعریف‌نشده می‌ماند و PG در حالت down/incomplete گیر می‌کند. این همان جایی است که `ceph pg query` در بخش `recovery_state` فهرست `down_osds_we_would_probe` را نشان می‌دهد.
+After this step the primary fetches the authoritative log from osd.9 (GetLog). If all OSDs with les = 40 had failed, min_lua would remain undefined and the PG would get stuck in down/incomplete. This is exactly where `ceph pg query` shows the `down_osds_we_would_probe` list in its `recovery_state` section.
 
-![اجرای find_best_info روی چهار info نمونه. ردیف قرمز به خاطر last_epoch_started قدیمی‌تر حذف می‌شود. از میان دو ردیف با جدیدترین last_update، آنکه log_tail کوچک‌تر و در نتیجه log بلندتری دارد (سبز) برنده است. ترجیح primary فعلی فقط وقتی اعمال می‌شود که همه‌ی معیارهای قبلی برابر باشند. در pool EC جهت مقایسه‌ی last_update برعکس است، چون نسخه‌های جلوتر باید rollback شوند](figures/ch17/f05_bestinfo.png){#fig-17-f05_bestinfo}
+![Running find_best_info on four sample infos. The red row is dropped because of an older last_epoch_started. Of the two rows with the newest last_update, the one with the smaller log_tail, and therefore the longer log (green), wins. Preferring the current primary only applies when all previous criteria are equal. In an EC pool the direction of the last_update comparison is reversed, because newer versions must be rolled back](figures/ch17/f05_bestinfo.png){#fig-17-f05_bestinfo}
 
-## زمان‌بندی هشدار slow request {#sec-17-7-2}
+## Timing of the slow request warning {#sec-17-7-2}
 
-::: {.algo #alg-17-2 title="شمارش و گزارش عملیات کند با عقب‌نشینی نمایی" src="src/common/TrackedOp.cc :: OpTracker::with_slow_ops_in_flight، OpTracker::check_ops_in_flight، visit_ops_in_flight" complexity="O(تعداد op در حال اجرا) در هر بررسی؛ ops هر شارد به ترتیب زمان آغاز پیمایش و در اولین op جوان متوقف می‌شود"}
+::: {.algo #alg-17-2 title="Counting and reporting slow operations with exponential back-off" src="src/common/TrackedOp.cc :: OpTracker::with_slow_ops_in_flight, OpTracker::check_ops_in_flight, visit_ops_in_flight" complexity="O(number of in-flight ops) per check; each shard's ops are walked in order of start time, stopping at the first young op"}
 :::
 
 ```text
 pseudocode
 too_old = now − osd_op_complaint_time (30 s)
-visit ops by initiated (قدیمی به جدید):
-    if op.initiated ≥ too_old: stop                # بقیه جوان‌ترند
-    if continuous یا multiplier == 0: skip
-    slow++                                         # در SLOW_OPS و health شمرده می‌شود
-    if warned ≥ osd_op_log_threshold (5): continue # فقط شمردن، نه لاگ
+visit ops by initiated (oldest to newest):
+    if op.initiated ≥ too_old: stop                # the rest are younger
+    if continuous or multiplier == 0: skip
+    slow++                                         # counted in SLOW_OPS and health
+    if warned ≥ osd_op_log_threshold (5): continue # count only, no log
     if op.initiated + 30 × multiplier ≥ now: continue
     warned++ ; log "slow request …" ; multiplier ×= 2
 ```
 
-**مثال عددی.** یک op در t = 0 گیر کرده است و OSD هر ثانیه بررسی می‌کند.
+**Numerical example.** An op got stuck at t = 0, and the OSD checks every second.
 
-- t = 31 s: op کند است و multiplier = 1، پس 0 + 30 < 31 و لاگ می‌شود. multiplier به 2 می‌رسد.
-- لاگ بعدی وقتی است که 0 + 60 < now، یعنی t = 61. پس از آن t = 121 و t = 241 (multiplier 4 و 8).
-- در کل در 400 ثانیه چهار خط لاگ برای این op نوشته می‌شود، اما در همه‌ی این مدت در شمارش SLOW_OPS هست.
+- t = 31 s: the op is slow and multiplier = 1, so 0 + 30 < 31 and it is logged. multiplier becomes 2.
+- The next log is when 0 + 60 < now, that is t = 61. After that t = 121 and t = 241 (multiplier 4 and 8).
+- In total, four log lines are written for this op in 400 seconds, but it is counted in SLOW_OPS the whole time.
 
-اگر 50 op هم‌زمان کند باشند، هر بررسی حداکثر 5 خط لاگ می‌دهد، اما «50 slow requests» گزارش می‌شود. پس خلوت بودن لاگ به معنای کم بودن opهای کند نیست. برای دیدن همه، از `ceph daemon osd.N dump_ops_in_flight` و `dump_historic_slow_ops` استفاده کنید.
+If 50 ops are slow at once, each check logs at most 5 lines, but "50 slow requests" is reported. So a quiet log does not mean few slow ops. To see all of them, use `ceph daemon osd.N dump_ops_in_flight` and `dump_historic_slow_ops`.
 
-![خط زمانی یک op که 400 ثانیه گیر مانده است. از ثانیه‌ی 30 به بعد در شمار opهای کند است. اما خط لاگ «slow request» فقط وقتی نوشته می‌شود که سن op از 30 × multiplier بگذرد و پس از هر لاگ ضریب دو برابر می‌شود. پس بازه‌ی لاگ‌ها 30، 60 و 120 ثانیه است و لاگ OSD در یک رخداد طولانی سیل‌آسا نمی‌شود](figures/ch17/f06_slowop.png){#fig-17-f06_slowop}
+![Timeline of an op stuck for 400 seconds. From second 30 onward it counts among the slow ops. But a "slow request" log line is written only when the op's age passes 30 × multiplier, and the multiplier doubles after each log. So the gaps between logs are 30, 60 and 120 seconds, and the OSD log is not flooded during a long incident](figures/ch17/f06_slowop.png){#fig-17-f06_slowop}
 
-## زمان scrub بعدی {#sec-17-7-3}
+## When is the next scrub? {#sec-17-7-3}
 
-::: {.algo #alg-17-3 title="تصادفی‌سازی زمان scrub سطحی و عمیق" src="src/osd/scrubber/scrub_job.cc :: ScrubJob::adjust_shallow_schedule، ScrubJob::adjust_deep_schedule، ScrubJob::guaranteed_offset؛ src/osd/scrubber/pg_scrubber.cc :: PgScrubber::populate_config_params" complexity="O(1) برای هر PG پس از هر scrub"}
+::: {.algo #alg-17-3 title="Randomizing the time of shallow and deep scrubs" src="src/osd/scrubber/scrub_job.cc :: ScrubJob::adjust_shallow_schedule, ScrubJob::adjust_deep_schedule, ScrubJob::guaranteed_offset; src/osd/scrubber/pg_scrubber.cc :: PgScrubber::populate_config_params" complexity="O(1) per PG after each scrub"}
 :::
 
 ```text
 pseudocode
-shallow (اگر فوری نیست): target = last + min_interval + min_interval × randomize_ratio × U[0,1]
+shallow (if not urgent): target = last + min_interval + min_interval × randomize_ratio × U[0,1]
                          not_before = max(last, target)
 deep:  sdv = deep_interval × cv
        target = last + clamp(N(deep_interval, sdv), deep_interval − 2·sdv, deep_interval + 2·sdv)
-فوری (operator/repair): زمان = scrub_must_stamp ، بدون تصادف
-guaranteed_offset: shallow = min × (2 + ratio) ، deep = deep + 3·sdv + 10 s
+urgent (operator/repair): time = scrub_must_stamp , no randomness
+guaranteed_offset: shallow = min × (2 + ratio) , deep = deep + 3·sdv + 10 s
 ```
 
-**مثال عددی (پیش‌فرض‌ها: min 1 روز، randomize 0.5، deep 7 روز، cv 0.2).**
+**Numerical example (defaults: min 1 day, randomize 0.5, deep 7 days, cv 0.2).**
 
-- **scrub سطحی:** بعدی در بازه‌ی یکنواخت 1 تا 1.5 روز پس از آخرین scrub است.
-- **scrub عمیق:** sdv = 1.4 روز و نمونه به بازه‌ی 4.2 تا 9.8 روز بریده می‌شود. در شبیه‌سازی 100000 نمونه، حدود 68٪ در بازه‌ی 5.6 تا 8.4 روز (0.8 تا 1.2 برابر) افتادند و حدود 2.3٪ دقیقاً روی دو مرز قرار گرفتند.
+- **Shallow scrub:** the next one is uniformly distributed between 1 and 1.5 days after the last scrub.
+- **Deep scrub:** sdv = 1.4 days, and the sample is clipped to the range 4.2 to 9.8 days. In a simulation of 100000 samples, about 68% fell between 5.6 and 8.4 days (0.8 to 1.2 times), and about 2.3% landed exactly on the two limits.
 
-متن long_desc گزینه‌ی `osd_deep_scrub_interval_cv` می‌گوید 95٪ در [0.8، 1.2] هستند. اما با cv = 0.2 این بازه فقط یک انحراف معیار است. 95٪ در ±2σ، یعنی [0.6، 1.4] قرار می‌گیرد. این ناسازگاری در متن راهنمای گزینه است، نه در رفتار. برای کلاستری با 4096 PG، این پخش‌شدگی یعنی به‌طور متوسط حدود 585 deep scrub در روز (4096/7)، بدون اینکه همه با هم در یک روز شروع شوند.
+The long_desc of the `osd_deep_scrub_interval_cv` option says 95% are within [0.8, 1.2]. But with cv = 0.2 this range is only one standard deviation. 95% lie within ±2σ, that is [0.6, 1.4]. This inconsistency is in the option's help text, not in the behaviour. For a cluster with 4096 PGs, this spread means about 585 deep scrubs per day on average (4096/7), without all of them starting on the same day.
 
-![توزیع زمان scrub بعدی با پیش‌فرض‌ها، از شبیه‌سازی همان فرمول‌های کد. سمت چپ scrub سطحی است: توزیع یکنواخت در یک تا یک‌ونیم روز. سمت راست scrub عمیق است: توزیع نرمال حول هفت روز با انحراف معیار 1.4 روز که در ±2σ بریده شده است. دو ستون بلند لبه‌ها، نمونه‌های بریده‌شده هستند. ناحیه‌ی زرد بازه‌ی 0.8 تا 1.2 برابر است](figures/ch17/f07_scrubsched.png){#fig-17-f07_scrubsched}
+![Distribution of the next scrub time with the defaults, from a simulation of the same formulas as the code. The left side is the shallow scrub: a uniform distribution over one to one and a half days. The right side is the deep scrub: a normal distribution around seven days with a standard deviation of 1.4 days, clipped at ±2σ. The two tall bars at the edges are the clipped samples. The yellow area is the range 0.8 to 1.2 times](figures/ch17/f07_scrubsched.png){#fig-17-f07_scrubsched}
 
 ::: {.warn}
-**وابسته به نسخه.** گزینه‌ی `osd_deep_scrub_interval_cv` و زمان‌بندی نرمال deep scrub از v19.2.x (Squid) به بعد وجود دارد (در v19.2.3، v20.2.0 و v21.2.0 بررسی شد). در v18.2.4 (Reef) این گزینه وجود ندارد و، deep scrub با `osd_deep_scrub_randomize_ratio` و احتمال ارتقای scrub سطحی به عمیق تصادفی می‌شد. پیش از تنظیم، `ceph config help osd_deep_scrub_interval_cv` را روی نسخه‌ی خودتان بررسی کنید.
+**Version-dependent.** The `osd_deep_scrub_interval_cv` option and normal-distributed deep scrub scheduling exist from v19.2.x (Squid) onward (checked in v19.2.3, v20.2.0 and v21.2.0). In v18.2.4 (Reef) this option does not exist, and deep scrubs were randomized with `osd_deep_scrub_randomize_ratio` and a probability of upgrading a shallow scrub to deep. Before tuning, check `ceph config help osd_deep_scrub_interval_cv` on your own version.
 :::
 
-# عیب‌یابی با داده‌ی اندازه‌گیری‌شده {#sec-17-8}
+# Troubleshooting with measured data {#sec-17-8}
 
-دو شکل این بخش از داده‌ی واقعی ساخته شده‌اند و حدس نیستند. اولی خط زمانی حالت PGها را روی یک کلاستر آزمایشی واقعی نشان می‌دهد. دومی اثر از دست رفتن میزبان را با شمارش دقیق روی نگاشت CRUSH نشان می‌دهد.
+The two figures in this section are built from real data, not guesses. The first shows the timeline of PG states on a real test cluster. The second shows the effect of losing hosts with an exact count over a CRUSH mapping.
 
-## خط زمانی حالت PGها {#sec-17-8-1}
+## Timeline of PG states {#sec-17-8-1}
 
-آزمایش روی یک کلاستر سه‌OSDی BlueStore با Ceph 18.2.7 (بسته‌های Debian) انجام شد. pool ‏`t17` با 32 PG و size = 2 داشت و 300 شیء 4 MiB در آن نوشته شده بود. هر ثانیه `ceph pg dump pgs_brief -f json` گرفته و حالت‌ها شمرده شدند. چهار رخداد پشت سر هم اجرا شد: `ceph osd out 0`، سپس `ceph osd in 0`، سپس توقف فرایند osd.1 و در پایان راه‌اندازی دوباره‌ی آن.
+The experiment ran on a three-OSD BlueStore cluster with Ceph 18.2.7 (Debian packages). The pool `t17` had 32 PGs and size = 2, and 300 objects of 4 MiB had been written into it. Every second, `ceph pg dump pgs_brief -f json` was taken and the states counted. Four events were run back to back: `ceph osd out 0`, then `ceph osd in 0`, then stopping the osd.1 process, and finally restarting it.
 
-::: {.algo #alg-17-4 title="شمارش حالت PGها در طول یک رخداد" src="ceph pg dump pgs_brief (PGMap در mgr)؛ رشته‌ی حالت از pg_state_string در src/osd/osd_types.cc" complexity="O(pg_num) در هر نمونه"}
+::: {.algo #alg-17-4 title="Counting PG states during an event" src="ceph pg dump pgs_brief (PGMap in the mgr); the state string from pg_state_string in src/osd/osd_types.cc" complexity="O(pg_num) per sample"}
 :::
 
 ```text
 pseudocode
-هر 1 ثانیه:
+every 1 second:
     pgs = ceph pg dump pgs_brief -f json
-    count[state] += 1 برای هر pg                 # state مثل "active+recovery_wait+degraded"
-    گروه‌بندی: clean ‏/ recovering ‏/ recovery_wait ‏/ peering ‏/ stale ‏/ undersized
-رخداد بعدی فقط وقتی اجرا می‌شود که هر 32 PG دوباره active+clean باشند
+    count[state] += 1 for each pg                 # state like "active+recovery_wait+degraded"
+    grouping: clean / recovering / recovery_wait / peering / stale / undersized
+the next event runs only when all 32 PGs are active+clean again
 ```
 
-**آنچه دیده شد.**
+**What was seen.**
 
-- **out کردن osd.0:** حدود 16 PG به peering رفتند. سپس PGها به‌جای backfill در حالت `recovery_wait+degraded` و `recovering` دیده شدند. دلیلش این است که در این pool هر PG فقط حدود 9 شیء دارد و log هر PG، که دست‌کم osd_min_pg_log_entries = 250 ورودی نگه می‌دارد، همه‌ی تغییرها را پوشش می‌دهد. پس OSD جدید از روی log بازیابی می‌شود. در کلاستر واقعی با هزاران شیء در هر PG، همین رخداد `backfill_wait` و `backfilling` می‌سازد.
-- **in کردن دوباره:** 22 PG چند ثانیه در `recovery_wait+degraded` ماندند و صف شدند. این همان سقف osd_max_backfills و osd_recovery_max_active زیر mClock است.
-- **توقف osd.1:** چند ثانیه `stale` دیده شد، چون mgr هنوز گزارش تازه‌ای نداشت. سپس حدود 6 ثانیه peering طول کشید و در پایان دقیقاً 24 PG، یعنی همه‌ی PGهایی که osd.1 در up set آن‌ها بود، `active+undersized+degraded` شدند. I/O ادامه یافت، چون min_size = 1 بود. این تنظیم فقط برای آزمایش است و در محیط واقعی خطرناک است.
-- **بالا آمدن osd.1:** PGها با recovery از log در چند ثانیه clean شدند. مکث نشان‌داده‌شده بیشتر تأخیر گزارش آمار است تا خود recovery.
+- **Marking osd.0 out:** about 16 PGs went to peering. Then, instead of backfill, the PGs were seen in `recovery_wait+degraded` and `recovering`. The reason is that in this pool each PG has only about 9 objects, and each PG's log, which keeps at least osd_min_pg_log_entries = 250 entries, covers all the changes. So the new OSD is recovered from the log. In a real cluster with thousands of objects per PG, the same event produces `backfill_wait` and `backfilling`.
+- **Marking it in again:** 22 PGs stayed in `recovery_wait+degraded` for a few seconds and were queued. This is the osd_max_backfills and osd_recovery_max_active cap under mClock.
+- **Stopping osd.1:** `stale` was seen for a few seconds, because the mgr did not have a fresh report yet. Then peering took about 6 seconds, and at the end exactly 24 PGs, that is all PGs that had osd.1 in their up set, became `active+undersized+degraded`. I/O continued because min_size = 1. This setting is only for the experiment and is dangerous in a real environment.
+- **Bringing osd.1 back up:** the PGs became clean with log-based recovery within a few seconds. The pause shown is more the delay in statistics reporting than the recovery itself.
 
-![حالت 32 PG در pool ‏t17 (size 2) روی کلاستر آزمایشی سه‌OSDی BlueStore با Ceph 18.2.7، نمونه‌برداری‌شده هر حدود یک ثانیه. خط‌چین‌ها رخدادها را نشان می‌دهند: out و in کردن osd.0، و توقف و راه‌اندازی دوباره‌ی osd.1. سبز active+clean است، آبی recovery، زرد peering، خاکستری stale و قرمز undersized+degraded](figures/ch17/f08_pgtimeline.png){#fig-17-f08_pgtimeline}
+![The state of 32 PGs in pool t17 (size 2) on a three-OSD BlueStore test cluster with Ceph 18.2.7, sampled about every second. The dashed lines mark the events: osd.0 out and in, and osd.1 stopped and restarted. Green is active+clean, blue recovery, yellow peering, grey stale and red undersized+degraded](figures/ch17/f08_pgtimeline.png){#fig-17-f08_pgtimeline}
 
-## از دست رفتن یک، دو یا سه میزبان {#sec-17-8-2}
+## Losing one, two or three hosts {#sec-17-8-2}
 
-::: {.algo #alg-17-5 title="اثر از دست رفتن k میزبان پیش از out شدن OSDها" src="نگاشت up از osdmaptool --test-map-pgs-dump؛ معیار min_size در PeeringState (فصل 17)" complexity="O(C(H,k) × pg_num × size)"}
+::: {.algo #alg-17-5 title="The effect of losing k hosts before the OSDs are marked out" src="up mapping from osdmaptool --test-map-pgs-dump; the min_size criterion in PeeringState (chapter 17)" complexity="O(C(H,k) × pg_num × size)"}
 :::
 
 ```text
 pseudocode
-برای هر ترکیب F از k میزبان (همه‌ی C(10, k) ترکیب):
-    برای هر PG: n = تعداد replicaهای روی میزبان‌های F
-        degraded اگر n ≥ 1 ؛ inactive اگر size − n < min_size ؛ lost اگر n = size
-میانگین، کمینه و بیشینه روی ترکیب‌ها
-P(کلاینتی که N شیء را لمس می‌کند گیر کند) = 1 − (1 − p_inactive)^N      # شیء→PG با hash یکنواخت
+for each combination F of k hosts (all C(10, k) combinations):
+    for each PG: n = number of replicas on the hosts in F
+        degraded if n ≥ 1 ; inactive if size − n < min_size ; lost if n = size
+mean, minimum and maximum over the combinations
+P(a client touching N objects gets stuck) = 1 − (1 − p_inactive)^N      # object→PG with a uniform hash
 ```
 
-**نتیجه (120 OSD، size = 3، min_size = 2، 8192 PG).**
+**Result (120 OSDs, size = 3, min_size = 2, 8192 PGs).**
 
-| میزبان‌های ازکارافتاده | PG ‏degraded | PG ‏inactive | PG بی‌نسخه |
+| Failed hosts | Degraded PGs | Inactive PGs | PGs with no copy |
 |---|---|---|---|
-| 1 | 30.00٪ | 0 | 0 |
-| 2 | 53.33٪ | 6.67٪ (546 PG، بازه‌ی 509 تا 592) | 0 |
-| 3 | 70.83٪ | 18.33٪ | 0.83٪ (68 PG) |
+| 1 | 30.00% | 0 | 0 |
+| 2 | 53.33% | 6.67% (546 PGs, range 509 to 592) | 0 |
+| 3 | 70.83% | 18.33% | 0.83% (68 PGs) |
 
-میانگین‌ها با فرمول بسته می‌خوانند. برای یک میزبان 3/10 است. برای PGهای inactive با دو میزبان C(8,1)/C(10,3) = 8/120 است. برای PGهای بی‌نسخه با سه میزبان 1/C(10,3) = 1/120 است.
+The means agree with closed-form formulas. For one host it is 3/10. For inactive PGs with two hosts it is C(8,1)/C(10,3) = 8/120. For PGs with no copy with three hosts it is 1/C(10,3) = 1/120.
 
-پیام عملی در ستون inactive است. با دو میزبان ازکارافتاده فقط 6.67٪ PGها I/O را متوقف می‌کنند. اما یک image ‏RBD یک‌گیگابایتی (256 شیء) با احتمال 1 − 0.9333^256 ≈ 99.999998٪ دست‌کم یک شیء روی آن‌ها دارد. حتی کلاینتی که فقط 10 شیء را لمس می‌کند در 50٪ موارد گیر می‌کند. پس «فقط 7٪ PGها» در عمل یعنی تقریباً همه‌ی ماشین‌های مجازی متوقف شده‌اند.
+The practical message is in the inactive column. With two failed hosts only 6.67% of PGs stop I/O. But a one-gigabyte RBD image (256 objects) has at least one object on them with probability 1 − 0.9333^256 ≈ 99.999998%. Even a client that touches only 10 objects gets stuck in 50% of cases. So "only 7% of PGs" in practice means almost every virtual machine has stopped.
 
-تا وقتی OSDها out نشده‌اند (mon_osd_down_out_interval، فصل 7)، CRUSH جای تازه‌ای انتخاب نمی‌کند و این وضعیت ادامه دارد. اگر دو failure domain هم‌زمان در خطرند، چاره بالا بردن size یا انتخاب failure domain بزرگ‌تر است، نه پایین آوردن min_size.
+Until the OSDs are marked out (mon_osd_down_out_interval, chapter 7), CRUSH does not choose new locations and this state continues. If two failure domains are at risk at the same time, the remedy is raising size or choosing a larger failure domain, not lowering min_size.
 
-![چپ: درصد PGهای degraded، inactive و بی‌نسخه برای از کار افتادن 1، 2 یا 3 میزبان از 10، با شمارش دقیق روی همه‌ی ترکیب‌ها از نگاشت osdmaptool (ستون میانگین است و خط‌ها کمینه تا بیشینه). راست: احتمال اینکه کلاینتی که N شیء را لمس می‌کند در وضعیت دو میزبان ازکارافتاده به PG ‏inactive برخورد کند](figures/ch17/f09_hostfail.png){#fig-17-f09_hostfail}
+![Left: the percentage of degraded, inactive and copyless PGs when 1, 2 or 3 of 10 hosts fail, with an exact count over all combinations from the osdmaptool mapping (the bar is the mean and the lines the minimum to maximum). Right: the probability that a client touching N objects hits an inactive PG with two failed hosts](figures/ch17/f09_hostfail.png){#fig-17-f09_hostfail}
 
-# slow ops: دنبال کردن یک عملیات {#sec-17-9}
+# slow ops: following an operation {#sec-17-9}
 
-## TrackedOp و رویدادها {#sec-17-9-1}
+## TrackedOp and events {#sec-17-9-1}
 
-هر درخواست کلاینت در OSD یک `OpRequest` (زیرکلاس `TrackedOp`) است که در طول مسیر «رویداد» ثبت می‌کند. اگر عملیاتی بیش از `osd_op_complaint_time` (پیش‌فرض ۳۰ ثانیه) طول بکشد، در هشدار `SLOW_OPS` شمرده می‌شود.
+Each client request in the OSD is an `OpRequest` (a subclass of `TrackedOp`) that records "events" along its path. If an operation takes longer than `osd_op_complaint_time` (default 30 seconds), it is counted in the `SLOW_OPS` warning.
 
-![چرخه‌ی عمر یک عملیات در OSD در سه ردیف: ورود و قرار گرفتن در صف شارد و رسیدن به PG؛ انتظارهای رایج که با رویدادهای waiting for ثبت می‌شوند؛ و اجرا، ارسال زیرعملیات به replicaها، دریافت ack و ارسال پاسخ. آخرین رویداد ثبت‌شده‌ی یک عملیات کند نشان می‌دهد کجا گیر کرده است](figures/ch17/f03_slowop.png){#fig-17-f03_slowop}
+![The life cycle of an operation in the OSD in three rows: arrival, being placed in the shard queue and reaching the PG; common waits, recorded with "waiting for" events; and execution, sending sub-operations to replicas, receiving acks and sending the reply. The last recorded event of a slow operation shows where it is stuck](figures/ch17/f03_slowop.png){#fig-17-f03_slowop}
 
 ```bash
 ceph health detail | grep -A3 SLOW_OPS
@@ -373,106 +367,106 @@ ceph daemon osd.7 dump_historic_slow_ops | jq '.ops[0].type_data.events'
 ceph daemon osd.7 dump_historic_ops_by_duration | jq '.ops[0:3][] | {duration, description}'
 ```
 
-| آخرین رویداد | تفسیر | جای بعدی برای نگاه |
+| Last event | Interpretation | Where to look next |
 |---|---|---|
-| queued_for_pg | در صف شارد مانده؛ OSD یا PG پربار | mclock، CPU، `ceph osd perf` |
-| reached_pg و waiting for peered/active | PG فعال نیست | `ceph pg PGID query` |
-| waiting for degraded/missing object | شیء در حال بازیابی | اولویت recovery، `ceph pg force-recovery` |
-| sub_op_sent بدون sub_op_commit_rec | replica کند است | همان عملیات روی OSD replica، دیسک یا شبکه‌ی آن |
-| op_commit یا تأخیر BlueStore | دیسک محلی کند | `ceph osd perf`، `iostat`، `BLUESTORE_SLOW_OP_ALERT` |
+| queued_for_pg | Stuck in the shard queue; the OSD or PG is overloaded | mclock, CPU, `ceph osd perf` |
+| reached_pg and waiting for peered/active | The PG is not active | `ceph pg PGID query` |
+| waiting for degraded/missing object | The object is being recovered | Recovery priority, `ceph pg force-recovery` |
+| sub_op_sent without sub_op_commit_rec | A replica is slow | The same operation on the replica OSD, its disk or network |
+| op_commit or BlueStore latency | The local disk is slow | `ceph osd perf`, `iostat`, `BLUESTORE_SLOW_OP_ALERT` |
 
 ::: {.note}
-نام رویدادهای پایه (`queued_for_pg`، `reached_pg`، `started`، `commit_sent`) در `src/osd/OpRequest.h` ثبت می‌شوند و رویدادهای «waiting for ...» در جاهای مختلف `PrimaryLogPG.cc` و `OSD.cc`. چون این رشته‌ها بخشی از رابط پایدار نیستند، در ابزارهای خودکار روی آن‌ها تکیه‌ی سخت نکنید.
+The basic event names (`queued_for_pg`, `reached_pg`, `started`, `commit_sent`) are recorded in `src/osd/OpRequest.h`, and the "waiting for ..." events in various places in `PrimaryLogPG.cc` and `OSD.cc`. Because these strings are not part of a stable interface, do not rely on them hard in automated tools.
 :::
 
 ::: {.tip}
-یک slow op روی primary اغلب **علامت** است نه علت. اگر آخرین رویداد `sub_op_sent` است، همان شناسه‌ی درخواست را روی OSDهای replica بگردید؛ معمولاً یک دیسک کند یا یک لینک شبکه‌ی خراب پشت ده‌ها slow op روی OSDهای مختلف است. `ceph osd perf` (ستون‌های commit_latency و apply_latency) سریع‌ترین راه یافتن OSD کند است.
+A slow op on the primary is often a **symptom**, not the cause. If the last event is `sub_op_sent`, look for the same request id on the replica OSDs; usually one slow disk or one broken network link is behind dozens of slow ops on different OSDs. `ceph osd perf` (the commit_latency and apply_latency columns) is the quickest way to find the slow OSD.
 :::
 
-# scrub و ناسازگاری {#sec-17-10}
+# Scrub and inconsistency {#sec-17-10}
 
-## ماشین حالت scrub {#sec-17-10-1}
+## The scrub state machine {#sec-17-10-1}
 
-scrub دوره‌ای (پیش‌فرض `osd_scrub_min_interval=1_day`) فراداده‌ی اشیا را میان نسخه‌ها مقایسه می‌کند و deep scrub (`osd_deep_scrub_interval=7_day`) داده را هم می‌خواند و checksum را بررسی می‌کند. کد جدید scrub در `src/osd/scrubber/` است و ماشین حالت آن در `scrub_machine.h` با boost::statechart تعریف شده.
+Periodic scrub (default `osd_scrub_min_interval=1_day`) compares object metadata between copies, and deep scrub (`osd_deep_scrub_interval=7_day`) also reads the data and verifies checksums. The new scrub code is in `src/osd/scrubber/`, and its state machine is defined in `scrub_machine.h` with boost::statechart.
 
-![ماشین حالت scrub در سه بخش: primary پس از رزرو replicaها (محدود به osd_max_scrubs) اشیا را تکه‌به‌تکه انتخاب، منتظر نوشتن‌های در جریان می‌ماند، نقشه‌ی محلی می‌سازد و نقشه‌ی replicaها را دریافت می‌کند؛ replica نقشه‌ی خود را می‌سازد و می‌فرستد؛ scrub_backend نسخه‌ی معتبر را انتخاب و ناسازگاری‌ها را در ScrubStore ثبت می‌کند](figures/ch17/f04_scrub.png){#fig-17-f04_scrub}
+![The scrub state machine in three parts: after reserving the replicas (limited by osd_max_scrubs), the primary selects objects chunk by chunk, waits for in-flight writes, builds a local map and receives the replicas' maps; a replica builds and sends its own map; scrub_backend chooses the authoritative copy and records inconsistencies in the ScrubStore](figures/ch17/f04_scrub.png){#fig-17-f04_scrub}
 
-scrub بر اساس **تکه (chunk)** پیش می‌رود: primary یک بازه از اشیا را انتخاب می‌کند (NewChunk)، اگر نوشتنی روی آن بازه در جریان است منتظر می‌ماند (RangeBlocked، WaitPushes، WaitLastUpdate)، سپس نقشه‌ی محلی (ScrubMap) می‌سازد و از replicaها هم نقشه می‌خواهد. `scrub_backend` نقشه‌ها را مقایسه می‌کند: اندازه، xattrها، digest داده و omap. ناسازگاری‌ها در ScrubStore (یک شیء موقت) ثبت می‌شوند و با `rados list-inconsistent-obj` قابل خواندن‌اند.
+Scrub proceeds by **chunk**: the primary chooses a range of objects (NewChunk), waits if writes to that range are in flight (RangeBlocked, WaitPushes, WaitLastUpdate), then builds a local map (ScrubMap) and also asks the replicas for maps. `scrub_backend` compares the maps: size, xattrs, data digest and omap. Inconsistencies are recorded in the ScrubStore (a temporary object) and can be read with `rados list-inconsistent-obj`.
 
 ```bash
 ceph health detail | grep -E "inconsistent|scrub errors"
 rados list-inconsistent-pg rbd
 rados list-inconsistent-obj 2.1f --format=json-pretty | jq '.inconsistents[] | {object: .object.name, errors, shards: [.shards[] | {osd, errors}]}'
-ceph pg deep-scrub 2.1f          # تأیید دوباره پیش از تعمیر
+ceph pg deep-scrub 2.1f          # confirm again before repairing
 ceph pg repair 2.1f
 ```
 
 ::: {.warn}
-پیش از `ceph pg repair` خروجی `list-inconsistent-obj` را بخوانید. اگر خطا روی **یک shard یا یک OSD** است (مثلاً `read_error` یا `data_digest_mismatch` فقط روی osd.12)، تعمیر نسخه‌ی سالم را جایگزین می‌کند و باید دیسک osd.12 را بررسی کنید (SMART و `dmesg`). اگر چند نسخه با هم ناسازگارند و نسخه‌ی معتبر روشن نیست، تعمیر ممکن است نسخه‌ی اشتباه را انتخاب کند. افزایش شمارنده‌ی `OSD_TOO_MANY_REPAIRS` نشانه‌ی خرابی تدریجی دیسک است.
+Before `ceph pg repair`, read the output of `list-inconsistent-obj`. If the error is on **one shard or one OSD** (for example `read_error` or `data_digest_mismatch` only on osd.12), repair replaces it with the healthy copy, and you should check osd.12's disk (SMART and `dmesg`). If several copies disagree with each other and the authoritative copy is unclear, repair may choose the wrong copy. A rising `OSD_TOO_MANY_REPAIRS` counter is a sign of gradual disk failure.
 :::
 
-# اشیای unfound و ابزارهای خطرناک {#sec-17-11}
+# Unfound objects and dangerous tools {#sec-17-11}
 
 ```bash
 ceph pg 2.5 list_unfound
 ceph pg 2.5 query | jq '.recovery_state[] | select(.name|test("Active")) | .might_have_unfound'
-# آخرین راه، پس از اطمینان از اینکه OSD دارای نسخه برنمی‌گردد:
-ceph pg 2.5 mark_unfound_lost revert     # یا delete
+# last resort, after making sure the OSD holding a copy will not come back:
+ceph pg 2.5 mark_unfound_lost revert     # or delete
 ```
 
-| ابزار | کاربرد | خطر |
+| Tool | Use | Risk |
 |---|---|---|
-| ceph osd lost N | اجازه‌ی peering بدون OSD مرده | از دست رفتن نوشتن‌های تأییدشده‌ی منحصر به آن OSD |
-| mark_unfound_lost revert/delete | پایان دادن به انتظار برای شیء unfound | بازگشت به نسخه‌ی قبلی یا حذف شیء |
-| ceph-objectstore-tool | خواندن، صدور و ورود PG از OSD متوقف | تغییر مستقیم داده‌ی OSD؛ فقط با OSD خاموش |
-| ceph-bluestore-tool fsck/repair | بررسی و تعمیر فراداده‌ی BlueStore | repair ممکن است فراداده را تغییر دهد |
-| osd_find_best_info_ignore_history_les | بازیابی PG incomplete | دور ریختن داده‌ی تأییدشده |
+| ceph osd lost N | Allow peering without a dead OSD | Loss of acknowledged writes that existed only on that OSD |
+| mark_unfound_lost revert/delete | End the wait for an unfound object | Reverting to a previous version or deleting the object |
+| ceph-objectstore-tool | Read, export and import PGs from a stopped OSD | Direct modification of OSD data; only with the OSD stopped |
+| ceph-bluestore-tool fsck/repair | Check and repair BlueStore metadata | repair may modify metadata |
+| osd_find_best_info_ignore_history_les | Recovering an incomplete PG | Discarding acknowledged data |
 
 ::: {.debug}
-برای نجات یک PG از OSDی که دیگر بالا نمی‌آید ولی دیسکش خوانا است: OSD را متوقف کنید، با `ceph-objectstore-tool --data-path /var/lib/ceph/osd/ceph-12 --op list-pgs` PGها را ببینید، با `--op export --pgid 2.5 --file /backup/2.5.export` صادر کنید و روی یک OSD سالم (متوقف) با `--op import` وارد کنید. در cephadm این کار را درون `cephadm shell --name osd.12` انجام دهید. فصل ۱۸ این روال را کامل‌تر شرح می‌دهد.
+To rescue a PG from an OSD that no longer starts but whose disk is readable: stop the OSD, list the PGs with `ceph-objectstore-tool --data-path /var/lib/ceph/osd/ceph-12 --op list-pgs`, export with `--op export --pgid 2.5 --file /backup/2.5.export`, and import on a healthy (stopped) OSD with `--op import`. In cephadm, do this inside `cephadm shell --name osd.12`. Chapter 18 describes this procedure more fully.
 :::
 
-::: {.summary title="نکات SRE این فصل"}
+::: {.summary title="SRE notes for this chapter"}
 
-- همیشه از `ceph health detail` و کد هشدار شروع کنید.
-- پیش از تغییر، وضعیت را ثبت کنید؛ یک تغییر در هر زمان.
-- `recovery_state` در `pg query` نام دقیق حالت PeeringState را نشان می‌دهد.
-- PG down یعنی «OSDهای این فهرست را برگردان»، نه «lost کن».
-- slow op را تا آخرین رویداد و تا OSD replica دنبال کنید.
-- پیش از repair، ناسازگاری را بخوانید و دیسک مقصر را پیدا کنید.
+- Always start from `ceph health detail` and the warning code.
+- Record the state before changing anything; one change at a time.
+- `recovery_state` in `pg query` shows the exact PeeringState state name.
+- A down PG means "bring back the OSDs in this list", not "mark them lost".
+- Follow a slow op to its last event and on to the replica OSD.
+- Before repairing, read the inconsistency and find the guilty disk.
 
 :::
 
-# تکمیلی و به‌روز {#sec-17-12}
+# Supplementary and up to date {#sec-17-12}
 
-- کد scrub از Pacific به بعد بازنویسی و به `src/osd/scrubber/` منتقل شده و ماشین حالت جدا دارد؛ زمان‌بندی آن با mclock یکپارچه است.
-- هشدارهای تازه‌تری مانند `BLUESTORE_SLOW_OP_ALERT` و `DB_DEVICE_STALLED_READ_ALERT` در مستندات Health Checks آمده‌اند و کندی لایه‌ی ذخیره‌سازی را زودتر نشان می‌دهند.
-- در شاخه‌ی main، حالت‌های تازه‌ای مانند `MigratingSource`، `MigratingTarget` و `WaitLocalPoolMigrationReserved` برای مهاجرت pool به PeeringState افزوده شده‌اند؛ این حالت‌ها در برچسب‌های v20.2.0 و v21.2.0 وجود ندارند و مربوط به نسخه‌های آینده‌اند.
-- `ceph crash` (ماژول mgr) جایگزین جست‌وجوی دستی core dumpها شده است.
+- Since Pacific, the scrub code has been rewritten and moved to `src/osd/scrubber/` with its own state machine; its scheduling is integrated with mclock.
+- Newer warnings such as `BLUESTORE_SLOW_OP_ALERT` and `DB_DEVICE_STALLED_READ_ALERT` appear in the Health Checks documentation and reveal storage-layer slowness earlier.
+- In the main branch, new states such as `MigratingSource`, `MigratingTarget` and `WaitLocalPoolMigrationReserved` have been added to PeeringState for pool migration; these states do not exist in the v20.2.0 and v21.2.0 tags and belong to future releases.
+- `ceph crash` (an mgr module) has replaced searching for core dumps by hand.
 
-# تمرین عملی {#sec-17-13}
+# Hands-on exercise {#sec-17-13}
 
-1. در کلاستر آزمایشی با size=3 دو OSD از سه OSD یک PG را متوقف کنید و `recovery_state` را در `pg query` دنبال کنید.
-2. با `ceph osd set noout` یک میزبان را برای نگه‌داری خاموش کنید؛ وضعیت PGها را ثبت و پس از بازگشت مقایسه کنید.
-3. با `tc qdisc add dev eth1 root netem delay 200ms` روی یک میزبان، slow ops بسازید و آن را تا OSD مقصر دنبال کنید.
-4. یک شیء را مستقیماً روی یک OSD (با ceph-objectstore-tool) خراب کنید، deep scrub بگیرید و خروجی list-inconsistent-obj را تحلیل کنید.
-5. ماشین حالت `PeeringState.h` را بخوانید و مسیر از `Reset` تا `Clean` را برای یک PG سالم بنویسید.
-6. یک PG را با ceph-objectstore-tool صادر و روی OSD دیگری وارد کنید.
+1. In a test cluster with size=3, stop two of a PG's three OSDs and follow `recovery_state` in `pg query`.
+2. With `ceph osd set noout`, shut down a host for maintenance; record the PG states and compare after it returns.
+3. With `tc qdisc add dev eth1 root netem delay 200ms` on one host, create slow ops and trace them to the guilty OSD.
+4. Corrupt an object directly on one OSD (with ceph-objectstore-tool), run a deep scrub and analyse the output of list-inconsistent-obj.
+5. Read the state machine in `PeeringState.h` and write down the path from `Reset` to `Clean` for a healthy PG.
+6. Export a PG with ceph-objectstore-tool and import it on another OSD.
 
-# پرسش‌های مرور {#sec-17-14}
+# Review questions {#sec-17-14}
 
-1. نخستین دو فرمان در هر حادثه کدام‌اند و چرا؟
-2. تفاوت degraded، undersized و remapped چیست؟
-3. حالت WaitUpThru چه مشکلی را حل می‌کند؟
-4. چرا PG به حالت down می‌رود و فیلد down_osds_we_would_probe چه می‌گوید؟
-5. find_best_info در pool تکثیری و EC چه تفاوتی دارد و چرا؟
-6. آخرین رویداد sub_op_sent در یک slow op چه معنایی دارد؟
-7. scrub چگونه با نوشتن‌های در جریان هماهنگ می‌شود؟
-8. پیش از ceph pg repair چه چیزی را باید بررسی کنید؟
-9. ceph osd lost چه خطری دارد؟
-10. چرا nodown و noout باید موقت باشند؟
+1. What are the first two commands in any incident, and why?
+2. What is the difference between degraded, undersized and remapped?
+3. What problem does the WaitUpThru state solve?
+4. Why does a PG go down, and what does the down_osds_we_would_probe field say?
+5. How does find_best_info differ between replicated and EC pools, and why?
+6. What does a last event of sub_op_sent in a slow op mean?
+7. How does scrub coordinate with in-flight writes?
+8. What should you check before ceph pg repair?
+9. What is the risk of ceph osd lost?
+10. Why must nodown and noout be temporary?
 
-# منابع این فصل {#sec-17-15}
+# Sources for this chapter {#sec-17-15}
 
 - Health checks: https://docs.ceph.com/en/latest/rados/operations/health-checks/
 - Monitoring OSDs and PGs: https://docs.ceph.com/en/latest/rados/operations/monitoring-osd-pg/

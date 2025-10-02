@@ -1,0 +1,7 @@
+flowchart LR
+  A["ceph -s<br/>ceph health detail"] --> B{"Which layer?"}
+  B -- MON --> M["quorum, clock skew,<br/>ceph mon stat"]
+  B -- OSD --> O["ceph osd tree down<br/>journalctl / ceph crash ls"]
+  B -- PG --> P["ceph pg dump_stuck<br/>ceph pg ID query"]
+  B -- performance --> S["SLOW_OPS<br/>dump_historic_slow_ops"]
+  M & O & P & S --> F["hypothesis → test → small fix<br/>record in the incident log"]
