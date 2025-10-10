@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant P as site A: primary image
+  participant D as rbd-mirror at site B
+  participant N as site B: non-primary image
+  Note over P: schedule: rbd mirror snapshot schedule add 15m
+  P->>P: create mirror snapshot S2 (state=PRIMARY, peer_uuids={B})
+  D->>P: scan_remote_mirror_snapshots: S1 (synced) and S2 (new)
+  D->>N: create_non_primary_snapshot S2' (complete=false, primary_snap_id=S2)
+  D->>P: copy_image: deep-copy the S1..S2 difference (with object map / diff)
+  P-->>D: changed blocks
+  D->>N: write the difference, update last_copied_object_number
+  D->>N: apply_image_state (size, metadata) and complete=true
+  D->>P: unlink_peer from S1 (S1 becomes deletable)

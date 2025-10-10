@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph R1["Header and naming convention"]
+    direction LR
+    H["journal.&lt;image_id&gt;<br/>(omap: order=24, splay_width=4,<br/>active_set, clients, commit positions)"] --> N["journal_data.&lt;pool&gt;.&lt;image_id&gt;.&lt;n&gt;<br/>n = splay_offset + set × splay_width"]
+  end
+  subgraph R2["active set = 3 (objects 12 to 15, each at most 16MiB)"]
+    direction LR
+    O0["…12<br/>tid 8, 12, 16"] --- O1["…13<br/>tid 9, 13"] --- O2["…14<br/>tid 10, 14"] --- O3["…15<br/>tid 11, 15"]
+  end
+  subgraph R3["Format of each entry (bytes)"]
+    direction LR
+    E1["preamble 8<br/>0x3141592653589793"] --> E2["version 1"] --> E3["entry_tid 8"] --> E4["tag_tid 8"] --> E5["len 4 + data"] --> E6["crc32c(0) 4"]
+  end
+  subgraph R4["Consumption and trim"]
+    direction LR
+    W["librbd: append<br/>tid % splay_width"] --> M["destination rbd-mirror:<br/>replay + commit position"] --> T["one object full ⇒ next set,<br/>sets consumed by all clients are deleted"]
+  end
+  R1 ~~~ R2 ~~~ R3 ~~~ R4

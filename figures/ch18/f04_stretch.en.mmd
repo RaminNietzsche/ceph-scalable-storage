@@ -1,0 +1,16 @@
+flowchart LR
+  subgraph DC1["datacenter=site1"]
+    direction TB
+    M1["mon.a, mon.b"] ~~~ O1["OSDs: 2 copies of each PG"]
+  end
+  subgraph DC3["datacenter=site3 (tiebreaker)"]
+    direction TB
+    M5["mon.e (tiebreaker)<br/>no data"]
+  end
+  subgraph DC2["datacenter=site2"]
+    direction TB
+    M3["mon.c, mon.d"] ~~~ O2["OSDs: 2 copies of each PG"]
+  end
+  DC1 <--> |"inter-site link<br/>write at both sites before the ack"| DC2
+  DC1 -.-> DC3
+  DC2 -.-> DC3

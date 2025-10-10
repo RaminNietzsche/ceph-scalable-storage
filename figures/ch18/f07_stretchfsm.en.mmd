@@ -1,0 +1,16 @@
+flowchart TB
+  subgraph R1["HEALTHY"]
+    direction LR
+    A["size=4, min_size=2<br/>(mon_stretch_pool_min_size)"] --> B["peering_crush_bucket_count=2<br/>mandatory_member=NONE"] --> C["acting must include<br/>both datacenters"]
+  end
+  subgraph R2["DEGRADED (one site lost)"]
+    direction LR
+    D["degraded_stretch_mode=1"] --> E["bucket_count=1<br/>mandatory_member=surviving site"] --> F["min_size = min_size/2 = 1"]
+  end
+  subgraph R3["RECOVERY"]
+    direction LR
+    G["share of up OSDs above<br/>mon_stretch_cluster_recovery_ratio=0.6<br/>and no MON bucket is dead"] --> H["recovering_stretch_mode=1"] --> I["at least 15s (mon_stretch_recovery_min_wait)<br/>and degraded/inactive/unknown PGs = 0"]
+  end
+  R1 -->|"loss of one site"| R2
+  R2 -->|"OSDs return"| R3
+  R3 -->|"trigger_healthy_stretch_mode"| R1

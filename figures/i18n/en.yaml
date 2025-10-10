@@ -1096,107 +1096,81 @@ ch17/f04_scrub:
   انتخاب نسخه‌ی معتبر و<br/>مقایسه‌ی اندازه، digest و attr: choose the authoritative copy and<br/>compare size, digest and attrs
   ثبت inconsistent در ScrubStore<br/>OSD_SCRUB_ERRORS / PG_DAMAGED: record inconsistent in the ScrubStore<br/>OSD_SCRUB_ERRORS / PG_DAMAGED
 ch18/f01_layers:
-  درون یک کلاستر: null
-  خودکار: null
-  تکثیر: null
-  روی دامنه‌های خرابی: null
-  و: null
-  بین دو سایت با یک کلاستر: null
-  دو: null
-  داور: null
-  نوشتن هم‌زمان در هر دو سایت: null
-  بین کلاسترها: null
-  ناهم‌زمان: null
-  یا: null
-  فصل ۵: null
-  های دایرکتوری: null
-  نسخه‌ی پشتیبان مستقل: null
-  دوره‌ای: null
-  و نسخه‌گذاری: null
-  پشتیبان: null
-  ها: null
+  ۱. درون یک کلاستر (خودکار): 1. Inside one cluster (automatic)
+  تکثیر/EC روی دامنه‌های خرابی CRUSH: replication/EC across CRUSH failure domains
+  recovery و backfill: recovery and backfill
+  scrub و repair: scrub and repair
+  ۲. بین دو سایت با یک کلاستر: 2. Between two sites with one cluster
+  stretch mode<br/>دو datacenter + MON داور: stretch mode<br/>two datacenters + a tiebreaker MON
+  نوشتن هم‌زمان در هر دو سایت<br/>RPO = 0: synchronous writes at both sites<br/>RPO = 0
+  ۳. بین کلاسترها (ناهم‌زمان): 3. Between clusters (asynchronous)
+  rbd-mirror<br/>journal یا snapshot: rbd-mirror<br/>journal or snapshot
+  RGW multisite<br/>(فصل ۵): RGW multisite<br/>(chapter 5)
+  cephfs-mirror<br/>snapshotهای دایرکتوری: cephfs-mirror<br/>directory snapshots
+  ۴. نسخه‌ی پشتیبان مستقل: 4. Independent backup
+  export دوره‌ای rbd / s3 sync: periodic rbd export / s3 sync
+  object lock و نسخه‌گذاری: object lock and versioning
+  پشتیبان mon store و keyringها: backup of the mon store and keyrings
 ch18/f02_snapmirror:
-  سایت: null
-  تصویر: null
-  در سایت: null
-  زمان‌بندی: null
-  ایجاد: null
-  همگام‌شده: null
-  و: null
-  جدید: null
-  تفاوت: null
-  با: null
-  بلوک‌های تغییرکرده: null
-  نوشتن تفاوت، به‌روزرسانی: null
-  اندازه،: null
-  از: null
-  قابل حذف می‌شود: null
+  'as سایت A: تصویر primary': 'as site A: primary image'
+  as rbd-mirror در سایت B: as rbd-mirror at site B
+  'as سایت B: تصویر non-primary': 'as site B: non-primary image'
+  'زمان‌بندی: rbd mirror snapshot schedule add 15m': 'schedule: rbd mirror snapshot schedule add 15m'
+  ایجاد mirror snapshot S2 (state=PRIMARY، peer_uuids={B}): create mirror snapshot S2 (state=PRIMARY, peer_uuids={B})
+  'scan_remote_mirror_snapshots: S1 (همگام‌شده) و S2 (جدید)': 'scan_remote_mirror_snapshots: S1 (synced) and S2 (new)'
+  create_non_primary_snapshot S2' (complete=false، primary_snap_id=S2): create_non_primary_snapshot S2' (complete=false, primary_snap_id=S2)
+  'copy_image: deep-copy تفاوت S1..S2 (با object map / diff)': 'copy_image: deep-copy the S1..S2 difference (with object map / diff)'
+  بلوک‌های تغییرکرده: changed blocks
+  نوشتن تفاوت، به‌روزرسانی last_copied_object_number: write the difference, update last_copied_object_number
+  apply_image_state (اندازه، metadata) و complete=true: apply_image_state (size, metadata) and complete=true
+  unlink_peer از S1 (S1 قابل حذف می‌شود): unlink_peer from S1 (S1 becomes deletable)
 ch18/f03_failover:
-  برنامه‌ریزی‌شده: null
-  هر دو سایت سالم: null
-  توقف برنامه در: null
-  در: null
-  انتظار همگام شدن: null
-  راه‌اندازی برنامه در: null
-  اضطراری: null
-  سایت: null
-  از دست رفته: null
-  پذیرش: null
-  بازگشت: null
+  failover برنامه‌ریزی‌شده (هر دو سایت سالم): planned failover (both sites healthy)
+  توقف برنامه در A: stop the application in A
+  rbd mirror image demote<br/>در A: rbd mirror image demote<br/>in A
+  انتظار همگام شدن<br/>mirror image status: wait for sync<br/>mirror image status
+  rbd mirror image promote<br/>در B: rbd mirror image promote<br/>in B
+  راه‌اندازی برنامه در B: start the application in B
+  failover اضطراری (سایت A از دست رفته): emergency failover (site A lost)
+  promote --force در B<br/>(پذیرش RPO): promote --force in B<br/>(accept the RPO)
+  'بازگشت A: demote در A': 'A returns: demote in A'
+  rbd mirror image resync<br/>در A (split-brain): rbd mirror image resync<br/>in A (split-brain)
 ch18/f04_stretch:
-  ها: null
-  ۲ نسخه از هر: null
-  داور: null
-  بدون داده: null
-  لینک بین سایت‌ها: null
-  نوشتن در هر دو سایت پیش از: null
+  mon.a، mon.b: mon.a, mon.b
+  'OSDها: ۲ نسخه از هر PG': 'OSDs: 2 copies of each PG'
+  datacenter=site3 (داور): datacenter=site3 (tiebreaker)
+  mon.e (tiebreaker)<br/>بدون داده: mon.e (tiebreaker)<br/>no data
+  mon.c، mon.d: mon.c, mon.d
+  لینک بین سایت‌ها<br/>نوشتن در هر دو سایت پیش از ack: inter-site link<br/>write at both sites before the ack
 ch18/f05_monrebuild:
-  جمع‌آوری نقشه‌ها از: null
-  ها: null
-  همه‌ی: null
-  ها از دست رفته‌اند: null
-  ها سالم: null
-  روی هر میزبان، برای هر: null
-  متوقف: null
-  انتقال پوشه‌ی: null
-  به میزبان بعدی: null
-  انباشت تدریجی نقشه‌ها: null
-  بازسازی و راه‌اندازی: null
-  جایگزینی: null
-  روی همه‌ی: null
-  راه‌اندازی: null
-  ها؛: null
-  بررسی و بازسازی: null
-  ها و تنظیمات: null
+  ۱. جمع‌آوری نقشه‌ها از OSDها: 1. Collect the maps from the OSDs
+  همه‌ی MONها از دست رفته‌اند<br/>OSDها سالم: all MONs lost<br/>OSDs healthy
+  روی هر میزبان، برای هر OSD متوقف:<br/>ceph-objectstore-tool --op update-mon-db: on each host, for each stopped OSD:<br/>ceph-objectstore-tool --op update-mon-db
+  انتقال پوشه‌ی ms به میزبان بعدی<br/>(انباشت تدریجی نقشه‌ها): carry the ms directory to the next host<br/>(maps accumulate gradually)
+  ۲. بازسازی و راه‌اندازی: 2. Rebuild and start
+  جایگزینی store.db<br/>روی همه‌ی MONها: replace store.db<br/>on all MONs
+  راه‌اندازی MONها؛<br/>بررسی و بازسازی keyringها و تنظیمات: start the MONs,<br/>check and rebuild keyrings and settings
 ch18/f06_journal:
-  سرآیند و قرارداد نام: null
-  فعال: null
-  اشیای: null
-  تا: null
-  ، هرکدام حداکثر: null
-  قالب هر: null
-  بایت: null
-  مصرف و: null
-  مقصد: null
-  پر شدن یک شیء: null
-  بعدی؛: null
-  های مصرف‌شده‌ی همه‌ی: null
-  ها حذف می‌شوند: null
+  سرآیند و قرارداد نام: Header and naming convention
+  'journal.&lt;image_id&gt;<br/>(omap: order=24، splay_width=4،<br/>active_set، clients، commit positions)': 'journal.&lt;image_id&gt;<br/>(omap: order=24, splay_width=4,<br/>active_set, clients, commit
+    positions)'
+  set فعال = 3 (اشیای 12 تا 15، هرکدام حداکثر 16MiB): active set = 3 (objects 12 to 15, each at most 16MiB)
+  …12<br/>tid 8، 12، 16: …12<br/>tid 8, 12, 16
+  …13<br/>tid 9، 13: …13<br/>tid 9, 13
+  …14<br/>tid 10، 14: …14<br/>tid 10, 14
+  …15<br/>tid 11، 15: …15<br/>tid 11, 15
+  قالب هر entry (بایت): Format of each entry (bytes)
+  مصرف و trim: Consumption and trim
+  rbd-mirror مقصد:<br/>replay + commit position: destination rbd-mirror:<br/>replay + commit position
+  پر شدن یک شیء ⇒ set بعدی؛<br/>setهای مصرف‌شده‌ی همه‌ی clientها حذف می‌شوند: one object full ⇒ next set,<br/>sets consumed by all clients are deleted
 ch18/f07_stretchfsm:
-  باید هر دو: null
-  را داشته باشد: null
-  یک سایت از دست رفت: null
-  سایت زنده: null
-  سهم: null
-  های: null
-  بیش از: null
-  و هیچ: null
-  مرده‌ای نیست: null
-  دست‌کم: null
-  و: null
-  از دست رفتن یک سایت: null
-  بازگشت: null
-  ها: null
+  acting باید هر دو<br/>datacenter را داشته باشد: acting must include<br/>both datacenters
+  DEGRADED (یک سایت از دست رفت): DEGRADED (one site lost)
+  bucket_count=1<br/>mandatory_member=سایت زنده: bucket_count=1<br/>mandatory_member=surviving site
+  سهم OSDهای up بیش از<br/>mon_stretch_cluster_recovery_ratio=0.6<br/>و هیچ MON bucket مرده‌ای نیست: share of up OSDs above<br/>mon_stretch_cluster_recovery_ratio=0.6<br/>and no MON bucket is dead
+  دست‌کم 15s (mon_stretch_recovery_min_wait)<br/>و PG degraded/inactive/unknown = 0: at least 15s (mon_stretch_recovery_min_wait)<br/>and degraded/inactive/unknown PGs = 0
+  از دست رفتن یک سایت: loss of one site
+  بازگشت OSDها: OSDs return
 ch19/f01_upgrade:
   آمادگی: null
   ؟: null

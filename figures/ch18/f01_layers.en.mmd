@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph L1["1. Inside one cluster (automatic)"]
+    direction LR
+    A1["replication/EC across CRUSH failure domains"] ~~~ A2["recovery and backfill"] ~~~ A3["scrub and repair"]
+  end
+  subgraph L2["2. Between two sites with one cluster"]
+    direction LR
+    B1["stretch mode<br/>two datacenters + a tiebreaker MON"] ~~~ B2["synchronous writes at both sites<br/>RPO = 0"]
+  end
+  subgraph L3["3. Between clusters (asynchronous)"]
+    direction LR
+    C1["rbd-mirror<br/>journal or snapshot"] ~~~ C2["RGW multisite<br/>(chapter 5)"] ~~~ C3["cephfs-mirror<br/>directory snapshots"]
+  end
+  subgraph L4["4. Independent backup"]
+    direction LR
+    D1["periodic rbd export / s3 sync"] ~~~ D2["object lock and versioning"] ~~~ D3["backup of the mon store and keyrings"]
+  end
+  L1 ~~~ L2 ~~~ L3 ~~~ L4

@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph F1["planned failover (both sites healthy)"]
+    direction LR
+    a1["stop the application in A"] --> a2["rbd mirror image demote<br/>in A"] --> a3["wait for sync<br/>mirror image status"] --> a4["rbd mirror image promote<br/>in B"] --> a5["start the application in B"]
+  end
+  subgraph F2["emergency failover (site A lost)"]
+    direction LR
+    b1["promote --force in B<br/>(accept the RPO)"] --> b2["start the application in B"] --> b3["A returns: demote in A"] --> b4["rbd mirror image resync<br/>in A (split-brain)"]
+  end
+  F1 ~~~ F2

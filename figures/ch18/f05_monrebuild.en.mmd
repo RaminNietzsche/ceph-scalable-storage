@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["1. Collect the maps from the OSDs"]
+    direction LR
+    A["all MONs lost<br/>OSDs healthy"] --> B["on each host, for each stopped OSD:<br/>ceph-objectstore-tool --op update-mon-db"] --> C["carry the ms directory to the next host<br/>(maps accumulate gradually)"]
+  end
+  subgraph R2["2. Rebuild and start"]
+    direction LR
+    D["ceph-monstore-tool ms rebuild<br/>--keyring admin --mon-ids a b c"] --> E["replace store.db<br/>on all MONs"] --> F["start the MONs,<br/>check and rebuild keyrings and settings"]
+  end
+  R1 ~~~ R2
