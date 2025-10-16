@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph U1["1. Preparation"]
+    direction LR
+    a["HEALTH_OK?<br/>ceph -s"] --> b["read the release notes<br/>and upgrade notes"] --> c["test host access<br/>to the image in the registry"]
+  end
+  subgraph U2["2. cephadm order"]
+    direction LR
+    m1["mgr<br/>(standby first)"] --> m2["mon<br/>one by one with quorum"] --> m3["crash, osd<br/>with ok-to-stop / ok-to-upgrade"] --> m4["mds, rgw,<br/>rbd-mirror, others"]
+  end
+  subgraph U3["3. Finish"]
+    direction LR
+    p["ceph versions<br/>all identical"] --> q["ceph osd dump<br/>check require_osd_release"] --> r["check for new warnings"]
+  end
+  U1 ~~~ U2 ~~~ U3

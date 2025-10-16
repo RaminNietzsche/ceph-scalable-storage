@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["1. Removal"]
+    direction LR
+    A["failed disk<br/>osd.17 down"] --> B["ceph orch osd rm 17 --replace"] --> C["drain PGs (if up)<br/>marked destroyed; the ID is kept"]
+  end
+  subgraph R2["2. Replacement"]
+    direction LR
+    D["physical disk swap"] --> E["ceph orch device zap<br/>(if the disk is not new)"] --> F["the OSD service spec picks up the disk<br/>osd.17 is created with the same ID"] --> G["backfill until active+clean"]
+  end
+  R1 ~~~ R2

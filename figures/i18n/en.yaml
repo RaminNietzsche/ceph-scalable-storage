@@ -1172,87 +1172,54 @@ ch18/f07_stretchfsm:
   از دست رفتن یک سایت: loss of one site
   بازگشت OSDها: OSDs return
 ch19/f01_upgrade:
-  آمادگی: null
-  ؟: null
-  خواندن: null
-  و یادداشت‌های ارتقا: null
-  آزمون دسترسی میزبان‌ها: null
-  به: null
-  در رجیستری: null
-  ترتیب: null
-  ابتدا: null
-  یکی‌یکی با: null
-  با: null
-  ، سایر: null
-  پایان: null
-  همه یکسان: null
-  بررسی: null
-  بررسی هشدارهای تازه: null
+  ۱. آمادگی: 1. Preparation
+  HEALTH_OK؟<br/>ceph -s: HEALTH_OK?<br/>ceph -s
+  خواندن release notes<br/>و یادداشت‌های ارتقا: read the release notes<br/>and upgrade notes
+  آزمون دسترسی میزبان‌ها<br/>به image در رجیستری: test host access<br/>to the image in the registry
+  ۲. ترتیب cephadm: 2. cephadm order
+  mgr<br/>(ابتدا standby): mgr<br/>(standby first)
+  mon<br/>یکی‌یکی با quorum: mon<br/>one by one with quorum
+  crash، osd<br/>با ok-to-stop / ok-to-upgrade: crash, osd<br/>with ok-to-stop / ok-to-upgrade
+  mds، rgw،<br/>rbd-mirror، سایر: mds, rgw,<br/>rbd-mirror, others
+  ۳. پایان: 3. Finish
+  ceph versions<br/>همه یکسان: ceph versions<br/>all identical
+  ceph osd dump<br/>بررسی require_osd_release: ceph osd dump<br/>check require_osd_release
+  بررسی هشدارهای تازه: check for new warnings
 ch19/f02_replace:
-  خارج کردن: null
-  دیسک خراب: null
-  تخلیه‌ی: null
-  ها: null
-  اگر: null
-  علامت: null
-  ؛ شناسه حفظ می‌شود: null
-  جایگزینی: null
-  تعویض فیزیکی دیسک: null
-  اگر دیسک نو نیست: null
-  مشخصات سرویس: null
-  دیسک را می‌گیرد: null
-  با همان شناسه ساخته می‌شود: null
-  تا: null
+  ۱. خارج کردن: 1. Removal
+  دیسک خراب<br/>osd.17 down: failed disk<br/>osd.17 down
+  تخلیه‌ی PGها (اگر up)<br/>علامت destroyed؛ شناسه حفظ می‌شود: drain PGs (if up)<br/>marked destroyed; the ID is kept
+  ۲. جایگزینی: 2. Replacement
+  تعویض فیزیکی دیسک: physical disk swap
+  ceph orch device zap<br/>(اگر دیسک نو نیست): ceph orch device zap<br/>(if the disk is not new)
+  مشخصات سرویس OSD دیسک را می‌گیرد<br/>osd.17 با همان شناسه ساخته می‌شود: the OSD service spec picks up the disk<br/>osd.17 is created with the same ID
+  backfill تا active+clean: backfill until active+clean
 ch19/f03_autoscale:
-  ظرفیت هر ریشه‌ی: null
-  تعداد: null
-  های ریشه: null
-  بودجه‌ی: null
-  ها: null
-  سهم هر: null
-  از مصرف واقعی: null
-  یا: null
-  سهم: null
-  بودجه: null
-  سهم کامل از ابتدا: null
-  غیر: null
-  حداقل لازم: null
-  گرد کردن و تصمیم: null
-  گرد کردن به توان ۲: null
-  بهینه‌سازی: null
-  تفاوت با: null
-  فعلی: null
-  بیش از: null
-  ؟: null
-  بله: null
-  تنظیم: null
-  تقسیم: null
-  ادغام تدریجی: null
-  خیر: null
-  بدون تغییر: null
-  جلوگیری از نوسان: null
+  ۱. ظرفیت هر ریشه‌ی CRUSH: 1. Capacity of each CRUSH root
+  تعداد OSDهای ریشه: number of OSDs in the root
+  'بودجه‌ی PG = OSDها × mon_target_pg_per_osd<br/>(Squid/Tentacle: 100، Umbrella: 200)': 'PG budget = OSDs × mon_target_pg_per_osd<br/>(Squid/Tentacle: 100, Umbrella: 200)'
+  ۲. سهم هر pool: 2. Each pool's share
+  capacity_ratio از مصرف واقعی<br/>یا target_size_ratio / target_size_bytes: capacity_ratio from actual usage<br/>or target_size_ratio / target_size_bytes
+  pg_target = سهم × بودجه × bias / size: pg_target = share × budget × bias / size
+  'bulk: سهم کامل از ابتدا<br/>غیر bulk: حداقل لازم': 'bulk: full share from the start<br/>non-bulk: the minimum needed'
+  ۳. گرد کردن و تصمیم: 3. Rounding and decision
+  'گرد کردن به توان ۲<br/>(Umbrella: بهینه‌سازی knapsack)': 'round to a power of 2<br/>(Umbrella: knapsack optimization)'
+  تفاوت با pg_num فعلی<br/>بیش از threshold (۳)؟: difference from current pg_num<br/>more than threshold (3)?
+  بله: 'yes'
+  خیر: 'no'
+  تنظیم pg_num_target<br/>تقسیم/ادغام تدریجی: set pg_num_target<br/>gradual split/merge
+  بدون تغییر<br/>(جلوگیری از نوسان): no change<br/>(prevents oscillation)
 ch19/f04_balancer:
-  هر: null
-  اگر کلاستر آرام است: null
-  برای: null
-  ها: null
-  به ترتیب تصادفی: null
-  درون: null
-  شمارش: null
-  در مقابل مقدار هدف وزن‌دار: null
-  انتخاب: null
-  های پر و خالی: null
-  با انحراف: null
-  افزودن: null
-  جابه‌جایی پر: null
-  خالی با رعایت قانون: null
-  اثر: null
-  جدید: null
-  فقط برای: null
-  های منتخب: null
-  توزیع: null
-  یکنواخت‌تر: null
-  و پری متعادل: null
+  هر sleep_interval<br/>اگر کلاستر آرام است: every sleep_interval<br/>if the cluster is quiet
+  do_upmap برای poolها<br/>به ترتیب تصادفی: do_upmap for pools<br/>in random order
+  درون calc_pg_upmaps (OSDMap.cc): Inside calc_pg_upmaps (OSDMap.cc)
+  شمارش PG هر OSD<br/>در مقابل مقدار هدف وزن‌دار: count each OSD's PGs<br/>against the weighted target
+  انتخاب OSDهای پر و خالی<br/>با انحراف > max_deviation: pick overfull and underfull OSDs<br/>with deviation > max_deviation
+  افزودن pg_upmap_items<br/>(جابه‌جایی پر → خالی با رعایت قانون CRUSH): add pg_upmap_items<br/>(move full → empty respecting the CRUSH rule)
+  اثر: Effect
+  OSDMap جدید: new OSDMap
+  remapped + backfill<br/>فقط برای PGهای منتخب: remapped + backfill<br/>only for the chosen PGs
+  توزیع PG یکنواخت‌تر<br/>و پری متعادل: more uniform PG distribution<br/>and balanced fullness
 ch20/f01_stack:
   هر میزبان: null
   های: null

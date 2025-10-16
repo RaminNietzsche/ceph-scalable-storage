@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph B1["upmap balancer (pybind/mgr/balancer)"]
+    direction LR
+    a["every sleep_interval<br/>if the cluster is quiet"] --> b["do_upmap for pools<br/>in random order"] --> c["OSDMap::calc_pg_upmaps<br/>max_deviation=5, max_optimizations=10"]
+  end
+  subgraph B2["Inside calc_pg_upmaps (OSDMap.cc)"]
+    direction LR
+    d["count each OSD's PGs<br/>against the weighted target"] --> e["pick overfull and underfull OSDs<br/>with deviation > max_deviation"] --> f["add pg_upmap_items<br/>(move full → empty respecting the CRUSH rule)"]
+  end
+  subgraph B3["Effect"]
+    direction LR
+    g["new OSDMap"] --> h["remapped + backfill<br/>only for the chosen PGs"] --> i["more uniform PG distribution<br/>and balanced fullness"]
+  end
+  B1 ~~~ B2 ~~~ B3

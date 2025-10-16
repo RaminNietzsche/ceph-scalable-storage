@@ -5,44 +5,43 @@ title: 'Day-to-Day Operations: Upgrades, Disk Replacement, Autoscaler and Balanc
 part: main
 original_heading: Operations and Maintenance
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-19-1}
+# Before you start {#sec-19-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-19-1-1}
+## What questions does this chapter answer? {#sec-19-1-1}
 
-بیشتر عمر یک کلاستر Ceph را کارهای روزمره تشکیل می‌دهد: ارتقای نسخه، تعویض دیسک، افزودن و خارج کردن میزبان، تنظیم تعداد PGها و متوازن کردن داده. هر کدام از این کارها اگر درست انجام شود بی‌سروصداست و اگر نه، به حادثه تبدیل می‌شود. این فصل روال‌های امروزی را با cephadm مرور می‌کند و سپس به درون دو ماژول مهم mgr می‌رود: **pg_autoscaler** و **balancer**.
+Most of a Ceph cluster's life consists of routine work: upgrading versions, replacing disks, adding and removing hosts, adjusting the number of PGs and balancing data. Each of these tasks is uneventful if done right, and turns into an incident if not. This chapter reviews today's procedures with cephadm and then goes inside two important mgr modules: **pg_autoscaler** and **balancer**.
 
-- ارتقا با cephadm به چه ترتیبی انجام می‌شود و ارتقای مرحله‌ای چیست؟
-- دیسک خراب را چگونه با حفظ شناسه‌ی OSD جایگزین کنیم؟
-- میزبان را چگونه برای نگه‌داری خارج یا برای همیشه حذف کنیم؟
-- pg_autoscaler تعداد PG را با چه فرمولی محاسبه می‌کند و چه چیزی در Umbrella تغییر کرد؟
-- balancer در حالت upmap چگونه تصمیم می‌گیرد کدام PG جابه‌جا شود؟
-- کدام پرچم‌ها و تنظیمات برای کارهای نگه‌داری لازم‌اند؟
+- In what order does a cephadm upgrade proceed, and what is a staggered upgrade?
+- How do we replace a failed disk while keeping the OSD id?
+- How do we take a host out for maintenance, or remove it permanently?
+- With what formula does pg_autoscaler compute the number of PGs, and what changed in Umbrella?
+- In upmap mode, how does the balancer decide which PG to move?
+- Which flags and settings are needed for maintenance work?
 
-# ارتقای نسخه {#sec-19-2}
+# Upgrading {#sec-19-2}
 
-![روال ارتقا در سه مرحله: آمادگی شامل سالم بودن کلاستر، خواندن یادداشت‌های انتشار و اطمینان از دسترسی میزبان‌ها به image؛ ترتیب cephadm از mgr و mon تا OSDها با بررسی ok-to-stop و سپس سایر daemonها؛ و پایان با یکسان بودن نسخه‌ها و بررسی require_osd_release](figures/ch19/f01_upgrade.png){#fig-19-f01_upgrade}
+![The upgrade procedure in three stages: preparation, including a healthy cluster, reading the release notes and making sure the hosts can reach the image; the cephadm order, from mgr and mon to the OSDs with ok-to-stop checks and then the other daemons; and the end, with identical versions and a check of require_osd_release](figures/ch19/f01_upgrade.png){#fig-19-f01_upgrade}
 
-cephadm ارتقا را به‌صورت **rolling** انجام می‌دهد: ابتدا mgrها (تا ماژول cephadm جدید کار را ادامه دهد)، سپس MONها یکی‌یکی با حفظ quorum، سپس OSDها با بررسی اینکه توقف آن‌ها PGها را غیرفعال نمی‌کند، و در پایان سایر سرویس‌ها.
+cephadm performs the upgrade as a **rolling** upgrade: first the mgrs (so that the new cephadm module carries on with the work), then the MONs one by one while keeping quorum, then the OSDs, checking that stopping them does not make PGs inactive, and finally the other services.
 
 ```bash
 ceph -s
 ceph versions
-ceph orch upgrade start --ceph-version 20.2.5          # یا --image quay.io/ceph/ceph:v20.2.5
+ceph orch upgrade start --ceph-version 20.2.5          # or --image quay.io/ceph/ceph:v20.2.5
 ceph orch upgrade status
-ceph -W cephadm                                        # پیگیری زنده
+ceph -W cephadm                                        # live follow-up
 ceph orch upgrade pause | resume | stop
 ```
 
 ::: {.note}
-نسخه‌های ذکرشده در مثال (Tentacle 20.2.5) آخرین نسخه‌ی نقطه‌ای Tentacle در زمان نگارش است. پیش از ارتقا، فهرست رسمی انتشارها در docs.ceph.com/en/latest/releases را بررسی و یادداشت‌های ارتقای همان نسخه را بخوانید؛ بعضی انتشارها پیش‌نیاز یا گام دستی دارند.
+The version in the example (Tentacle 20.2.5) is the latest Tentacle point release at the time of writing. Before upgrading, check the official release list at docs.ceph.com/en/latest/releases and read the upgrade notes for that version; some releases have prerequisites or manual steps.
 :::
 
-## ارتقای مرحله‌ای {#sec-19-2-1}
+## Staggered upgrades {#sec-19-2-1}
 
-cephadm امکان ارتقای بخشی از daemonها را می‌دهد (staggered upgrade)؛ برای مثال فقط mgr و mon روی چند میزبان، یا فقط سرویس‌های RGW مشخص با محدودیت تعداد:
+cephadm can upgrade a subset of daemons (a staggered upgrade); for example only mgr and mon on a few hosts, or only specific RGW services with a limit on the count:
 
 ```bash
 ceph orch upgrade start --image quay.io/ceph/ceph:v20.2.5 --daemon-types mgr,mon --hosts mon1,mon2
@@ -50,88 +49,88 @@ ceph orch upgrade start --image quay.io/ceph/ceph:v20.2.5 --services rgw.s3main 
 ```
 
 ::: {.deep}
-در مستندات Umbrella، ارتقای OSDها می‌تواند **بر اساس bucket CRUSH** انجام شود: با `--daemon-types osd --crush_bucket_type rack` (و اختیاری `--crush_bucket_name`)، cephadm برای هر bucket فرمان MON `ceph osd ok-to-upgrade` را با سقف `mgr/cephadm/max_parallel_osd_upgrades` صدا می‌زند و OSDهای آن bucket را با هم ارتقا می‌دهد؛ اگر پارامترهای bucket داده نشود، به دروازه‌ی پیش‌فرض `ok-to-stop` برمی‌گردد. انواع bucket پشتیبانی‌شده در مستندات: host، rack و chassis. این قابلیت زمان ارتقای کلاسترهای بزرگ را به‌شدت کم می‌کند، چون به‌جای یک OSD در هر زمان، یک دامنه‌ی خرابی کامل هم‌زمان ارتقا می‌یابد.
+In the Umbrella documentation, OSD upgrades can proceed **by CRUSH bucket**: with `--daemon-types osd --crush_bucket_type rack` (and optionally `--crush_bucket_name`), cephadm calls the MON command `ceph osd ok-to-upgrade` for each bucket, capped by `mgr/cephadm/max_parallel_osd_upgrades`, and upgrades that bucket's OSDs together; if the bucket parameters are not given, it falls back to the default `ok-to-stop` gate. The bucket types supported in the documentation are host, rack and chassis. This feature greatly shortens the upgrade time of large clusters, because a whole failure domain is upgraded at once instead of one OSD at a time.
 :::
 
 ::: {.warn}
-اگر میزبانی offline یا در حالت نگه‌داری باشد، ارتقا متوقف و منتظر می‌ماند. پیش از شروع، `ceph orch host ls` را بررسی کنید. ارتقا را در زمان backfill سنگین یا وجود PGهای غیرفعال شروع نکنید.
+If a host is offline or in maintenance mode, the upgrade stops and waits. Before starting, check `ceph orch host ls`. Do not start an upgrade during heavy backfill or while there are inactive PGs.
 :::
 
-# جایگزینی دیسک {#sec-19-3}
+# Replacing a disk {#sec-19-3}
 
-![جایگزینی دیسک خراب با حفظ شناسه‌ی OSD در دو مرحله: خارج کردن با orch osd rm --replace که PGها را تخلیه و OSD را destroyed علامت می‌زند، و جایگزینی که پس از تعویض فیزیکی و در صورت نیاز zap، مشخصات سرویس OSD دیسک جدید را می‌گیرد و OSD با همان شناسه ساخته و backfill می‌شود](figures/ch19/f02_replace.png){#fig-19-f02_replace}
+![Replacing a failed disk while keeping the OSD id, in two stages: removal with orch osd rm --replace, which drains the PGs and marks the OSD destroyed, and replacement, in which after the physical swap and, if needed, a zap, the OSD service specification picks up the new disk and the OSD is created with the same id and backfilled](figures/ch19/f02_replace.png){#fig-19-f02_replace}
 
 ```bash
 ceph osd tree | grep -E "down|destroyed"
-ceph orch osd rm 17 --replace          # شناسه حفظ و OSD در CRUSH باقی می‌ماند
+ceph orch osd rm 17 --replace          # the id is kept and the OSD stays in CRUSH
 ceph orch osd rm status
-# پس از تعویض دیسک
+# after replacing the disk
 ceph orch device ls stor-b3 --refresh
-ceph orch device zap stor-b3 /dev/sdk --force      # فقط اگر دیسک قبلاً استفاده شده
+ceph orch device zap stor-b3 /dev/sdk --force      # only if the disk was used before
 ceph orch ps --daemon-type osd | grep osd.17
 ```
 
 ::: {.tip}
-`--replace` باعث می‌شود OSD در وضعیت `destroyed` بماند، نه حذف کامل؛ بنابراین موقعیت CRUSH و شناسه حفظ می‌شود و پس از ساخت OSD جدید، فقط PGهای همان OSD backfill می‌شوند، نه یک بازتوزیع کلی. بدون `--replace`، حذف OSD و افزودن OSD جدید دو بار داده را جابه‌جا می‌کند.
+`--replace` keeps the OSD in the `destroyed` state rather than removing it entirely; so its CRUSH position and id are kept, and after the new OSD is created only that OSD's PGs are backfilled, not a general redistribution. Without `--replace`, removing the OSD and adding a new one moves the data twice.
 :::
 
 ::: {.warn}
-`ceph orch osd rm` تأیید نمی‌خواهد و بلافاصله شروع می‌کند؛ مستندات این را صریحاً گوشزد می‌کند. شناسه را دوبار بررسی کنید. برای توقف: `ceph orch osd rm stop <id>`.
+`ceph orch osd rm` asks for no confirmation and starts immediately; the documentation points this out explicitly. Double-check the id. To stop: `ceph orch osd rm stop <id>`.
 :::
 
-# نگه‌داری و حذف میزبان {#sec-19-4}
+# Host maintenance and removal {#sec-19-4}
 
 ```bash
-ceph orch host maintenance enter stor-b3        # توقف همه‌ی daemonهای Ceph میزبان
-# ... به‌روزرسانی هسته، تعمیر سخت‌افزار، راه‌اندازی دوباره ...
+ceph orch host maintenance enter stor-b3        # stop all Ceph daemons on the host
+# ... kernel update, hardware repair, reboot ...
 ceph orch host maintenance exit stor-b3
-# حذف دائمی
-ceph orch host drain stor-b3                    # برچسب _no_schedule و _no_conf_keyring؛ خروج daemonها
+# permanent removal
+ceph orch host drain stor-b3                    # the _no_schedule and _no_conf_keyring labels; daemons leave
 ceph orch osd rm status
 ceph orch host rm stor-b3
 ```
 
 ::: {.note}
-`maintenance enter` پیش از توقف، بررسی می‌کند توقف daemonهای میزبان ایمن است (مثلاً PGها فعال می‌مانند) و در صورت ناامنی امتناع می‌کند؛ طبق مستندات، `--force` از هشدارها (نه alertها) عبور می‌کند و `--force --yes-i-really-mean-it` همه‌ی بررسی‌های ایمنی را دور می‌زند و می‌تواند به از دست رفتن دسترسی داده یا quorum منجر شود. در کد cephadm (`pybind/mgr/cephadm/module.py`)، ورود به نگه‌داری با فرمان `osd set-group` پرچم noout را برای زیردرخت CRUSH همان میزبان تنظیم می‌کند تا داده بی‌دلیل بازتوزیع نشود، و خروج آن را برمی‌دارد.
+Before stopping anything, `maintenance enter` checks that stopping the host's daemons is safe (for example that the PGs stay active) and refuses if it is unsafe; according to the documentation, `--force` overrides warnings (not alerts), and `--force --yes-i-really-mean-it` bypasses all safety checks and can lead to loss of data access or quorum. In the cephadm code (`pybind/mgr/cephadm/module.py`), entering maintenance sets the noout flag on that host's CRUSH subtree with the `osd set-group` command, so that data is not redistributed needlessly, and exiting removes it.
 :::
 
-# از درون کد: pg_autoscaler {#sec-19-5}
+# Inside the code: pg_autoscaler {#sec-19-5}
 
-## مسئله {#sec-19-5-1}
+## The problem {#sec-19-5-1}
 
-تعداد PG هر pool دو اثر متضاد دارد: PG کم یعنی توزیع ناهموار داده و موازی‌سازی کم؛ PG زیاد یعنی مصرف حافظه و CPU بیشتر در OSDها و peering سنگین‌تر. ماژول `pg_autoscaler` در mgr (`src/pybind/mgr/pg_autoscaler/module.py`) این تعادل را خودکار می‌کند. هدف آن این است که هر OSD حدود `mon_target_pg_per_osd` نسخه‌ی PG میزبانی کند.
+The number of PGs in each pool has two opposing effects: few PGs mean an uneven data distribution and little parallelism; many PGs mean more memory and CPU use in the OSDs and heavier peering. The `pg_autoscaler` module in the mgr (`src/pybind/mgr/pg_autoscaler/module.py`) automates this balance. Its goal is for each OSD to host about `mon_target_pg_per_osd` PG replicas.
 
-![مراحل محاسبه‌ی pg_autoscaler: ابتدا بودجه‌ی PG هر ریشه‌ی CRUSH از تعداد OSDها ضرب در mon_target_pg_per_osd، سپس سهم هر pool از مصرف واقعی یا نسبت هدف و تبدیل آن به pg_target با در نظر گرفتن bias و size، و در نهایت گرد کردن به توان ۲ و تغییر فقط وقتی تفاوت از آستانه بیشتر باشد](figures/ch19/f03_autoscale.png){#fig-19-f03_autoscale}
+![The steps of the pg_autoscaler calculation: first each CRUSH root's PG budget from the number of OSDs times mon_target_pg_per_osd, then each pool's share from actual usage or a target ratio, converted to pg_target taking bias and size into account, and finally rounding to a power of 2 and changing only when the difference exceeds the threshold](figures/ch19/f03_autoscale.png){#fig-19-f03_autoscale}
 
 ::: {.warn}
-**وابسته به نسخه.** مقدار پیش‌فرض `mon_target_pg_per_osd` در `src/common/options/mgr.yaml.in` در برچسب‌های v19.2.0 و v20.2.0 برابر **100** و در v21.2.0 (Umbrella) برابر **200** است. یعنی پس از ارتقا به Umbrella، autoscaler ممکن است برای poolهای موجود PG بیشتری پیشنهاد کند و تقسیم PG (و جابه‌جایی داده) آغاز شود. پیش از ارتقا `ceph osd pool autoscale-status` را ذخیره کنید و پس از ارتقا مقایسه کنید؛ در صورت لزوم مقدار قبلی را صریحاً با `ceph config set global mon_target_pg_per_osd 100` تنظیم کنید.
+**Version-dependent.** The default value of `mon_target_pg_per_osd` in `src/common/options/mgr.yaml.in` is **100** at tags v19.2.0 and v20.2.0 and **200** at v21.2.0 (Umbrella). That is, after upgrading to Umbrella the autoscaler may recommend more PGs for existing pools, and PG splitting (and data movement) may begin. Before upgrading, save `ceph osd pool autoscale-status` and compare after the upgrade; if necessary, set the previous value explicitly with `ceph config set global mon_target_pg_per_osd 100`.
 :::
 
-## الگوریتم {#sec-19-5-2}
+## The algorithm {#sec-19-5-2}
 
 ```text
-pseudocode: pg_autoscaler (بازنویسی این کتاب)
+pseudocode: pg_autoscaler (this book's rewrite)
   for root in crush_roots:
       budget[root] = osds_in(root) * mon_target_pg_per_osd
   for pool:
       root      = root_of(pool.crush_rule)
       ratio     = max(actual_used / root_capacity,
                       target_size_bytes / root_capacity,
-                      normalized target_size_ratio)          # نسبت‌ها نرمال می‌شوند
+                      normalized target_size_ratio)          # ratios are normalized
       pg_target = ratio * budget[root] * pool.bias / pool.size
       if pool.bulk:     start near full share
       else:             start small, grow with usage
-      pg_final  = round_to_power_of_two(pg_target)            # Umbrella: گرد کردن بهینه (knapsack)
+      pg_final  = round_to_power_of_two(pg_target)            # Umbrella: optimal (knapsack) rounding
       pg_final  = clamp(pg_final, pg_num_min, pg_num_max)
-      threshold = dynamic_threshold(pg_final) if scaling up else threshold   # پیش‌فرض 3.0
+      threshold = dynamic_threshold(pg_final) if scaling up else threshold   # default 3.0
       if pg_final > pg_num_target * threshold or pg_final < pg_num_target / threshold:
           if pool.mode == 'on':   set pg_num_target = pg_final
           elif pool.mode == 'warn': raise POOL_TOO_FEW_PGS / POOL_TOO_MANY_PGS
 ```
 
-**آستانه** جلوی نوسان را می‌گیرد: autoscaler فقط وقتی pg_num را تغییر می‌دهد که مقدار ایده‌آل دست‌کم سه برابر (پیش‌فرض `threshold=3.0`) بیشتر یا کمتر از مقدار فعلی باشد. حداقل مقدار مجاز آستانه ۱.۰ است (`ceph osd pool set threshold`).
+The **threshold** prevents oscillation: the autoscaler only changes pg_num when the ideal value is at least three times (default `threshold=3.0`) larger or smaller than the current value. The minimum allowed threshold is 1.0 (`ceph osd pool set threshold`).
 
-در کد جاری (و Umbrella)، آستانه برای **افزایش** در چند اندازه‌ی رایج پویا است:
+In current code (and Umbrella), the threshold for **increases** is dynamic at a few common sizes:
 
 ```python
 # from ceph/ceph, LGPL — src/pybind/mgr/pg_autoscaler/module.py (excerpt)
@@ -143,135 +142,135 @@ def get_dynamic_threshold(self, final_pg_num: int, default_threshold: float) -> 
     return default_threshold
 ```
 
-یعنی رسیدن به ۵۱۲ یا ۱۰۲۴ PG بدون نیاز به اختلاف سه‌برابری انجام می‌شود (هر افزایشی کافی است) و برای ۲۰۴۸ اختلاف دوبرابری کافی است. برای کاهش، همان آستانه‌ی پیش‌فرض اعمال می‌شود. در Umbrella، گرد کردن pg_target به توان ۲ هم دیگر برای هر pool جداگانه انجام نمی‌شود: تابع `_find_optimal_pg_distribution` با **برنامه‌نویسی پویای کوله‌پشتی** تصمیم می‌گیرد کدام poolها رو به بالا و کدام رو به پایین گرد شوند تا مجموع خطای گرد کردن کمینه و بودجه‌ی PG ریشه رعایت شود (این تابع در برچسب v20.2.0 وجود ندارد).
+That is, reaching 512 or 1024 PGs does not require a threefold difference (any increase is enough), and for 2048 a twofold difference is enough. For decreases, the default threshold applies. In Umbrella, rounding pg_target to a power of 2 is also no longer done separately for each pool: the function `_find_optimal_pg_distribution` uses **dynamic-programming knapsack** to decide which pools to round up and which down so that the total rounding error is minimized and the root's PG budget is respected (this function does not exist at tag v20.2.0).
 
 ```bash
 ceph osd pool autoscale-status
-ceph osd pool set vm-fast target_size_ratio 0.4       # پیش‌بینی سهم آینده
-ceph osd pool set archive bulk true                   # pool بزرگ: سهم کامل از ابتدا
+ceph osd pool set vm-fast target_size_ratio 0.4       # predict the future share
+ceph osd pool set archive bulk true                   # a large pool: full share from the start
 ceph osd pool set archive pg_num_min 256
 ceph osd pool get threshold
-ceph osd pool set noautoscale                          # توقف موقت سراسری
+ceph osd pool set noautoscale                          # temporary global stop
 ceph osd pool unset noautoscale
 ```
 
 ::: {.tip}
-برای poolهایی که می‌دانید بزرگ خواهند شد (داده‌ی RGW یا RBD اصلی)، از ابتدا `bulk` را فعال کنید. در غیر این صورت autoscaler با PG کم شروع می‌کند و همزمان با پر شدن pool، چند بار PGها را تقسیم می‌کند که هر بار جابه‌جایی داده دارد.
+For pools you know will become large (the main RGW or RBD data), enable `bulk` from the start. Otherwise the autoscaler starts with few PGs and, as the pool fills, splits the PGs several times, each time with data movement.
 :::
 
-# از درون کد: balancer {#sec-19-6}
+# Inside the code: balancer {#sec-19-6}
 
-## حالت‌ها {#sec-19-6-1}
+## Modes {#sec-19-6-1}
 
-| حالت | سازوکار | پیش‌نیاز |
+| Mode | Mechanism | Prerequisite |
 |---|---|---|
-| upmap (پیش‌فرض) | افزودن pg_upmap_items برای جابه‌جایی تک‌تک PGها | کلاینت‌های Luminous به بعد |
-| crush-compat | تنظیم وزن‌های جایگزین در یک weight-set سازگار | سازگار با کلاینت‌های قدیمی |
-| read و upmap-read | متعادل کردن primaryها (pg_upmap_primary) برای بار خواندن | کلاینت‌های Reef به بعد |
+| upmap (default) | Adding pg_upmap_items to move individual PGs | Luminous and later clients |
+| crush-compat | Setting alternative weights in a compatible weight-set | Compatible with old clients |
+| read and upmap-read | Balancing primaries (pg_upmap_primary) for read load | Reef and later clients |
 
-![عملکرد balancer در حالت upmap: ماژول mgr در هر بازه‌ی sleep_interval (پیش‌فرض ۶۰ ثانیه) و در صورت آرام بودن کلاستر do_upmap را اجرا می‌کند؛ OSDMap::calc_pg_upmaps تعداد PG هر OSD را با مقدار هدف وزن‌دار مقایسه و برای OSDهای با انحراف بیش از max_deviation، ورودی‌های pg_upmap_items با رعایت قانون CRUSH می‌سازد؛ نتیجه backfill فقط برای PGهای منتخب است](figures/ch19/f04_balancer.png){#fig-19-f04_balancer}
+![How the balancer works in upmap mode: the mgr module runs do_upmap every sleep_interval (default 60 seconds) if the cluster is quiet; OSDMap::calc_pg_upmaps compares each OSD's PG count with the weighted target value and, for OSDs deviating by more than max_deviation, creates pg_upmap_items entries that respect the CRUSH rule; the result is backfill only for the selected PGs](figures/ch19/f04_balancer.png){#fig-19-f04_balancer}
 
-## الگوریتم upmap {#sec-19-6-2}
+## The upmap algorithm {#sec-19-6-2}
 
-`Module.do_upmap()` در `src/pybind/mgr/balancer/module.py` با گزینه‌های `upmap_max_optimizations` (پیش‌فرض ۱۰، بیشینه‌ی تغییر در هر دور) و `upmap_max_deviation` (پیش‌فرض ۵ PG) کار را به `OSDMap::calc_pg_upmaps()` در C++ می‌سپارد. منطق آن:
+`Module.do_upmap()` in `src/pybind/mgr/balancer/module.py`, with the options `upmap_max_optimizations` (default 10, the maximum number of changes per round) and `upmap_max_deviation` (default 5 PGs), hands the work to `OSDMap::calc_pg_upmaps()` in C++. Its logic:
 
 ```text
-pseudocode: calc_pg_upmaps (خلاصه‌ی این کتاب از OSDMap.cc)
-  for osd: target[osd] = total_pgs * weight[osd] / total_weight      # سهم وزن‌دار
+pseudocode: calc_pg_upmaps (this book's summary of OSDMap.cc)
+  for osd: target[osd] = total_pgs * weight[osd] / total_weight      # weighted share
            deviation[osd] = pgs[osd] - target[osd]
   repeat up to max_optimizations:
-      over  = OSDs with deviation >  max_deviation (پرترین اول)
+      over  = OSDs with deviation >  max_deviation (fullest first)
       under = OSDs with deviation < -max_deviation
       if none: break
       for pg on over[0]:
           candidate = an OSD in under that keeps CRUSH rule valid
-                      (همان دامنه‌ی خرابی، بدون تکرار در up set)
+                      (same failure domain, no repeats in the up set)
           if found: add pg_upmap_items[pg] += (over[0] → candidate); update counts; break
       also: remove existing upmap items that no longer help
   return pending increment
 ```
 
 ::: {.deep}
-`pg_upmap_items` نگاشت CRUSH را دور نمی‌زند، بلکه **روی خروجی CRUSH** اعمال می‌شود: CRUSH up set را حساب می‌کند و سپس جفت‌های (from → to) جایگزین می‌شوند. اگر بعداً تغییر CRUSH باعث شود upmap قانون را نقض کند (مثلاً دو نسخه در یک میزبان)، OSDMap هنگام اعمال آن را نادیده می‌گیرد و MON آن را پاک می‌کند (`clean_pg_upmaps`). به همین دلیل upmap ایمن‌تر از تغییر دستی وزن‌هاست.
+`pg_upmap_items` does not bypass the CRUSH mapping; it is applied **on top of CRUSH's output**: CRUSH computes the up set and then the (from → to) pairs are substituted. If a later CRUSH change makes an upmap violate the rule (for example two copies on one host), the OSDMap ignores it when applying it and the MON cleans it up (`clean_pg_upmaps`). That is why upmap is safer than changing weights by hand.
 :::
 
 ```bash
 ceph balancer status
 ceph balancer mode upmap
 ceph balancer on
-ceph config set mgr mgr/balancer/upmap_max_deviation 1     # توزیع دقیق‌تر در کلاستر بزرگ
+ceph config set mgr mgr/balancer/upmap_max_deviation 1     # a more precise distribution in a large cluster
 ceph balancer eval
-ceph osd df tree | sort -nk17 | tail                      # ستون‌های VAR و PGS
+ceph osd df tree | sort -nk17 | tail                      # the VAR and PGS columns
 ```
 
 ::: {.note}
-balancer فقط وقتی کار می‌کند که درصد PGهای misplaced کمتر از `target_max_misplaced_ratio` باشد (پیش‌فرض ۰.۰۵)؛ بنابراین در میانه‌ی backfill سنگین، کار تازه‌ای شروع نمی‌کند. حالت‌های read balancer به کلاینت‌های Reef به بعد نیاز دارند (`ceph osd set-require-min-compat-client reef`).
+The balancer only works when the percentage of misplaced PGs is below `target_max_misplaced_ratio` (default 0.05); so in the middle of heavy backfill it starts no new work. The read balancer modes need Reef and later clients (`ceph osd set-require-min-compat-client reef`).
 :::
 
-# سه الگوریتم نگه‌داری با عدد {#sec-19-7}
+# Three maintenance algorithms in numbers {#sec-19-7}
 
-بخش‌های قبل autoscaler و balancer را در سطح مفهوم توضیح دادند. این بخش هر دو را تا سطح حلقه و عدد باز می‌کند. چون الگوریتم گرد کردن autoscaler در Umbrella عوض شده است، هر دو نسخه را جداگانه آورده‌ایم.
+The previous sections explained the autoscaler and the balancer at the conceptual level. This section opens both down to the level of loops and numbers. Because the autoscaler's rounding algorithm changed in Umbrella, we give both versions separately.
 
-## گرد کردن به توان دو و آستانه‌ی ۳ برابری {#sec-19-7-1}
+## Rounding to a power of two and the 3x threshold {#sec-19-7-1}
 
-::: {.algo #alg-19-1 title="pg_autoscaler سه‌گذره (تا v20.2.0)" src="src/pybind/mgr/pg_autoscaler/module.py :: PgAutoscaler._calc_final_pg_target، nearest_power_of_two (برچسب v20.2.0)" complexity="O(P) برای P pool در هر ریشه‌ی CRUSH؛ گرد کردن O(1) با شیفت بیتی"}
+::: {.algo #alg-19-1 title="Three-pass pg_autoscaler (up to v20.2.0)" src="src/pybind/mgr/pg_autoscaler/module.py :: PgAutoscaler._calc_final_pg_target, nearest_power_of_two (tag v20.2.0)" complexity="O(P) for P pools per CRUSH root; rounding O(1) with bit shifts"}
 :::
 
 ```text
 pseudocode
-budget[root] = Σ_osd mon_target_pg_per_osd / (تعداد ریشه‌های آن OSD) ; pg_left = budget
-pass 1 (pool غیر bulk): used = capacity_ratio × pg_left ; pg_left −= used ; target = used / size × bias
-pass 2 (bulk با ratio > even = 1/(pools − used_pools)): ratio = max(used, even) ; همان محاسبه
-pass 3 (بقیه‌ی bulk): ratio = 1/(باقی) ; target = ratio × pg_left / size × bias
+budget[root] = Σ_osd mon_target_pg_per_osd / (number of roots of that OSD) ; pg_left = budget
+pass 1 (non-bulk pools): used = capacity_ratio × pg_left ; pg_left −= used ; target = used / size × bias
+pass 2 (bulk with ratio > even = 1/(pools − used_pools)): ratio = max(used, even) ; same calculation
+pass 3 (remaining bulk): ratio = 1/(remaining) ; target = ratio × pg_left / size × bias
 final = max(pg_num_min=32, nearest_power_of_two(target)) ; final = min(final, pg_num_max)
-adjust = (final > current × 3) or (final < current / 3)       # threshold پیش‌فرض 3.0
+adjust = (final > current × 3) or (final < current / 3)       # default threshold 3.0
 ```
 
-**مثال عددی.** ده OSD در یک ریشه با `mon_target_pg_per_osd = 100` (پیش‌فرض v20.2.0) بودجه‌ی 1000 نسخه‌ی PG می‌دهند. pool غیر bulk به نام `rbd` با size 3 و capacity_ratio = 0.3 دارای used = 300 است و target = 300/3 = 100. تابع nearest_power_of_two(100) کران‌های 64 و 128 را می‌سازد (با OR کردن شیفت‌ها: 99 → 127 → 128). چون 128 − 100 = 28 < 100 − 64 = 36، نتیجه 128 است. اگر pg_num فعلی 32 باشد، 128 > 96 است و تغییر اعمال می‌شود. اگر pg_num فعلی 64 بود، 128 < 192 بود و autoscaler فقط هشدار می‌داد و چیزی را تغییر نمی‌داد. این هیسترزیس جلوی split/merge پشت سر هم را می‌گیرد. نقطه‌ی تصمیم گرد کردن، 1.5 برابر هر توان دو است.
+**Numerical example.** Ten OSDs in one root with `mon_target_pg_per_osd = 100` (the v20.2.0 default) give a budget of 1000 PG replicas. A non-bulk pool named `rbd` with size 3 and capacity_ratio = 0.3 has used = 300 and target = 300/3 = 100. The function nearest_power_of_two(100) builds the bounds 64 and 128 (by ORing shifts: 99 → 127 → 128). Because 128 − 100 = 28 < 100 − 64 = 36, the result is 128. If the current pg_num is 32, 128 > 96 and the change is applied. If the current pg_num were 64, 128 < 192, and the autoscaler would only warn and change nothing. This hysteresis prevents back-to-back splits and merges. The rounding decision point is 1.5 times each power of two.
 
-![سمت چپ تابع پله‌ای nearest_power_of_two است: هدف هر pool به نزدیک‌ترین توان دو گرد می‌شود و مرز تصمیم (نقطه‌چین نارنجی) 1.5 برابر توان پایین‌تر است. نقطه‌ی قرمز مثال متن است. سمت راست قاعده‌ی آستانه با threshold = 3 و pg_num فعلی 32 است: فقط مقادیر سبز، یعنی بیش از 96 یا کمتر از 10.7، تغییر واقعی ایجاد می‌کنند](figures/ch19/f05_pow2.png){#fig-19-f05_pow2}
+![Left: the step function nearest_power_of_two: each pool's target is rounded to the nearest power of two, and the decision boundary (orange dotted line) is 1.5 times the lower power. The red point is the text's example. Right: the threshold rule with threshold = 3 and a current pg_num of 32: only the green values, that is above 96 or below 10.7, cause a real change](figures/ch19/f05_pow2.png){#fig-19-f05_pow2}
 
-## گرد کردن سراسری با کوله‌پشتی (Umbrella) {#sec-19-7-2}
+## Global rounding with knapsack (Umbrella) {#sec-19-7-2}
 
-::: {.algo #alg-19-2 title="گرد کردن بهینه‌ی PG با برنامه‌ریزی پویا" src="src/pybind/mgr/pg_autoscaler/module.py :: PgAutoscaler._find_optimal_pg_distribution، _calculate_final_pool_pg_target، get_dynamic_threshold، PoolGroup.update (برچسب v21.2.0)" complexity="طبق docstring کد O(n·log2(budget))؛ فضای حالت = مجموع‌های ممکن PG اضافه"}
+::: {.algo #alg-19-2 title="Optimal PG rounding with dynamic programming" src="src/pybind/mgr/pg_autoscaler/module.py :: PgAutoscaler._find_optimal_pg_distribution, _calculate_final_pool_pg_target, get_dynamic_threshold, PoolGroup.update (tag v21.2.0)" complexity="per the code's docstring O(n·log2(budget)); state space = possible sums of extra PGs"}
 :::
 
 ```text
 pseudocode
-برای هر گروه pool (هم‌هدف، هم‌size، هم‌bias): down = pow2_down(t)×size ، up = pow2_up(t)×size
-    cost_down = |down − t×size| ، cost_up = |up − t×size| ، extra = up − down
+for each pool group (same target, same size, same bias): down = pow2_down(t)×size , up = pow2_up(t)×size
+    cost_down = |down − t×size| , cost_up = |up − t×size| , extra = up − down
 base = Σ down ; budget = pg_left − base
 parent[0] = {0: (Σ cost_down)}
-for group i: برای هر مجموع s در parent[i]:
+for group i: for each sum s in parent[i]:
     s' = s + extra_i ; c' = c − cost_down_i + cost_up_i
-    if s' ≤ budget and (s' جدید یا c' کمتر): parent[i+1][s'] = (c', s)
-opt = کمترین هزینه؛ در تساوی، بیشترین PG ; سپس عقب‌گرد برای یافتن گروه‌های «up»
-threshold پویا برای افزایش: final ∈ {512, 1024} ⇒ 1.0 ، final = 2048 ⇒ 2.0 ، وگرنه threshold
+    if s' ≤ budget and (s' is new or c' is lower): parent[i+1][s'] = (c', s)
+opt = lowest cost; on a tie, the most PGs ; then backtrack to find the "up" groups
+dynamic threshold for increases: final ∈ {512, 1024} ⇒ 1.0 , final = 2048 ⇒ 2.0 , otherwise threshold
 ```
 
-**مثال عددی.** pg_left = 1000. pool A هدف 100 با size 3 دارد و pool B هدف 180 با size 3.
+**Numerical example.** pg_left = 1000. Pool A has a target of 100 with size 3, and pool B a target of 180 with size 3.
 
-- **A:** down = 64×3 = 192، up = 128×3 = 384، هزینه‌ها 108 و 84، extra = 192.
-- **B:** down = 128×3 = 384، up = 256×3 = 768، هزینه‌ها 156 و 228، extra = 384.
+- **A:** down = 64×3 = 192, up = 128×3 = 384, costs 108 and 84, extra = 192.
+- **B:** down = 128×3 = 384, up = 256×3 = 768, costs 156 and 228, extra = 384.
 
-base = 576 و budget = 424. چهار گزینه وجود دارد:
+base = 576 and budget = 424. There are four options:
 
-- هر دو پایین: هزینه 264.
-- فقط B بالا: 336.
-- فقط A بالا: **240**.
-- هر دو بالا: 576 PG اضافه، بیش از بودجه.
+- Both down: cost 264.
+- Only B up: 336.
+- Only A up: **240**.
+- Both up: 576 extra PGs, more than the budget.
 
-بنابراین A = 128 و B = 128 انتخاب می‌شود. در این مثال نتیجه با گرد کردن محلی یکی است. تفاوت وقتی پیدا می‌شود که گرد کردن محلی هر دو را بالا ببرد و بودجه‌ی ریشه را بشکند. نسخه‌ی سه‌گذره چنین چیزی را نمی‌دید. آستانه‌ی پویا هم تغییر از 256 به 512 را بدون شرط 3 برابری مجاز می‌کند.
+So A = 128 and B = 128 are chosen. In this example the result is the same as local rounding. The difference appears when local rounding would round both up and break the root's budget. The three-pass version could not see that. The dynamic threshold also allows a change from 256 to 512 without the 3x condition.
 
-![چهار انتخاب ممکن برای گرد کردن دو pool در مثال متن. ارتفاع هر ستون مجموع فاصله‌ی مقادیر گردشده از هدف است. گزینه‌ی خاکستری از بودجه‌ی 424 نسخه‌ی PG اضافه بیشتر است و حذف می‌شود. گزینه‌ی سبز کمترین هزینه را دارد و انتخاب می‌شود. برنامه‌ریزی پویا به‌جای امتحان همه‌ی 2^n ترکیب، فقط مجموع‌های ممکن PG اضافه را نگه می‌دارد](figures/ch19/f06_knap.png){#fig-19-f06_knap}
+![The four possible choices for rounding the two pools in the text's example. The height of each bar is the total distance of the rounded values from the target. The grey option exceeds the budget of 424 extra PG replicas and is excluded. The green option has the lowest cost and is chosen. Instead of trying all 2^n combinations, dynamic programming keeps only the possible sums of extra PGs](figures/ch19/f06_knap.png){#fig-19-f06_knap}
 
 ::: {.warn}
-**وابسته به نسخه.** این الگوریتم در برچسب v20.2.0 وجود ندارد و در v21.2.0 هست. در همان نسخه پیش‌فرض `mon_target_pg_per_osd` هم از 100 به 200 رسیده است، پس پس از ارتقا هم بودجه و هم روش گرد کردن تغییر می‌کند. در شاخه‌ی main، کف `pg_num_min` به‌جای ثابت PG_NUM_MIN = 32 از `osd_pool_default_pg_num` خوانده می‌شود. پیش از تکیه بر آن، نسخه‌ی خودتان را بررسی کنید.
+**Version-dependent.** This algorithm does not exist at tag v20.2.0 and is present at v21.2.0. In the same version the default `mon_target_pg_per_osd` also went from 100 to 200, so after the upgrade both the budget and the rounding method change. In the main branch, the `pg_num_min` floor is read from `osd_pool_default_pg_num` instead of the constant PG_NUM_MIN = 32. Check your own version before relying on it.
 :::
 
-## انحراف و امتیاز توازن در upmap {#sec-19-7-3}
+## Deviation and the balance score in upmap {#sec-19-7-3}
 
-::: {.algo #alg-19-3 title="انحراف وزن‌دار و bal_score در calc_pg_upmaps" src="src/osd/OSDMap.cc :: OSDMap::calc_pg_upmaps، calc_deviations، fill_overfull_underfull" complexity="هر تکرار O(OSD + PG روی OSD پرتر × هزینه‌ی CRUSH)؛ حداکثر upmap_max_optimizations = 10 تغییر در هر دور"}
+::: {.algo #alg-19-3 title="Weighted deviation and bal_score in calc_pg_upmaps" src="src/osd/OSDMap.cc :: OSDMap::calc_pg_upmaps, calc_deviations, fill_overfull_underfull" complexity="each iteration O(OSDs + PGs on the fullest OSD × CRUSH cost); at most upmap_max_optimizations = 10 changes per round"}
 :::
 
 ```text
@@ -280,175 +279,175 @@ pgs_per_weight = total_pg_replicas / Σ weight
 for osd: target = weight × pgs_per_weight ; dev = pgs − target
          bal_score += (dev/target)^2 × weight ; max_dev = max(|dev|)
 if max_dev ≤ max_deviation (5): return 0
-loop (max بار): overfull = {dev > 5} ، underfull = {dev < −5}
-    if هر دو خالی: break ; if overfull خالی: از more_overfull (0 < dev ≤ 5) استفاده کن
-    از پرترین OSD: یک PG پیدا کن که جابه‌جایی‌اش به underfull قانون CRUSH را نشکند ⇒ pg_upmap_items
-    انحراف‌ها را دوباره حساب کن ؛ فقط اگر bal_score بهتر شد بپذیر
+loop (max times): overfull = {dev > 5} , underfull = {dev < −5}
+    if both empty: break ; if overfull is empty: use more_overfull (0 < dev ≤ 5)
+    from the fullest OSD: find a PG whose move to underfull does not break the CRUSH rule ⇒ pg_upmap_items
+    recompute the deviations ; accept only if bal_score improved
 ```
 
-**مثال عددی.** شش OSD با وزن‌های 1، 1، 1، 1، 2 و 2 (مجموع 8) و 384 نسخه‌ی PG (128 PG × size 3) داریم، پس pgs_per_weight = 48. OSD‌های وزن 1 هدف 48 دارند و وزن 2 هدف 96. شمارش فعلی 55، 41، 50، 46، 100 و 92 است، پس انحراف‌ها +7، −7، +2، −2، +4 و −4.
+**Numerical example.** We have six OSDs with weights 1, 1, 1, 1, 2 and 2 (total 8) and 384 PG replicas (128 PGs × size 3), so pgs_per_weight = 48. The weight-1 OSDs have a target of 48 and the weight-2 ones 96. The current counts are 55, 41, 50, 46, 100 and 92, so the deviations are +7, −7, +2, −2, +4 and −4.
 
 - **bal_score** = 2×(7/48)^2 + 2×(2/48)^2 + 4×(4/96)^2 = 0.0530.
-- **حرکت اول**، یک PG از osd.0 به osd.1: انحراف ±6 و امتیاز 0.0417.
-- **حرکت دوم:** ±5 و امتیاز 0.0321.
+- **First move**, one PG from osd.0 to osd.1: deviation ±6 and score 0.0417.
+- **Second move:** ±5 and score 0.0321.
 
-اکنون هیچ OSD انحراف بیش از 5 ندارد و حلقه متوقف می‌شود. در عمل، انتخاب PG به قانون CRUSH محدود است. اگر osd.0 و osd.1 در یک میزبان باشند و قانون یک نسخه در هر میزبان را بخواهد، جابه‌جایی مستقیم ممکن نیست و الگوریتم سراغ OSD کم‌بار دیگری می‌رود. کد bal_score را عمداً در double جمع می‌کند، چون در float تغییر یک PG در کلاسترهای بزرگ کمتر از دقت عدد می‌شد و balancer متوقف می‌ماند.
+Now no OSD deviates by more than 5, and the loop stops. In practice, the choice of PG is constrained by the CRUSH rule. If osd.0 and osd.1 are on the same host and the rule wants one copy per host, a direct move is impossible and the algorithm turns to another underloaded OSD. The code deliberately accumulates bal_score in a double, because in a float the change from one PG in large clusters fell below the number's precision and the balancer stalled.
 
-![انحراف تعداد PG هر OSD از هدف وزن‌دارش در مثال متن، پیش از upmap و پس از هر upmap. خط‌چین‌ها مرز upmap_max_deviation = 5 هستند. هر upmap یک واحد از پرترین OSD کم و به کم‌بارترین اضافه می‌کند. امتیاز bal_score که مجموع وزن‌دار مربع انحراف نسبی است، با هر حرکت کمتر می‌شود. OSD‌های وزن 2 با انحراف ±4 دست نخورده می‌مانند، چون درون مرزند](figures/ch19/f07_dev.png){#fig-19-f07_dev}
+![Each OSD's PG count deviation from its weighted target in the text's example, before upmap and after each upmap. The dashed lines are the upmap_max_deviation = 5 boundary. Each upmap takes one unit from the fullest OSD and adds it to the least loaded. The bal_score, the weighted sum of squared relative deviations, decreases with each move. The weight-2 OSDs with deviation ±4 remain untouched, because they are within the boundary](figures/ch19/f07_dev.png){#fig-19-f07_dev}
 
 ::: {.tip}
-`ceph balancer eval` همین امتیاز را برای کل کلاستر یا یک pool گزارش می‌کند. `ceph osd df tree` ستون PGS را نشان می‌دهد که می‌توانید انحراف را با آن دستی محاسبه کنید. برای توزیع یکنواخت‌تر از پیش‌فرض، `ceph config set mgr mgr/balancer/upmap_max_deviation 1` را امتحان کنید، اما این کار جابه‌جایی بیشتری ایجاد می‌کند.
+`ceph balancer eval` reports this same score for the whole cluster or a pool. `ceph osd df tree` shows the PGS column, with which you can compute the deviation by hand. For a more uniform distribution than the default, try `ceph config set mgr mgr/balancer/upmap_max_deviation 1`, but this causes more data movement.
 :::
 
-# balancer و split با نگاشت واقعی {#sec-19-8}
+# The balancer and splits on a real mapping {#sec-19-8}
 
-دو آزمایش این بخش روی همان نقشه‌ی 120 OSD (10 میزبان × 12، ‏straw2، ‏`chooseleaf host`، ‏size = 3) انجام شده است که در فصل 1 ساختیم. ابزارها crushtool و osdmaptool از Ceph 18.2.7 بودند.
+The two experiments in this section were run on the same 120-OSD map (10 hosts × 12, straw2, `chooseleaf host`, size = 3) that we built in chapter 1. The tools were crushtool and osdmaptool from Ceph 18.2.7.
 
-## upmap balancer روی 1024 و 8192 PG {#sec-19-8-1}
+## The upmap balancer on 1024 and 8192 PGs {#sec-19-8-1}
 
-::: {.algo #alg-19-4 title="مسیر balancer در حالت upmap" src="src/osd/OSDMap.cc :: calc_pg_upmaps؛ src/pybind/mgr/balancer/module.py؛ همان کد در osdmaptool --upmap" complexity="هر دور O(pg_num × size) برای شمارش و انتخاب"}
+::: {.algo #alg-19-4 title="The balancer's path in upmap mode" src="src/osd/OSDMap.cc :: calc_pg_upmaps; src/pybind/mgr/balancer/module.py; the same code in osdmaptool --upmap" complexity="each round O(pg_num × size) for counting and selection"}
 :::
 
 ```text
 pseudocode
-برای هر OSD: target = pg_num × size × (وزن OSD / وزن کل pool)
-deviation(o) = PGهای o − target(o)
-تا وقتی max |deviation| > upmap_max_deviation و تعداد تغییرها < upmap_max:
-    o_over = بیشترین deviation مثبت ؛ o_under = بیشترین deviation منفی، با همان failure domain مجاز
-    یک PG از o_over بردار که قاعده‌ی CRUSH را نقض نکند و به o_under ببر
-    ← ورودی pg-upmap-items: pg  o_over  o_under
+for each OSD: target = pg_num × size × (OSD weight / total pool weight)
+deviation(o) = PGs on o − target(o)
+while max |deviation| > upmap_max_deviation and the number of changes < upmap_max:
+    o_over = the largest positive deviation ; o_under = the largest negative deviation, with the same allowed failure domain
+    take a PG from o_over that does not violate the CRUSH rule and move it to o_under
+    ← a pg-upmap-items entry: pg  o_over  o_under
 ```
 
-**اندازه‌گیری.** دستور `osdmaptool om --mark-up-in --upmap out.txt --upmap-deviation 1 --upmap-max 10000 --upmap-pool rbd --save` روی دو osdmap اجرا شد.
+**Measurement.** The command `osdmaptool om --mark-up-in --upmap out.txt --upmap-deviation 1 --upmap-max 10000 --upmap-pool rbd --save` was run on two osdmaps.
 
-با 8192 PG، تنها CRUSH بین 172 و 234 PG به هر OSD می‌دهد (انحراف معیار 13.24 در برابر میانگین 204.8). بعد از 618 ورودی `pg-upmap-items` (630 جفت OSD، یعنی 2.6٪ replicaها) بازه به 204 تا 206 و انحراف معیار به 0.54 رسید.
+With 8192 PGs, CRUSH alone gives each OSD between 172 and 234 PGs (a standard deviation of 13.24 against a mean of 204.8). After 618 `pg-upmap-items` entries (630 OSD pairs, that is 2.6% of the replicas), the range narrowed to 204 to 206 and the standard deviation to 0.54.
 
-با 1024 PG، بازه از 13 تا 42 به 25 تا 26 رسید. این کار 226 ورودی و 246 جفت لازم داشت که 8.0٪ replicaهاست. یعنی سهم جابه‌جایی لازم برای یکنواخت شدن در pg_num کم بیشتر است.
+With 1024 PGs, the range went from 13 to 42 to 25 to 26. This needed 226 entries and 246 pairs, which is 8.0% of the replicas. That is, the share of movement needed to even things out is larger at a low pg_num.
 
-چون CRUSH با pg_num بالا یکنواخت‌تر است، balancer هم کار کمتری دارد. اما در هر دو حالت برطرف کردن انحراف چند درصد داده را جابه‌جا می‌کند و balancer آن را با همان سقف 5٪ (target_max_misplaced_ratio) قسط‌بندی می‌کند.
+Because CRUSH is more uniform at a high pg_num, the balancer also has less work. But in both cases removing the deviation moves a few percent of the data, and the balancer spreads it out in instalments under the same 5% cap (target_max_misplaced_ratio).
 
-![توزیع تعداد PG روی 120 OSD پیش از upmap (نارنجی، فقط CRUSH) و پس از upmap (آبی)، برای 1024 و 8192 PG، با osdmaptool --upmap و انحراف مجاز 1. عنوان هر نمودار تعداد ورودی‌های pg-upmap-items و سهم replicaهای جابه‌جاشده را نشان می‌دهد](figures/ch19/f08_upmap.png){#fig-19-f08_upmap}
+![Distribution of PG counts over 120 OSDs before upmap (orange, CRUSH only) and after upmap (blue), for 1024 and 8192 PGs, with osdmaptool --upmap and an allowed deviation of 1. Each chart's title shows the number of pg-upmap-items entries and the share of replicas moved](figures/ch19/f08_upmap.png){#fig-19-f08_upmap}
 
-## دو برابر کردن pg_num: نیمی از داده جابه‌جا می‌شود {#sec-19-8-2}
+## Doubling pg_num: half the data moves {#sec-19-8-2}
 
-::: {.algo #alg-19-5 title="کنترل‌گر pg_num و pgp_num در mgr" src="src/mgr/DaemonServer.cc :: adjust_pgs؛ گزینه‌های target_max_misplaced_ratio = 0.05 (global.yaml.in) و mgr_max_pg_num_change = 128 (mgr.yaml.in)" complexity="O(تعداد pool) در هر دور"}
+::: {.algo #alg-19-5 title="The pg_num and pgp_num controller in the mgr" src="src/mgr/DaemonServer.cc :: adjust_pgs; the options target_max_misplaced_ratio = 0.05 (global.yaml.in) and mgr_max_pg_num_change = 128 (mgr.yaml.in)" complexity="O(number of pools) per round"}
 :::
 
 ```text
 pseudocode
-اگر همه‌ی PGهای pool فعال‌اند و pg_num − pgp_num < 128:
-    pg_num += min(128 − (pg_num − pgp_num), pg_num_target − pg_num)      # split، هنوز بدون جابه‌جایی
+if all of the pool's PGs are active and pg_num − pgp_num < 128:
+    pg_num += min(128 − (pg_num − pgp_num), pg_num_target − pg_num)      # split, still no movement
 target = min(pg_num_pending, pgp_num_target)
-اگر inactive یا degraded یا unknown > 0  یا  misplaced > 0.05: صبر
-اگر pool تقریباً خالی است (اشیا ≤ pgp_num_target): pgp_num = target یک‌جا
-وگرنه: room = min(0.05 − misplaced, 0.025) ؛ estmax = max(⌊pg_num × room⌋, 1)
-       pgp_num = clamp(target, pgp_num − estmax, pgp_num + estmax)       # جابه‌جایی واقعی اینجاست
+if inactive or degraded or unknown > 0  or  misplaced > 0.05: wait
+if the pool is nearly empty (objects ≤ pgp_num_target): pgp_num = target in one go
+otherwise: room = min(0.05 − misplaced, 0.025) ; estmax = max(⌊pg_num × room⌋, 1)
+       pgp_num = clamp(target, pgp_num − estmax, pgp_num + estmax)       # the real movement is here
 ```
 
-**اندازه‌گیری.** برای هر دو برابر شدن، نگاشت PG فرزند `ps + n` با نگاشت PG والد `ps` در osdmap قبلی مقایسه شد (pgp_num برابر pg_num). در همه‌ی گام‌ها از 256 به 512 تا 32768 به 65536، حدود 92٪ فرزندها روی هر سه OSD جدید نشستند و بقیه تقریباً همه روی دو OSD جدید. در مجموع 48.6 تا 49.2 درصد کل داده جابه‌جا شد. هیچ PG والدی جای خود را عوض نکرد.
+**Measurement.** For each doubling, the mapping of child PG `ps + n` was compared with the mapping of parent PG `ps` in the previous osdmap (pgp_num equal to pg_num). In every step from 256 to 512 up to 32768 to 65536, about 92% of the children landed on three new OSDs and the rest almost all on two new OSDs. In total, 48.6 to 49.2 percent of all data moved. No parent PG changed its location.
 
-این عدد با یک برآورد ساده می‌خواند. نیمی از داده به فرزندها می‌رود. احتمال اینکه یک replica فرزند تصادفاً روی یکی از OSDهای والد بنشیند حدود 3/120 است. پس 0.5 × (1 − 3/120) ≈ 48.75٪.
+This number agrees with a simple estimate. Half the data goes to the children. The probability that a child replica happens to land on one of the parent's OSDs is about 3/120. So 0.5 × (1 − 3/120) ≈ 48.75%.
 
-تا وقتی pgp_num بالا نرفته، فرزند با `ceph_stable_mod(ps, pgp_num, mask)` به همان جای والد نگاشت می‌شود و split فقط فراداده است. جابه‌جایی واقعی با بالا رفتن pgp_num رخ می‌دهد.
+Until pgp_num is raised, the child is mapped with `ceph_stable_mod(ps, pgp_num, mask)` to the same place as the parent, and the split is metadata only. The real movement happens when pgp_num goes up.
 
-مدل کنترل‌گر نشان می‌دهد که mgr این جابه‌جایی را در گام‌هایی به اندازه‌ی حدود 2.5٪ pg_num پخش می‌کند. شبیه‌سازی 1024 به 2048 با فرض پایان backfill پیش از هر دور، 27 گام می‌دهد که نخستینشان 1024 به 1052 است. پس افزایش pg_num روی pool پر، معادل جابه‌جایی نیمی از داده‌ی pool است و بسته به حجم چند ساعت تا چند روز طول می‌کشد.
+The controller model shows that the mgr spreads this movement in steps of about 2.5% of pg_num. A simulation of 1024 to 2048, assuming backfill finishes before each round, gives 27 steps, the first of which is 1024 to 1052. So increasing pg_num on a full pool is equivalent to moving half of the pool's data, and depending on the volume takes from a few hours to a few days.
 
-![چپ: پس از دو برابر شدن pg_num و pgp_num، چند درصد PGهای فرزند روی 0، 1، 2 یا 3 OSD تازه می‌نشینند، و سهم کل داده‌ی جابه‌جاشده (حدود 48.7٪)، اندازه‌گیری‌شده با osdmaptool روی 120 OSD. راست: مدل کنترل‌گر adjust_pgs در mgr برای 1024 به 2048، با سقف فاصله‌ی 128 بین pg_num و pgp_num و گام pgp برابر pg_num × min(0.05 − misplaced, 0.025)، با فرض پایان backfill پیش از هر دور](figures/ch19/f09_split.png){#fig-19-f09_split}
+![Left: after doubling pg_num and pgp_num, what percentage of child PGs land on 0, 1, 2 or 3 new OSDs, and the share of all data moved (about 48.7%), measured with osdmaptool on 120 OSDs. Right: a model of the adjust_pgs controller in the mgr for 1024 to 2048, with a cap of 128 on the gap between pg_num and pgp_num and a pgp step of pg_num × min(0.05 − misplaced, 0.025), assuming backfill finishes before each round](figures/ch19/f09_split.png){#fig-19-f09_split}
 
-# مدیریت پیکربندی {#sec-19-9}
+# Configuration management {#sec-19-9}
 
-از Mimic، پیکربندی مرکزی در پایگاه داده‌ی MON نگه‌داری می‌شود و `ceph.conf` روی میزبان‌ها فقط برای یافتن MONها لازم است. این یعنی تغییرات پیکربندی قابل ردیابی، قابل بازگشت و یکسان روی همه‌ی daemonها هستند.
+Since Mimic, the central configuration is kept in the MON database, and `ceph.conf` on the hosts is only needed to find the MONs. This means configuration changes are traceable, reversible and identical across all daemons.
 
 ```bash
 ceph config dump | head
 ceph config get osd.12 osd_memory_target
-ceph config show osd.12 | grep -E "osd_memory_target|osd_max_backfills"   # مقدار مؤثر و منبع آن
-ceph config set osd/class:hdd osd_memory_target 6G                       # mask بر اساس device class
-ceph config set osd.12 debug_osd 10/10                                   # موقت برای عیب‌یابی
+ceph config show osd.12 | grep -E "osd_memory_target|osd_max_backfills"   # the effective value and its source
+ceph config set osd/class:hdd osd_memory_target 6G                       # a mask by device class
+ceph config set osd.12 debug_osd 10/10                                   # temporary, for troubleshooting
 ceph config rm osd.12 debug_osd
-ceph config log 20                                                        # تاریخچه‌ی تغییرات
-ceph config reset 1234                                                    # بازگشت به نسخه‌ی مشخص
+ceph config log 20                                                        # change history
+ceph config reset 1234                                                    # revert to a specific version
 ceph config help osd_op_queue
 ```
 
 ::: {.tip}
-`ceph config log` و `ceph config reset <num>` ابزار بازگشت سریع پس از تغییر اشتباه هستند. پیش از هر تغییر گسترده، شماره‌ی آخرین ورودی log را یادداشت کنید.
+`ceph config log` and `ceph config reset <num>` are the tools for quickly reverting a wrong change. Before any broad change, note the number of the last log entry.
 :::
 
 ::: {.warn}
-تنظیماتی که با `ceph tell osd.* injectargs` یا `ceph daemon ... config set` اعمال می‌شوند **موقت**اند و پس از راه‌اندازی دوباره از بین می‌روند. برای ماندگاری، `ceph config set` به کار ببرید؛ برای تغییر موقت در حادثه، آگاهانه از tell استفاده کنید و در لاگ حادثه ثبت کنید.
+Settings applied with `ceph tell osd.* injectargs` or `ceph daemon ... config set` are **temporary** and are lost on restart. For persistence, use `ceph config set`; for a temporary change during an incident, use tell deliberately and record it in the incident log.
 :::
 
-# پرچم‌های نگه‌داری {#sec-19-10}
+# Maintenance flags {#sec-19-10}
 
-| پرچم | اثر | کاربرد |
+| Flag | Effect | Use |
 |---|---|---|
-| noout | OSDهای down به out نمی‌روند | نگه‌داری کوتاه (ترجیحاً set-group برای یک میزبان) |
-| norebalance | جابه‌جایی برای متعادل‌سازی متوقف | تغییرات پی‌درپی CRUSH |
-| nobackfill / norecover | backfill یا recovery متوقف | کاهش بار در زمان اوج (موقت و خطرناک) |
-| noscrub / nodeep-scrub | scrub جدید شروع نمی‌شود | ارتقا یا بار سنگین |
-| pause | همه‌ی خواندن و نوشتن متوقف | فقط شرایط اضطراری خاص |
+| noout | Down OSDs are not marked out | Short maintenance (preferably set-group for one host) |
+| norebalance | Movement for balancing stops | Consecutive CRUSH changes |
+| nobackfill / norecover | Backfill or recovery stops | Reducing load at peak time (temporary and dangerous) |
+| noscrub / nodeep-scrub | No new scrubs start | Upgrades or heavy load |
+| pause | All reads and writes stop | Only specific emergencies |
 
 ```bash
-ceph osd set-group noout stor-b3          # فقط OSDهای یک میزبان
+ceph osd set-group noout stor-b3          # only one host's OSDs
 ceph osd unset-group noout stor-b3
 ceph osd set norebalance && ceph osd unset norebalance
 ```
 
-# کارهای دوره‌ای {#sec-19-11}
+# Periodic tasks {#sec-19-11}
 
-| بازه | کار |
+| Interval | Task |
 |---|---|
-| روزانه | `ceph -s`، هشدارهای تازه، `ceph crash ls-new`، پری (`ceph df`) |
-| هفتگی | `ceph osd df tree` (VAR و PGS)، deep scrubهای عقب‌افتاده، وضعیت mirroring و multisite |
-| ماهانه | بررسی نسخه‌ها و انتشارهای نقطه‌ای، بازبینی SMART دیسک‌ها (`ceph device ls`)، آزمون بازیابی |
-| فصلی | تمرین failover، بازبینی ظرفیت و پیش‌بینی رشد، بازبینی capها و کلیدها |
+| Daily | `ceph -s`, new warnings, `ceph crash ls-new`, fullness (`ceph df`) |
+| Weekly | `ceph osd df tree` (VAR and PGS), overdue deep scrubs, mirroring and multisite status |
+| Monthly | Check versions and point releases, review disk SMART data (`ceph device ls`), a restore test |
+| Quarterly | Failover drill, capacity review and growth forecast, review of caps and keys |
 
 ::: {.note}
-ماژول devicehealth در mgr داده‌ی SMART دیسک‌ها را جمع می‌کند: `ceph device ls`، `ceph device get-health-metrics <devid>` و پیش‌بینی خرابی با `ceph device predict-life-expectancy <devid>`؛ پیش‌بینی به‌صورت پیش‌فرض خاموش است (`device_failure_prediction_mode=none`) و برای حالت local باید ماژول `diskprediction_local` را فعال کنید. با `mgr/devicehealth/mark_out_threshold` می‌توان OSD دیسک رو به خرابی را پیش از خرابی خودکار out کرد.
+The devicehealth module in the mgr collects the disks' SMART data: `ceph device ls`, `ceph device get-health-metrics <devid>` and failure prediction with `ceph device predict-life-expectancy <devid>`; prediction is off by default (`device_failure_prediction_mode=none`), and for local mode you must enable the `diskprediction_local` module. With `mgr/devicehealth/mark_out_threshold` you can automatically mark out the OSD of a failing disk before it fails.
 :::
 
-::: {.summary title="نکات SRE این فصل"}
+::: {.summary title="SRE notes for this chapter"}
 
-- ارتقا را فقط روی کلاستر سالم و پس از خواندن یادداشت‌های انتشار شروع کنید.
-- پس از ارتقا به Umbrella، تغییر پیش‌فرض mon_target_pg_per_osd (۱۰۰ به ۲۰۰) را مدیریت کنید.
-- برای جایگزینی دیسک همیشه `--replace` را به کار ببرید.
-- noout را با set-group برای یک میزبان و موقت تنظیم کنید.
-- poolهای بزرگ را از ابتدا bulk کنید.
-- همه‌ی تغییرات پیکربندی را با ceph config و قابل بازگشت انجام دهید.
+- Start an upgrade only on a healthy cluster and after reading the release notes.
+- After upgrading to Umbrella, manage the change in the default mon_target_pg_per_osd (100 to 200).
+- Always use `--replace` for disk replacement.
+- Set noout with set-group for one host, and temporarily.
+- Make large pools bulk from the start.
+- Make all configuration changes with ceph config, reversibly.
 
 :::
 
-# تکمیلی و به‌روز {#sec-19-12}
+# Supplementary and up to date {#sec-19-12}
 
-- ارتقای OSD بر اساس bucket CRUSH و فرمان `ceph osd ok-to-upgrade` در مستندات Umbrella آمده است.
-- در Umbrella، پیش‌فرض `mon_target_pg_per_osd` به ۲۰۰ رسیده و گرد کردن PGها با بهینه‌سازی سراسری انجام می‌شود.
-- `ceph-deploy` بایگانی شده و همه‌ی روال‌ها با cephadm انجام می‌شوند؛ ceph-ansible همچنان «فعلاً» نگه‌داری می‌شود و مهاجرت به cephadm توصیه شده است (فصل ۱۱).
-- read balancer از Reef برای متوازن کردن primaryها در دسترس است.
+- OSD upgrades by CRUSH bucket and the `ceph osd ok-to-upgrade` command appear in the Umbrella documentation.
+- In Umbrella, the default `mon_target_pg_per_osd` has reached 200 and PG rounding is done with global optimization.
+- `ceph-deploy` has been archived and all procedures are done with cephadm; ceph-ansible is still maintained "for now", and migrating to cephadm is recommended (chapter 11).
+- The read balancer has been available since Reef for balancing primaries.
 
-# تمرین عملی {#sec-19-13}
+# Hands-on exercise {#sec-19-13}
 
-1. یک ارتقای نقطه‌ای در کلاستر آزمایشی انجام دهید و ترتیب ارتقای daemonها را از `ceph -W cephadm` ثبت کنید.
-2. یک OSD را با `--replace` حذف و دوباره بسازید؛ مقدار داده‌ی backfill‌شده را با حذف بدون `--replace` مقایسه کنید.
-3. یک میزبان را به حالت نگه‌داری ببرید و پرچم noout گروهی را در `ceph osd dump` ببینید.
-4. خروجی `ceph osd pool autoscale-status` را پیش و پس از تنظیم `bulk` و `target_size_ratio` مقایسه کنید.
-5. `upmap_max_deviation` را به ۱ کاهش دهید و تغییر ستون PGS در `ceph osd df` را دنبال کنید.
-6. در `pg_autoscaler/module.py` جای اعمال `pg_num_min` و `pg_num_max` را پیدا کنید.
+1. Perform a point upgrade in a test cluster and record the daemon upgrade order from `ceph -W cephadm`.
+2. Remove and recreate an OSD with `--replace`; compare the amount of backfilled data with a removal without `--replace`.
+3. Put a host into maintenance mode and look at the group noout flag in `ceph osd dump`.
+4. Compare the output of `ceph osd pool autoscale-status` before and after setting `bulk` and `target_size_ratio`.
+5. Lower `upmap_max_deviation` to 1 and follow the change in the PGS column of `ceph osd df`.
+6. In `pg_autoscaler/module.py`, find where `pg_num_min` and `pg_num_max` are applied.
 
-# پرسش‌های مرور {#sec-19-14}
+# Review questions {#sec-19-14}
 
-1. ترتیب ارتقای daemonها در cephadm چیست و چرا mgr اول است؟
-2. ارتقای OSD بر اساس bucket CRUSH چه مزیتی دارد؟
-3. چرا `--replace` جابه‌جایی داده را کم می‌کند؟
-4. maintenance enter چه کاری با پرچم noout انجام می‌دهد؟
-5. فرمول پایه‌ی pg_target در autoscaler چیست؟
-6. آستانه‌ی autoscaler چه مشکلی را حل می‌کند و آستانه‌ی پویا چه زمانی اعمال می‌شود؟
-7. تغییر پیش‌فرض mon_target_pg_per_osd در Umbrella چه پیامدی دارد؟
-8. upmap balancer چگونه PGی را برای جابه‌جایی انتخاب می‌کند؟
-9. چرا upmap ایمن‌تر از تغییر دستی وزن‌هاست؟
-10. تفاوت ceph config set و injectargs چیست؟
+1. What is the daemon upgrade order in cephadm, and why is the mgr first?
+2. What is the advantage of upgrading OSDs by CRUSH bucket?
+3. Why does `--replace` reduce data movement?
+4. What does maintenance enter do with the noout flag?
+5. What is the basic pg_target formula in the autoscaler?
+6. What problem does the autoscaler threshold solve, and when is the dynamic threshold applied?
+7. What are the consequences of the change in the default mon_target_pg_per_osd in Umbrella?
+8. How does the upmap balancer choose a PG to move?
+9. Why is upmap safer than changing weights by hand?
+10. What is the difference between ceph config set and injectargs?
 
-# منابع این فصل {#sec-19-15}
+# Sources for this chapter {#sec-19-15}
 
 - cephadm upgrade: https://docs.ceph.com/en/latest/cephadm/upgrade/
 - cephadm upgrade (Umbrella): https://docs.ceph.com/en/umbrella/cephadm/upgrade/
