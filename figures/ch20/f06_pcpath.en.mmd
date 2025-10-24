@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Inside the daemon"]
+    direction LR
+    A["OSD code: logger->tinc(l_osd_op_r_lat, dt)"] --> B["perf_counter_data_any_d<br/>avgcount++ , u64 += ns , avgcount2++"] --> C["PerfCountersCollection<br/>(prio, unit, type)"]
+  end
+  subgraph R2["mgr path"]
+    direction LR
+    D["MgrClient: every mgr_stats_period=5s<br/>only prio ≥ mgr_stats_threshold=5"] --> E["MMgrReport (msgr2)"] --> F["DaemonServer → DaemonState"] --> G["prometheus module<br/>:9283/metrics"]
+  end
+  subgraph R3["ceph-exporter path (each host)"]
+    direction LR
+    H["asok: counter schema + counter dump<br/>every exporter_stats_period=5s"] --> I["promethize names<br/>_sum and _count for avg"] --> J["HTTP :9926<br/>prio ≥ exporter_prio_limit=5"]
+  end
+  R1 ~~~ R2 ~~~ R3

@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph A1["1. Signal"]
+    direction LR
+    a["ceph_health_detail{name=...}<br/>one series per health code"] ~~~ b["ceph_osd_up, ceph_pg_active,<br/>ceph_pool_percent_used"] ~~~ c["latency from ceph-exporter<br/>and node-exporter"]
+  end
+  subgraph A2["2. Rule (Prometheus)"]
+    direction LR
+    d["expr + for: persistence<br/>prevents transient alerts"] --> e["labels: severity,<br/>cluster, oid (SNMP)"] --> f["annotations: summary,<br/>description, runbook link"]
+  end
+  subgraph A3["3. Delivery (Alertmanager)"]
+    direction LR
+    g["group_by: alertname, cluster"] --> h["inhibit: silence secondary<br/>alerts when the root alert is active"] --> i["receiver: on-call"]
+  end
+  A1 ~~~ A2 ~~~ A3

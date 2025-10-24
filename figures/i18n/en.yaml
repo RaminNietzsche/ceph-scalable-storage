@@ -1221,74 +1221,64 @@ ch19/f04_balancer:
   remapped + backfill<br/>فقط برای PGهای منتخب: remapped + backfill<br/>only for the chosen PGs
   توزیع PG یکنواخت‌تر<br/>و پری متعادل: more uniform PG distribution<br/>and balanced fullness
 ch20/f01_stack:
-  هر میزبان: null
-  های: null
-  شمارنده‌های هر: null
-  ، دیسک، شبکه: null
-  فعال: null
-  ماژول: null
-  پورت: null
-  سلامت،: null
-  ، فراداده: null
-  ، پورت: null
-  پشته‌ی پایش: null
-  و قواعد هشدار: null
-  گروه‌بندی، سکوت: null
-  ایمیل: null
-  داشبوردهای: null
+  ۱. هر میزبان: 1. Each host
+  daemonهای Ceph<br/>(osd، mon، rgw، mds): Ceph daemons<br/>(osd, mon, rgw, mds)
+  ceph-exporter<br/>شمارنده‌های هر daemon: ceph-exporter<br/>per-daemon counters
+  node-exporter<br/>CPU، دیسک، شبکه: node-exporter<br/>CPU, disk, network
+  ۲. mgr فعال: 2. Active mgr
+  ماژول prometheus (پورت 9283)<br/>سلامت، PG، pool، فراداده: prometheus module (port 9283)<br/>health, PG, pool, metadata
+  service discovery<br/>(cephadm، پورت 8765): service discovery<br/>(cephadm, port 8765)
+  ۳. پشته‌ی پایش: 3. Monitoring stack
+  Prometheus<br/>scrape و قواعد هشدار: Prometheus<br/>scrape and alert rules
+  Alertmanager<br/>گروه‌بندی، سکوت: Alertmanager<br/>grouping, silencing
+  ایمیل / chat / pager: email / chat / pager
+  Grafana<br/>داشبوردهای ceph-mixin: Grafana<br/>ceph-mixin dashboards
 ch20/f02_metric:
-  تولید: null
-  مثلاً: null
-  فرمت: null
-  با برچسب: null
-  مصرف: null
-  سری زمانی: null
-  قاعده‌ی هشدار: null
-  یا پنل: null
+  تولید: Production
+  'OSD: PerfCounters<br/>(مثلاً op_w_latency)': 'OSD: PerfCounters<br/>(e.g. op_w_latency)'
+  'ceph-exporter: فرمت Prometheus<br/>با برچسب ceph_daemon': 'ceph-exporter: Prometheus format<br/>with the ceph_daemon label'
+  مصرف: Consumption
+  'Prometheus: سری زمانی': 'Prometheus: time series'
+  'PromQL: rate، avg_over_time،<br/>topk': 'PromQL: rate, avg_over_time,<br/>topk'
+  قاعده‌ی هشدار<br/>یا پنل Grafana: alert rule<br/>or Grafana panel
 ch20/f03_alertflow:
-  سیگنال: null
-  یک سری برای هر کد سلامت: null
-  از: null
-  و: null
-  قاعده: null
-  پایداری: null
-  جلوگیری از هشدار گذرا: null
-  ، لینک: null
-  تحویل: null
-  خاموشی هشدارهای: null
-  فرعی وقتی هشدار ریشه فعال است: null
+  ۱. سیگنال: 1. Signal
+  ceph_health_detail{name=...}<br/>یک سری برای هر کد سلامت: ceph_health_detail{name=...}<br/>one series per health code
+  ceph_osd_up، ceph_pg_active،<br/>ceph_pool_percent_used: ceph_osd_up, ceph_pg_active,<br/>ceph_pool_percent_used
+  latency از ceph-exporter<br/>و node-exporter: latency from ceph-exporter<br/>and node-exporter
+  ۲. قاعده (Prometheus): 2. Rule (Prometheus)
+  'expr + for: پایداری<br/>جلوگیری از هشدار گذرا': 'expr + for: persistence<br/>prevents transient alerts'
+  'labels: severity،<br/>cluster، oid (SNMP)': 'labels: severity,<br/>cluster, oid (SNMP)'
+  'annotations: summary،<br/>description، لینک runbook': 'annotations: summary,<br/>description, runbook link'
+  ۳. تحویل (Alertmanager): 3. Delivery (Alertmanager)
+  'group_by: alertname، cluster': 'group_by: alertname, cluster'
+  'inhibit: خاموشی هشدارهای<br/>فرعی وقتی هشدار ریشه فعال است': 'inhibit: silence secondary<br/>alerts when the root alert is active'
 ch20/f04_gateway:
-  ورودی واحد: null
-  کاربر: null
-  مرورگر: null
-  بیرونی، اختیاری: null
-  سرویس‌های پشت: null
+  ورودی واحد: Single entry
+  کاربر / مرورگر: user / browser
+  mgmt-gateway<br/>(nginx، TLS، virtual_ip): mgmt-gateway<br/>(nginx, TLS, virtual_ip)
+  oauth2-proxy<br/>(IdP بیرونی، اختیاری): oauth2-proxy<br/>(external IdP, optional)
+  سرویس‌های پشت gateway: Services behind the gateway
 ch20/f05_asok:
-  کلاینت: null
-  در: null
-  سپس بایت: null
-  یا: null
-  خواندن بایت‌به‌بایت تا: null
-  بایت اول: null
-  یعنی پروتکل قدیمی: null
-  بایتی: null
-  ثبت‌شده: null
-  طول پاسخ: null
-  ، در خطا با: null
-  شروع می‌شود: null
-  اتصال بسته می‌شود، هر فرمان یک اتصال: null
+  as کلاینت (ceph daemon / ceph-exporter): as client (ceph daemon / ceph-exporter)
+  as AdminSocket در daemon<br/>/var/run/ceph/FSID/ceph-osd.3.asok: as AdminSocket in the daemon<br/>/var/run/ceph/FSID/ceph-osd.3.asok
+  'JSON: prefix = counter dump سپس بایت 0x00 یا 0x0A': 'JSON: prefix = counter dump then byte 0x00 or 0x0A'
+  'do_accept: خواندن بایت‌به‌بایت تا 0x00 یا 0x0A<br/>(بایت اول 0x00 یعنی پروتکل قدیمی 4 بایتی)': 'do_accept: read byte by byte until 0x00 or 0x0A<br/>(first byte 0x00 means the old 4-byte protocol)'
+  execute_command → hook ثبت‌شده: execute_command → registered hook
+  'طول پاسخ: uint32 big-endian (htonl)': 'response length: uint32 big-endian (htonl)'
+  'payload (JSON)، در خطا با ERROR: شروع می‌شود': 'payload (JSON), starts with ERROR: on failure'
+  اتصال بسته می‌شود، هر فرمان یک اتصال: the connection is closed, one connection per command
 ch20/f06_pcpath:
-  داخل: null
-  کد: null
-  ؛: null
-  مسیر: null
-  هر: null
-  فقط: null
-  ماژول: null
-  هر میزبان: null
-  نام‌ها: null
-  و: null
-  برای: null
+  داخل daemon: Inside the daemon
+  'کد OSD: logger->tinc(l_osd_op_r_lat, dt)': 'OSD code: logger->tinc(l_osd_op_r_lat, dt)'
+  perf_counter_data_any_d<br/>avgcount++ ؛ u64 += ns ؛ avgcount2++: perf_counter_data_any_d<br/>avgcount++ , u64 += ns , avgcount2++
+  PerfCountersCollection<br/>(prio، unit، type): PerfCountersCollection<br/>(prio, unit, type)
+  مسیر mgr: mgr path
+  'MgrClient: هر mgr_stats_period=5s<br/>فقط prio ≥ mgr_stats_threshold=5': 'MgrClient: every mgr_stats_period=5s<br/>only prio ≥ mgr_stats_threshold=5'
+  ماژول prometheus<br/>:9283/metrics: prometheus module<br/>:9283/metrics
+  مسیر ceph-exporter (هر میزبان): ceph-exporter path (each host)
+  'asok: counter schema + counter dump<br/>هر exporter_stats_period=5s': 'asok: counter schema + counter dump<br/>every exporter_stats_period=5s'
+  promethize نام‌ها<br/>_sum و _count برای avg: promethize names<br/>_sum and _count for avg
 ch21/f01_layers:
   سخت‌افزار و شبکه: null
   شبکه‌ی: null

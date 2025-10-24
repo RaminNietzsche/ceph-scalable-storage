@@ -1,0 +1,10 @@
+sequenceDiagram
+  participant C as client (ceph daemon / ceph-exporter)
+  participant S as AdminSocket in the daemon<br/>/var/run/ceph/FSID/ceph-osd.3.asok
+  C->>S: connect(AF_UNIX)
+  C->>S: JSON: prefix = counter dump then byte 0x00 or 0x0A
+  Note over S: do_accept: read byte by byte until 0x00 or 0x0A<br/>(first byte 0x00 means the old 4-byte protocol)
+  S->>S: execute_command → registered hook
+  S-->>C: response length: uint32 big-endian (htonl)
+  S-->>C: payload (JSON), starts with ERROR: on failure
+  Note over C,S: the connection is closed, one connection per command

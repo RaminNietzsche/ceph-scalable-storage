@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["Production"]
+    direction LR
+    A["OSD: PerfCounters<br/>(e.g. op_w_latency)"] --> B["admin socket:<br/>counter dump / counter schema"] --> C["ceph-exporter: Prometheus format<br/>with the ceph_daemon label"]
+  end
+  subgraph R2["Consumption"]
+    direction LR
+    D["Prometheus: time series"] --> E["PromQL: rate, avg_over_time,<br/>topk"] --> F["alert rule<br/>or Grafana panel"]
+  end
+  R1 ~~~ R2

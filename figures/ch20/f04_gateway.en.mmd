@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph G1["Single entry"]
+    direction LR
+    U["user / browser"] --> GW["mgmt-gateway<br/>(nginx, TLS, virtual_ip)"] --> OA["oauth2-proxy<br/>(external IdP, optional)"]
+  end
+  subgraph G2["Services behind the gateway"]
+    direction LR
+    DB["Dashboard (mgr)"] ~~~ GR["Grafana"] ~~~ PR["Prometheus"] ~~~ AL["Alertmanager"]
+  end
+  G1 ~~~ G2

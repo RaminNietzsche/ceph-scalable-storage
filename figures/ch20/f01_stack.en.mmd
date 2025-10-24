@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph H["1. Each host"]
+    direction LR
+    D["Ceph daemons<br/>(osd, mon, rgw, mds)"] --> AS["admin socket<br/>perf counters"] --> CE["ceph-exporter<br/>per-daemon counters"] ~~~ NE["node-exporter<br/>CPU, disk, network"]
+  end
+  subgraph M["2. Active mgr"]
+    direction LR
+    PM["prometheus module (port 9283)<br/>health, PG, pool, metadata"] ~~~ SD["service discovery<br/>(cephadm, port 8765)"]
+  end
+  subgraph S["3. Monitoring stack"]
+    direction LR
+    P["Prometheus<br/>scrape and alert rules"] --> AM["Alertmanager<br/>grouping, silencing"] --> N["email / chat / pager"] ~~~ G["Grafana<br/>ceph-mixin dashboards"]
+  end
+  H ~~~ M ~~~ S
