@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["Bounds (on every configuration change)"]
+    direction LR
+    A["osd_memory_target = 4096 MiB"] --> B["ltarget = (1 − 0.15) × target<br/>= 3481.6 MiB"] --> C["max = ltarget − base(768)<br/>= 2713.6 MiB"] --> D["min = osd_memory_cache_min<br/>= 128 MiB"]
+  end
+  subgraph R2["tune_memory (every osd_memory_cache_resize_interval=1s)"]
+    direction LR
+    E["mapped (tcmalloc heap)<br/>&lt; target ?"] -->|"yes"| F["new += (1 − mapped/target)<br/>× (max − new)"]
+    E -->|"no"| G["new −= (1 − target/mapped)<br/>× (new − min)"]
+  end
+  subgraph R3["Splitting tuned_mem (every bluestore_cache_autotune_interval=5s)"]
+    direction LR
+    H["priorities PRI0 … PRI11"] --> I["kv (RocksDB block cache)<br/>kv_onode, meta (onode), data"] --> J["each cache commits<br/>its share"]
+  end
+  R1 ~~~ R2 ~~~ R3

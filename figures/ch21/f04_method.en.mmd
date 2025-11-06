@@ -1,0 +1,4 @@
+flowchart LR
+  A["define the goal<br/>IOPS, p99 latency, bandwidth"] --> B["baseline<br/>fio, rados bench, CBT"] --> C["one change"] --> D["measure again<br/>same load and duration"] --> E{"better?"}
+  E -- yes --> F["record and keep<br/>(ceph config)"] --> C
+  E -- no --> G["revert<br/>ceph config reset"] --> C

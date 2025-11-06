@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Cost of each transaction (_txc_calc_cost)"]
+    direction LR
+    A["ios = 1 (kv commit)<br/>+ number of data aios"] --> B["cost = ios × cost_per_io<br/>+ bytes"] --> C["throttle_bytes.get(cost)<br/>cap bluestore_throttle_bytes=64M"]
+  end
+  subgraph R2["4K write: how many concurrent transactions fit in the BlueStore queue?"]
+    direction LR
+    D["HDD direct<br/>2×670000+4096 = 1,344,096<br/>≈ 49"] --- E["HDD deferred<br/>1×670000+4096 = 674,096<br/>≈ 99"] --- F["SSD direct<br/>2×4000+4096 = 12,096<br/>≈ 5548"]
+  end
+  subgraph R3["Consequence"]
+    direction LR
+    G["short queue in BlueStore"] --> H["more waiting in the mClock queue<br/>(where prioritization is possible)"]
+  end
+  R1 ~~~ R2 ~~~ R3

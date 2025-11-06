@@ -1,0 +1,13 @@
+flowchart TB
+  subgraph S1[1. Request arrival: computing the tags]
+    direction LR
+    a["R = max(t, R_prev + cost/res)"] --> b["P = max(t, P_prev + cost/wgt)"] --> c["L = max(t, L_prev + cost/lim)"]
+  end
+  subgraph S2[2. do_next_request at time now]
+    direction LR
+    d{"lowest R ≤ now?"} -- yes --> e[serve in the reservation phase]
+    d -- no --> f["mark heads with L ≤ now ready"] --> g{"is there a ready one with minimum P?"}
+    g -- yes --> h["serve in the weight phase and reduce that client's next Rs by cost/res"]
+    g -- no --> i["AtLimit::Wait in the OSD: wait until the next minimum R or L"]
+  end
+  S1 --> S2

@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph C1["1. Tagging each request (dmclock, tag_calc)"]
+    direction LR
+    A["request from class<br/>client / recovery / best-effort"] --> B["R = max(now, R_prev + (δ+cost)/reservation)<br/>P = max(now, P_prev + (δ+cost)/weight)<br/>L = max(now, L_prev + (δ+cost)/limit)"]
+  end
+  subgraph C2["2. Selection for execution"]
+    direction LR
+    D["reservation phase: if the smallest R ≤ now<br/>that request runs"] --> E["weight phase: otherwise, among<br/>requests with L ≤ now, the lowest P"]
+  end
+  subgraph C3["3. Upstream queue"]
+    direction LR
+    F["immediate and high-priority class<br/>(peering, EC sub-operations)"] --> G["before the mClock queue<br/>(with a starvation-prevention mechanism)"]
+  end
+  C1 ~~~ C2 ~~~ C3

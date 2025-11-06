@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph S1["1. Arrival"]
+    direction LR
+    M["Messenger (msgr2)<br/>receives MOSDOp"] --> H["hash(pgid) mod num_shards<br/>choose the shard"]
+  end
+  subgraph S2["2. Shards (OSDShard)"]
+    direction LR
+    Q0["shard 0<br/>mClock queue"] ~~~ Q1["shard 1<br/>mClock queue"] ~~~ QN["shard N-1<br/>mClock queue"]
+  end
+  subgraph S3["3. Execution"]
+    direction LR
+    T["each shard's threads<br/>(threads_per_shard)"] --> P["PG lock and<br/>PrimaryLogPG::do_op"] --> B["BlueStore<br/>queue_transactions"]
+  end
+  S1 ~~~ S2 ~~~ S3

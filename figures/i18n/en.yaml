@@ -1280,112 +1280,81 @@ ch20/f06_pcpath:
   'asok: counter schema + counter dump<br/>هر exporter_stats_period=5s': 'asok: counter schema + counter dump<br/>every exporter_stats_period=5s'
   promethize نام‌ها<br/>_sum و _count برای avg: promethize names<br/>_sum and _count for avg
 ch21/f01_layers:
-  سخت‌افزار و شبکه: null
-  شبکه‌ی: null
-  و: null
-  ، تأخیر: null
-  فرکانس،: null
-  سیستم‌عامل: null
-  زمان‌بند: null
-  برای: null
-  شبکه: null
-  بافرهای: null
-  کش: null
-  شاردها و: null
-  ها: null
-  پروفایل و: null
-  ظرفیت: null
-  و کلاینت: null
-  تعداد: null
-  یا: null
-  های: null
+  ۱. سخت‌افزار و شبکه: 1. Hardware and network
+  شبکه‌ی public و cluster<br/>MTU، bonding، تأخیر: public and cluster networks<br/>MTU, bonding, latency
+  'CPU: فرکانس، C-state،<br/>NUMA': 'CPU: frequency, C-state,<br/>NUMA'
+  ۲. سیستم‌عامل: 2. Operating system
+  زمان‌بند I/O<br/>none برای NVMe: I/O scheduler<br/>none for NVMe
+  sysctl شبکه<br/>بافرهای TCP: network sysctl<br/>TCP buffers
+  ۳. OSD: 3. OSD
+  osd_memory_target<br/>کش BlueStore: osd_memory_target<br/>BlueStore cache
+  شاردها و threadها<br/>osd_op_num_shards_*: shards and threads<br/>osd_op_num_shards_*
+  'mClock: پروفایل و<br/>ظرفیت IOPS': 'mClock: profile and<br/>IOPS capacity'
+  ۴. pool و کلاینت: 4. Pool and client
+  تعداد PG، replica یا EC: number of PGs, replica or EC
+  کش librbd، object size،<br/>striping: librbd cache, object size,<br/>striping
+  'RGW: shardهای index،<br/>threadها': 'RGW: index shards,<br/>threads'
 ch21/f02_shards:
-  ورود: null
-  دریافت: null
-  انتخاب شارد: null
-  شاردها: null
-  شارد: null
-  صف: null
-  اجرا: null
-  های هر شارد: null
-  قفل: null
-  و: null
+  ۱. ورود: 1. Arrival
+  Messenger (msgr2)<br/>دریافت MOSDOp: Messenger (msgr2)<br/>receives MOSDOp
+  hash(pgid) mod num_shards<br/>انتخاب شارد: hash(pgid) mod num_shards<br/>choose the shard
+  ۲. شاردها (OSDShard): 2. Shards (OSDShard)
+  شارد 0<br/>صف mClock: shard 0<br/>mClock queue
+  شارد 1<br/>صف mClock: shard 1<br/>mClock queue
+  شارد N-1<br/>صف mClock: shard N-1<br/>mClock queue
+  ۳. اجرا: 3. Execution
+  threadهای هر شارد<br/>(threads_per_shard): each shard's threads<br/>(threads_per_shard)
+  قفل PG و<br/>PrimaryLogPG::do_op: PG lock and<br/>PrimaryLogPG::do_op
 ch21/f03_mclock:
-  برچسب‌گذاری هر درخواست: null
-  درخواست از کلاس: null
-  انتخاب برای اجرا: null
-  مرحله‌ی رزرو: null
-  اگر کوچک‌ترین: null
-  همان درخواست اجرا می‌شود: null
-  مرحله‌ی وزن: null
-  در غیر این صورت، میان: null
-  درخواست‌های با: null
-  ، کمترین: null
-  صف بالادستی: null
-  کلاس: null
-  و اولویت بالا: null
-  ، زیرعملیات: null
-  پیش از صف: null
-  با سازوکار جلوگیری از گرسنگی: null
+  ۱. برچسب‌گذاری هر درخواست (dmclock، tag_calc): 1. Tagging each request (dmclock, tag_calc)
+  درخواست از کلاس<br/>client / recovery / best-effort: request from class<br/>client / recovery / best-effort
+  ۲. انتخاب برای اجرا: 2. Selection for execution
+  'مرحله‌ی رزرو: اگر کوچک‌ترین R ≤ now<br/>همان درخواست اجرا می‌شود': 'reservation phase: if the smallest R ≤ now<br/>that request runs'
+  'مرحله‌ی وزن: در غیر این صورت، میان<br/>درخواست‌های با L ≤ now، کمترین P': 'weight phase: otherwise, among<br/>requests with L ≤ now, the lowest P'
+  ۳. صف بالادستی: 3. Upstream queue
+  کلاس immediate و اولویت بالا<br/>(peering، زیرعملیات EC): immediate and high-priority class<br/>(peering, EC sub-operations)
+  پیش از صف mClock<br/>(با سازوکار جلوگیری از گرسنگی): before the mClock queue<br/>(with a starvation-prevention mechanism)
 ch21/f04_method:
-  تعریف هدف: null
-  ، تأخیر: null
-  ، پهنای باند: null
-  خط پایه: null
-  یک تغییر: null
-  سنجش دوباره: null
-  همان بار و مدت: null
-  بهتر؟: null
-  بله: null
-  ثبت و حفظ: null
-  خیر: null
-  بازگشت: null
+  تعریف هدف<br/>IOPS، تأخیر p99، پهنای باند: define the goal<br/>IOPS, p99 latency, bandwidth
+  خط پایه<br/>fio، rados bench، CBT: baseline<br/>fio, rados bench, CBT
+  یک تغییر: one change
+  سنجش دوباره<br/>همان بار و مدت: measure again<br/>same load and duration
+  بهتر؟: better?
+  بله: 'yes'
+  خیر: 'no'
+  ثبت و حفظ<br/>(ceph config): record and keep<br/>(ceph config)
+  بازگشت<br/>ceph config reset: revert<br/>ceph config reset
 ch21/f05_memtune:
-  مرزها: null
-  هر بار تغییر پیکربندی: null
-  هر: null
-  ؟: null
-  بله: null
-  خیر: null
-  تقسیم: null
-  اولویت‌ها: null
-  سهم خود را: null
-  می‌کند: null
+  مرزها (هر بار تغییر پیکربندی): Bounds (on every configuration change)
+  mapped (tcmalloc heap)<br/>&lt; target ؟: mapped (tcmalloc heap)<br/>&lt; target ?
+  بله: 'yes'
+  خیر: 'no'
+  تقسیم tuned_mem (هر bluestore_cache_autotune_interval=5s): Splitting tuned_mem (every bluestore_cache_autotune_interval=5s)
+  tune_memory (هر osd_memory_cache_resize_interval=1s): tune_memory (every osd_memory_cache_resize_interval=1s)
+  اولویت‌ها PRI0 … PRI11: priorities PRI0 … PRI11
+  kv (RocksDB block cache)<br/>kv_onode، meta (onode)، data: kv (RocksDB block cache)<br/>kv_onode, meta (onode), data
+  هر cache سهم خود را<br/>commit می‌کند: each cache commits<br/>its share
 ch21/f06_throttle:
-  هزینه‌ی هر تراکنش: null
-  کامیت: null
-  تعداد: null
-  داده: null
-  سقف: null
-  نوشتن: null
-  چند تراکنش هم‌زمان در صف: null
-  جا می‌شود؟: null
-  مستقیم: null
-  پیامد: null
-  صف کوتاه در: null
-  انتظار بیشتر در صف: null
-  جایی که اولویت‌بندی ممکن است: null
+  هزینه‌ی هر تراکنش (_txc_calc_cost): Cost of each transaction (_txc_calc_cost)
+  ios = 1 (کامیت kv)<br/>+ تعداد aio داده: ios = 1 (kv commit)<br/>+ number of data aios
+  throttle_bytes.get(cost)<br/>سقف bluestore_throttle_bytes=64M: throttle_bytes.get(cost)<br/>cap bluestore_throttle_bytes=64M
+  'نوشتن 4K: چند تراکنش هم‌زمان در صف BlueStore جا می‌شود؟': '4K write: how many concurrent transactions fit in the BlueStore queue?'
+  HDD مستقیم<br/>2×670000+4096 = 1,344,096<br/>≈ 49: HDD direct<br/>2×670000+4096 = 1,344,096<br/>≈ 49
+  SSD مستقیم<br/>2×4000+4096 = 12,096<br/>≈ 5548: SSD direct<br/>2×4000+4096 = 12,096<br/>≈ 5548
+  پیامد: Consequence
+  صف کوتاه در BlueStore: short queue in BlueStore
+  انتظار بیشتر در صف mClock<br/>(جایی که اولویت‌بندی ممکن است): more waiting in the mClock queue<br/>(where prioritization is possible)
 ch21/f11_dmnext:
-  ورود درخواست: null
-  محاسبه‌ی برچسب‌ها: null
-  در زمان: null
-  کمترین: null
-  ؟: null
-  بله: null
-  سرویس در فاز: null
-  خیر: null
-  سرهایی با: null
-  را: null
-  کن: null
-  با: null
-  کمینه هست؟: null
-  و: null
-  های بعدی همان کلاینت را: null
-  کم کن: null
-  در: null
-  صبر تا کمینه‌ی: null
-  یا: null
-  بعدی: null
+  '۱. ورود درخواست: محاسبه‌ی برچسب‌ها': '1. Request arrival: computing the tags'
+  ۲. do_next_request در زمان now: 2. do_next_request at time now
+  کمترین R ≤ now؟: lowest R ≤ now?
+  بله: 'yes'
+  خیر: 'no'
+  سرویس در فاز reservation: serve in the reservation phase
+  سرهایی با L ≤ now را ready کن: mark heads with L ≤ now ready
+  ready با P کمینه هست؟: is there a ready one with minimum P?
+  سرویس در فاز weight و R های بعدی همان کلاینت را cost/res کم کن: serve in the weight phase and reduce that client's next Rs by cost/res
+  'AtLimit::Wait در OSD: صبر تا کمینه‌ی R یا L بعدی': 'AtLimit::Wait in the OSD: wait until the next minimum R or L'
 ch22/f01_repo:
   پایه و مشترک: null
   انواع پایه،: null

@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph L1["1. Hardware and network"]
+    direction LR
+    a["NVMe / HDD + block.db"] ~~~ b["public and cluster networks<br/>MTU, bonding, latency"] ~~~ c["CPU: frequency, C-state,<br/>NUMA"]
+  end
+  subgraph L2["2. Operating system"]
+    direction LR
+    d["I/O scheduler<br/>none for NVMe"] ~~~ e["tuned profile<br/>throughput-performance"] ~~~ f["network sysctl<br/>TCP buffers"]
+  end
+  subgraph L3["3. OSD"]
+    direction LR
+    g["osd_memory_target<br/>BlueStore cache"] ~~~ h["shards and threads<br/>osd_op_num_shards_*"] ~~~ i["mClock: profile and<br/>IOPS capacity"]
+  end
+  subgraph L4["4. Pool and client"]
+    direction LR
+    j["number of PGs, replica or EC"] ~~~ k["librbd cache, object size,<br/>striping"] ~~~ l["RGW: index shards,<br/>threads"]
+  end
+  L1 ~~~ L2 ~~~ L3 ~~~ L4

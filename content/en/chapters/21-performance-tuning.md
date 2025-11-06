@@ -5,41 +5,40 @@ title: 'Ceph Performance Tuning: From mClock to the Kernel and Network'
 part: main
 original_heading: Performance Tuning
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-21-1}
+# Before you start {#sec-21-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-21-1-1}
+## What questions does this chapter answer? {#sec-21-1-1}
 
-تنظیم کارایی در Ceph بیش از هر چیز یک **روش** است: هدف را تعریف کنید، خط پایه بگیرید، یک تغییر بدهید و دوباره بسنجید. بسیاری از «توصیه‌های تنظیم» رایج در اینترنت مربوط به FileStore، WPQ یا نسخه‌های پیش از Quincy هستند و امروز یا بی‌اثرند یا آسیب می‌زنند. این فصل بر سازوکارهای امروزی تمرکز دارد:
+Performance tuning in Ceph is above all a **method**: define the goal, take a baseline, make one change and measure again. Many of the common "tuning tips" on the internet relate to FileStore, WPQ or versions before Quincy, and today they are either ineffective or harmful. This chapter focuses on today's mechanisms:
 
-- لایه‌های کارایی کدام‌اند و از کجا شروع کنیم؟
-- OSD چگونه درخواست‌ها را بین شاردها و threadها پخش می‌کند؟
-- زمان‌بند **mClock** با چه الگوریتمی بین کلاینت و بازیابی تعادل برقرار می‌کند و پروفایل‌ها چه می‌کنند؟
-- حافظه‌ی OSD و کش BlueStore را چگونه تنظیم کنیم؟
-- تنظیمات سیستم‌عامل، شبکه و CPU کدام‌اند؟
-- چگونه با fio، rados bench و CBT اندازه بگیریم؟
+- What are the performance layers, and where do we start?
+- How does the OSD spread requests across shards and threads?
+- With what algorithm does the **mClock** scheduler balance client and recovery, and what do the profiles do?
+- How do we tune OSD memory and the BlueStore cache?
+- What are the operating system, network and CPU settings?
+- How do we measure with fio, rados bench and CBT?
 
-# روش و لایه‌ها {#sec-21-2}
+# Method and layers {#sec-21-2}
 
-![چرخه‌ی تنظیم کارایی: تعریف هدف قابل اندازه‌گیری، گرفتن خط پایه با ابزارهای سنجش، اعمال تنها یک تغییر، سنجش دوباره با همان بار و همان مدت، و ثبت تغییر در صورت بهبود یا بازگشت با ceph config reset در غیر این صورت](figures/ch21/f04_method.png){#fig-21-f04_method}
+![The performance tuning cycle: define a measurable goal, take a baseline with benchmarking tools, apply only one change, measure again with the same load and the same duration, and record the change if it improved things or revert with ceph config reset otherwise](figures/ch21/f04_method.png){#fig-21-f04_method}
 
-![چهار لایه‌ی کارایی از پایین به بالا: سخت‌افزار و شبکه، سیستم‌عامل، تنظیمات OSD شامل حافظه و شاردها و mClock، و در بالاترین سطح طراحی pool و تنظیمات کلاینت؛ بیشترین اثر معمولاً از لایه‌های پایین‌تر می‌آید](figures/ch21/f01_layers.png){#fig-21-f01_layers}
+![Four performance layers from bottom to top: hardware and network, the operating system, OSD settings including memory, shards and mClock, and at the top pool design and client settings; the biggest effect usually comes from the lower layers](figures/ch21/f01_layers.png){#fig-21-f01_layers}
 
 ::: {.tip}
-پیش از هر تنظیم نرم‌افزاری، سه پرسش را پاسخ دهید: آیا شبکه‌ی cluster اشباع است؟ آیا دیسک‌ها (به‌ویژه block.db) گلوگاه‌اند؟ آیا CPU در حالت ذخیره‌ی انرژی است؟ در تجربه‌ی عملی، بیشتر مشکلات کارایی با پاسخ به همین سه پرسش حل می‌شوند.
+Before any software tuning, answer three questions: Is the cluster network saturated? Are the disks (especially block.db) the bottleneck? Is the CPU in power-saving mode? In practical experience, most performance problems are solved by answering these three questions.
 :::
 
-# از درون کد: شاردها و threadها {#sec-21-3}
+# From inside the code: shards and threads {#sec-21-3}
 
-## مسیر درخواست در OSD {#sec-21-3-1}
+## The request path in the OSD {#sec-21-3-1}
 
-![مسیر درخواست درون OSD: Messenger پیام را دریافت می‌کند و بر اساس hash شناسه‌ی PG یکی از شاردها انتخاب می‌شود؛ هر شارد صف mClock خود را دارد و threadهای همان شارد درخواست را با گرفتن قفل PG در PrimaryLogPG::do_op اجرا و تراکنش را به BlueStore می‌سپارند](figures/ch21/f02_shards.png){#fig-21-f02_shards}
+![The request path inside the OSD: the Messenger receives the message and one of the shards is chosen based on the hash of the PG ID; each shard has its own mClock queue, and that shard's threads execute the request by taking the PG lock in PrimaryLogPG::do_op and hand the transaction to BlueStore](figures/ch21/f02_shards.png){#fig-21-f02_shards}
 
-OSD درخواست‌ها را بین چند **شارد** (`struct OSDShard` در `src/osd/OSD.h`) پخش می‌کند. شارد هر PG با `pgid.hash_to_shard(num_shards)` تعیین می‌شود؛ بنابراین همه‌ی عملیات یک PG همیشه در یک شارد پردازش می‌شوند و ترتیب حفظ می‌شود. هر شارد صف زمان‌بندی خود و چند thread دارد.
+The OSD spreads requests across several **shards** (`struct OSDShard` in `src/osd/OSD.h`). The shard of each PG is determined by `pgid.hash_to_shard(num_shards)`; so all operations of a PG are always processed in one shard and ordering is preserved. Each shard has its own scheduling queue and several threads.
 
-| گزینه | پیش‌فرض از v19.2.1 (Squid) و در Tentacle و Umbrella | پیش‌فرض در v19.2.0 |
+| Option | Default since v19.2.1 (Squid) and in Tentacle and Umbrella | Default in v19.2.0 |
 |---|---|---|
 | osd_op_num_shards_hdd | 1 | 5 |
 | osd_op_num_threads_per_shard_hdd | 5 | 1 |
@@ -47,24 +46,24 @@ OSD درخواست‌ها را بین چند **شارد** (`struct OSDShard` د�
 | osd_op_num_threads_per_shard_ssd | 2 | 2 |
 
 ::: {.note}
-**وابسته به نسخه.** مقادیر جدول از `src/common/options/osd.yaml.in` در برچسب‌های v19.2.0 تا v19.2.3، v20.2.0 و v21.2.0 خوانده شده‌اند. برای HDD، یک شارد با پنج thread جایگزین پنج شارد تک‌threadی شده است. این تغییر در نسخه‌ی نقطه‌ای v19.2.1 به Squid هم رسیده است، پس فقط v19.2.0 مقدار قدیمی را دارد. دلیل منطقی: با یک شارد، زمان‌بند mClock دید کامل از همه‌ی درخواست‌های آن OSD دارد و می‌تواند رزرو و سهم کلاینت و بازیابی را دقیق‌تر رعایت کند؛ با چند شارد، هر شارد فقط بخشی از ظرفیت را می‌بیند. این گزینه‌ها فقط با راه‌اندازی دوباره‌ی OSD اعمال می‌شوند.
+**Version-dependent.** The values in the table were read from `src/common/options/osd.yaml.in` at tags v19.2.0 to v19.2.3, v20.2.0 and v21.2.0. For HDD, one shard with five threads has replaced five single-threaded shards. This change also reached Squid in point release v19.2.1, so only v19.2.0 has the old value. The rationale: with one shard, the mClock scheduler has a complete view of all requests on that OSD and can honour client and recovery reservations and shares more precisely; with several shards, each shard sees only part of the capacity. These options only take effect after the OSD is restarted.
 :::
 
 ::: {.warn}
-افزایش کورکورانه‌ی شاردها یا threadها روی NVMe سریع، اغلب فقط مصرف CPU و رقابت قفل را بالا می‌برد. اگر CPU اشباع نیست و دیسک هم نیست، گلوگاه احتمالاً جای دیگری است (شبکه، کلاینت، یا یک PG داغ).
+Blindly increasing shards or threads on fast NVMe often only raises CPU usage and lock contention. If neither the CPU nor the disk is saturated, the bottleneck is probably elsewhere (the network, the client, or a hot PG).
 :::
 
-# از درون کد: mClock {#sec-21-4}
+# From inside the code: mClock {#sec-21-4}
 
-## الگوریتم dmClock {#sec-21-4-1}
+## The dmClock algorithm {#sec-21-4-1}
 
-از Quincy، زمان‌بند پیش‌فرض OSD `mclock_scheduler` است (`osd_op_queue`). این زمان‌بند بر پایه‌ی کتابخانه‌ی **dmclock** (`src/dmclock/`) است که الگوریتم mClock را پیاده می‌کند. هر کلاس سرویس سه پارامتر دارد:
+Since Quincy, the OSD's default scheduler is `mclock_scheduler` (`osd_op_queue`). This scheduler is based on the **dmclock** library (`src/dmclock/`), which implements the mClock algorithm. Each service class has three parameters:
 
-- **reservation**: حداقل سهم تضمین‌شده (IOPS)،
-- **weight**: سهم نسبی از ظرفیت اضافه،
-- **limit**: سقف سهم.
+- **reservation**: the guaranteed minimum share (IOPS),
+- **weight**: the relative share of spare capacity,
+- **limit**: the share ceiling.
 
-هر درخواست سه برچسب زمانی (R، P، L) می‌گیرد. محاسبه‌ی برچسب در dmclock:
+Each request gets three time tags (R, P, L). Tag computation in dmclock:
 
 ```cpp
 // from ceph/ceph, LGPL — src/dmclock/src/dmclock_server.h, RequestTag::tag_calc (excerpt)
@@ -76,302 +75,302 @@ if (0.0 == increment) {
 }
 ```
 
-`increment` معکوس پارامتر است (۱/reservation، ۱/weight یا ۱/limit) و `cost` هزینه‌ی درخواست. بنابراین کلاسی با reservation بزرگ‌تر، برچسب‌های R نزدیک‌تر به هم می‌گیرد و درخواست‌هایش زودتر «سررسید» می‌شوند. `max(time, ...)` تضمین می‌کند کلاسی که مدتی بی‌کار بوده، با برچسب‌های قدیمی «اعتبار انباشته» نداشته باشد.
+`increment` is the inverse of the parameter (1/reservation, 1/weight or 1/limit) and `cost` is the request's cost. So a class with a larger reservation gets R tags closer together and its requests become "due" sooner. `max(time, ...)` ensures that a class that has been idle for a while does not have "accumulated credit" from old tags.
 
-![الگوریتم dmClock در سه بخش: هر درخواست بر اساس پارامترهای کلاس خود سه برچسب R، P و L می‌گیرد؛ زمان‌بند ابتدا در مرحله‌ی رزرو درخواستی را اجرا می‌کند که برچسب R آن سررسید شده، و در غیر این صورت میان درخواست‌هایی که از سقف خود عبور نکرده‌اند کمترین برچسب P را انتخاب می‌کند؛ درخواست‌های immediate و پراولویت مانند peering پیش از صف mClock پردازش می‌شوند](figures/ch21/f03_mclock.png){#fig-21-f03_mclock}
+![The dmClock algorithm in three parts: each request gets three tags R, P and L based on its class's parameters; the scheduler first, in the reservation phase, runs a request whose R tag is due, and otherwise picks the lowest P tag among the requests that have not exceeded their limit; immediate and high-priority requests such as peering are processed before the mClock queue](figures/ch21/f03_mclock.png){#fig-21-f03_mclock}
 
 ```text
-pseudocode: انتخاب درخواست بعدی (خلاصه‌ی این کتاب از dmclock)
+pseudocode: choosing the next request (this book's summary of dmclock)
   now = clock()
   r = queue.min_by(R)
-  if r.R <= now:            return r            # مرحله‌ی رزرو: تضمین حداقل‌ها
-  eligible = [q for q in queue if q.L <= now]   # از سقف عبور نکرده‌اند
-  if eligible:              return eligible.min_by(P)   # تقسیم ظرفیت اضافه بر اساس وزن
-  return none               # همه به سقف رسیده‌اند → صبر تا سررسید
+  if r.R <= now:            return r            # reservation phase: guarantee the minimums
+  eligible = [q for q in queue if q.L <= now]   # have not exceeded their limit
+  if eligible:              return eligible.min_by(P)   # share spare capacity by weight
+  return none               # all have reached their limit → wait until due
 ```
 
-## پروفایل‌ها {#sec-21-4-2}
+## Profiles {#sec-21-4-2}
 
-پروفایل mClock پارامترهای سه کلاس (client، background recovery، background best-effort) را به‌صورت درصدی از ظرفیت OSD تنظیم می‌کند. مقادیر زیر از صفحه‌ی mClock Config Reference مستندات latest است:
+An mClock profile sets the parameters of the three classes (client, background recovery, background best-effort) as percentages of the OSD's capacity. The values below are from the mClock Config Reference page of the latest documentation:
 
-| پروفایل | client (R / W / L) | recovery (R / W / L) | best-effort (R / W / L) |
+| Profile | client (R / W / L) | recovery (R / W / L) | best-effort (R / W / L) |
 |---|---|---|---|
-| balanced (پیش‌فرض) | 50٪ / 1 / MAX | 50٪ / 1 / MAX | 5٪ / 2 / 90٪ |
-| high_client_ops | 60٪ / 2 / MAX | 40٪ / 1 / MAX | 5٪ / 4 / 70٪ |
-| high_recovery_ops | 30٪ / 1 / MAX | 70٪ / 2 / MAX | 5٪ / 2 / MAX |
-| custom | دستی | دستی | دستی |
+| balanced (default) | 50% / 1 / MAX | 50% / 1 / MAX | 5% / 2 / 90% |
+| high_client_ops | 60% / 2 / MAX | 40% / 1 / MAX | 5% / 4 / 70% |
+| high_recovery_ops | 30% / 1 / MAX | 70% / 2 / MAX | 5% / 2 / MAX |
+| custom | manual | manual | manual |
 
 ```bash
 ceph config get osd osd_mclock_profile
-ceph config set osd osd_mclock_profile high_client_ops      # ساعات اوج
-ceph config set osd osd_mclock_profile high_recovery_ops    # بازیابی سریع در شب
+ceph config set osd osd_mclock_profile high_client_ops      # peak hours
+ceph config set osd osd_mclock_profile high_recovery_ops    # fast recovery at night
 ceph config show osd.0 | grep -E "osd_mclock_max_capacity_iops|osd_mclock_scheduler"
 ```
 
 ::: {.note}
-برای ظرفیت، mClock عدد IOPS هر OSD را لازم دارد. هنگام شروع OSD، اگر مقدار `osd_mclock_max_capacity_iops_[hdd|ssd]` پیش‌فرض باشد و `osd_mclock_skip_benchmark` خاموش باشد، OSD یک سنجش داخلی اجرا می‌کند (طبق توضیح کد در `OSD.cc`: نوشتن ۱۰۰ شیء ۴ مگابایتی با بلوک ۴ کیلوبایتی). اگر نتیجه بیرون از بازه‌ی آستانه‌ها باشد (برای HDD بین ۵۰ و ۵۰۰، برای SSD بین ۱۰۰۰ و ۸۰۰۰۰؛ گزینه‌های `osd_mclock_iops_capacity_[low_]threshold_*`)، نتیجه کنار گذاشته و مقدار پیش‌فرض (۳۱۵ برای HDD و ۲۱۵۰۰ برای SSD) به کار می‌رود.
+For capacity, mClock needs each OSD's IOPS figure. When the OSD starts, if `osd_mclock_max_capacity_iops_[hdd|ssd]` has its default value and `osd_mclock_skip_benchmark` is off, the OSD runs an internal benchmark (per the code comment in `OSD.cc`: writing 100 4-megabyte objects with a 4-kilobyte block). If the result falls outside the threshold range (for HDD between 50 and 500, for SSD between 1000 and 80000; the `osd_mclock_iops_capacity_[low_]threshold_*` options), the result is discarded and the default value (315 for HDD and 21500 for SSD) is used.
 :::
 
 ::: {.warn}
-در پروفایل‌های داخلی، mClock تنظیمات بازیابی مانند `osd_max_backfills` و `osd_recovery_max_active` را خودش مدیریت می‌کند و تغییر مستقیم آن‌ها نادیده گرفته می‌شود، مگر اینکه `osd_mclock_override_recovery_settings` را فعال کنید (پیش‌فرض false). همچنین طبق مستندات، با فعال بودن هر پروفایل mClock (حتی custom)، گزینه‌های sleep قدیمی مانند `osd_recovery_sleep` غیرفعال (صفر) می‌شوند. این یکی از رایج‌ترین سردرگمی‌ها پس از ارتقا از نسخه‌های WPQ است: «osd_max_backfills را بالا بردم ولی سرعت backfill تغییر نکرد.»
+In the built-in profiles, mClock manages recovery settings such as `osd_max_backfills` and `osd_recovery_max_active` itself, and changing them directly is ignored unless you enable `osd_mclock_override_recovery_settings` (default false). Also, according to the documentation, with any mClock profile active (even custom), the old sleep options such as `osd_recovery_sleep` are disabled (zero). This is one of the most common confusions after upgrading from WPQ versions: "I raised osd_max_backfills but the backfill speed didn't change."
 :::
 
 ::: {.deep}
-صف immediate: برخی درخواست‌ها (مانند peering و زیرعملیات EC بین shardها) پیش از صف mClock و مستقل از پارامترهای آن پردازش می‌شوند. مستندات latest توضیح می‌دهد که زیر بار سنگین مداوم، این صف ممکن بود همیشه پر بماند و صف mClock هرگز نوبت نگیرد؛ در pool EC این به گرسنگی کامل کارهای best-effort مانند deep-scrub منجر می‌شد (tracker شماره‌ی 69078) و سازوکار جلوگیری از گرسنگی برای آن افزوده شده است. اگر روی نسخه‌ی قدیمی‌تر هستید و deep scrub در pool EC پرکار عقب می‌افتد، این مسئله را در نظر داشته باشید.
+The immediate queue: some requests (such as peering and EC sub-operations between shards) are processed before the mClock queue and independently of its parameters. The latest documentation explains that under sustained heavy load this queue could stay full forever and the mClock queue would never get a turn; in an EC pool this led to complete starvation of best-effort work such as deep-scrub (tracker number 69078), and a starvation-prevention mechanism has been added for it. If you are on an older version and deep scrub falls behind in a busy EC pool, keep this issue in mind.
 :::
 
-# حافظه‌ی OSD {#sec-21-5}
+# OSD memory {#sec-21-5}
 
-`osd_memory_target` (پیش‌فرض ۴ گیگابایت) هدف مصرف حافظه‌ی هر OSD است و BlueStore با `bluestore_cache_autotune` (پیش‌فرض true) کش‌های onode، داده و RocksDB را درون این بودجه تنظیم می‌کند (فصل ۱۲). در cephadm، طبق مستندات OSD، `osd_memory_target_autotune` به‌طور پیش‌فرض برای OSDهای جدید فعال می‌شود و cephadm هدف هر OSD را از حافظه‌ی میزبان ضرب در `mgr/cephadm/autotune_memory_target_ratio` (پیش‌فرض ۰.۷ در کد cephadm)، منهای حافظه‌ی سایر daemonها، تقسیم بر تعداد OSDها تعیین می‌کند.
+`osd_memory_target` (default 4 gigabytes) is the memory usage target of each OSD, and BlueStore, with `bluestore_cache_autotune` (default true), tunes the onode, data and RocksDB caches within this budget (chapter 12). In cephadm, according to the OSD documentation, `osd_memory_target_autotune` is enabled by default for new OSDs, and cephadm sets each OSD's target from the host's memory times `mgr/cephadm/autotune_memory_target_ratio` (default 0.7 in the cephadm code), minus the memory of other daemons, divided by the number of OSDs.
 
 ```bash
 ceph config get osd osd_memory_target
-ceph orch host ls --detail                     # حافظه‌ی میزبان‌ها
+ceph orch host ls --detail                     # host memory
 ceph config set osd/host:stor-a1 osd_memory_target 8G
 ceph daemon osd.3 dump_mempools | jq '.mempool.by_pool | to_entries | sort_by(-.value.bytes) | .[0:5]'
 ```
 
 ::: {.tip}
-برای OSDهای NVMe با بار متادیتای سنگین (RGW با اشیای کوچک، CephFS)، حافظه‌ی بیشتر (۸ تا ۱۶ گیگابایت) اثر محسوسی دارد، چون onodeهای بیشتری در کش می‌مانند. برای HDD، معمولاً پیش‌فرض کافی است و گلوگاه خود دیسک است.
+For NVMe OSDs with a heavy metadata load (RGW with small objects, CephFS), more memory (8 to 16 gigabytes) has a noticeable effect, because more onodes stay in the cache. For HDD, the default is usually enough and the bottleneck is the disk itself.
 :::
 
-# لایه‌ی پایین‌تر: حلقه‌ی کنترل حافظه و throttle در BlueStore {#sec-21-6}
+# The lower layer: the memory control loop and throttle in BlueStore {#sec-21-6}
 
-دو حلقه‌ی کنترل کمتر دیده‌شده بخش بزرگی از رفتار کارایی یک OSD را تعیین می‌کنند. اولی حافظه‌ی cacheها را با مصرف واقعی heap تطبیق می‌دهد. دومی تعیین می‌کند چند تراکنش هم‌زمان می‌تواند وارد BlueStore شود. هر دو در کد چند خط ساده‌اند، ولی اثرشان در سطح خوشه بزرگ است.
+Two less-noticed control loops determine a large part of an OSD's performance behaviour. The first matches cache memory to actual heap usage. The second determines how many concurrent transactions can enter BlueStore. Both are a few simple lines in the code, but their effect at cluster level is large.
 
-## osd_memory_target چگونه اعمال می‌شود؟ {#sec-21-6-1}
+## How is osd_memory_target applied? {#sec-21-6-1}
 
-`osd_memory_target` سقف سخت نیست، **هدف** یک حلقه‌ی کنترل است. thread حافظه‌ی BlueStore (`MempoolThread`) ابتدا مرزهای بودجه‌ی cache را حساب می‌کند (در `BlueStore.cc`) و سپس `PriorityCache::Manager::tune_memory` در هر دور بودجه را به سمت هدف هل می‌دهد.
+`osd_memory_target` is not a hard limit; it is the **target** of a control loop. The BlueStore memory thread (`MempoolThread`) first computes the cache budget bounds (in `BlueStore.cc`), and then `PriorityCache::Manager::tune_memory` pushes the budget toward the target on each round.
 
-![حلقه‌ی کنترل حافظه‌ی OSD با مقادیر پیش‌فرض. مرزهای min و max از target، fragmentation و base محاسبه می‌شوند. tune_memory هر ثانیه بودجه را بر اساس فاصله‌ی حافظه‌ی mapped از target کم یا زیاد می‌کند. بودجه‌ی حاصل هر ۵ ثانیه بر اساس اولویت بین cacheهای RocksDB، onode و داده تقسیم می‌شود](figures/ch21/f05_memtune.png){#fig-21-f05_memtune}
+![The OSD memory control loop with default values. The min and max bounds are computed from target, fragmentation and base. tune_memory increases or decreases the budget every second based on how far mapped memory is from target. The resulting budget is split every 5 seconds by priority between the RocksDB, onode and data caches](figures/ch21/f05_memtune.png){#fig-21-f05_memtune}
 
 ```text
-pseudocode: مرزها و یک گام tune_memory (بازنویسی این کتاب)
+pseudocode: bounds and one tune_memory step (this book's rewrite)
   ltarget = (1 - expected_fragmentation) * target
   min     = cache_min
   max     = ltarget - base     if ltarget > base + min   else min
   new     = clamp(tuned, min, max)
-  if mapped < target:  new += (1 - mapped/target) * (max - new)   # رشد، کندتر وقتی به هدف نزدیک است
-  else:                new -= (1 - target/mapped) * (new - min)   # کوچک شدن متناسب با بیش‌مصرف
+  if mapped < target:  new += (1 - mapped/target) * (max - new)   # growth, slower when near the target
+  else:                new -= (1 - target/mapped) * (new - min)   # shrink in proportion to the overuse
   tuned = new
 ```
 
-### مثال عددی با پیش‌فرض‌ها
+### Numerical example with the defaults
 
-با `osd_memory_target=4G`، `osd_memory_base=768M`، `osd_memory_cache_min=128M` و `osd_memory_expected_fragmentation=0.15`:
+With `osd_memory_target=4G`, `osd_memory_base=768M`, `osd_memory_cache_min=128M` and `osd_memory_expected_fragmentation=0.15`:
 
-| گام | ورودی | محاسبه | نتیجه |
+| Step | Input | Computation | Result |
 |---|---|---|---|
-| مرز | target=4096 MiB | 0.85×4096 | ltarget=3481.6 MiB |
-| مرز | base=768 | 3481.6−768 | max=2713.6 MiB و min=128 MiB |
-| گام ۱ | tuned=1500، mapped=3000 | r=1−3000/4096=0.2676؛ 1500+0.2676×(2713.6−1500) | **1824.7 MiB** |
-| گام ۲ | mapped=4500 (بیش‌مصرف) | r=1−4096/4500=0.0898؛ 1824.7−0.0898×(1824.7−128) | **1672.4 MiB** |
+| bound | target=4096 MiB | 0.85×4096 | ltarget=3481.6 MiB |
+| bound | base=768 | 3481.6−768 | max=2713.6 MiB and min=128 MiB |
+| step 1 | tuned=1500, mapped=3000 | r=1−3000/4096=0.2676; 1500+0.2676×(2713.6−1500) | **1824.7 MiB** |
+| step 2 | mapped=4500 (overuse) | r=1−4096/4500=0.0898; 1824.7−0.0898×(1824.7−128) | **1672.4 MiB** |
 
-از این مثال سه نتیجه‌ی عملی گرفته می‌شود:
+Three practical conclusions follow from this example:
 
-1. **cache هرگز تمام target را نمی‌گیرد.** حتی در بهترین حالت، حدود 2.7 GiB از 4 GiB به cache می‌رسد. بقیه سهم base (حافظه‌ی غیر cache مثل pg log، اتصال‌ها و bufferها) و حاشیه‌ی fragmentation است.
-2. **واکنش به بیش‌مصرف تدریجی است.** با 10٪ بیش‌مصرف، بودجه فقط حدود 9٪ از فاصله‌ی تا min کم می‌شود. اگر چیزی بیرون از cache (مثلاً pg log بسیار بلند در backfill) رشد کند، RSS می‌تواند مدتی از target بالاتر بماند. برای جلوگیری از OOM، حاشیه‌ی حافظه‌ی میزبان را بر این اساس برنامه‌ریزی کنید.
-3. **`mapped` از tcmalloc خوانده می‌شود.** اگر OSD با allocator دیگری ساخته شده باشد، این حلقه عملاً کار نمی‌کند و مقدار cache ثابت `bluestore_cache_size_hdd/ssd` (به‌ترتیب 1G و 3G) معنا پیدا می‌کند.
+1. **The cache never gets the whole target.** Even in the best case, about 2.7 GiB of the 4 GiB goes to the cache. The rest is the share of base (non-cache memory such as the pg log, connections and buffers) and the fragmentation margin.
+2. **The reaction to overuse is gradual.** With 10% overuse, the budget shrinks by only about 9% of the distance to min. If something outside the cache grows (for example a very long pg log during backfill), RSS can stay above target for a while. Plan the host's memory headroom accordingly to avoid OOM.
+3. **`mapped` is read from tcmalloc.** If the OSD is built with another allocator, this loop effectively does not work, and the fixed cache size `bluestore_cache_size_hdd/ssd` (1G and 3G respectively) becomes meaningful.
 
 ::: {.tip}
-برای دیدن حلقه در عمل: `ceph daemon osd.N dump_mempools` حافظه‌ی هر mempool را نشان می‌دهد (فصل ۲۳) و شمارنده‌های `prioritycache` در `perf dump` (مثل `target_bytes`، `mapped_bytes` و `heap_bytes`) وضعیت حلقه را. اگر `mapped_bytes` مدام بالاتر از `target_bytes` است، مشکل در cache نیست. دنبال مصرف‌کننده‌ی بیرون از cache باشید.
+To see the loop in action: `ceph daemon osd.N dump_mempools` shows the memory of each mempool (chapter 23), and the `prioritycache` counters in `perf dump` (such as `target_bytes`, `mapped_bytes` and `heap_bytes`) show the state of the loop. If `mapped_bytes` is constantly above `target_bytes`, the problem is not in the cache. Look for a consumer outside the cache.
 :::
 
 ::: {.deep}
-تقسیم بودجه بین cacheها اولویت‌بندی‌شده است (PRI0 تا PRI11 در `PriorityCache.h`). هر cache در هر اولویت درخواست می‌دهد و مدیر از بالاترین اولویت شروع به تخصیص می‌کند. نسبت‌های `bluestore_cache_kv_ratio=0.45`، `bluestore_cache_meta_ratio=0.45` و `bluestore_cache_kv_onode_ratio=0.04` تنها نقطه‌ی شروع‌اند. با `bluestore_cache_autotune=true`، سهم واقعی بر اساس درخواست هر cache جابه‌جا می‌شود. معمولاً onodeهای داغ و بلوک‌های index و filter مربوط به RocksDB جلوتر از داده‌ی کاربر قرار می‌گیرند.
+Splitting the budget between caches is prioritized (PRI0 to PRI11 in `PriorityCache.h`). Each cache requests at each priority, and the manager starts allocating from the highest priority. The ratios `bluestore_cache_kv_ratio=0.45`, `bluestore_cache_meta_ratio=0.45` and `bluestore_cache_kv_onode_ratio=0.04` are only a starting point. With `bluestore_cache_autotune=true`, the actual share shifts based on each cache's requests. Usually hot onodes and RocksDB's index and filter blocks come ahead of user data.
 :::
 
-## throttle در ورودی BlueStore {#sec-21-6-2}
+## The throttle at the BlueStore entrance {#sec-21-6-2}
 
-هر تراکنش (TransContext) پیش از ورود به BlueStore از `throttle_bytes` با سقف `bluestore_throttle_bytes=64M` «هزینه» برمی‌دارد. هزینه فقط حجم داده نیست. `_txc_calc_cost` هزینه را این‌گونه حساب می‌کند:
+Before entering BlueStore, each transaction (TransContext) takes a "cost" from `throttle_bytes`, which is capped at `bluestore_throttle_bytes=64M`. The cost is not just the data volume. `_txc_calc_cost` computes the cost like this:
 
 ```text
-ios  = 1 + (تعداد aioهای داده)        # یکی برای کامیت kv
+ios  = 1 + (number of data aios)        # one for the kv commit
 cost = ios × throttle_cost_per_io + bytes
 ```
 
-مقدار `throttle_cost_per_io` برای HDD برابر 670000 و برای SSD برابر 4000 است، مگر اینکه `bluestore_throttle_cost_per_io` صریحاً تنظیم شده باشد. این عدد در واقع «معادل بایتی» هزینه‌ی یک seek است.
+The value of `throttle_cost_per_io` is 670000 for HDD and 4000 for SSD, unless `bluestore_throttle_cost_per_io` is set explicitly. This number is in effect the "byte equivalent" of the cost of one seek.
 
-![محاسبه‌ی هزینه‌ی تراکنش و ظرفیت هم‌زمانی BlueStore برای نوشتن‌های 4K. روی HDD حدود ۵۰ تراکنش مستقیم یا ۱۰۰ تراکنش deferred در صف جا می‌شود و روی SSD بیش از ۵۵۰۰. صف کوتاه در BlueStore باعث می‌شود درخواست‌ها بیشتر در صف mClock منتظر بمانند، جایی که زمان‌بند هنوز می‌تواند بین کلاینت و بازیابی اولویت‌بندی کند](figures/ch21/f06_throttle.png){#fig-21-f06_throttle}
+![Transaction cost computation and BlueStore concurrency capacity for 4K writes. On HDD about 50 direct transactions or 100 deferred transactions fit in the queue, and on SSD more than 5500. A short queue in BlueStore makes requests wait longer in the mClock queue, where the scheduler can still prioritize between client and recovery](figures/ch21/f06_throttle.png){#fig-21-f06_throttle}
 
-| سناریو (نوشتن 4K) | ios | cost (بایت معادل) | تعداد هم‌زمان در 64MiB |
+| Scenario (4K write) | ios | cost (byte equivalent) | Concurrent in 64MiB |
 |---|---|---|---|
-| HDD، نوشتن مستقیم | 2 | 2×670000+4096 = 1,344,096 | ≈ 49 |
-| HDD، deferred (داده در WAL) | 1 | 670000+4096 = 674,096 | ≈ 99 |
-| SSD، نوشتن مستقیم | 2 | 2×4000+4096 = 12,096 | ≈ 5548 |
+| HDD, direct write | 2 | 2×670000+4096 = 1,344,096 | ≈ 49 |
+| HDD, deferred (data in WAL) | 1 | 670000+4096 = 674,096 | ≈ 99 |
+| SSD, direct write | 2 | 2×4000+4096 = 12,096 | ≈ 5548 |
 
 ::: {.warn}
-**چرا throttle را بزرگ نکنیم؟** وسوسه‌انگیز است که برای IOPS بیشتر `bluestore_throttle_bytes` را چند برابر کنید. ولی هر درخواستی که از throttle عبور کند از کنترل mClock خارج شده است. یک صف عمیق در BlueStore یعنی درخواست کلاینتی که دیرتر رسیده باید پشت ده‌ها درخواست بازیابی منتظر بماند، بدون اینکه زمان‌بند بتواند کاری کند. پس throttle بزرگ‌تر لزوماً تأخیر کلاینت را بهتر نمی‌کند و ممکن است آن را در زمان بازیابی بدتر کند. روش درست، اندازه‌گیری تأخیر کلاینت در زیر بار بازیابی پیش و پس از تغییر است. اگر مقدار را تغییر دادید، آن را همراه با `bluestore_throttle_deferred_bytes=128M` و هر دو را برای همه‌ی OSDهای یک کلاس یکسان تنظیم کنید.
+**Why not make the throttle larger?** It is tempting to multiply `bluestore_throttle_bytes` for more IOPS. But every request that passes the throttle is out of mClock's control. A deep queue in BlueStore means a client request that arrived later must wait behind dozens of recovery requests, with nothing the scheduler can do. So a larger throttle does not necessarily improve client latency and may make it worse during recovery. The right method is to measure client latency under recovery load before and after the change. If you change the value, set it together with `bluestore_throttle_deferred_bytes=128M`, and set both identically for all OSDs of a class.
 :::
 
-## Messenger و thread {#sec-21-6-3}
+## Messenger and threads {#sec-21-6-3}
 
-در هر daemon، `ms_async_op_threads=3` thread اجرای رویداد (epoll) برای همه‌ی اتصال‌ها کار می‌کنند. هر اتصال به یکی از آن‌ها چسبیده است. روی یک OSD NVMe با صدها کلاینت، این سه thread می‌توانند پیش از دیسک اشباع شوند. نشانه‌اش این است که در `top -H` سه thread با نام `msgr-worker-N` نزدیک 100٪ CPU کار می‌کنند. `ms_tcp_nodelay=true` (خاموش کردن Nagle) برای پیام‌های کوچک لازم است. `ms_tcp_rcvbuf=0` یعنی اندازه‌ی بافر دریافت به autotuning هسته سپرده می‌شود (`net.ipv4.tcp_rmem`)، که معمولاً بهتر از هر عدد ثابت است.
+In each daemon, `ms_async_op_threads=3` event-loop (epoll) threads work for all connections. Each connection is pinned to one of them. On an NVMe OSD with hundreds of clients, these three threads can saturate before the disk does. The sign is that in `top -H` three threads named `msgr-worker-N` run near 100% CPU. `ms_tcp_nodelay=true` (disabling Nagle) is necessary for small messages. `ms_tcp_rcvbuf=0` means the receive buffer size is left to the kernel's autotuning (`net.ipv4.tcp_rmem`), which is usually better than any fixed number.
 
 ```bash
 ceph daemon osd.3 perf dump | jq '.prioritycache'                 # target/mapped/heap
 ceph daemon osd.3 dump_mempools | jq '.mempool.total'
 ceph daemon osd.3 perf dump | jq '.bluestore | {kv_flush_lat, kv_commit_lat, kv_sync_lat, state_kv_queued_lat}'
-ceph config show osd.3 bluestore_throttle_cost_per_io             # 0 ⇒ مقدار hdd/ssd استفاده می‌شود
+ceph config show osd.3 bluestore_throttle_cost_per_io             # 0 ⇒ the hdd/ssd value is used
 top -H -p $(pgrep -f 'ceph-osd.*--id 3') -b -n1 | grep msgr-worker
 ```
 
 ::: {.note}
-نام دقیق برخی شمارنده‌های BlueStore بین نسخه‌ها تغییر کرده است. پیش از ساختن داشبورد، کلیدها را با `perf schema` روی نسخه‌ی خودتان بررسی کنید.
+The exact names of some BlueStore counters have changed between versions. Before building a dashboard, check the keys with `perf schema` on your own version.
 :::
 
-# تنظیم کارایی با عدد: شارد، حافظه، مسیر نوشتن و dmClock {#sec-21-7}
+# Performance tuning in numbers: shards, memory, the write path and dmClock {#sec-21-7}
 
-بخش‌های قبل این فصل گفتند هر لایه‌ی OSD چه پارامتری دارد. این بخش نشان می‌دهد چهار تصمیم مهم با عدد چگونه گرفته می‌شوند: کدام شارد صف یک PG را نگه می‌دارد، cephadm به هر OSD چقدر حافظه می‌دهد، BlueStore کدام نوشتن را deferred می‌کند و dmClock در هر لحظه کدام درخواست را جلو می‌اندازد. همه‌ی ارجاع‌ها به main در نوامبر 2026 است. پیش‌فرض‌های mClock و شاردها در Reef و Squid تغییر کرده‌اند، پس `ceph config show osd.N` روی کلاستر خودتان معیار نهایی است. عددها با بازپیاده‌سازی پایتونی حساب شده‌اند.
+The earlier sections of this chapter described which parameters each OSD layer has. This section shows how four important decisions are made in numbers: which shard holds a PG's queue, how much memory cephadm gives each OSD, which writes BlueStore defers, and which request dmClock moves forward at any moment. All references are to main in November 2026. The defaults of mClock and the shards changed in Reef and Squid, so `ceph config show osd.N` on your own cluster is the final authority. The numbers were computed with a Python reimplementation.
 
-## نگاشت PG به شارد صف {#sec-21-7-1}
+## Mapping a PG to a queue shard {#sec-21-7-1}
 
-::: {.algo #alg-21-1 title="انتخاب OSDShard برای یک درخواست" src="src/osd/OSD.cc :: OSD::ShardedOpWQ::_enqueue، OSD::get_num_op_shards؛ src/osd/osd_types.h :: spg_t::hash_to_shard" complexity="O(1)"}
+::: {.algo #alg-21-1 title="Choosing the OSDShard for a request" src="src/osd/OSD.cc :: OSD::ShardedOpWQ::_enqueue, OSD::get_num_op_shards; src/osd/osd_types.h :: spg_t::hash_to_shard" complexity="O(1)"}
 :::
 
 ```text
 pseudocode
-num_shards = osd_op_num_shards  اگر ≠ 0  وگرنه (rotational ? osd_op_num_shards_hdd = 1 : osd_op_num_shards_ssd = 8)
-threads_per_shard = osd_op_num_threads_per_shard  یا  (hdd: 5 ، ssd: 2)
-shard(item) = item.ordering_token.pgid.ps() mod num_shards      # همه‌ی درخواست‌های یک PG در یک شارد
-هر شارد: یک صف mClock جدا و threads_per_shard thread
+num_shards = osd_op_num_shards  if ≠ 0  otherwise (rotational ? osd_op_num_shards_hdd = 1 : osd_op_num_shards_ssd = 8)
+threads_per_shard = osd_op_num_threads_per_shard  or  (hdd: 5 , ssd: 2)
+shard(item) = item.ordering_token.pgid.ps() mod num_shards      # all requests of a PG in one shard
+each shard: a separate mClock queue and threads_per_shard threads
 ```
 
-نتیجه‌ی مستقیم: **یک PG هرگز از بیش از یک شارد سرویس نمی‌گیرد**. روی SSD با پیش‌فرض 8 × 2، یک PG بسیار داغ (مثلاً شیء سرصفحه‌ی یک bucket یا یک image با بار سنگین روی چند شیء کم) حداکثر 2 thread از 16 thread را مشغول می‌کند. توزیع PGها میان شاردها هم یکنواخت نیست. شبیه‌سازی یک OSD با 100 PG که شماره‌ی ps آن‌ها تصادفی از pg_num ‏4096 انتخاب شده، تعداد PG هر شارد را 9، 9، 16، 17، 9، 12، 10 و 18 داد. میانگین 12.5 است، اما پرترین شارد 44 درصد بیشتر از میانگین بار دارد. در 2000 OSD تصادفی، نسبت پرترین شارد به میانگین در میانه 1.36 و در صدک 95 حدود 1.68 بود. این یکی از دلیل‌های این است که روی NVMe بالا بردن تعداد PG هر OSD (و در نتیجه هموارتر شدن این توزیع) گاهی کارایی را بیشتر از تغییر تعداد thread بهبود می‌دهد. روی HDD با یک شارد این مسئله وجود ندارد: همه‌ی PGها در یک صف mClock هستند و پنج thread آن را می‌کشند.
+The direct consequence: **a PG is never served by more than one shard**. On SSD with the default 8 × 2, a very hot PG (for example a bucket's header object, or an image with heavy load on a few objects) keeps at most 2 of the 16 threads busy. The distribution of PGs among shards is not uniform either. Simulating an OSD with 100 PGs whose ps numbers were chosen at random from a pg_num of 4096 gave per-shard PG counts of 9, 9, 16, 17, 9, 12, 10 and 18. The average is 12.5, but the fullest shard has 44 percent more load than average. Across 2000 random OSDs, the ratio of the fullest shard to the average had a median of 1.36 and a 95th percentile of about 1.68. This is one of the reasons why on NVMe raising the number of PGs per OSD (and so smoothing this distribution) sometimes improves performance more than changing the number of threads. On HDD with one shard this problem does not exist: all PGs are in one mClock queue and five threads drain it.
 
-![سمت چپ: تعداد PGهای یک OSD SSD نمونه در هر یک از هشت شارد صف، با 100 PG و ps تصادفی. خط‌چین میانگین 12.5 است. سمت راست: توزیع نسبت پرترین شارد به میانگین در 2000 OSD شبیه‌سازی‌شده. حتی وقتی بار هر PG برابر است، معمولاً یک شارد 30 تا 70 درصد بیش از میانگین PG دارد. این عددها شبیه‌سازی هستند و فرض می‌کنند ps هر PG تصادفی و مستقل است](figures/ch21/f07_shards.png){#fig-21-f07_shards}
+![Left: the number of PGs of a sample SSD OSD in each of the eight queue shards, with 100 PGs and random ps. The dashed line is the average of 12.5. Right: the distribution of the ratio of the fullest shard to the average across 2000 simulated OSDs. Even when every PG has equal load, one shard usually has 30 to 70 percent more PGs than average. These numbers are a simulation and assume each PG's ps is random and independent](figures/ch21/f07_shards.png){#fig-21-f07_shards}
 
-## سهم حافظه‌ی هر OSD در cephadm {#sec-21-7-2}
+## Each OSD's memory share in cephadm {#sec-21-7-2}
 
-::: {.algo #alg-21-2 title="تنظیم خودکار osd_memory_target" src="src/pybind/mgr/cephadm/autotune.py :: MemoryAutotuner.tune؛ src/pybind/mgr/cephadm/serve.py :: CephadmServe._autotune_host_memory" complexity="O(D) برای D daemon روی میزبان؛ هر autotune_interval (600 ثانیه)"}
+::: {.algo #alg-21-2 title="Automatic tuning of osd_memory_target" src="src/pybind/mgr/cephadm/autotune.py :: MemoryAutotuner.tune; src/pybind/mgr/cephadm/serve.py :: CephadmServe._autotune_host_memory" complexity="O(D) for D daemons on the host; every autotune_interval (600 seconds)"}
 :::
 
 ```text
 pseudocode
 total = memory_total_kb × 1024 × autotune_memory_target_ratio (0.7)
-for d in daemonهای میزبان:
+for d in the host's daemons:
     mds: total −= mds_cache_memory_limit
-    OSD با osd_memory_target_autotune = false: total −= osd_memory_target آن
-    OSD دیگر: به فهرست tuned
-    هر نوع دیگر: total −= max(min_size_by_type[type] یا 1 GiB، memory_usage فعلی)
-        (mgr، mds و nvmeof: 4 GiB ؛ mon: 1 GiB ؛ crash، haproxy، keepalived: 128 MiB)
-if total < 0 یا tuned خالی: کاری نکن
+    OSD with osd_memory_target_autotune = false: total −= its osd_memory_target
+    other OSD: add to the tuned list
+    any other type: total −= max(min_size_by_type[type] or 1 GiB, current memory_usage)
+        (mgr, mds and nvmeof: 4 GiB ; mon: 1 GiB ; crash, haproxy, keepalived: 128 MiB)
+if total < 0 or tuned is empty: do nothing
 per = ⌊total / |tuned|⌋
-تنظیم‌های per-OSD قبلی را پاک کن ؛ config set osd/host:<host> osd_memory_target per
+clear previous per-OSD settings ; config set osd/host:<host> osd_memory_target per
 ```
 
-**مثال عددی.** میزبانی 256 GiB حافظه، یک mon، یک mgr، crash، node-exporter، یک RGW و 20 OSD دارد. total = 256 × 0.7 = 179.2 GiB. فرض کنید مصرف فعلی mon ‏2.1 GiB و RGW ‏1.5 GiB باشد (عددهای مثال). mgr با مصرف 3 GiB حداقل 4 GiB حساب می‌شود، crash ‏128 MiB و node-exporter (که در جدول نیست) 1 GiB. جمع این‌ها 8.725 GiB است و برای OSDها 170.475 GiB می‌ماند. هر OSD ‏⌊170.475 GiB / 20⌋ = 9152306872 بایت، حدود 8.52 GiB، می‌گیرد. چون مقدار با ماسک `osd/host:<host>` نوشته می‌شود، همه‌ی OSDهای یک میزبان یک عدد دارند. اگر یک OSD را با `osd_memory_target_autotune = false` و مقدار دستی از این محاسبه بیرون بگذارید، مقدار آن از کل کم می‌شود و بقیه بین OSDهای خودکار تقسیم می‌شود.
+**Numerical example.** A host has 256 GiB of memory, one mon, one mgr, crash, node-exporter, one RGW and 20 OSDs. total = 256 × 0.7 = 179.2 GiB. Suppose the current usage of the mon is 2.1 GiB and of the RGW 1.5 GiB (example numbers). The mgr, using 3 GiB, counts as at least 4 GiB, crash as 128 MiB and node-exporter (which is not in the table) as 1 GiB. Together these are 8.725 GiB, leaving 170.475 GiB for the OSDs. Each OSD gets ⌊170.475 GiB / 20⌋ = 9152306872 bytes, about 8.52 GiB. Because the value is written with the `osd/host:<host>` mask, all OSDs of a host have the same number. If you exclude one OSD from this calculation with `osd_memory_target_autotune = false` and a manual value, its value is subtracted from the total and the rest is split among the automatic OSDs.
 
-دو تله وجود دارد. اول، مصرف فعلی daemonها در محاسبه می‌آید، پس اگر RGW ناگهان 10 GiB مصرف کند، ده دقیقه بعد سهم هر OSD حدود 0.4 GiB کم می‌شود. دوم، `osd_memory_target` یک هدف برای حافظه‌ی نگاشت‌شده‌ی heap است، نه سقف RSS. توضیح خود گزینه می‌گوید RSS ممکن است تا حدود 20 درصد بیشتر شود. سی درصدی که ratio کنار می‌گذارد برای همین، برای سیستم‌عامل و برای page cache است.
+There are two traps. First, the daemons' current usage enters the calculation, so if the RGW suddenly uses 10 GiB, ten minutes later each OSD's share drops by about 0.4 GiB. Second, `osd_memory_target` is a target for mapped heap memory, not an RSS cap. The option's own description says RSS may be up to about 20 percent higher. The thirty percent the ratio sets aside is for this, for the operating system and for the page cache.
 
-![تقسیم حافظه‌ی یک میزبان 256 گیگابایتی با MemoryAutotuner. نوار بالا کل حافظه است. 30 درصد هاشورخورده برای سیستم‌عامل و سربار RSS کنار گذاشته می‌شود. نوار پایین سهم daemonهای غیر OSD (با حداقل‌های جدول min_size_by_type یا مصرف فعلی، هر کدام بیشتر باشد) و سپس 20 سهم برابر OSDها را نشان می‌دهد. مصرف mon و RGW در این مثال فرضی است](figures/ch21/f08_autotune.png){#fig-21-f08_autotune}
+![Splitting the memory of a 256-gigabyte host with MemoryAutotuner. The top bar is the total memory. The hatched 30 percent is set aside for the operating system and RSS overhead. The bottom bar shows the share of non-OSD daemons (with the minimums from the min_size_by_type table or current usage, whichever is larger) and then 20 equal OSD shares. The mon and RGW usage in this example is hypothetical](figures/ch21/f08_autotune.png){#fig-21-f08_autotune}
 
-## مسیر نوشتن BlueStore: small، big و deferred {#sec-21-7-3}
+## The BlueStore write path: small, big and deferred {#sec-21-7-3}
 
-::: {.algo #alg-21-3 title="تقسیم نوشتن و تصمیم deferred در مسیر کلاسیک" src="src/os/bluestore/BlueStore.cc :: BlueStore::_do_write_data، _do_write_big، _do_alloc_write" complexity="O(تعداد blobها) برای هر نوشتن"}
+::: {.algo #alg-21-3 title="Splitting a write and the deferred decision in the classic path" src="src/os/bluestore/BlueStore.cc :: BlueStore::_do_write_data, _do_write_big, _do_alloc_write" complexity="O(number of blobs) per write"}
 :::
 
 ```text
 pseudocode
-# bluestore_write_v2 = false (پیش‌فرض در main)
-if offset و end−1 در یک بلوک min_alloc_size باشند و length ≠ min_alloc_size: _do_write_small(کل)
+# bluestore_write_v2 = false (default in main)
+if offset and end−1 are in one min_alloc_size block and length ≠ min_alloc_size: _do_write_small(all)
 else:
     head = [offset, p2roundup(offset, mas))      → _do_write_small
     tail = [p2align(end, mas), end)               → _do_write_small
-    middle = بقیه                                  → _do_write_big (در صورت segment_size، تکه‌تکه)
-_do_write_big: اگر l ≤ 2 × prefer_deferred_size: تلاش برای نوشتن در blobهای موجود به‌صورت deferred
-_do_alloc_write برای blob تازه: اگر data_size < prefer_deferred_size ⇒ deferred (ابتدا در WAL و RocksDB، بعد روی دستگاه)
-                                 وگرنه ⇒ نوشتن مستقیم روی دستگاه، سپس commit فراداده
-prefer_deferred_size = bluestore_prefer_deferred_size یا hdd: 64K ، ssd: 0
+    middle = the rest                              → _do_write_big (in pieces if segment_size)
+_do_write_big: if l ≤ 2 × prefer_deferred_size: try writing into existing blobs as deferred
+_do_alloc_write for a new blob: if data_size < prefer_deferred_size ⇒ deferred (first in the WAL and RocksDB, later on the device)
+                                 otherwise ⇒ direct write to the device, then metadata commit
+prefer_deferred_size = bluestore_prefer_deferred_size or hdd: 64K , ssd: 0
 ```
 
-**مثال عددی.** OSD روی HDD است، با min_alloc_size ‏4 KiB (پیش‌فرض main برای hdd و ssd) و prefer_deferred_size ‏64 KiB.
+**Numerical example.** The OSD is on HDD, with a min_alloc_size of 4 KiB (main's default for hdd and ssd) and a prefer_deferred_size of 64 KiB.
 
-- **16 KiB در offset صفر یک شیء تازه:** offset و end − 1 در بلوک‌های 0 و 3 هستند، پس head و tail صفرند و کل 16 KiB به مسیر big می‌رود. blob تازه است و 16 KiB < 64 KiB، پس **deferred** نوشته می‌شود: داده ابتدا در تراکنش RocksDB (روی دستگاه DB/WAL اگر جدا باشد) می‌نشیند و بعد روی HDD اعمال می‌شود.
-- **64 KiB در offset صفر:** 64 KiB < 64 KiB برقرار نیست، پس **مستقیم** روی HDD نوشته می‌شود و فقط فراداده به RocksDB می‌رود.
-- **70 KiB در offset ‏6 KiB:** head ‏2 KiB (6 تا 8 KiB) به مسیر small، و middle ‏68 KiB (8 تا 76 KiB) به big و مستقیم می‌رود. چون end = 76 KiB هم‌تراز است، tail صفر است.
-- **1 KiB در offset ‏100:** درون یک بلوک است و به مسیر small می‌رود.
-- **4 KiB هم‌تراز در offset ‏8 KiB:** درون یک بلوک است، اما چون length = min_alloc_size است، به شاخه‌ی else و مسیر big می‌رود و deferred می‌شود.
+- **16 KiB at offset zero of a new object:** offset and end − 1 are in blocks 0 and 3, so head and tail are zero and the whole 16 KiB goes to the big path. The blob is new and 16 KiB < 64 KiB, so it is written **deferred**: the data first lands in a RocksDB transaction (on the DB/WAL device if separate) and is later applied to the HDD.
+- **64 KiB at offset zero:** 64 KiB < 64 KiB does not hold, so it is written **directly** to the HDD and only the metadata goes to RocksDB.
+- **70 KiB at offset 6 KiB:** the 2 KiB head (6 to 8 KiB) goes to the small path, and the 68 KiB middle (8 to 76 KiB) goes to big and is written directly. Because end = 76 KiB is aligned, the tail is zero.
+- **1 KiB at offset 100:** it is inside one block and goes to the small path.
+- **Aligned 4 KiB at offset 8 KiB:** it is inside one block, but because length = min_alloc_size it goes to the else branch and the big path, and is deferred.
 
-روی SSD با prefer_deferred_size ‏0، شرط `data_size < 0` هرگز برقرار نیست و هیچ نوشتن big deferred نمی‌شود. HDD نمی‌تواند نوشتن‌های کوچک تصادفی را سریع انجام دهد، پس BlueStore آن‌ها را ابتدا ترتیبی در WAL می‌نویسد و بعد در پس‌زمینه اعمال می‌کند. هزینه‌ی این کار دو بار نوشتن است. اگر DB/WAL روی NVMe باشد، این دو بار نوشتن عملاً تأخیر نوشتن کوچک را به تأخیر NVMe نزدیک می‌کند. مسیر small خودش منطق جداگانه‌ای (خواندن-تغییر-نوشتن و deferred روی blob موجود) دارد که در فصل‌های ۱۲ و ۲۴ آمده است. مسیر جدید `bluestore_write_v2` در main وجود دارد، اما پیش‌فرض آن false است و این مثال‌ها را پوشش نمی‌دهد.
+On SSD with a prefer_deferred_size of 0, the condition `data_size < 0` never holds and no big write is deferred. An HDD cannot perform small random writes quickly, so BlueStore first writes them sequentially to the WAL and applies them later in the background. The cost is writing twice. If DB/WAL is on NVMe, these two writes in practice bring small-write latency close to NVMe latency. The small path has its own separate logic (read-modify-write and deferred on an existing blob), covered in chapters 12 and 24. A new `bluestore_write_v2` path exists in main, but its default is false and these examples do not cover it.
 
-![پنج نوشتن نمونه روی یک OSD HDD و این‌که _do_write_data هر کدام را چگونه تقسیم می‌کند. شبکه‌ی خاکستری بلوک‌های 4 KiB است. زرد بخشی است که به مسیر small می‌رود. قرمز بخشی از مسیر big است که چون کمتر از 64 KiB است deferred می‌شود. آبی نوشتن مستقیم است. سطر آخر حالت مرزی 4 KiB هم‌تراز را نشان می‌دهد که با وجود قرار گرفتن در یک بلوک، به‌خاطر شرط length ≠ min_alloc_size به مسیر big می‌رود](figures/ch21/f09_writesplit.png){#fig-21-f09_writesplit}
+![Five sample writes on an HDD OSD and how _do_write_data splits each one. The grey grid is 4 KiB blocks. Yellow is the part that goes to the small path. Red is the part of the big path that is deferred because it is less than 64 KiB. Blue is a direct write. The last row shows the aligned 4 KiB edge case, which despite lying in one block goes to the big path because of the length ≠ min_alloc_size condition](figures/ch21/f09_writesplit.png){#fig-21-f09_writesplit}
 
-## dmClock با عدد {#sec-21-7-4}
+## dmClock in numbers {#sec-21-7-4}
 
-::: {.algo #alg-21-4 title="برچسب‌گذاری و انتخاب درخواست در dmClock" src="src/dmclock/src/dmclock_server.h :: RequestTag::RequestTag، tag_calc، PriorityQueueBase::do_next_request، reduce_reservation_tags؛ src/osd/scheduler/mClockScheduler.h" complexity="O(log C) برای C کلاینت (سه heap)"}
+::: {.algo #alg-21-4 title="Tagging and selecting requests in dmClock" src="src/dmclock/src/dmclock_server.h :: RequestTag::RequestTag, tag_calc, PriorityQueueBase::do_next_request, reduce_reservation_tags; src/osd/scheduler/mClockScheduler.h" complexity="O(log C) for C clients (three heaps)"}
 :::
 
 ```text
 pseudocode
 tag_calc(t, prev, inv, extreme_high): inv == 0 ? (high ? max_tag : min_tag) : max(t, prev + inv × cost)
-ورود یا رسیدن به سر صف (IsDelayed = true در OSD):
+on arrival or reaching the head of the queue (IsDelayed = true in the OSD):
     R = tag_calc(t, R_prev, 1/res, high) ; P = tag_calc(t, P_prev, 1/wgt, high) ; L = tag_calc(t, L_prev, 1/lim, low)
 do_next_request(now):
-    if کمینه‌ی R ≤ now: سرویس از فاز reservation
-    else: هر سری با L ≤ now را ready کن ; اگر ready با P کمینه هست: سرویس از فاز weight
-          و R سر صف همان کلاینت را 1/res × cost کم کن      # سرویس weight جزو reservation حساب نشود
-    else (AtLimit::Wait در OSD): صبر تا کمینه‌ی R یا L بعدی
+    if minimum R ≤ now: serve from the reservation phase
+    else: mark every head with L ≤ now ready ; if a ready one with minimum P exists: serve from the weight phase
+          and reduce the R of that client's queue head by 1/res × cost      # so weight service does not count toward the reservation
+    else (AtLimit::Wait in the OSD): wait until the next minimum R or L
 ```
 
-در OSD، cost هر درخواست `max(اندازه به بایت، osd_bandwidth_cost_per_io)` است و رزرو و حد برحسب بایت در ثانیه بیان می‌شوند (فصل ۱۰). برای روشن شدن منطق، در این مثال cost هر درخواست را 1 و واحدها را درخواست در ثانیه گرفته‌ایم.
+In the OSD, each request's cost is `max(size in bytes, osd_bandwidth_cost_per_io)`, and reservations and limits are expressed in bytes per second (chapter 10). To make the logic clear, in this example we took each request's cost as 1 and the units as requests per second.
 
-**مثال عددی.** سه کلاینت پیوسته درخواست می‌فرستند: client با res = 300، wgt = 1 و بدون حد؛ recovery با res = 100، wgt = 1 و lim = 200؛ scrub با res = 0 و wgt = 2. شبیه‌سازی ما همین الگوریتم را با بازه‌های 1 میلی‌ثانیه‌ای اجرا کرد.
+**Numerical example.** Three clients send requests continuously: client with res = 300, wgt = 1 and no limit; recovery with res = 100, wgt = 1 and lim = 200; scrub with res = 0 and wgt = 2. Our simulation ran this same algorithm with 1-millisecond steps.
 
-- **ظرفیت 1000 درخواست در ثانیه:** client ‏300 درخواست در ثانیه گرفت که همه در فاز reservation بود. recovery ‏200 گرفت: 100 از reservation و 100 از weight، و حد 200 آن را متوقف کرد. scrub بقیه، یعنی 500، را در فاز weight گرفت. چرا client از فاز weight سهمی نگرفت؟ برچسب P هر کلاینت با هر درخواست سرویس‌شده جلو می‌رود، حتی در فاز reservation. 300 درخواست client برچسب P آن را 300 ثانیه جلو برده است، در حالی که scrub با وزن 2 هر درخواست فقط 0.5 جلو می‌رود. سهم وزنی client از 800 درخواستی که برای client و scrub می‌ماند ‏800 / 3 ≈ 267 است و از رزرو 300 کمتر است. پس client همان 300 را می‌گیرد. این همان رفتار مورد انتظار mClock است: هر کلاینت تقریباً max(رزرو، سهم وزنی) را می‌گیرد.
-- **ظرفیت 350 درخواست در ثانیه (کمتر از 400 درخواست رزروشده):** client حدود 263 و recovery حدود 88 گرفت، یعنی تقریباً نسبت 3 به 1 رزروها. scrub تقریباً هیچ نگرفت. اگر ظرفیت واقعی OSD از مجموع رزروها کمتر باشد، رزروها به نسبت کوچک می‌شوند و کلاینت‌های بدون رزرو گرسنه می‌مانند. به همین دلیل `osd_mclock_max_capacity_iops_*` اگر بیش از واقعیت تخمین زده شده باشد (فصل ۱۰)، تضمین‌های پروفایل را بی‌معنا می‌کند.
+- **Capacity of 1000 requests per second:** client got 300 requests per second, all in the reservation phase. recovery got 200: 100 from reservation and 100 from weight, and its limit of 200 stopped it. scrub got the rest, 500, in the weight phase. Why did client get no share from the weight phase? Each client's P tag advances with every served request, even in the reservation phase. client's 300 requests advanced its P tag by 300 seconds, while scrub, with weight 2, advances only 0.5 per request. client's weighted share of the 800 requests left for client and scrub is 800 / 3 ≈ 267, which is less than its reservation of 300. So client gets just the 300. This is exactly mClock's expected behaviour: each client gets roughly max(reservation, weighted share).
+- **Capacity of 350 requests per second (less than the 400 reserved requests):** client got about 263 and recovery about 88, roughly the 3 to 1 ratio of the reservations. scrub got almost nothing. If the OSD's real capacity is below the sum of the reservations, the reservations shrink proportionally and clients without a reservation starve. This is why `osd_mclock_max_capacity_iops_*`, if overestimated (chapter 10), makes the profile's guarantees meaningless.
 
-![خروجی شبیه‌سازی dmClock برای سه کلاینت با رزرو، وزن و حد متفاوت. سمت چپ، ظرفیت 1000 درخواست در ثانیه: آبی سرویس در فاز reservation و نارنجی سرویس در فاز weight است. client فقط رزرو خود را می‌گیرد، recovery به حد 200 می‌رسد و scrub بقیه را می‌گیرد. سمت راست، ظرفیت 350 درخواست در ثانیه که از مجموع رزروها کمتر است: رزروها به نسبت 3 به 1 کوچک می‌شوند و scrub تقریباً صفر می‌گیرد. cost هر درخواست 1 فرض شده است](figures/ch21/f10_dmclock.png){#fig-21-f10_dmclock}
+![dmClock simulation output for three clients with different reservations, weights and limits. Left, capacity of 1000 requests per second: blue is service in the reservation phase and orange is service in the weight phase. client gets only its reservation, recovery reaches its limit of 200 and scrub takes the rest. Right, capacity of 350 requests per second, which is below the sum of the reservations: the reservations shrink in a 3 to 1 ratio and scrub gets almost zero. Each request's cost is assumed to be 1](figures/ch21/f10_dmclock.png){#fig-21-f10_dmclock}
 
-![منطق دو مرحله‌ای dmClock. هنگام رسیدن هر درخواست به سر صف کلاینت، سه برچسب R، P و L از برچسب قبلی همان کلاینت و زمان رسیدن ساخته می‌شوند. در هر فراخوانی do_next_request، ابتدا رزروهای سررسیدشده سرویس می‌گیرند. اگر رزروی سررسید نشده بود، از میان کلاینت‌هایی که از حدشان عبور نکرده‌اند، کمینه‌ی P انتخاب می‌شود و برچسب R آن کلاینت به عقب برمی‌گردد. OSD با AtLimit::Wait ساخته می‌شود، یعنی اگر همه به حد رسیده باشند، هیچ درخواستی بیرون نمی‌آید](figures/ch21/f11_dmnext.png){#fig-21-f11_dmnext}
+![The two-phase logic of dmClock. When each request reaches the head of the client's queue, three tags R, P and L are built from that client's previous tag and the arrival time. On each do_next_request call, due reservations are served first. If no reservation was due, the minimum P is chosen among clients that have not exceeded their limit, and that client's R tag is moved back. The OSD is built with AtLimit::Wait, meaning that if all have reached their limit, no request comes out](figures/ch21/f11_dmnext.png){#fig-21-f11_dmnext}
 
-# سیستم‌عامل، شبکه و CPU {#sec-21-8}
+# Operating system, network and CPU {#sec-21-8}
 
-| حوزه | تنظیم پیشنهادی | چرا |
+| Area | Suggested setting | Why |
 |---|---|---|
-| CPU | `tuned-adm profile throughput-performance` یا latency-performance؛ غیرفعال کردن C-stateهای عمیق در BIOS برای NVMe | بیدار شدن هسته‌ها از C-state عمیق ده‌ها میکروثانیه تأخیر می‌افزاید |
-| زمان‌بند I/O | `none` برای NVMe، `mq-deadline` برای HDD | زمان‌بند اضافه برای NVMe سربار است |
-| شبکه | شبکه‌ی cluster جدا یا پهنای باند کافی؛ MTU یکسان در کل مسیر | بازیابی و تکثیر از شبکه‌ی cluster عبور می‌کنند |
-| MTU | اگر jumbo frame (۹۰۰۰) به کار می‌رود، روی همه‌ی سوئیچ‌ها و میزبان‌ها | MTU ناهماهنگ باعث از دست رفتن بسته و heartbeat failure می‌شود |
-| NUMA | نگه داشتن OSD نزدیک کارت شبکه و NVMe همان NUMA node | کاهش ترافیک بین سوکت‌ها |
-| swap | حداقل یا غیرفعال؛ پایش OOM | swap شدن OSD تأخیر را غیرقابل پیش‌بینی می‌کند |
+| CPU | `tuned-adm profile throughput-performance` or latency-performance; disable deep C-states in the BIOS for NVMe | cores waking from a deep C-state add tens of microseconds of latency |
+| I/O scheduler | `none` for NVMe, `mq-deadline` for HDD | an extra scheduler is overhead for NVMe |
+| Network | a separate cluster network or enough bandwidth; the same MTU along the whole path | recovery and replication go over the cluster network |
+| MTU | if jumbo frames (9000) are used, on all switches and hosts | mismatched MTU causes packet loss and heartbeat failure |
+| NUMA | keep the OSD near the network card and NVMe of the same NUMA node | less traffic between sockets |
+| swap | minimal or disabled; monitor OOM | an OSD being swapped makes latency unpredictable |
 
 ```bash
-# بررسی سریع روی هر میزبان
+# quick check on each host
 cat /sys/block/nvme0n1/queue/scheduler
 tuned-adm active
 ip -d link show bond0 | grep -E "mtu|bond"
-ping -M do -s 8972 -c 3 10.20.0.12          # آزمون مسیر jumbo frame
+ping -M do -s 8972 -c 3 10.20.0.12          # test the jumbo frame path
 ethtool -S ens1f0 | grep -iE "drop|err" | grep -v ": 0"
 ```
 
 ::: {.warn}
-هشدار ceph-mixin با نام CephNodeInconsistentMTU و CephNodeNetworkPacketDrops دقیقاً برای همین مسائل است. اگر OSDها «wrongly marked me down» گزارش می‌دهند و همه‌ی میزبان‌ها سالم به نظر می‌رسند، MTU و خطاهای کارت شبکه را اول بررسی کنید.
+The ceph-mixin alerts named CephNodeInconsistentMTU and CephNodeNetworkPacketDrops are exactly for these problems. If OSDs report "wrongly marked me down" and all hosts look healthy, check the MTU and network card errors first.
 :::
 
-# طراحی pool و کلاینت {#sec-21-9}
+# Pool and client design {#sec-21-9}
 
-- **تکثیری در مقابل EC**: برای نوشتن‌های کوچک تصادفی (پایگاه داده روی RBD)، تکثیری تأخیر کمتری دارد؛ EC برای داده‌ی بزرگ و ترتیبی. در Tentacle، FastEC فاصله را برای بارهای ترکیبی کم کرده است (فصل ۱۳).
-- **تعداد PG**: PG کم یعنی موازی‌سازی کم در OSDهای سریع؛ autoscaler را با `bulk` و `target_size_ratio` راهنمایی کنید (فصل ۱۹).
-- **RBD**: کش librbd برای ماشین‌های مجازی، `rbd_cache_policy` و در صورت نیاز کش persistent write-back؛ اندازه‌ی شیء (پیش‌فرض ۴ مگابایت) و striping برای بارهای ترتیبی.
-- **RGW**: shardهای شاخص bucket (resharding پویا به‌صورت پیش‌فرض فعال است)، تعداد threadهای frontend و جداسازی pool شاخص روی NVMe.
-- **CephFS**: pin کردن زیردرخت‌ها به MDS rankها و چند MDS فعال برای بار متادیتای سنگین.
+- **Replicated vs EC**: for small random writes (a database on RBD), replication has lower latency; EC is for large, sequential data. In Tentacle, FastEC has narrowed the gap for mixed workloads (chapter 13).
+- **Number of PGs**: few PGs means little parallelism on fast OSDs; guide the autoscaler with `bulk` and `target_size_ratio` (chapter 19).
+- **RBD**: the librbd cache for virtual machines, `rbd_cache_policy` and, if needed, the persistent write-back cache; object size (default 4 megabytes) and striping for sequential workloads.
+- **RGW**: bucket index shards (dynamic resharding is enabled by default), the number of frontend threads, and putting the index pool on NVMe.
+- **CephFS**: pinning subtrees to MDS ranks and several active MDSs for heavy metadata load.
 
-# سنجش {#sec-21-10}
+# Benchmarking {#sec-21-10}
 
-## ابزارها {#sec-21-10-1}
+## Tools {#sec-21-10-1}
 
-| ابزار | لایه | نمونه |
+| Tool | Layer | Example |
 |---|---|---|
-| rados bench | RADOS (بدون librbd) | `rados bench -p bench 60 write -b 4M -t 16 --no-cleanup` |
-| ceph tell osd.N bench | یک OSD منفرد | `ceph tell osd.3 bench 1073741824 4194304` |
+| rados bench | RADOS (without librbd) | `rados bench -p bench 60 write -b 4M -t 16 --no-cleanup` |
+| ceph tell osd.N bench | a single OSD | `ceph tell osd.3 bench 1073741824 4194304` |
 | rbd bench | librbd | `rbd bench --io-type write --io-size 4K --io-pattern rand vm-fast/test` |
-| fio با ioengine=rbd | librbd از دید برنامه | فایل job با `ioengine=rbd` |
-| fio روی krbd یا VM | مسیر کامل کاربر | `fio --rw=randwrite --bs=4k --iodepth=32 --direct=1` |
-| CBT | سنجش خودکار و تکرارپذیر | github.com/ceph/cbt |
+| fio with ioengine=rbd | librbd from the application's view | a job file with `ioengine=rbd` |
+| fio on krbd or a VM | the user's full path | `fio --rw=randwrite --bs=4k --iodepth=32 --direct=1` |
+| CBT | automated, repeatable benchmarking | github.com/ceph/cbt |
 
 ```ini
-; fio-rbd.job — نمونه‌ی این کتاب
+; fio-rbd.job — this book's example
 [global]
 ioengine=rbd
 clientname=bench
@@ -391,54 +390,54 @@ numjobs=4
 ```
 
 ::: {.tip}
-همیشه **صدک‌ها** (p99، p99.9) را گزارش کنید، نه فقط میانگین. Ceph در میانگین ممکن است خوب باشد ولی دم توزیع تأخیر (مثلاً به دلیل deep scrub یا یک OSD کند) تجربه‌ی کاربر را خراب کند. سنجش را دست‌کم چند دقیقه با ramp-up اجرا کنید تا کش‌ها و BlueStore به حالت پایدار برسند.
+Always report **percentiles** (p99, p99.9), not just the average. Ceph may look good on average while the tail of the latency distribution (for example because of deep scrub or a slow OSD) ruins the user experience. Run benchmarks for at least several minutes with a ramp-up so the caches and BlueStore reach a steady state.
 :::
 
 ::: {.warn}
-سنجش روی کلاستر تولیدی بار واقعی کاربران را مختل می‌کند و `rados bench` با `--no-cleanup` داده باقی می‌گذارد. در pool جدا اجرا و پس از آن `rados -p bench cleanup` کنید. `ceph tell osd.N bench` روی همان دیسک OSD می‌نویسد.
+Benchmarking on a production cluster disrupts real user load, and `rados bench` with `--no-cleanup` leaves data behind. Run it in a separate pool and afterwards run `rados -p bench cleanup`. `ceph tell osd.N bench` writes to the OSD's own disk.
 :::
 
-::: {.summary title="نکات SRE این فصل"}
+::: {.summary title="SRE notes for this chapter"}
 
-- یک تغییر در هر زمان؛ هر تغییر را با `ceph config` و قابل بازگشت ثبت کنید.
-- پیش از تنظیم نرم‌افزار، CPU، دیسک و شبکه را بررسی کنید.
-- پروفایل mClock را بر اساس زمان روز تغییر دهید، نه osd_max_backfills را.
-- `osd_mclock_max_capacity_iops_*` را پس از سنجش واقعی، در صورت نادرست بودن سنجش خودکار، تنظیم کنید.
-- صدک‌ها را بسنجید و گزارش کنید.
+- One change at a time; record every change with `ceph config`, reversibly.
+- Check CPU, disk and network before software tuning.
+- Change the mClock profile by time of day, not osd_max_backfills.
+- Set `osd_mclock_max_capacity_iops_*` after a real benchmark, if the automatic benchmark is wrong.
+- Measure and report percentiles.
 
 :::
 
-# تکمیلی و به‌روز {#sec-21-11}
+# Supplementary and up to date {#sec-21-11}
 
-- WPQ دیگر پیش‌فرض نیست؛ از Quincy، mClock زمان‌بند پیش‌فرض است و بیشتر راهنماهای تنظیم قدیمی (sleepهای بازیابی، osd_max_backfills) با آن کار نمی‌کنند.
-- پیش‌فرض شاردهای HDD در Tentacle از ۵×۱ به ۱×۵ تغییر کرد.
-- سازوکار جلوگیری از گرسنگی صف immediate در mClock (tracker 69078) در مستندات latest آمده است.
-- FileStore در Reef پشتیبانی نمی‌شود؛ همه‌ی تنظیمات این فصل برای BlueStore است.
-- **Crimson/SeaStore**: بازنویسی OSD بر پایه‌ی Seastar در حال توسعه است؛ وضعیت پشتیبانی آن را برای نسخه‌ی خود در مستندات بررسی کنید و آن را در تولید بدون اطمینان از پشتیبانی رسمی به کار نبرید.
+- WPQ is no longer the default; since Quincy, mClock is the default scheduler, and most old tuning guides (recovery sleeps, osd_max_backfills) do not work with it.
+- The default HDD shards changed in Tentacle from 5×1 to 1×5.
+- The starvation-prevention mechanism for mClock's immediate queue (tracker 69078) appears in the latest documentation.
+- FileStore is not supported in Reef; all settings in this chapter are for BlueStore.
+- **Crimson/SeaStore**: a rewrite of the OSD based on Seastar is under development; check its support status for your version in the documentation, and do not use it in production without being sure of official support.
 
-# تمرین عملی {#sec-21-12}
+# Hands-on exercise {#sec-21-12}
 
-1. با `rados bench` و `rbd bench` خط پایه بگیرید و نتایج را با صدک‌ها ثبت کنید.
-2. پروفایل mClock را بین balanced و high_client_ops تغییر دهید و تأخیر کلاینت را در حین backfill یک OSD مقایسه کنید.
-3. `osd_max_backfills` را بدون override تغییر دهید و ببینید اثری ندارد؛ سپس با override آزمایش کنید و برگردانید.
-4. مقدار `osd_mclock_max_capacity_iops_ssd` تعیین‌شده برای هر OSD را با `ceph config dump` ببینید و با `ceph tell osd.N bench` مقایسه کنید.
-5. روی یک میزبان MTU را ناهماهنگ کنید (در آزمایشگاه) و اثر را روی heartbeat و هشدارها ببینید.
-6. در `dmclock_server.h`، تابع انتخاب درخواست بعدی را پیدا و با شبه‌کد این فصل مقایسه کنید.
+1. Take a baseline with `rados bench` and `rbd bench` and record the results with percentiles.
+2. Switch the mClock profile between balanced and high_client_ops and compare client latency during the backfill of one OSD.
+3. Change `osd_max_backfills` without override and see that it has no effect; then test with override and revert.
+4. See the `osd_mclock_max_capacity_iops_ssd` value set for each OSD with `ceph config dump` and compare it with `ceph tell osd.N bench`.
+5. Mismatch the MTU on one host (in a lab) and see the effect on heartbeats and alerts.
+6. In `dmclock_server.h`, find the function that chooses the next request and compare it with this chapter's pseudocode.
 
-# پرسش‌های مرور {#sec-21-13}
+# Review questions {#sec-21-13}
 
-1. چرا تنظیم کارایی باید با خط پایه و یک تغییر در هر زمان انجام شود؟
-2. شارد هر PG چگونه تعیین می‌شود و چرا همه‌ی عملیات یک PG در یک شارد است؟
-3. تغییر پیش‌فرض شاردهای HDD در Tentacle چیست و چرا معقول است؟
-4. سه پارامتر mClock را تعریف کنید.
-5. برچسب R در dmclock چگونه محاسبه می‌شود و max(now, ...) چه نقشی دارد؟
-6. پروفایل high_client_ops چه تفاوتی با balanced دارد؟
-7. چرا تغییر osd_max_backfills در پروفایل‌های داخلی اثری ندارد؟
-8. OSD ظرفیت IOPS خود را چگونه تعیین می‌کند و چه زمانی نتیجه را کنار می‌گذارد؟
-9. سه تنظیم سیستم‌عامل یا شبکه که بیشترین اثر را دارند نام ببرید.
-10. چرا باید صدک‌ها را به جای میانگین گزارش کرد؟
+1. Why should performance tuning be done with a baseline and one change at a time?
+2. How is each PG's shard determined, and why are all operations of a PG in one shard?
+3. What is the change to the default HDD shards in Tentacle, and why is it sensible?
+4. Define the three mClock parameters.
+5. How is the R tag computed in dmclock, and what role does max(now, ...) play?
+6. How does the high_client_ops profile differ from balanced?
+7. Why does changing osd_max_backfills have no effect in the built-in profiles?
+8. How does the OSD determine its IOPS capacity, and when does it discard the result?
+9. Name three operating system or network settings with the greatest effect.
+10. Why should percentiles be reported instead of the average?
 
-# منابع این فصل {#sec-21-14}
+# Sources for this chapter {#sec-21-14}
 
 - mClock config reference: https://docs.ceph.com/en/latest/rados/configuration/mclock-config-ref/
 - OSD config reference: https://docs.ceph.com/en/latest/rados/configuration/osd-config-ref/
