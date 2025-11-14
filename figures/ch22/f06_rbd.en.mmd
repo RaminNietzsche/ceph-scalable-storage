@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["Image layer (librbd/io)"]
+    direction LR
+    a["api::Io / aio_write"] --> b["ImageDispatcher<br/>(QoS, exclusive lock,<br/>journal, cache)"] --> c["AbstractImageWriteRequest::<br/>send_request<br/>Striper: offset → objects"]
+  end
+  subgraph R2["Object layer"]
+    direction LR
+    d["ObjectDispatcher::send_dispatch<br/>→ ObjectDispatch::write"] --> e["AbstractObjectWriteRequest::send<br/>pre_write_object_map_update"] --> f["write_object<br/>(on ENOENT in a clone → copyup)<br/>post_write_object_map_update"]
+  end
+  R1 ~~~ R2

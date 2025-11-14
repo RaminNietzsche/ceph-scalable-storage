@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph R1["Base and shared"]
+    direction LR
+    inc["include/<br/>basic types, encoding.h, denc.h,<br/>rados/librados.hpp"] --- com["common/<br/>config, log, perf counters,<br/>Finisher, Timer, WorkQueue, admin_socket"] --- msg["msg/<br/>async/: AsyncMessenger,<br/>ProtocolV2, EventCenter"] --- auth["auth/<br/>cephx, KeyRing"] --- cr["crush/<br/>mapper.c, CrushWrapper"]
+  end
+  subgraph R2["Client and libraries"]
+    direction LR
+    osdc["osdc/<br/>Objecter, Striper"] --- lr["librados/<br/>RadosClient, IoCtxImpl"] --- lrbd["librbd/<br/>ImageCtx, io/, exclusive_lock/"] --- cl["client/<br/>CephFS client (Client.cc)"] --- cls["cls/ and objclass/<br/>OSD-side classes"]
+  end
+  subgraph R3["Daemons"]
+    direction LR
+    mon["mon/<br/>Monitor, Paxos, *Monitor"] --- osd["osd/<br/>OSD, PG, PrimaryLogPG, PeeringState,<br/>scrubber/, scheduler/"] --- os["os/<br/>ObjectStore, bluestore/, memstore/"] --- mds["mds/<br/>MDSRank, Server, Locker, MDCache"] --- mgr["mgr/ + pybind/mgr/"]
+  end
+  subgraph R4["Other"]
+    direction LR
+    rgw["rgw/<br/>frontends, rgw_op, driver/rados"] --- cri["crimson/<br/>next-generation OSD on Seastar"] --- ec["erasure-code/<br/>jerasure, isa, clay, shec"] --- tools["tools/<br/>rados, ceph-objectstore-tool,<br/>ceph-dencoder, osdmaptool"] --- py["pybind/ and python-common/<br/>cephadm, Python bindings"]
+  end
+  R1 ~~~ R2 ~~~ R3 ~~~ R4

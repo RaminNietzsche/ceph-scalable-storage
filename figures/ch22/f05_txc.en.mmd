@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["queue_transactions → _txc_add_transaction → _write → _do_write"]
+    direction LR
+    p["STATE_PREPARE<br/>build TransContext,<br/>allocate extent"] --> sm["_do_write_small<br/>(below min_alloc or inside a blob)"] --- bg["_do_write_big<br/>(block aligned)"] --> aw["_do_alloc_write<br/>Allocator + checksum + compression"]
+  end
+  subgraph R2["Two data paths"]
+    direction LR
+    dir["direct: aio to the device<br/>STATE_AIO_WAIT → STATE_IO_DONE"] --- def["deferred: data in the WAL (prefix L)<br/>size ≤ prefer_deferred_size<br/>(HDD 64K, SSD 0)"]
+  end
+  subgraph R3["commit"]
+    direction LR
+    kq["STATE_KV_QUEUED → kv_sync_thread:<br/>one RocksDB batch + fsync"] --> ks["STATE_KV_SUBMITTED → STATE_KV_DONE<br/>(_txc_committed_kv → on_commit)"] --> dq["STATE_DEFERRED_QUEUED → DEFERRED_CLEANUP<br/>(the actual deferred write later)"] --> dn["STATE_FINISHING → STATE_DONE"]
+  end
+  R1 ~~~ R2 ~~~ R3

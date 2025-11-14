@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Network: msg/async"]
+    direction LR
+    w["Worker × ms_async_op_threads (3)<br/>each an EventCenter (epoll)"] --> fd["ms_fast_dispatch<br/>(in the same network thread, no heavy lock)"]
+  end
+  subgraph R2["Op processing: ShardedOpWQ"]
+    direction LR
+    q["OSDShard[i].scheduler<br/>i = hash(pgid) % shards"] --> tp["ShardedThreadPool:<br/>threads_per_shard threads per shard"] --> pr["dequeue_op → PG lock →<br/>do_request"]
+  end
+  subgraph R3["Helpers"]
+    direction LR
+    fin["Finisher: runs callbacks<br/>in a separate thread (on_commit etc.)"] --- tm["SafeTimer: timed events<br/>(tick, heartbeat)"] --- kvt["BlueStore: kv_sync_thread<br/>+ kv_finalize_thread"]
+  end
+  R1 ~~~ R2 ~~~ R3

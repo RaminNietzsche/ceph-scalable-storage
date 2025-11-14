@@ -1356,86 +1356,82 @@ ch21/f11_dmnext:
   سرویس در فاز weight و R های بعدی همان کلاینت را cost/res کم کن: serve in the weight phase and reduce that client's next Rs by cost/res
   'AtLimit::Wait در OSD: صبر تا کمینه‌ی R یا L بعدی': 'AtLimit::Wait in the OSD: wait until the next minimum R or L'
 ch22/f01_repo:
-  پایه و مشترک: null
-  انواع پایه،: null
-  کلاینت و کتابخانه‌ها: null
-  کلاینت: null
-  و: null
-  کلاس‌های سمت: null
-  ها: null
-  دیگر: null
-  نسل بعد روی: null
-  پایتون: null
+  پایه و مشترک: Base and shared
+  include/<br/>انواع پایه، encoding.h، denc.h،<br/>rados/librados.hpp: include/<br/>basic types, encoding.h, denc.h,<br/>rados/librados.hpp
+  common/<br/>config، log، perf counters،<br/>Finisher، Timer، WorkQueue، admin_socket: common/<br/>config, log, perf counters,<br/>Finisher, Timer, WorkQueue, admin_socket
+  'msg/<br/>async/: AsyncMessenger،<br/>ProtocolV2، EventCenter': 'msg/<br/>async/: AsyncMessenger,<br/>ProtocolV2, EventCenter'
+  auth/<br/>cephx، KeyRing: auth/<br/>cephx, KeyRing
+  crush/<br/>mapper.c، CrushWrapper: crush/<br/>mapper.c, CrushWrapper
+  کلاینت و کتابخانه‌ها: Client and libraries
+  osdc/<br/>Objecter، Striper: osdc/<br/>Objecter, Striper
+  librados/<br/>RadosClient، IoCtxImpl: librados/<br/>RadosClient, IoCtxImpl
+  librbd/<br/>ImageCtx، io/، exclusive_lock/: librbd/<br/>ImageCtx, io/, exclusive_lock/
+  client/<br/>کلاینت CephFS (Client.cc): client/<br/>CephFS client (Client.cc)
+  cls/ و objclass/<br/>کلاس‌های سمت OSD: cls/ and objclass/<br/>OSD-side classes
+  daemonها: Daemons
+  mon/<br/>Monitor، Paxos، *Monitor: mon/<br/>Monitor, Paxos, *Monitor
+  osd/<br/>OSD، PG، PrimaryLogPG، PeeringState،<br/>scrubber/، scheduler/: osd/<br/>OSD, PG, PrimaryLogPG, PeeringState,<br/>scrubber/, scheduler/
+  os/<br/>ObjectStore، bluestore/، memstore/: os/<br/>ObjectStore, bluestore/, memstore/
+  mds/<br/>MDSRank، Server، Locker، MDCache: mds/<br/>MDSRank, Server, Locker, MDCache
+  دیگر: Other
+  rgw/<br/>frontends، rgw_op، driver/rados: rgw/<br/>frontends, rgw_op, driver/rados
+  crimson/<br/>OSD نسل بعد روی Seastar: crimson/<br/>next-generation OSD on Seastar
+  erasure-code/<br/>jerasure، isa، clay، shec: erasure-code/<br/>jerasure, isa, clay, shec
+  tools/<br/>rados، ceph-objectstore-tool،<br/>ceph-dencoder، osdmaptool: tools/<br/>rados, ceph-objectstore-tool,<br/>ceph-dencoder, osdmaptool
+  pybind/ و python-common/<br/>cephadm، binding پایتون: pybind/ and python-common/<br/>cephadm, Python bindings
 ch22/f02_classes:
-  سمت کلاینت: null
-  مالک: null
-  برای هر: null
-  سمت: null
-  شامل: null
-  نگاشت: null
-  ذخیره‌سازی: null
-  انتزاعی: null
+  سمت کلاینت: Client side
+  مالک: owns
+  برای هر OSD: per OSD
+  سمت OSD: OSD side
+  شامل: contains
+  نگاشت pg → shard: maps pg → shard
+  PG ← PrimaryLogPG<br/>(+ PeeringState، PGLog): PG ← PrimaryLogPG<br/>(+ PeeringState, PGLog)
+  ذخیره‌سازی: Storage
+  ObjectStore (انتزاعی): ObjectStore (abstract)
+  BlueStore<br/>Collection، Onode، TransContext: BlueStore<br/>Collection, Onode, TransContext
 ch22/f03_threads:
-  شبکه: null
-  هر کدام یک: null
-  در همان: null
-  شبکه، بدون قفل سنگین: null
-  پردازش: null
-  برای هر شارد: null
-  کمکی: null
-  اجرای: null
-  ها: null
-  در: null
-  جدا: null
-  و: null
-  رویدادهای زمان‌دار: null
+  'شبکه: msg/async': 'Network: msg/async'
+  Worker × ms_async_op_threads (3)<br/>هر کدام یک EventCenter (epoll): Worker × ms_async_op_threads (3)<br/>each an EventCenter (epoll)
+  ms_fast_dispatch<br/>(در همان thread شبکه، بدون قفل سنگین): ms_fast_dispatch<br/>(in the same network thread, no heavy lock)
+  'پردازش op: ShardedOpWQ': 'Op processing: ShardedOpWQ'
+  ShardedThreadPool:<br/>threads_per_shard thread برای هر شارد: ShardedThreadPool:<br/>threads_per_shard threads per shard
+  کمکی: Helpers
+  'Finisher: اجرای callbackها<br/>در thread جدا (on_commit و ...)': 'Finisher: runs callbacks<br/>in a separate thread (on_commit etc.)'
+  'SafeTimer: رویدادهای زمان‌دار<br/>(tick، heartbeat)': 'SafeTimer: timed events<br/>(tick, heartbeat)'
 ch22/f04_write:
-  برنامه: null
-  روی: null
-  تراکنش محلی: null
-  پس از: null
-  همه: null
-  کردند: null
+  as برنامه (librados): as application (librados)
+  _send_op → MOSDOp روی msgr2: _send_op → MOSDOp over msgr2
+  queue_transactions (تراکنش محلی + pg log): queue_transactions (local transaction + pg log)
+  on_commit (پس از kv commit): on_commit (after kv commit)
+  'eval_repop: همه commit کردند': 'eval_repop: all have committed'
 ch22/f05_txc:
-  ساخت: null
-  تخصیص: null
-  کمتر از: null
-  یا داخل: null
-  هم‌تراز با بلوک: null
-  فشرده‌سازی: null
-  دو مسیر داده: null
-  مستقیم: null
-  به دستگاه: null
-  داده در: null
-  پیشوند: null
-  اندازه: null
-  یک: null
-  نوشتن واقعی: null
-  بعداً: null
+  STATE_PREPARE<br/>ساخت TransContext،<br/>تخصیص extent: STATE_PREPARE<br/>build TransContext,<br/>allocate extent
+  _do_write_small<br/>(کمتر از min_alloc یا داخل blob): _do_write_small<br/>(below min_alloc or inside a blob)
+  _do_write_big<br/>(هم‌تراز با بلوک): _do_write_big<br/>(block aligned)
+  _do_alloc_write<br/>Allocator + checksum + فشرده‌سازی: _do_alloc_write<br/>Allocator + checksum + compression
+  دو مسیر داده: Two data paths
+  'مستقیم: aio به دستگاه<br/>STATE_AIO_WAIT → STATE_IO_DONE': 'direct: aio to the device<br/>STATE_AIO_WAIT → STATE_IO_DONE'
+  'deferred: داده در WAL (پیشوند L)<br/>اندازه ≤ prefer_deferred_size<br/>(HDD 64K، SSD 0)': 'deferred: data in the WAL (prefix L)<br/>size ≤ prefer_deferred_size<br/>(HDD 64K, SSD 0)'
+  STATE_KV_QUEUED → kv_sync_thread:<br/>یک batch RocksDB + fsync: STATE_KV_QUEUED → kv_sync_thread:<br/>one RocksDB batch + fsync
+  STATE_DEFERRED_QUEUED → DEFERRED_CLEANUP<br/>(نوشتن واقعی deferred بعداً): STATE_DEFERRED_QUEUED → DEFERRED_CLEANUP<br/>(the actual deferred write later)
 ch22/f06_rbd:
-  لایه‌ی تصویر: null
-  اشیا: null
-  لایه‌ی شیء: null
-  در صورت: null
-  در: null
+  لایه‌ی تصویر (librbd/io): Image layer (librbd/io)
+  ImageDispatcher<br/>(QoS، exclusive lock،<br/>journal، cache): ImageDispatcher<br/>(QoS, exclusive lock,<br/>journal, cache)
+  'AbstractImageWriteRequest::<br/>send_request<br/>Striper: offset → اشیا': 'AbstractImageWriteRequest::<br/>send_request<br/>Striper: offset → objects'
+  لایه‌ی شیء: Object layer
+  write_object<br/>(در صورت ENOENT در clone → copyup)<br/>post_write_object_map_update: write_object<br/>(on ENOENT in a clone → copyup)<br/>post_write_object_map_update
 ch22/f07_rgw:
-  ورود درخواست: null
-  نوشتن داده و: null
-  های: null
+  ورود درخواست: Request arrival
+  نوشتن داده و index: Writing data and index
+  RadosWriter::process<br/>(head + stripeهای tail): RadosWriter::process<br/>(head + tail stripes)
 ch22/f08_cephfs:
-  فراداده: null
-  از طریق: null
-  پاسخ همراه: null
-  مثلاً: null
-  برای تنها نویسنده: null
-  داده: null
-  مستقیم به: null
-  با: null
-  بافر در: null
-  بدون: null
-  نوشتن هم‌گام: null
-  ها: null
-  در مسیر داده نیست: null
+  'فراداده: از طریق MDS': 'Metadata: through the MDS'
+  پاسخ همراه cap<br/>(مثلاً Fwb برای تنها نویسنده): reply with caps<br/>(e.g. Fwb for the sole writer)
+  'داده: مستقیم به OSD': 'Data: directly to the OSD'
+  Client::_write<br/>→ get_caps(need Fw، want Fb): Client::_write<br/>→ get_caps(need Fw, want Fb)
+  'با Fb: بافر در ObjectCacher<br/>بدون Fb: نوشتن هم‌گام': 'with Fb: buffer in ObjectCacher<br/>without Fb: synchronous write'
+  Striper + Objecter → OSDها<br/>(MDS در مسیر داده نیست): Striper + Objecter → OSDs<br/>(the MDS is not on the data path)
 ch23/f01_stack:
   فضای کاربر: null
   هم‌تراز: null

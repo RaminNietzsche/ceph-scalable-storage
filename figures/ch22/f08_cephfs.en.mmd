@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["Metadata: through the MDS"]
+    direction LR
+    k["Client::open → Client::_open<br/>(MClientRequest OPEN)"] --> l["MDS: Server::handle_client_open<br/>Locker::acquire_locks"] --> c["reply with caps<br/>(e.g. Fwb for the sole writer)"]
+  end
+  subgraph R2["Data: directly to the OSD"]
+    direction LR
+    m["Client::_write<br/>→ get_caps(need Fw, want Fb)"] --> n["with Fb: buffer in ObjectCacher<br/>without Fb: synchronous write"] --> o["Striper + Objecter → OSDs<br/>(the MDS is not on the data path)"]
+  end
+  R1 ~~~ R2

@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Client side"]
+    direction LR
+    rc["librados::RadosClient"] -->|"owns"| ob["Objecter"] -->|"per OSD"| os_["OSDSession"] -->|"Connection"| am["AsyncMessenger<br/>→ AsyncConnection → ProtocolV2"]
+  end
+  subgraph R2["OSD side"]
+    direction LR
+    osd["OSD (Dispatcher)"] -->|"contains"| sh["OSDShard × N<br/>(scheduler: mClockScheduler)"] -->|"maps pg → shard"| pg["PG ← PrimaryLogPG<br/>(+ PeeringState, PGLog)"] -->|"pgbackend"| be["PGBackend ← ReplicatedBackend / ECBackend"]
+  end
+  subgraph R3["Storage"]
+    direction LR
+    tx["ObjectStore::Transaction<br/>(os/Transaction.h)"] --> st["ObjectStore (abstract)"] --> bs["BlueStore<br/>Collection, Onode, TransContext"] --> kv["KeyValueDB (RocksDB) + BlueFS<br/>+ Allocator (hybrid)"]
+  end
+  R1 ~~~ R2 ~~~ R3
