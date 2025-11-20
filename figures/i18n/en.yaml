@@ -1433,102 +1433,76 @@ ch22/f08_cephfs:
   'با Fb: بافر در ObjectCacher<br/>بدون Fb: نوشتن هم‌گام': 'with Fb: buffer in ObjectCacher<br/>without Fb: synchronous write'
   Striper + Objecter → OSDها<br/>(MDS در مسیر داده نیست): Striper + Objecter → OSDs<br/>(the MDS is not on the data path)
 ch23/f01_stack:
-  فضای کاربر: null
-  هم‌تراز: null
-  فهرست: null
-  مرز: null
-  یا: null
-  باز شده با: null
-  یک: null
-  برای هر: null
-  هسته: null
-  ، صف سخت‌افزاری: null
-  درایور: null
-  مستقیم از صفحه‌های کاربر: null
-  تکمیل: null
+  'فضای کاربر: ceph-osd': 'User space: ceph-osd'
+  BlueStore::_do_alloc_write<br/>bufferlist هم‌تراز 4K: BlueStore::_do_alloc_write<br/>4K-aligned bufferlist
+  'IOContext: فهرست aio_t<br/>(offset، iovec، write_hint)': 'IOContext: list of aio_t<br/>(offset, iovec, write_hint)'
+  مرز syscall: Syscall boundary
+  'libaio: io_submit(ctx، iocb[])<br/>یا io_uring: io_uring_prep_writev + io_uring_submit': 'libaio: io_submit(ctx, iocb[])<br/>or io_uring: io_uring_prep_writev + io_uring_submit'
+  fd باز شده با O_RDWR | O_DIRECT<br/>(یک fd برای هر write hint): fd opened with O_RDWR | O_DIRECT<br/>(one fd per write hint)
+  هسته: Kernel
+  'block layer: bio → request<br/>blk-mq، صف سخت‌افزاری': 'block layer: bio → request<br/>blk-mq, hardware queue'
+  درایور NVMe/SCSI<br/>DMA مستقیم از صفحه‌های کاربر: NVMe/SCSI driver<br/>direct DMA from user pages
+  'تکمیل: io_getevents / CQE<br/>→ _aio_thread → aio_callback': 'completion: io_getevents / CQE<br/>→ _aio_thread → aio_callback'
 ch23/f02_aio:
-  تراکنش: null
-  فقط در: null
-  ثبت می‌شود: null
-  تا: null
-  تعداد ثبت‌شده: null
-  با تأخیر: null
-  هر: null
-  یا رویداد: null
-  تکمیل‌شده: null
-  کاهش: null
-  وقتی همه‌ی: null
-  های: null
-  تمام شد: null
+  as thread تراکنش (txc): as transaction thread (txc)
+  aio_write(off, bl, ioc)  (فقط در ioc ثبت می‌شود): aio_write(off, bl, ioc)  (only recorded in ioc)
+  submit_batch(pending_aios) تا bdev_aio_max_queue_depth=1024: submit_batch(pending_aios) up to bdev_aio_max_queue_depth=1024
+  تعداد ثبت‌شده (EAGAIN → retry با تأخیر): number submitted (EAGAIN → retry with delay)
+  هر bdev_aio_poll_ms=250ms یا رویداد: every bdev_aio_poll_ms=250ms or event
+  aio_t[] تکمیل‌شده: completed aio_t[]
+  کاهش ioc->num_running: decrement ioc->num_running
+  aio_callback(priv=txc) وقتی همه‌ی aioهای ioc تمام شد: aio_callback(priv=txc) when all of ioc's aios are done
 ch23/f03_bl:
-  فهرست پیوندی: null
-  انتهایی برای: null
-  کل بایت‌ها: null
-  تعداد: null
-  پنجره روی یک: null
-  حافظه‌ی واقعی: null
-  شمارنده‌ی اتمیک: null
-  یک: null
-  می‌تواند بین چند: null
-  و چند: null
-  مشترک باشد: null
-  بدون کپی؛ با افزایش: null
+  'list<br/>_buffers: فهرست پیوندی ptr_node<br/>_carriage: ptr انتهایی برای append<br/>_len (کل بایت‌ها)، _num (تعداد ptr)': 'list<br/>_buffers: linked list of ptr_node<br/>_carriage: last ptr for append<br/>_len
+    (total bytes), _num (number of ptrs)'
+  'ptr: پنجره روی یک raw': 'ptr: a window onto a raw'
+  'ptr #1<br/>_raw، _off=0، _len=4096': 'ptr #1<br/>_raw, _off=0, _len=4096'
+  'ptr #2<br/>_raw، _off=128، _len=512': 'ptr #2<br/>_raw, _off=128, _len=512'
+  'ptr #3 (carriage)<br/>_raw، _off=0، _len=200': 'ptr #3 (carriage)<br/>_raw, _off=0, _len=200'
+  'raw: حافظه‌ی واقعی (include/buffer_raw.h)': 'raw: the actual memory (include/buffer_raw.h)'
+  raw_posix_aligned / raw_combined<br/>data، len، nref (شمارنده‌ی اتمیک)<br/>mempool، last_crc_offset/val: raw_posix_aligned / raw_combined<br/>data, len, nref (atomic counter)<br/>mempool, last_crc_offset/val
+  یک raw می‌تواند بین چند ptr<br/>و چند list مشترک باشد<br/>(بدون کپی؛ با افزایش nref): one raw can be shared by several ptrs<br/>and several lists<br/>(no copy; by incrementing nref)
 ch23/f04_crc:
-  یک بار در بارگذاری: null
-  با: null
-  و نسخه‌ی: null
-  نسخه‌های مخصوص: null
-  در غیر این صورت: null
-  جدولی، نرم‌افزاری: null
-  استفاده‌ها: null
-  هر: null
-  در حالت: null
-  و: null
-  با کش: null
-  روی: null
+  ceph_choose_crc32 (common/crc32c.cc) — یک بار در بارگذاری: ceph_choose_crc32 (common/crc32c.cc) — once at load time
+  x86 با AVX512 + VPCLMULQDQ<br/>→ intel_fast_avx512_vpclmul: x86 with AVX512 + VPCLMULQDQ<br/>→ intel_fast_avx512_vpclmul
+  x86 با SSE4.2<br/>→ intel_fast (و نسخه‌ی pclmul): x86 with SSE4.2<br/>→ intel_fast (and the pclmul version)
+  aarch64 با CRC32<br/>→ crc32c_aarch64: aarch64 with CRC32<br/>→ crc32c_aarch64
+  ppc / s390x / riscv<br/>→ نسخه‌های مخصوص: ppc / s390x / riscv<br/>→ dedicated versions
+  در غیر این صورت<br/>→ sctp (جدولی، نرم‌افزاری): otherwise<br/>→ sctp (table-driven, software)
+  استفاده‌ها: Uses
+  BlueStore csum هر chunk<br/>(bluestore_csum_type=crc32c): BlueStore csum per chunk<br/>(bluestore_csum_type=crc32c)
+  msgr2 در حالت crc:<br/>crc هر segment و preamble: msgr2 in crc mode:<br/>crc of each segment and preamble
+  bufferlist::crc32c با کش<br/>last_crc روی raw: bufferlist::crc32c with the<br/>last_crc cache on the raw
 ch23/f08_uring:
-  ارسال: null
-  در: null
-  قفل: null
-  برای هر: null
-  و: null
-  یا: null
-  هسته: null
-  خواندن: null
-  کامل شدن: null
-  نوشتن: null
-  و افزایش: null
-  برداشت: null
-  تا: null
-  ، سپس: null
-  اگر صفر بود: null
-  روی: null
-  با: null
-  و فراخوانی: null
+  'ارسال: aio_submit در KernelDevice': 'Submission: aio_submit in KernelDevice'
+  ioring_queue_t::submit_batch<br/>قفل sq_mutex: ioring_queue_t::submit_batch<br/>sq_mutex lock
+  برای هر aio_t:<br/>io_uring_get_sqe و init_sqe: for each aio_t:<br/>io_uring_get_sqe and init_sqe
+  io_uring_submit<br/>(io_uring_enter یا SQPOLL): io_uring_submit<br/>(io_uring_enter or SQPOLL)
+  هسته: Kernel
+  خواندن SQ tail: read the SQ tail
+  'blk-mq: bio و request': 'blk-mq: bio and request'
+  کامل شدن NVMe و IRQ: NVMe completion and IRQ
+  نوشتن CQE و افزایش CQ tail: write the CQE and advance the CQ tail
+  'برداشت: thread aio_thread در KernelDevice': 'Reaping: the aio_thread in KernelDevice'
+  get_next_completed<br/>قفل cq_mutex: get_next_completed<br/>cq_mutex lock
+  io_uring_for_each_cqe<br/>تا max = bdev_aio_reap_max (16)، سپس cq_advance: io_uring_for_each_cqe<br/>up to max = bdev_aio_reap_max (16), then cq_advance
+  'اگر صفر بود: epoll_wait روی ring_fd<br/>با bdev_aio_poll_ms': 'if zero: epoll_wait on ring_fd<br/>with bdev_aio_poll_ms'
+  aio_t.rval = cqe.res<br/>و فراخوانی aio_callback: aio_t.rval = cqe.res<br/>and call aio_callback
 ch23/f10_crczeros:
-  با: null
-  بزرگ‌تر از: null
-  برای هر بیت: null
-  در: null
-  ماتریس: null
-  یعنی جهش: null
-  بایت صفر: null
-  بایت آخر: null
-  با مسیر معمولی: null
-  مثال: null
-  بایت صفر و: null
-  پس: null
-  یک ضرب ماتریس: null
-  حداکثر: null
-  نتیجه: null
-  برابر محاسبه‌ی مستقیم: null
-  تطبیق: null
-  ذخیره‌شده در: null
-  کش دارد: null
-  درخواست با: null
-  دیگر: null
-  صفرها،: null
-  بدون خواندن دوباره‌ی داده: null
+  ceph_crc32c(crc، NULL، len) با len بزرگ‌تر از 16: ceph_crc32c(crc, NULL, len) with len greater than 16
+  remainder = len & 15<br/>n = len ≫ 4، range = 4: remainder = len & 15<br/>n = len ≫ 4, range = 4
+  برای هر بیت 1 در n:<br/>crc = M[range] × crc در GF(2): for each 1 bit in n:<br/>crc = M[range] × crc in GF(2)
+  M[r] = ماتریس 32×32<br/>یعنی جهش 2^r بایت صفر: M[r] = 32×32 matrix<br/>meaning a jump of 2^r zero bytes
+  remainder بایت آخر<br/>با مسیر معمولی: the last remainder bytes<br/>via the regular path
+  'مثال: 4096 بایت صفر و seed = 0xFFFFFFFF': 'Example: 4096 zero bytes and seed = 0xFFFFFFFF'
+  n = 256 = 2^8<br/>پس range 12: n = 256 = 2^8<br/>so range 12
+  یک ضرب ماتریس:<br/>حداکثر 32 XOR: one matrix multiplication:<br/>at most 32 XORs
+  نتیجه 0x6706BE76<br/>برابر محاسبه‌ی مستقیم: result 0x6706BE76<br/>equal to direct computation
+  تطبیق crc ذخیره‌شده در bufferlist::crc32c: Adjusting the stored crc in bufferlist::crc32c
+  raw کش دارد:<br/>(v، crc(buf، v)): the raw has cached:<br/>(v, crc(buf, v))
+  درخواست با seed دیگر v′: request with another seed v′
+  crc(buf، v′) = crc(buf، v)<br/>⊕ crc(صفرها، v ⊕ v′): crc(buf, v′) = crc(buf, v)<br/>⊕ crc(zeros, v ⊕ v′)
+  بدون خواندن دوباره‌ی داده: without reading the data again
 ch24/f01_layout:
   دستگاه: null
   با: null

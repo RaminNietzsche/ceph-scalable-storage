@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["ceph::buffer::list (include/buffer.h)"]
+    direction LR
+    l["list<br/>_buffers: linked list of ptr_node<br/>_carriage: last ptr for append<br/>_len (total bytes), _num (number of ptrs)"]
+  end
+  subgraph R2["ptr: a window onto a raw"]
+    direction LR
+    p1["ptr #1<br/>_raw, _off=0, _len=4096"] --- p2["ptr #2<br/>_raw, _off=128, _len=512"] --- p3["ptr #3 (carriage)<br/>_raw, _off=0, _len=200"]
+  end
+  subgraph R3["raw: the actual memory (include/buffer_raw.h)"]
+    direction LR
+    r1["raw_posix_aligned / raw_combined<br/>data, len, nref (atomic counter)<br/>mempool, last_crc_offset/val"] --- r2["one raw can be shared by several ptrs<br/>and several lists<br/>(no copy; by incrementing nref)"]
+  end
+  R1 ~~~ R2 ~~~ R3

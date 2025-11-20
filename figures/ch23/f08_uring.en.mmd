@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph S["Submission: aio_submit in KernelDevice"]
+    direction LR
+    s1["ioring_queue_t::submit_batch<br/>sq_mutex lock"] --> s2["for each aio_t:<br/>io_uring_get_sqe and init_sqe"] --> s3["prep_writev/readv<br/>IOSQE_FIXED_FILE"] --> s4["io_uring_submit<br/>(io_uring_enter or SQPOLL)"]
+  end
+  subgraph K["Kernel"]
+    direction LR
+    k1["read the SQ tail"] --> k2["blk-mq: bio and request"] --> k3["NVMe completion and IRQ"] --> k4["write the CQE and advance the CQ tail"]
+  end
+  subgraph C["Reaping: the aio_thread in KernelDevice"]
+    direction LR
+    c1["get_next_completed<br/>cq_mutex lock"] --> c2["io_uring_for_each_cqe<br/>up to max = bdev_aio_reap_max (16), then cq_advance"] --> c3["if zero: epoll_wait on ring_fd<br/>with bdev_aio_poll_ms"] --> c4["aio_t.rval = cqe.res<br/>and call aio_callback"]
+  end
+  S --> K --> C

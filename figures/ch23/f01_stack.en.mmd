@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["User space: ceph-osd"]
+    direction LR
+    a["BlueStore::_do_alloc_write<br/>4K-aligned bufferlist"] --> b["IOContext: list of aio_t<br/>(offset, iovec, write_hint)"] --> c["KernelDevice::aio_submit<br/>→ aio_queue_t::submit_batch"]
+  end
+  subgraph R2["Syscall boundary"]
+    direction LR
+    d["libaio: io_submit(ctx, iocb[])<br/>or io_uring: io_uring_prep_writev + io_uring_submit"] --> e["fd opened with O_RDWR | O_DIRECT<br/>(one fd per write hint)"]
+  end
+  subgraph R3["Kernel"]
+    direction LR
+    f["block layer: bio → request<br/>blk-mq, hardware queue"] --> g["NVMe/SCSI driver<br/>direct DMA from user pages"] --> h["completion: io_getevents / CQE<br/>→ _aio_thread → aio_callback"]
+  end
+  R1 ~~~ R2 ~~~ R3

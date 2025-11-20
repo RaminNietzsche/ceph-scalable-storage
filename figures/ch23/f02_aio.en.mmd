@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant T as transaction thread (txc)
+  participant K as KernelDevice
+  participant Q as aio_queue_t (libaio/io_uring)
+  participant A as _aio_thread
+  participant BS as BlueStore
+  T->>K: aio_write(off, bl, ioc)  (only recorded in ioc)
+  T->>K: aio_submit(ioc)
+  K->>Q: submit_batch(pending_aios) up to bdev_aio_max_queue_depth=1024
+  Q-->>K: number submitted (EAGAIN → retry with delay)
+  loop every bdev_aio_poll_ms=250ms or event
+    A->>Q: get_next_completed(max=bdev_aio_reap_max=16)
+    Q-->>A: completed aio_t[]
+    A->>A: decrement ioc->num_running
+  end
+  A->>BS: aio_callback(priv=txc) when all of ioc's aios are done
+  BS->>BS: _txc_state_proc: AIO_WAIT → IO_DONE → KV_QUEUED

@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["ceph_choose_crc32 (common/crc32c.cc) — once at load time"]
+    direction LR
+    a["x86 with AVX512 + VPCLMULQDQ<br/>→ intel_fast_avx512_vpclmul"] --> b["x86 with SSE4.2<br/>→ intel_fast (and the pclmul version)"] --> c["aarch64 with CRC32<br/>→ crc32c_aarch64"] --> d["ppc / s390x / riscv<br/>→ dedicated versions"] --> e["otherwise<br/>→ sctp (table-driven, software)"]
+  end
+  subgraph R2["Uses"]
+    direction LR
+    u1["BlueStore csum per chunk<br/>(bluestore_csum_type=crc32c)"] --- u2["msgr2 in crc mode:<br/>crc of each segment and preamble"] --- u3["bufferlist::crc32c with the<br/>last_crc cache on the raw"]
+  end
+  R1 ~~~ R2

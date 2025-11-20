@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph Z["ceph_crc32c(crc, NULL, len) with len greater than 16"]
+    direction LR
+    z1["remainder = len & 15<br/>n = len ≫ 4, range = 4"] --> z2["for each 1 bit in n:<br/>crc = M[range] × crc in GF(2)"] --> z3["M[r] = 32×32 matrix<br/>meaning a jump of 2^r zero bytes"] --> z4["the last remainder bytes<br/>via the regular path"]
+  end
+  subgraph E["Example: 4096 zero bytes and seed = 0xFFFFFFFF"]
+    direction LR
+    e1["n = 256 = 2^8<br/>so range 12"] --> e2["one matrix multiplication:<br/>at most 32 XORs"] --> e3["result 0x6706BE76<br/>equal to direct computation"]
+  end
+  subgraph A["Adjusting the stored crc in bufferlist::crc32c"]
+    direction LR
+    a1["the raw has cached:<br/>(v, crc(buf, v))"] --> a2["request with another seed v′"] --> a3["crc(buf, v′) = crc(buf, v)<br/>⊕ crc(zeros, v ⊕ v′)"] --> a4["without reading the data again"]
+  end
+  Z --> E --> A
