@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["block device (OSD with co-located DB)"]
+    direction LR
+    A["0x0000–0x0FFF<br/>bdev label<br/>«bluestore block device\n»+uuid (60B)<br/>+ ENCODE(v2) + crc32c"] --> B["0x1000–0x1FFF<br/>BlueFS superblock<br/>uuid, osd_uuid, seq,<br/>block_size, log_fnode"]
+    B --> C["0x2000 ...<br/>shared space:<br/>BlueFS extents (RocksDB)<br/>+ blob data"]
+  end
+  subgraph R2["label copies (if the device is large enough)"]
+    direction LR
+    D["1 GiB"] --> E["10 GiB"] --> F["100 GiB"] --> G["1000 GiB"]
+  end
+  subgraph R3["separate block.db device"]
+    direction LR
+    H["0x0000 label"] --> I["0x1000 BlueFS super"] --> J["from 8K (SUPER_RESERVED)<br/>BlueFS extents with bluefs_alloc_size=1M"]
+  end
+  R1 ~~~ R2 ~~~ R3

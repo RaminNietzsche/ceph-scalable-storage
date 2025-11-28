@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph R1["onode key (prefix O)"]
+    direction LR
+    K1["shard+0x80<br/>(u8)"] --> K2["pool+2^63<br/>(u64 BE)"] --> K3["hash<br/>bit-reversed (u32)"] --> K4["nspace!<br/>key ‹=› name!"] --> K5["snap, gen (u64)<br/>+ 'o'"]
+  end
+  subgraph R2["value: bluestore_onode_t"]
+    direction LR
+    V1["nid, size"] --> V2["attrs (xattr)"] --> V3["extent_map_shards[]<br/>{offset, bytes}"] --> V4["flags: OMAP/PGMETA/<br/>PERPOOL/PERPG"]
+  end
+  subgraph R3["extent map → blob → pextent"]
+    direction LR
+    E1["lextent<br/>logical_offset, length,<br/>blob_offset, blob"] --> E2["bluestore_blob_t<br/>extents[], flags,<br/>csum_*, compressed_length"] --> E3["pextent<br/>offset (denc_lba)<br/>length (lowz)"]
+  end
+  subgraph R4["separate shard (if inline grows large)"]
+    direction LR
+    X1["onode key + u32 offset + 'x'"] --> X2["list of lextents<br/>+ local blobs"] --> X3["spanning blobs<br/>in the onode itself"]
+  end
+  R1 ~~~ R2 ~~~ R3 ~~~ R4

@@ -1504,94 +1504,61 @@ ch23/f10_crczeros:
   crc(buf، v′) = crc(buf، v)<br/>⊕ crc(صفرها، v ⊕ v′): crc(buf, v′) = crc(buf, v)<br/>⊕ crc(zeros, v ⊕ v′)
   بدون خواندن دوباره‌ی داده: without reading the data again
 ch24/f01_layout:
-  دستگاه: null
-  با: null
-  هم‌دستگاه: null
-  فضای مشترک: null
-  های: null
-  داده‌ی: null
-  ها: null
-  کپی‌های: null
-  اگر دستگاه به اندازه‌ی کافی بزرگ باشد: null
-  جدا: null
-  از: null
+  دستگاه block (OSD با DB هم‌دستگاه): block device (OSD with co-located DB)
+  0x2000 ...<br/>فضای مشترک:<br/>extentهای BlueFS (RocksDB)<br/>+ داده‌ی blobها: 0x2000 ...<br/>shared space:<br/>BlueFS extents (RocksDB)<br/>+ blob data
+  کپی‌های label (اگر دستگاه به اندازه‌ی کافی بزرگ باشد): label copies (if the device is large enough)
+  دستگاه block.db جدا: separate block.db device
+  از 8K (SUPER_RESERVED)<br/>extentهای BlueFS با bluefs_alloc_size=1M: from 8K (SUPER_RESERVED)<br/>BlueFS extents with bluefs_alloc_size=1M
 ch24/f02_bluefs:
-  فایل لاگ: null
-  دنباله‌ای از: null
-  های تراکنش: null
-  کامل: null
-  افزایشی: null
-  فشرده‌سازی لاگ: null
-  و: null
-  متادیتای فعلی: null
-  به لاگ جدید: null
-  جدید: null
-  با: null
-  تازه: null
-  آزادسازی: null
-  های: null
-  لاگ قدیمی: null
+  فایل لاگ BlueFS<br/>دنباله‌ای از bluefs_transaction_t<br/>(uuid, seq, op_bl, crc): BlueFS log file<br/>a sequence of bluefs_transaction_t<br/>(uuid, seq, op_bl, crc)
+  opهای تراکنش: Transaction ops
+  OP_FILE_UPDATE(_INC)<br/>fnode کامل/افزایشی: OP_FILE_UPDATE(_INC)<br/>full/incremental fnode
+  فشرده‌سازی لاگ: Log compaction
+  size ≥ 16M<br/>و ratio ≥ 5: size ≥ 16M<br/>and ratio ≥ 5
+  dump متادیتای فعلی<br/>به لاگ جدید: dump current metadata<br/>to a new log
+  superblock جدید<br/>با log_fnode تازه: new superblock<br/>with a fresh log_fnode
+  آزادسازی extentهای<br/>لاگ قدیمی: free the old log's<br/>extents
 ch24/f03_onode:
-  کلید: null
-  مقدار: null
-  جدا: null
-  اگر: null
-  بزرگ شود: null
-  لیست: null
-  ها: null
-  های محلی: null
-  های: null
-  در خود: null
+  کلید onode (prefix O): onode key (prefix O)
+  'مقدار: bluestore_onode_t': 'value: bluestore_onode_t'
+  shard جدا (اگر inline بزرگ شود): separate shard (if inline grows large)
+  کلید onode + u32 offset + 'x': onode key + u32 offset + 'x'
+  لیست lextentها<br/>+ blobهای محلی: list of lextents<br/>+ local blobs
+  blobهای spanning<br/>در خود onode: spanning blobs<br/>in the onode itself
 ch24/f04_alloc:
-  پیش‌فرض: null
-  درخت: null
-  سقف حافظه: null
-  سرریز به: null
-  بیت برای هر واحد: null
-  در: null
-  کلید: null
-  شروع: null
-  هر: null
-  واحد: null
-  مقدار: null
-  بیت: null
-  بایت: null
-  تخصیص: null
-  آزادسازی: null
-  بدون: null
-  حالت جدید: null
-  تمیز: null
-  در فایل: null
-  بازسازی از: null
-  ها: null
+  hybrid (پیش‌فرض): hybrid (default)
+  'AVL: درخت offset + درخت size<br/>first-fit / best-fit': 'AVL: offset tree + size tree<br/>first-fit / best-fit'
+  سقف حافظه<br/>bluestore_hybrid_alloc_mem_cap=64M: memory cap<br/>bluestore_hybrid_alloc_mem_cap=64M
+  سرریز به Bitmap<br/>(بیت برای هر واحد): overflow to Bitmap<br/>(a bit per unit)
+  freelist در RocksDB (prefix b): freelist in RocksDB (prefix b)
+  'کلید: offset شروع<br/>هر 128 واحد': 'key: start offset<br/>of every 128 units'
+  'مقدار: 128 بیت = 16 بایت': 'value: 128 bits = 16 bytes'
+  'merge: bitwise_xor<br/>تخصیص/آزادسازی = XOR': 'merge: bitwise_xor<br/>allocate/release = XOR'
+  بدون freelist (حالت جدید): without freelist (new mode)
+  shutdown تمیز:<br/>allocator در فایل BlueFS: clean shutdown:<br/>allocator in a BlueFS file
+  crash:<br/>بازسازی از onodeها<br/>(recovery allocation): crash:<br/>rebuild from onodes<br/>(recovery allocation)
 ch24/f05_cache:
-  خواندن: null
-  نوشتن تازه: null
-  فقط سرآیند، بدون داده: null
-  اگر دوباره دیده شود: null
-  هر: null
-  ثانیه: null
-  اولویت‌بندی: null
+  خواندن/نوشتن تازه: fresh read/write
+  warm_out (A1out)<br/>فقط سرآیند، بدون داده: warm_out (A1out)<br/>header only, no data
+  hot (Am)<br/>اگر دوباره دیده شود: hot (Am)<br/>if seen again
+  autotune (هر 5 ثانیه): autotune (every 5 seconds)
+  PriorityCache<br/>اولویت‌بندی: PriorityCache<br/>prioritization
 ch24/f08_hybrid:
-  درج یک بازه‌ی آزاد: null
-  بازه‌ی آزاد: null
-  تعداد بازه‌ها کمتر از: null
-  ؟: null
-  بله: null
-  درج در دو درخت: null
-  بر پایه‌ی: null
-  و بر پایه‌ی اندازه: null
-  خیر: null
-  بزرگ‌تر از کوچک‌ترین بازه‌ی درخت؟: null
-  درج و انتقال کوچک‌ترین بازه: null
-  به: null
-  مستقیم به: null
-  تخصیص: null
-  خالی نیست و: null
-  کمتر از کوچک‌ترین بازه‌ی: null
-  اول از: null
-  کسری از دیگری؛: null
-  اگر هیچ: null
+  'درج یک بازه‌ی آزاد: AvlAllocator::_try_insert_range': 'Inserting a free range: AvlAllocator::_try_insert_range'
+  بازه‌ی آزاد [start، end): free range [start, end)
+  تعداد بازه‌ها کمتر از range_count_cap؟<br/>cap = hybrid_alloc_mem_cap / sizeof(range_seg_t): number of ranges below range_count_cap?<br/>cap = hybrid_alloc_mem_cap / sizeof(range_seg_t)
+  بله: 'yes'
+  خیر: 'no'
+  درج در دو درخت AVL<br/>(بر پایه‌ی offset و بر پایه‌ی اندازه): insert into the two AVL trees<br/>(offset-based and size-based)
+  بزرگ‌تر از کوچک‌ترین بازه‌ی درخت؟: larger than the tree's smallest range?
+  درج و انتقال کوچک‌ترین بازه<br/>به bitmap (_spillover_range): insert and move the smallest range<br/>to bitmap (_spillover_range)
+  مستقیم به bitmap: straight to bitmap
+  'تخصیص: HybridAllocatorBase::allocate': 'Allocation: HybridAllocatorBase::allocate'
+  want، unit، max_alloc_size: want, unit, max_alloc_size
+  bitmap خالی نیست و<br/>want کمتر از کوچک‌ترین بازه‌ی AVL؟: bitmap not empty and<br/>want below the smallest AVL range?
+  اول از bitmap: bitmap first
+  اول از AVL: AVL first
+  'کسری از دیگری؛<br/>اگر هیچ: ENOSPC': 'shortfall from the other;<br/>if none: ENOSPC'
 ch25/f01_write:
   مسیر نوشتن: null
   هم‌گام: null

@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph R1["superblock → log"]
+    direction LR
+    S["bluefs_super_t<br/>log_fnode (ino 1)"] --> L["BlueFS log file<br/>a sequence of bluefs_transaction_t<br/>(uuid, seq, op_bl, crc)"]
+  end
+  subgraph R2["Transaction ops"]
+    direction LR
+    O1["OP_INIT"] --> O2["OP_DIR_CREATE/LINK<br/>«db» «db.wal» «db.slow»"] --> O3["OP_FILE_UPDATE(_INC)<br/>full/incremental fnode"] --> O4["OP_FILE_REMOVE<br/>OP_JUMP(_SEQ)"]
+  end
+  subgraph R3["bluefs_fnode_t"]
+    direction LR
+    F1["ino, size, mtime"] --> F2["extents[]: {bdev, offset(lba), length(lowz)}"] --> F3["allocated<br/>encoding: PLAIN/ENVELOPE"]
+  end
+  subgraph R4["Log compaction"]
+    direction LR
+    C1["size ≥ 16M<br/>and ratio ≥ 5"] --> C2["dump current metadata<br/>to a new log"] --> C3["new superblock<br/>with a fresh log_fnode"] --> C4["free the old log's<br/>extents"]
+  end
+  R1 ~~~ R2 ~~~ R3 ~~~ R4

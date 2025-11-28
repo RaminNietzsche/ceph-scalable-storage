@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["2Q buffer cache (bluestore_cache_type=2q)"]
+    direction LR
+    A["fresh read/write"] --> W["warm_in (A1in)<br/>kin_ratio=0.5"] --> O["warm_out (A1out)<br/>header only, no data"] --> H["hot (Am)<br/>if seen again"]
+  end
+  subgraph R2["autotune (every 5 seconds)"]
+    direction LR
+    M["osd_memory_target<br/>(4G)"] --> P["PriorityCache<br/>prioritization"] --> K["kv (RocksDB)"] --> N["meta (onode)"] --> D["data (buffer)"]
+  end
+  R1 ~~~ R2
