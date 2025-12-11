@@ -1560,72 +1560,53 @@ ch24/f08_hybrid:
   اول از AVL: AVL first
   'کسری از دیگری؛<br/>اگر هیچ: ENOSPC': 'shortfall from the other;<br/>if none: ENOSPC'
 ch25/f01_write:
-  مسیر نوشتن: null
-  هم‌گام: null
-  روی چند: null
-  رکوردهای: null
-  فعال هر: null
-  پس‌زمینه: null
-  پر: null
-  تا: null
-  عدد: null
-  پس از ادغام: null
-  در: null
-  مسیر خواندن: null
-  ها: null
-  همه‌ی فایل‌ها: null
-  یک فایل در هر سطح: null
-  با: null
+  مسیر نوشتن (هم‌گام): Write path (synchronous)
+  rocksdb::WriteBatch<br/>(put/merge/delete روی چند CF): rocksdb::WriteBatch<br/>(put/merge/delete on several CFs)
+  WAL (db.wal/*.log)<br/>رکوردهای 32K-block: WAL (db.wal/*.log)<br/>32K-block records
+  memtable فعال هر CF<br/>skiplist، 16M: each CF's active memtable<br/>skiplist, 16M
+  پس‌زمینه: Background
+  memtable پر → immutable<br/>تا 64 عدد: full memtable → immutable<br/>up to 64
+  flush پس از ادغام ≥ 6<br/>(min_write_buffer_number_to_merge): flush after merging ≥ 6<br/>(min_write_buffer_number_to_merge)
+  SST در L0: SST in L0
+  مسیر خواندن: Read path
+  immutableها: immutables
+  L0 (همه‌ی فایل‌ها): L0 (all files)
+  L1..Ln (یک فایل در هر سطح<br/>با bloom filter): L1..Ln (one file per level<br/>with bloom filter)
 ch25/f02_sst:
-  فایل: null
-  ، کلیدهای پیشوندفشرده: null
-  بیت: null
-  کلید: null
-  کلید آخر: null
-  انتهای فایل: null
-  ها: null
-  هر بلوک روی دیسک: null
-  فشرده: null
-  بایت: null
-  نوع فشرده‌سازی: null
+  فایل SST (block-based table): SST file (block-based table)
+  data block 1<br/>(4K، کلیدهای پیشوندفشرده<br/>+ restart points): data block 1<br/>(4K, prefix-compressed keys<br/>+ restart points)
+  filter block<br/>(bloom، 20 بیت/کلید): filter block<br/>(bloom, 20 bits/key)
+  index block<br/>کلید آخر → BlockHandle: index block<br/>last key → BlockHandle
+  انتهای فایل: End of file
+  footer<br/>BlockHandleها + format_version<br/>magic 0x88e241b785f4cff7: footer<br/>BlockHandles + format_version<br/>magic 0x88e241b785f4cff7
+  هر بلوک روی دیسک: Each block on disk
+  payload<br/>(LZ4 فشرده): payload<br/>(LZ4 compressed)
+  trailer 5 بایت:<br/>نوع فشرده‌سازی (1) + checksum (4): 5-byte trailer:<br/>compression type (1) + checksum (4)
 ch25/f03_cf:
-  پیش‌فرض: null
-  روی بایت: null
-  جدا: null
-  و: null
-  انتخاب: null
-  برای یک کلید: null
-  بازه‌ی بایت: null
-  از کلید: null
-  بقیه: null
+  bluestore_rocksdb_cfs (پیش‌فرض main): bluestore_rocksdb_cfs (main default)
+  p(3,0-12)<br/>omap per-pg<br/>hash روی بایت 0..12: p(3,0-12)<br/>omap per-pg<br/>hash over bytes 0..12
+  O(3,0-13)<br/>onode<br/>binned_lru جدا: O(3,0-13)<br/>onode<br/>separate binned_lru
+  L و P<br/>min_write_buffer_number_to_merge=32: L and P<br/>min_write_buffer_number_to_merge=32
+  انتخاب CF برای یک کلید: Choosing the CF for a key
+  بازه‌ی بایت hash_l..hash_h<br/>از کلید: byte range hash_l..hash_h<br/>of the key
+  بقیه: The rest
+  CF default:<br/>S T C M B b X و ...: CF default:<br/>S T C M B b X etc.
 ch25/f04_levels:
-  اندازه‌ی سطوح با پیش‌فرض‌ها: null
-  فایل تا: null
-  جای‌گذاری: null
-  سطوحی که جا می‌شوند: null
-  فضای اضافه‌ی: null
-  برای بخشی از سطح بعدی: null
-  باقی: null
-  هشدار: null
+  اندازه‌ی سطوح با پیش‌فرض‌ها (base=1G، multiplier=8): Level sizes with the defaults (base=1G, multiplier=8)
+  L0<br/>8 فایل تا trigger: L0<br/>8 files to trigger
+  جای‌گذاری BlueFS (use_some_extra): BlueFS placement (use_some_extra)
+  سطوحی که جا می‌شوند → block.db: levels that fit → block.db
+  فضای اضافه‌ی DB<br/>برای بخشی از سطح بعدی: extra DB space<br/>for part of the next level
+  باقی → block (slow)<br/>هشدار BLUEFS_SPILLOVER: rest → block (slow)<br/>BLUEFS_SPILLOVER warning
 ch25/f10_wgroup:
-  روی: null
-  صف خالی بود، پس: null
-  رهبر می‌شود: null
-  و انتظار روی: null
-  ، یا اندازه‌ی رهبر: null
-  اگر رهبر: null
-  گروه: null
-  اگر: null
-  و: null
-  سازگار باشند: null
-  یک: null
-  برای: null
-  ادغام‌شده: null
-  اگر هر عضو: null
-  خواسته باشد: null
-  درج: null
-  ها با: null
-  پیوسته: null
+  as WAL روی BlueFS: as WAL on BlueFS
+  صف خالی بود، پس T1 رهبر می‌شود: the queue was empty, so T1 becomes the leader
+  JoinBatchGroup و انتظار روی state: JoinBatchGroup and wait on state
+  max_size = 1 MiB، یا اندازه‌ی رهبر + 128 KiB اگر رهبر ≤ 128 KiB: max_size = 1 MiB, or leader size + 128 KiB if the leader ≤ 128 KiB
+  گروه {T1، T2، T3} اگر sync و disable_wal و … سازگار باشند: group {T1, T2, T3} if sync, disable_wal etc. are compatible
+  یک AddRecord برای batch ادغام‌شده: one AddRecord for the merged batch
+  Sync اگر هر عضو sync خواسته باشد: Sync if any member asked for sync
+  درج batchها با seq پیوسته: insert the batches with consecutive seq
 ch26/f01_hs:
   کلاینت: null
   سرور: null

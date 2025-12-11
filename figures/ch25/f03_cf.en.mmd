@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["bluestore_rocksdb_cfs (main default)"]
+    direction LR
+    A["m(3)<br/>omap per-pool<br/>3 shard"] --> B["p(3,0-12)<br/>omap per-pg<br/>hash over bytes 0..12"] --> C["O(3,0-13)<br/>onode<br/>separate binned_lru"] --> D["L and P<br/>min_write_buffer_number_to_merge=32"]
+  end
+  subgraph R2["Choosing the CF for a key"]
+    direction LR
+    E["prefix → prefix_shards"] --> F["byte range hash_l..hash_h<br/>of the key"] --> G["ceph_str_hash_rjenkins"] --> H["hash % shard_cnt<br/>→ ColumnFamilyHandle"]
+  end
+  subgraph R3["The rest"]
+    direction LR
+    I["CF default:<br/>S T C M B b X etc."]
+  end
+  R1 ~~~ R2 ~~~ R3

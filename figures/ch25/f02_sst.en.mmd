@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["SST file (block-based table)"]
+    direction LR
+    A["data block 1<br/>(4K, prefix-compressed keys<br/>+ restart points)"] --> B["data block …"] --> C["filter block<br/>(bloom, 20 bits/key)"] --> D["index block<br/>last key → BlockHandle"]
+  end
+  subgraph R2["End of file"]
+    direction LR
+    E["properties<br/>compression dict<br/>range-del"] --> F["metaindex block"] --> G["footer<br/>BlockHandles + format_version<br/>magic 0x88e241b785f4cff7"]
+  end
+  subgraph R3["Each block on disk"]
+    direction LR
+    H["payload<br/>(LZ4 compressed)"] --> I["5-byte trailer:<br/>compression type (1) + checksum (4)"]
+  end
+  R1 ~~~ R2 ~~~ R3

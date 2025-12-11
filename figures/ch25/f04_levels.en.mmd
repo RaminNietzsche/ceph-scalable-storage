@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["Level sizes with the defaults (base=1G, multiplier=8)"]
+    direction LR
+    L0["L0<br/>8 files to trigger"] --> L1["L1 ≈ 1G"] --> L2["L2 ≈ 8G"] --> L3["L3 ≈ 64G"] --> L4["L4 ≈ 512G"]
+  end
+  subgraph R2["BlueFS placement (use_some_extra)"]
+    direction LR
+    W["WAL → db.wal / DB"] --> D["levels that fit → block.db"] --> X["extra DB space<br/>for part of the next level"] --> S["rest → block (slow)<br/>BLUEFS_SPILLOVER warning"]
+  end
+  R1 ~~~ R2

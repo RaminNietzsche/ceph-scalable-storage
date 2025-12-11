@@ -1,0 +1,20 @@
+sequenceDiagram
+  participant T1 as kv_sync_thread (leader)
+  participant T2 as writer 2
+  participant T3 as writer 3
+  participant WT as WriteThread
+  participant WAL as WAL on BlueFS
+  participant MT as memtable
+  T1->>WT: JoinBatchGroup (newest_writer_ CAS)
+  Note over T1,WT: the queue was empty, so T1 becomes the leader
+  T2->>WT: JoinBatchGroup and wait on state
+  T3->>WT: JoinBatchGroup and wait on state
+  T1->>WT: EnterAsBatchGroupLeader
+  Note over WT: max_size = 1 MiB, or leader size + 128 KiB if the leader ≤ 128 KiB
+  WT-->>T1: group {T1, T2, T3} if sync, disable_wal etc. are compatible
+  T1->>WAL: one AddRecord for the merged batch
+  T1->>WAL: Sync if any member asked for sync
+  T1->>MT: insert the batches with consecutive seq
+  T1->>WT: ExitAsBatchGroupLeader
+  WT-->>T2: STATE_COMPLETED
+  WT-->>T3: STATE_COMPLETED

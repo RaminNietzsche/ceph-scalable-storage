@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Write path (synchronous)"]
+    direction LR
+    A["BlueStore txc<br/>KeyValueDB::Transaction"] --> B["rocksdb::WriteBatch<br/>(put/merge/delete on several CFs)"] --> C["WAL (db.wal/*.log)<br/>32K-block records"] --> D["each CF's active memtable<br/>skiplist, 16M"]
+  end
+  subgraph R2["Background"]
+    direction LR
+    E["full memtable → immutable<br/>up to 64"] --> F["flush after merging ≥ 6<br/>(min_write_buffer_number_to_merge)"] --> G["SST in L0"] --> H["compaction L0→L1→L2…<br/>max_background_jobs=4"]
+  end
+  subgraph R3["Read path"]
+    direction LR
+    I["memtable"] --> J["immutables"] --> K["L0 (all files)"] --> L["L1..Ln (one file per level<br/>with bloom filter)"]
+  end
+  R1 ~~~ R2 ~~~ R3
