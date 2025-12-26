@@ -27,7 +27,7 @@ algorithm boxes, and is built from Markdown sources with one `make` command.
 ```sh
 python3 -m pip install -r requirements.txt   # WeasyPrint, Matplotlib, PyYAML, Pygments, codespell
 npm install                                  # markdownlint-cli2, mermaid-cli (optional)
-tools/install_fonts.sh                       # fonts into ~/.local/share/fonts
+make html                                    # web book for LANG; fetches missing fonts on first run (make fonts)
 make pdf                                     # build/fa/ceph-scalable-storage-fa.pdf
 make site                                    # web book, fa and en: build/site/index.html
 make all                                     # pdf + web book + html-single + epub + docx, fa and en
@@ -36,6 +36,7 @@ make check                                   # lint, spell, refs, links, parity
 
 <div dir="rtl">
 
+- فونت‌ها خودکار نصب می‌شوند: `make pdf`، `make html` و `make site` به هدف `make fonts` وابسته‌اند که فقط اگر fontconfig یکی از فونت‌های Vazirmatn، Inter، JetBrains Mono یا Source Serif را پیدا نکند، `tools/install_fonts.sh` را اجرا می‌کند (لینوکس: `~/.local/share/fonts`، مک: `~/Library/Fonts`؛ بدون نیاز به root). در مک، fontconfig را با `brew install fontconfig` نصب کنید. پس از یک clone تازه همین `make html` کافی است.
 - `make` و `make pdf` نسخه‌ی فارسی را می‌سازند. نسخه‌ی انگلیسی را با `make pdf LANG=en` بسازید.
 - `make html` نسخه‌ی وب چندصفحه‌ای کتاب را در `build/site/<lang>/` می‌سازد: یک صفحه برای هر فصل و پیوست، فهرست کناری تاشو (در نسخه‌ی فارسی سمت راست)، فهرست «در این صفحه»، قبلی/بعدی، جست‌وجوی آفلاین با یکسان‌سازی ی/ي، ک/ك، نیم‌فاصله و ارقام فارسی، بزرگ‌نمایی شکل‌ها با چرخ، کشیدن و دو انگشت، پوسته‌ی روشن و تیره، رنگ‌آمیزی کد و دکمه‌ی کپی، تعویض زبان و برگه‌ی چاپ. فونت‌ها، اسکریپت‌ها و شکل‌ها کنار صفحه‌ها کپی می‌شوند و سایت بدون اینترنت و حتی با `file://` کار می‌کند. `make site` هر دو زبان را می‌سازد و `make check-site` پیوندها و anchorها را بررسی می‌کند. `make webfig` نسخه‌ی پرتراکم شکل‌ها را برای وب می‌سازد (نمودارهای mermaid با مقیاس ۳ و نمودارهای matplotlib به‌صورت SVG) تا بزرگ‌نمایی تیز بماند؛ در نسخه‌ی انگلیسی هنگام ساخت، نشانه‌ی شکستن کلمه (soft hyphen) با الگوهای Pyphen افزوده می‌شود تا متن هم‌تراز در موبایل فاصله‌ی زیاد نگیرد.
 - `make html-single`، `make epub` و `make docx` خروجی‌های Pandoc را در `build/<lang>/` می‌سازند.
@@ -58,6 +59,7 @@ edition is `fa`.
 | `pdf` | Print PDF (WeasyPrint, two-pass page-number index) for `LANG` |
 | `html` | Multi-page web book for `LANG` in `build/site/LANG/`: one page per chapter and appendix, collapsible sidebar (right-hand in Persian), in-page contents, previous/next, breadcrumbs, offline Persian-aware search, figure zoom (wheel, drag, pinch), light/dark theme, highlighted code with copy buttons, language switcher, print stylesheet; self-hosted fonts and no network access (works from `file://`) |
 | `site` | `html` for both editions; open `build/site/index.html` |
+| `fonts` | Install Vazirmatn, Inter, JetBrains Mono and Source Serif with `tools/install_fonts.sh`, only if fontconfig cannot find them (Linux `~/.local/share/fonts`, macOS `~/Library/Fonts`, no root). `pdf`, `html` and `site` depend on it, so a fresh clone needs only `make html`; on macOS install fontconfig first (`brew install fontconfig`) |
 | `webfig` | Render high-resolution web figures (3x mermaid / 2x byte-layout WebP, SVG plots) into `build/webfig/`; `make html` runs it |
 | `check-site` / `shoot-site` | Check every link, anchor and offline resource of the web book / headless-Chrome smoke test with screenshots |
 | `html-single` / `epub` / `docx` | Pandoc exports for `LANG`; `html-single` is one self-contained file |

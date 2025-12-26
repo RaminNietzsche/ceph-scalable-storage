@@ -399,6 +399,21 @@ def fc(pattern):
         return ''
 
 
+def fc_variable(need):
+    try:
+        out = subprocess.run(['fc-list', '-f', '%{file}\n', ':variable=true'], capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return ''
+    key = need.split()[0].lower()
+    def ok(x):
+        base = os.path.basename(x).lower().replace(' ', '')
+        rest = base[len(key):]
+        return (base.startswith(key) and 'italic' not in base
+                and (rest[:1] in ('-', '_', '.', 'v') or rest.startswith('mono')))  # not Inter Tight/Display
+    cands = sorted(filter(ok, out.splitlines()))
+    return cands[0] if cands else ''
+
+
 FONTS = [  # family, weight css, fc pattern, required family substring, unicode ranges, file
     ('Vazirmatn', '400', 'Vazirmatn:weight=80', 'Vazirmatn', 'U+0000-00FF,U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200B-206F,U+2190-21FF,U+2212', 'vazirmatn-400.woff2'),
     ('Vazirmatn', '500', 'Vazirmatn:weight=100', 'Vazirmatn', 'U+0000-00FF,U+0600-06FF,U+0750-077F,U+08A0-08FF,U+FB50-FDFF,U+FE70-FEFF,U+200B-206F,U+2190-21FF,U+2212', 'vazirmatn-500.woff2'),
@@ -411,6 +426,8 @@ for fam, wt, pat, need, uni, fn in FONTS:
     dst = os.path.join(ASSETS, 'fonts', fn)
     if not os.path.exists(dst):
         f = fc(pat)
+        if 'var' in fn:  # prefer an installed variable font (e.g. InterVariable.ttf) for weight ranges
+            f = fc_variable(need) or f
         if need.split()[0].lower() not in os.path.basename(f).lower().replace(' ', ''):
             sys.exit(f'build_site: font {fam} not found by fontconfig; run tools/install_fonts.sh')
         from fontTools import subset

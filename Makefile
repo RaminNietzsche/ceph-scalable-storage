@@ -52,7 +52,7 @@ WEBFIG_STAMP := build/webfig/.stamp
 
 .PHONY: help all pdf html epub docx book figures cover lint markdownlint spell \
         check check-links check-links-online check-refs check-parity \
-        html-single site check-site shoot-site webfig \
+        html-single site check-site shoot-site webfig fonts \
         sync-translations stats clean distclean dist
 
 help: ## show this help
@@ -63,14 +63,21 @@ help: ## show this help
 all: ## every format for both editions
 	@for l in $(EDITIONS); do $(MAKE) --no-print-directory LANG=$$l pdf html html-single epub docx; done
 
-pdf: $(PDF) ## print PDF (WeasyPrint, two-pass index) for LANG
-html: $(SITE_STAMP) ## multi-page web book (offline search, zoom, themes) into build/site/LANG
+pdf: fonts $(PDF) ## print PDF (WeasyPrint, two-pass index) for LANG
+html: fonts $(SITE_STAMP) ## multi-page web book (offline search, zoom, themes) into build/site/LANG
 html-single: $(HTML) ## single-file HTML (Pandoc, embedded resources) for LANG
-site: ## web book for both editions (build/site, with language switcher)
+site: fonts ## web book for both editions (build/site, with language switcher)
 	@for l in $(EDITIONS); do $(MAKE) --no-print-directory LANG=$$l html; done
 epub: $(EPUB) ## EPUB 3 for LANG
 docx: $(DOCX) ## Word document for LANG
 book: $(BOOK_HTML) ## intermediate print HTML only
+
+# Fonts: a fresh clone needs only `make html` / `make pdf`. tools/install_fonts.sh is
+# run only when fontconfig cannot find a book font (Linux: ~/.local/share/fonts,
+# macOS: ~/Library/Fonts). It is an order-only prerequisite, so it never forces a rebuild.
+fonts: ## install Vazirmatn, Inter, JetBrains Mono and Source Serif if fontconfig lacks them
+	@if bash tools/install_fonts.sh --check >/dev/null 2>&1; then echo "fonts: ok"; \
+	 else bash tools/install_fonts.sh --check || true; bash tools/install_fonts.sh; fi
 
 # ---- figures ---------------------------------------------------------------
 figures: $(FIG_STAMP) ## render changed Mermaid / byte-layout figures (+ en label variants)
@@ -85,10 +92,10 @@ cover: ## regenerate the cover/back images for LANG into assets/
 	cp $(B)/cover/back.png assets/back.$(L).png
 
 # ---- print book (identical renderer to v1.4) ------------------------------
-$(BOOK_HTML): $(CONTENT) $(TEMPLATES) $(COVER) $(TOOLS) $(FIG_STAMP)
+$(BOOK_HTML): $(CONTENT) $(TEMPLATES) $(COVER) $(TOOLS) $(FIG_STAMP) | fonts
 	$(PYTHON) tools/build_book.py --lang $(L) --out $(B)
 
-$(PDF): $(BOOK_HTML) tools/render_pdf.py
+$(PDF): $(BOOK_HTML) tools/render_pdf.py | fonts
 	$(PYTHON) tools/render_pdf.py --lang $(L) --build $(B) --out $@
 
 # ---- web edition -----------------------------------------------------------
@@ -97,7 +104,7 @@ $(WEBFIG_STAMP): $(FIG_STAMP) tools/render_web_figures.py $(wildcard figures/scr
 	$(PYTHON) tools/render_web_figures.py || echo "webfig: some variants failed; the web book falls back to the print PNGs"
 	@mkdir -p $(@D) && touch $@
 
-$(SITE_STAMP): $(BOOK_HTML) $(SITE_SRC) $(WEBFIG_STAMP)
+$(SITE_STAMP): $(BOOK_HTML) $(SITE_SRC) $(WEBFIG_STAMP) | fonts
 	$(PYTHON) tools/build_site.py --lang $(L) --book $(B) --out $(SITE)
 	@touch $@
 
