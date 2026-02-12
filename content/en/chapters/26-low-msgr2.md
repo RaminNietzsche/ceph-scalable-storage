@@ -7,55 +7,55 @@ lang: en
 translation: pending
 ---
 
-# Introduction: the wire between two daemons {#sec-26-1}
+# مقدمه: سیم بین دو daemon {#sec-26-1}
 
-Every message exchanged in Ceph, whether a client's write request to an OSD, a heartbeat between OSDs or a map that the mon publishes, passes through the messenger layer. Since Nautilus the default protocol is msgr2 (port 3300 for the mon). This chapter opens it up at the byte level: the opening banner, the frame format with its preamble and segments, the two modes crc and secure (AES-GCM), the authentication handshake, the session and reconnection, and finally the `ProtocolV2` state machine and the `EventCenter` event loop that runs all of this with a small number of threads. The source of the structures is `src/msg/async/frames_v2.h`, `ProtocolV2.cc`, `crypto_onwire.cc` and `src/include/msgr.h` on the main branch.
+هر پیامی که در Ceph رد و بدل می‌شود، چه درخواست نوشتن کلاینت به OSD، چه heartbeat بین OSDها و چه نقشه‌ای که mon منتشر می‌کند، از لایه‌ی messenger می‌گذرد. از Nautilus به بعد پروتکل پیش‌فرض msgr2 (پورت 3300 برای mon) است. این فصل آن را در سطح بایت باز می‌کند: banner آغازین، قالب frame با preamble و segmentها، دو حالت crc و secure (AES-GCM)، دست‌دهی احراز هویت، جلسه و بازاتصال، و در پایان ماشین وضعیت `ProtocolV2` و حلقه‌ی رویداد `EventCenter` که همه‌ی این‌ها را با تعداد کمی thread اجرا می‌کند. منبع ساختارها `src/msg/async/frames_v2.h`، `ProtocolV2.cc`، `crypto_onwire.cc` و `src/include/msgr.h` در شاخه‌ی main است.
 
 ::: {.summary}
 
-- The banner is `ceph v2\n`, followed by a length of 16 and two 64-bit feature sets (supported and required). The current features are REVISION_1 (msgr2.1) and COMPRESSION.
-- Every frame starts with a 32-byte preamble: the tag, the number of segments (at most 4), the length and alignment of each segment, flags and a crc32c.
-- crc mode has one crc32c per segment. secure mode both encrypts and authenticates with AES-128-GCM (16-byte key, 12-byte IV and 16-byte tag).
-- Defaults: `ms_cluster_mode` and `ms_client_mode` are `crc secure`, and `ms_mon_*_mode` are `secure crc`.
-- AsyncMessenger works with `ms_async_op_threads=3` workers. Each worker has an EventCenter based on epoll (edge-triggered).
+- banner برابر `ceph v2\n` است، به‌همراه طول ۱۶ و دو ویژگی ۶۴ بیتی (supported و required). ویژگی‌های فعلی REVISION_1 (msgr2.1) و COMPRESSION هستند.
+- هر frame با یک preamble ۳۲ بایتی آغاز می‌شود: tag، تعداد segment (حداکثر ۴)، طول و هم‌ترازی هر segment، flags و crc32c.
+- حالت crc برای هر segment یک crc32c دارد. حالت secure با AES-128-GCM (کلید ۱۶، IV ۱۲ و tag ۱۶ بایتی) هم رمز و هم احراز اصالت می‌کند.
+- پیش‌فرض‌ها: `ms_cluster_mode` و `ms_client_mode` برابر `crc secure`، و `ms_mon_*_mode` برابر `secure crc`.
+- AsyncMessenger با `ms_async_op_threads=3` worker کار می‌کند. هر worker یک EventCenter مبتنی بر epoll (edge-triggered) دارد.
 
 :::
 
-# The banner and feature negotiation {#sec-26-2}
+# banner و مذاکره‌ی ویژگی {#sec-26-2}
 
-The first bytes sent after the TCP connection is established are not encrypted. `ProtocolV2::_banner_exchange` builds this structure: the eight-byte string `CEPH_BANNER_V2_PREFIX = "ceph v2\n"`, a u16 for the payload length, and then the payload of two u64s, namely `CEPH_MSGR2_SUPPORTED_FEATURES` and `CEPH_MSGR2_REQUIRED_FEATURES`.
+نخستین بایت‌هایی که پس از برقراری TCP فرستاده می‌شوند، رمزنگاری نشده‌اند. `ProtocolV2::_banner_exchange` این ساختار را می‌سازد: رشته‌ی ۸ بایتی `CEPH_BANNER_V2_PREFIX = "ceph v2\n"`، یک u16 برای طول payload و سپس payload شامل دو u64، یعنی `CEPH_MSGR2_SUPPORTED_FEATURES` و `CEPH_MSGR2_REQUIRED_FEATURES`.
 
-| Bytes (example) | Meaning |
+| بایت‌ها (مثال) | معنی |
 |---|---|
-| `63 65 70 68 20 76 32 0a` | "ceph v2\n" |
-| `10 00` | payload length = 16 (u16 LE) |
-| `03 00 00 00 00 00 00 00` | supported = REVISION_1 (bit 0) + COMPRESSION (bit 1) = 3 |
+| `63 65 70 68 20 76 32 0a` | «ceph v2\n» |
+| `10 00` | طول payload = 16 (u16 LE) |
+| `03 00 00 00 00 00 00 00` | supported = REVISION_1 (بیت 0) + COMPRESSION (بیت 1) = 3 |
 | `00 00 00 00 00 00 00 00` | required = 0 |
 
 ::: {.note}
-An old client with a version 1 banner (`ceph v027`) cannot connect to an msgr2 port, because the banner bytes differ. This is why mons publish two addresses, `v2:...:3300` and `v1:...:6789`, in the `addrvec`. If `ms_bind_msgr1=false`, old clients (and old krbd versions from before msgr2 support in kernel 5.11) cannot connect.
+یک کلاینت قدیمی با banner نسخه‌ی ۱ (`ceph v027`) به یک پورت msgr2 وصل نمی‌شود، چون بایت‌های banner فرق دارند. به همین دلیل monها دو آدرس `v2:...:3300` و `v1:...:6789` را در `addrvec` منتشر می‌کنند. اگر `ms_bind_msgr1=false` باشد، کلاینت‌های قدیمی (و نسخه‌های قدیمی krbd پیش از پشتیبانی msgr2 در هسته‌ی ۵٫۱۱) نمی‌توانند وصل شوند.
 :::
 
-![The full msgr2 handshake. After the banner, each side sends HELLO (the entity type and the address at which it sees the other side). Then cephx authentication runs with AUTH_REQUEST, MORE round trips and AUTH_DONE (which sets the global_id and the connection mode, crc or secure). From this point on, frames are in the chosen mode. AUTH_SIGNATURE (HMAC-SHA256 over the bytes from before authentication) prevents tampering with the unencrypted phase. CLIENT_IDENT and SERVER_IDENT establish the session with a cookie and global_seq](figures/ch26/f01_hs.png){#fig-26-f01_hs}
+![دست‌دهی کامل msgr2. پس از banner، هر طرف HELLO (نوع entity و آدرسی که طرف مقابل را با آن می‌بیند) می‌فرستد. سپس احراز هویت cephx با AUTH_REQUEST، رفت و برگشت‌های MORE و AUTH_DONE (که global_id و حالت اتصال crc یا secure را تعیین می‌کند) انجام می‌شود. از این نقطه frameها در حالت انتخاب‌شده‌اند. AUTH_SIGNATURE (HMAC-SHA256 روی بایت‌های پیش از احراز) از دستکاری مرحله‌ی رمزنشده جلوگیری می‌کند. CLIENT_IDENT و SERVER_IDENT جلسه را با cookie و global_seq برقرار می‌کنند](figures/ch26/f01_hs.png){#fig-26-f01_hs}
 
 ::: {.deep}
-**Why AUTH_SIGNATURE?** The banner, HELLO and part of the auth negotiation are sent before a session key exists. A man in the middle could, for example, change the `preferred_modes` list so that the two sides agree on crc instead of secure (a downgrade attack). After AUTH_DONE, each side sends the `hmac_sha256`, with the session key, of all the bytes it has **received** (`pre_auth.rxbuf`), and the other side compares it with the bytes it has itself **sent**. Any change along the way drops the connection.
+**چرا AUTH_SIGNATURE؟** banner و HELLO و بخشی از مذاکره‌ی auth پیش از وجود کلید جلسه ارسال می‌شوند. مهاجمی در میانه می‌تواند مثلاً فهرست `preferred_modes` را تغییر دهد تا طرفین به‌جای secure روی crc توافق کنند (حمله‌ی downgrade). پس از AUTH_DONE، هر طرف `hmac_sha256` تمام بایت‌هایی را که **دریافت** کرده است (`pre_auth.rxbuf`) با کلید جلسه می‌فرستد و طرف دیگر آن را با بایت‌هایی که خودش **فرستاده** مقایسه می‌کند. هر تغییری در مسیر باعث قطع اتصال می‌شود.
 :::
 
-# The frame at the byte level {#sec-26-3}
+# frame در سطح بایت {#sec-26-3}
 
-![The frame structure in msgr2.1. preamble_block_t is exactly 32 bytes and is designed to be a multiple of the AES block (16). In crc mode the first segment comes right after the preamble together with its own crc, and if there are other segments, the epilogue holds late_status and the crc of the remaining segments. In secure mode the preamble is encrypted together with the first 48 bytes of segment zero in one go and gets a GCM tag. Messages have four segments: header2, front, middle and data (page-aligned for zero copy)](figures/ch26/f02_frame.png){#fig-26-f02_frame}
+![ساختار frame در msgr2.1. preamble_block_t دقیقاً ۳۲ بایت است و طوری طراحی شده که مضرب بلوک AES (۱۶) باشد. در حالت crc، segment اول بلافاصله پس از preamble و همراه crc خودش می‌آید و اگر segment دیگری باشد، epilogue شامل late_status و crc بقیه‌ی segmentهاست. در حالت secure، preamble همراه ۴۸ بایت اول segment صفر یکجا رمز می‌شود و یک tag مربوط به GCM می‌گیرد. پیام‌ها چهار segment دارند: header2، front، middle و data (با هم‌ترازی صفحه برای کپی صفر)](figures/ch26/f02_frame.png){#fig-26-f02_frame}
 
-| offset | size | field | description |
+| offset | اندازه | فیلد | توضیح |
 |---|---|---|---|
-| 0 | 1 | `tag` | frame type (next table) |
-| 1 | 1 | `num_segments` | 1 to 4 |
-| 2 | 24 | `segments[4]` | each one `length` (le32) and `alignment` (le16) |
-| 26 | 1 | `flags` | for example `FRAME_EARLY_DATA_COMPRESSED=0x1` |
-| 27 | 1 | `_reserved` | zero |
+| 0 | 1 | `tag` | نوع frame (جدول بعد) |
+| 1 | 1 | `num_segments` | ۱ تا ۴ |
+| 2 | 24 | `segments[4]` | هر کدام `length` (le32) و `alignment` (le16) |
+| 26 | 1 | `flags` | مثلاً `FRAME_EARLY_DATA_COMPRESSED=0x1` |
+| 27 | 1 | `_reserved` | صفر |
 | 28 | 4 | `crc` | `ceph_crc32c(0, preamble, 28)` |
 
-| Tag | Value | Tag | Value |
+| Tag | مقدار | Tag | مقدار |
 |---|---|---|---|
 | HELLO | 1 | SESSION_RETRY | 13 |
 | AUTH_REQUEST | 2 | SESSION_RETRY_GLOBAL | 14 |
@@ -69,120 +69,120 @@ An old client with a version 1 banner (`ceph v027`) cannot connect to an msgr2 p
 | IDENT_MISSING_FEATURES | 10 | COMPRESSION_DONE | 22 |
 | SESSION_RECONNECT | 11 | SESSION_RESET | 12 |
 
-## A complete example: one KEEPALIVE2 in crc mode {#sec-26-3-1}
+## مثال کامل: یک KEEPALIVE2 در حالت crc {#sec-26-3-1}
 
-KEEPALIVE2 has one segment that is just a `utime_t` (sec and nsec, each a u32). For the time 1700000000.5 seconds, the complete frame is 44 bytes. We computed these values with an independent encoder:
+KEEPALIVE2 یک segment دارد که فقط `utime_t` است (sec و nsec، هرکدام u32). برای زمان 1700000000.5 ثانیه، frame کامل ۴۴ بایت است. این مقادیر را با یک کدگذار مستقل محاسبه کرده‌ایم:
 
-| Bytes | Part |
+| بایت‌ها | بخش |
 |---|---|
-| `12 01` | tag=18 (KEEPALIVE2), num_segments=1 |
-| `08 00 00 00 08 00` | segment 0: length=8, alignment=8 (`DEFAULT_ALIGNMENT = sizeof(void*)`) |
-| `00 × 18` | three empty segments |
-| `00 00` | flags, reserved |
-| `d8 d5 f5 99` | preamble crc = 0x99F5D5D8 (seed 0) |
-| `00 f1 53 65 00 65 cd 1d` | sec=1700000000, nsec=500000000 |
-| `39 7f 34 4d` | segment crc = 0x4D347F39 (seed 0xFFFFFFFF) |
+| `12 01` | tag=18 (KEEPALIVE2)، num_segments=1 |
+| `08 00 00 00 08 00` | segment 0: length=8، alignment=8 (`DEFAULT_ALIGNMENT = sizeof(void*)`) |
+| `00 × 18` | سه segment خالی |
+| `00 00` | flags، reserved |
+| `d8 d5 f5 99` | crc preamble = 0x99F5D5D8 (seed 0) |
+| `00 f1 53 65 00 65 cd 1d` | sec=1700000000، nsec=500000000 |
+| `39 7f 34 4d` | crc segment = 0x4D347F39 (seed 0xFFFFFFFF) |
 
-![The same KEEPALIVE2 frame as above, this time as a byte grid: the thirty-two-byte preamble with the tag, the segment count and the table of four segments (the last three zero), then the preamble's own crc, then the eight-byte utime_t segment and finally that segment's crc. The total is 44 bytes, and since there is only one segment there is no epilogue. This is the smallest frequent frame on an idle connection; for example, MonClient sends one to the mon every mon_client_ping_interval seconds (send_keepalive)](figures/ch26/f05_kaframe.png){#fig-26-f05_kaframe}
+![همان قاب KEEPALIVE2 بالا، این بار به شکل شبکه‌ی بایت: preamble سی‌ودوبایتی با tag، تعداد segment و جدول چهار segment (سه‌تای آخر صفر)، سپس crc خود preamble، سپس segment هشت‌بایتی utime_t و در پایان crc آن segment. جمع 44 بایت است و چون فقط یک segment هست، epilogue ندارد. این کوچک‌ترین قاب پرتکرار روی یک اتصال بی‌کار است و مثلاً MonClient هر mon_client_ping_interval ثانیه یکی از آن را به mon می‌فرستد (send_keepalive)](figures/ch26/f05_kaframe.png){#fig-26-f05_kaframe}
 
-Because there is only one segment, no epilogue is sent (in msgr2.1). The server replies with KEEPALIVE2_ACK and the same timestamp. The client uses this reply to measure the connection's "last alive time" (`mon_client_ping_interval` and heartbeats).
+چون فقط یک segment هست، epilogue ارسال نمی‌شود (در msgr2.1). سرور با KEEPALIVE2_ACK و همان timestamp پاسخ می‌دهد. کلاینت از این پاسخ برای سنجش «آخرین زمان زنده بودن» اتصال استفاده می‌کند (`mon_client_ping_interval` و heartbeatها).
 
-## A message: four segments {#sec-26-3-2}
+## پیام: چهار segment {#sec-26-3-2}
 
-`MESSAGE` always has four segments (`SegmentIndex::Msg`): **HEADER (0)**, which is `ceph_msg_header2` (seq, tid, type, priority, version, data_pre_padding_len, data_off, ack_seq, flags, compat_version); **FRONT (1)**, which is the main encoded body of the message (for example the fields of MOSDOp); **MIDDLE (2)**, which is rarely used; and **DATA (3)**, which is the raw data of a write or read. The data segment's alignment is `PAGE_SIZE_ALIGNMENT = 4096`, so that the receiver can allocate a page-aligned buffer and take the data without copying all the way to O_DIRECT in BlueStore (chapter 23). `sizeof(ceph_msg_header2)` is less than 48, so in secure mode the whole header fits in the inline part and the receiver can learn the length of the rest with one decryption.
+`MESSAGE` همیشه چهار segment دارد (`SegmentIndex::Msg`): **HEADER (0)** که `ceph_msg_header2` است (seq، tid، type، priority، version، data_pre_padding_len، data_off، ack_seq، flags، compat_version)، **FRONT (1)** که بدنه‌ی اصلی کدگذاری‌شده‌ی پیام است (مثلاً فیلدهای MOSDOp)، **MIDDLE (2)** که به‌ندرت استفاده می‌شود، و **DATA (3)** که داده‌ی خام نوشتن یا خواندن است. هم‌ترازی segment داده `PAGE_SIZE_ALIGNMENT = 4096` است تا گیرنده بتواند بافر هم‌تراز با صفحه تخصیص دهد و داده را بدون کپی تا O_DIRECT در BlueStore ببرد (فصل ۲۳). `sizeof(ceph_msg_header2)` کمتر از ۴۸ است، بنابراین در حالت secure کل header در بخش inline قرار می‌گیرد و گیرنده با یک رمزگشایی می‌تواند طول بقیه را بداند.
 
-# secure mode: AES-128-GCM on the wire {#sec-26-4}
+# حالت secure: AES-128-GCM روی سیم {#sec-26-4}
 
-When `con_mode` is `CEPH_CON_MODE_SECURE` (0x2), `crypto_onwire.cc` works with OpenSSL (`EVP_aes_128_gcm`): `AESGCM_KEY_LEN=16`, `AESGCM_IV_LEN=12` and `AESGCM_TAG_LEN=16`. The nonce is a twelve-byte structure: a fixed 32-bit part and a 64-bit counter that is incremented for each frame. The key and the initial nonce are derived, separately for each direction, from the cephx session key and the `connection_secret` exchanged in AUTH_DONE.
+وقتی `con_mode` برابر `CEPH_CON_MODE_SECURE` (0x2) باشد، `crypto_onwire.cc` با OpenSSL (`EVP_aes_128_gcm`) کار می‌کند: `AESGCM_KEY_LEN=16`، `AESGCM_IV_LEN=12` و `AESGCM_TAG_LEN=16`. nonce ساختاری ۱۲ بایتی است: یک بخش ثابت ۳۲ بیتی و یک شمارنده‌ی ۶۴ بیتی که برای هر frame افزایش می‌یابد. کلید و nonce اولیه از کلید جلسه‌ی cephx و `connection_secret` که در AUTH_DONE مبادله شده است، برای هر جهت جداگانه به دست می‌آیند.
 
 ```text
-pseudocode: sending one frame in secure mode (msgr2.1, this book's summary)
-  plain_head = preamble(32) || segment0[0:48] (padded with zeros if shorter)
+pseudocode: ارسال یک frame در حالت secure (msgr2.1، خلاصه‌ی این کتاب)
+  plain_head = preamble(32) || segment0[0:48] (با صفر پر می‌شود اگر کوتاه‌تر باشد)
   out  = AES_GCM_encrypt(key_tx, nonce_tx, plain_head) || tag(16); nonce_tx.counter++
   if len(segment0) > 48 or num_segments > 1:
-      rest = segment0[48:] || segment1 || segment2 || segment3   # each padded to 16
+      rest = segment0[48:] || segment1 || segment2 || segment3   # هر کدام pad به 16
       out += AES_GCM_encrypt(key_tx, nonce_tx, rest || epilogue) || tag(16); nonce_tx.counter++
   send(out)
 ```
 
-**Overhead:** for a small control message, secure mode uses about 96 bytes (32 + 48 + 16) versus 44 bytes in crc mode. For a 4M write the overhead is negligible, but the CPU cost of AES-GCM (with AES-NI, around a few gigabytes per second per core) is measurable on busy NVMe OSDs. This is why the default for data traffic is `crc secure` (crc preferred) and for the mon `secure crc`.
+**سربار:** برای یک پیام کنترلی کوچک، حالت secure حدود ۹۶ بایت (۳۲ + ۴۸ + ۱۶) در برابر ۴۴ بایت حالت crc مصرف می‌کند. برای نوشتن ۴M، سربار ناچیز است، ولی هزینه‌ی CPU مربوط به AES-GCM (با AES-NI حدود چند گیگابایت در ثانیه در هر هسته) روی OSDهای پرترافیک NVMe قابل‌اندازه‌گیری است. به همین دلیل پیش‌فرض ترافیک داده `crc secure` است (crc ترجیح داده می‌شود) و برای mon `secure crc`.
 
-| Option | Default | Use |
+| گزینه | پیش‌فرض | کاربرد |
 |---|---|---|
 | `ms_cluster_mode` | crc secure | OSD↔OSD |
-| `ms_service_mode` | crc secure | modes the server (OSD, MDS) accepts |
-| `ms_client_mode` | crc secure | client preference |
-| `ms_mon_cluster_mode` / `ms_mon_service_mode` / `ms_mon_client_mode` | secure crc | connections to the mon |
-| `ms_osd_compress_mode` | none | on-wire compression for the OSD |
-| `ms_crc_data` / `ms_crc_header` | true / true | turning off the crc in crc mode (not recommended) |
+| `ms_service_mode` | crc secure | حالت‌هایی که سرویس‌دهنده (OSD، MDS) می‌پذیرد |
+| `ms_client_mode` | crc secure | ترجیح کلاینت |
+| `ms_mon_cluster_mode` / `ms_mon_service_mode` / `ms_mon_client_mode` | secure crc | اتصال به mon |
+| `ms_osd_compress_mode` | none | فشرده‌سازی روی سیم برای OSD |
+| `ms_crc_data` / `ms_crc_header` | true / true | خاموش کردن crc در حالت crc (توصیه نمی‌شود) |
 
 ::: {.warn}
-crc mode has **no protection against an attacker**. A crc only detects random errors. If the public network is shared or untrusted, consider `ms_client_mode=secure` and `ms_service_mode=secure`, and measure the effect on CPU. In crc mode cephx only proves identity, not the confidentiality or integrity of messages.
+حالت crc **هیچ حفاظتی در برابر مهاجم** ندارد. crc فقط خطای تصادفی را تشخیص می‌دهد. اگر شبکه‌ی عمومی (public network) مشترک یا غیرقابل‌اعتماد است، `ms_client_mode=secure` و `ms_service_mode=secure` را در نظر بگیرید و تأثیر آن را روی CPU بسنجید. cephx در حالت crc فقط هویت را ثابت می‌کند، نه محرمانگی یا یکپارچگی پیام‌ها را.
 :::
 
-# Session, reconnection and reset {#sec-26-5}
+# جلسه، بازاتصال و reset {#sec-26-5}
 
-Lossless connections (for example OSD↔OSD, or client↔mon under some policies) must continue after a TCP drop **without losing or repeating messages**. For this msgr2 keeps the following state:
+اتصال‌های lossless (مثلاً OSD↔OSD یا کلاینت↔mon در برخی policyها) باید پس از قطع TCP **بدون از دست رفتن یا تکرار پیام** ادامه یابند. msgr2 برای این کار این حالت‌ها را نگه می‌دارد:
 
-| Variable | Meaning |
+| متغیر | معنی |
 |---|---|
-| `client_cookie` / `server_cookie` | random session identifier set in CLIENT_IDENT and SERVER_IDENT |
-| `global_seq` | the messenger's global counter for ordering connection attempts (resolving a race between two simultaneous connections) |
-| `connect_seq` | the number of successful reconnections of this session |
-| `message seq` / `ack_seq` | the number of the last message received; unacknowledged messages stay in the resend queue |
+| `client_cookie` / `server_cookie` | شناسه‌ی تصادفی جلسه که در CLIENT_IDENT و SERVER_IDENT تعیین می‌شود |
+| `global_seq` | شمارنده‌ی سراسری messenger برای ترتیب‌دهی تلاش‌های اتصال (حل رقابت دو اتصال هم‌زمان) |
+| `connect_seq` | تعداد بازاتصال‌های موفق این جلسه |
+| `message seq` / `ack_seq` | شماره‌ی آخرین پیام دریافتی؛ پیام‌های تأییدنشده در صف ارسال مجدد می‌مانند |
 
 ```text
-Reconnection scenario (this book's summary)
-  client: SESSION_RECONNECT(addrs, client_cookie, server_cookie, global_seq, connect_seq, msg_seq)
-  server:
-    unknown cookie (the server restarted)     → SESSION_RESET(full=true)  → new session, queues empty
-    global_seq older than what I have seen    → SESSION_RETRY_GLOBAL(gs)  → again with a larger gs
-    inconsistent connect_seq                  → SESSION_RETRY(cs)
-    race with a connection I am establishing  → WAIT
-    everything correct                        → SESSION_RECONNECT_OK(msg_seq)
-                                               resend the messages above msg_seq
+سناریوی بازاتصال (خلاصه‌ی این کتاب)
+  کلاینت: SESSION_RECONNECT(addrs, client_cookie, server_cookie, global_seq, connect_seq, msg_seq)
+  سرور:
+    cookie ناشناخته (سرور restart شده)       → SESSION_RESET(full=true)  → جلسه‌ی تازه، صف‌ها خالی
+    global_seq قدیمی‌تر از آنچه دیده‌ام       → SESSION_RETRY_GLOBAL(gs)  → دوباره با gs بزرگ‌تر
+    connect_seq ناسازگار                     → SESSION_RETRY(cs)
+    رقابت با اتصالی که خودم در حال برقراری‌ام → WAIT
+    همه‌چیز درست                             → SESSION_RECONNECT_OK(msg_seq)
+                                               ارسال مجدد پیام‌های بالاتر از msg_seq
 ```
 
 ::: {.deep}
-**Connection race:** two OSDs may connect to each other at the same time. Each side has one outgoing and one incoming connection. ProtocolV2 decides which connection stays by comparing addresses (and `global_seq`). The "losing" side receives WAIT and drops its own connection, and the winning connection (`replacing`) takes its place. Queued messages are moved to the winning connection. Old bugs in this very logic were the cause of many reports of "duplicate messages" or "stuck connections".
+**رقابت اتصال (connection race):** دو OSD ممکن است هم‌زمان به هم وصل شوند. هر طرف یک اتصال خروجی و یک ورودی دارد. ProtocolV2 با مقایسه‌ی آدرس‌ها (و `global_seq`) تصمیم می‌گیرد کدام اتصال بماند. طرف «بازنده» WAIT دریافت می‌کند و اتصال خودش را رها می‌کند، و اتصال برنده (`replacing`) جای آن را می‌گیرد. پیام‌های صف‌شده به اتصال برنده منتقل می‌شوند. باگ‌های قدیمی در همین منطق دلیل بسیاری از گزارش‌های «پیام تکراری» یا «اتصال گیرکرده» بودند.
 :::
 
-![The ProtocolV2 state machine. The connect side goes from START_CONNECT through banner, HELLO, auth and compression to SESSION_CONNECTING (a new session) or SESSION_RECONNECTING (a previous cookie) and finally READY. The accept side follows a similar path. In READY, receiving each message passes three throttlers (message count, policy bytes and the dispatch queue). An error on a lossless connection leads to STANDBY or reconnection with backoff (0.2 to 15 seconds), and on a lossy connection to CLOSED](figures/ch26/f03_state.png){#fig-26-f03_state}
+![ماشین وضعیت ProtocolV2. سمت connect از START_CONNECT با banner، HELLO، auth و فشرده‌سازی به SESSION_CONNECTING (جلسه‌ی تازه) یا SESSION_RECONNECTING (cookie قبلی) و در نهایت READY می‌رسد. سمت accept مسیر مشابهی دارد. در READY دریافت هر پیام از سه throttler (تعداد پیام، بایت‌های policy و صف dispatch) می‌گذرد. خطا در اتصال lossless به STANDBY یا بازاتصال با backoff (0.2 تا 15 ثانیه)، و در اتصال lossy به CLOSED منجر می‌شود](figures/ch26/f03_state.png){#fig-26-f03_state}
 
-| Throttle | Option or policy | Effect when full |
+| throttle | گزینه یا policy | اثر وقتی پر است |
 |---|---|---|
-| THROTTLE_MESSAGE | `policy.throttler_messages` (for example `osd_client_message_cap=256`) | reading from the socket stops, so TCP backpressure reaches the client |
-| THROTTLE_BYTES | `policy.throttler_bytes` (for example `osd_client_message_size_cap=500M`) | the same |
-| THROTTLE_DISPATCH_QUEUE | `ms_dispatch_throttle_bytes=100M` | the same; protects the dispatch queue's memory |
+| THROTTLE_MESSAGE | `policy.throttler_messages` (مثلاً `osd_client_message_cap=256`) | خواندن از سوکت متوقف می‌شود، پس TCP backpressure به کلاینت می‌رسد |
+| THROTTLE_BYTES | `policy.throttler_bytes` (مثلاً `osd_client_message_size_cap=500M`) | همان |
+| THROTTLE_DISPATCH_QUEUE | `ms_dispatch_throttle_bytes=100M` | همان؛ محافظ حافظه‌ی صف dispatch |
 
-# AsyncMessenger, Worker and EventCenter {#sec-26-6}
+# AsyncMessenger، Worker و EventCenter {#sec-26-6}
 
-![The threading model in AsyncMessenger. NetworkStack (Posix by default) creates ms_async_op_threads=3 Workers, and each Worker has an EventCenter. Each connection is assigned to one of the workers when it is created and stays there for its whole life. Each worker's loop first runs the expired timers, then waits in epoll_wait (edge-triggered) for fd events, and finally runs the external events that other threads have queued. Other threads wake the worker by writing to an eventfd (or a pipe on systems without it)](figures/ch26/f04_event.png){#fig-26-f04_event}
+![مدل threading در AsyncMessenger. NetworkStack (پیش‌فرض Posix) تعداد ms_async_op_threads=3 Worker می‌سازد و هر Worker یک EventCenter دارد. هر اتصال هنگام ساخت به یکی از workerها سپرده می‌شود و تا پایان عمرش همان‌جا می‌ماند. حلقه‌ی هر worker ابتدا زمان‌سنج‌های سررسیده را اجرا می‌کند، سپس در epoll_wait (edge-triggered) منتظر رویدادهای fd می‌ماند و در پایان رویدادهای خارجی‌ای را اجرا می‌کند که threadهای دیگر صف کرده‌اند. threadهای دیگر worker را با نوشتن در یک eventfd (یا pipe در سیستم‌های بدون آن) بیدار می‌کنند](figures/ch26/f04_event.png){#fig-26-f04_event}
 
-`EventCenter::process_events` does the following in each round:
+`EventCenter::process_events` در هر دور این کارها را انجام می‌کند:
 
-1. It computes when the nearest time event is due, to set the wait duration (at least `ms_time_events_min_wait_interval`).
-2. If no poller is active and no external event is queued, it blocks in `event_wait` (that is `epoll_wait` in `EventEpoll.cc`) until that time.
-3. For each ready fd, it calls the registered `read_cb` or `write_cb`. For connections these are `AsyncConnection::process` and `handle_write`.
-4. It runs the expired timers (for example keepalive, connection timeout and reconnection backoff).
-5. It empties and runs the `external_events` queue. `AsyncConnection::send_message`, from another thread (for example a PG thread in the OSD), puts the message in `out_q` and schedules the write on the right worker with `dispatch_event_external`.
+1. زمان رسیدن نزدیک‌ترین رویداد زمانی را حساب می‌کند تا مدت انتظار تعیین شود (حداقل `ms_time_events_min_wait_interval`).
+2. اگر poller فعال یا رویداد خارجی در صف نباشد، `event_wait` (یعنی `epoll_wait` در `EventEpoll.cc`) را تا آن زمان بلوک می‌کند.
+3. برای هر fd آماده، `read_cb` یا `write_cb` ثبت‌شده را صدا می‌زند. برای اتصال‌ها، این‌ها `AsyncConnection::process` و `handle_write` هستند.
+4. زمان‌سنج‌های سررسیده را اجرا می‌کند (مثلاً keepalive، timeout اتصال و backoff بازاتصال).
+5. صف `external_events` را خالی و اجرا می‌کند. `AsyncConnection::send_message` از thread دیگری (مثلاً thread مربوط به PG در OSD) پیام را در `out_q` می‌گذارد و با `dispatch_event_external` نوشتن را در worker درست زمان‌بندی می‌کند.
 
 ::: {.note}
-Because epoll is registered in `EPOLLET` (edge-triggered) mode, the handler must read or write until `EAGAIN`. Otherwise the remaining data does not generate any new event. This is why ProtocolV2 keeps its reading state in continuations (`CONTINUATION(...)`) and waits for more data by returning `nullptr`.
+چون epoll در حالت `EPOLLET` (edge-triggered) ثبت می‌شود، handler باید تا `EAGAIN` بخواند یا بنویسد. در غیر این صورت، داده‌ی باقی‌مانده هیچ رویداد جدیدی ایجاد نمی‌کند. ProtocolV2 برای همین وضعیت خواندن را در continuationها (`CONTINUATION(...)`) نگه می‌دارد و با بازگشت `nullptr` منتظر داده‌ی بیشتر می‌ماند.
 :::
 
-**Why only three threads?** Protocol processing (encryption or crc, frame parsing and throttling) is light, and the main work happens in the OSD's thread pools (`osd_op_num_threads_per_shard`). Three workers are usually enough for tens of thousands of connections, but with secure mode on busy NVMe OSDs these workers may become a CPU bottleneck. In that case `top -H -p <pid>` shows threads named `msgr-worker-N` near 100%.
+**چرا فقط سه thread؟** پردازش پروتکل (رمزنگاری یا crc، تجزیه‌ی frame و throttle) سبک است و کار اصلی در thread pool‌های OSD (`osd_op_num_threads_per_shard`) انجام می‌شود. سه worker معمولاً برای ده‌ها هزار اتصال کافی است، ولی با حالت secure روی OSDهای NVMe پرترافیک، این workerها ممکن است گلوگاه CPU شوند. در این صورت `top -H -p <pid>` threadهایی با نام `msgr-worker-N` را نشان می‌دهد که نزدیک ۱۰۰٪ هستند.
 
 ```bash
 top -H -p $(pidof -s ceph-osd)            # msgr-worker-0..2
 ceph daemon osd.4 perf dump AsyncMessenger::Worker-0 | jq '.[] | {msgr_recv_messages, msgr_send_messages, msgr_running_total_time}'
-ceph daemon osd.4 messenger dump        # without arguments, the list of messengers; with one's name, its connections
-ss -tinp | grep ceph-osd | head            # cwnd, rtt and retrans for each connection
-tcpdump -i any -s 128 -w /tmp/msgr.pcap port 3300   # the banner and preamble are visible in crc mode
+ceph daemon osd.4 messenger dump        # بدون آرگومان فهرست messengerها؛ با نام یکی، اتصال‌هایش
+ss -tinp | grep ceph-osd | head            # cwnd، rtt و retrans برای هر اتصال
+tcpdump -i any -s 128 -w /tmp/msgr.pcap port 3300   # banner و preamble در crc mode قابل دیدن است
 ```
 
 ::: {.debug}
-Wireshark has a Ceph dissector, but its msgr2 support is limited. In crc mode you can read the preamble by hand with this chapter's tag table: byte 0 is the tag and bytes 2 to 5 are the length of the first segment (LE). In secure mode everything after the banner and HELLO is encrypted.
+Wireshark تجزیه‌گر Ceph دارد، ولی پشتیبانی آن از msgr2 محدود است. در حالت crc می‌توانید با جدول tag این فصل، preamble را دستی بخوانید: بایت ۰ برابر tag و بایت‌های ۲ تا ۵ برابر طول segment اول (LE) است. در حالت secure، بعد از banner و HELLO همه‌چیز رمز است.
 :::
 
 # حساب دقیق اندازه‌ی قاب روی سیم {#sec-26-7}

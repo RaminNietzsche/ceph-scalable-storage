@@ -5,23 +5,24 @@ title: 'Monitoring Ceph: Prometheus, ceph-exporter, Alerts and Observability'
 part: main
 original_heading: Monitoring Ceph
 lang: en
+translation: pending
 ---
 
-# Before you start {#sec-20-1}
+# پیش از شروع {#sec-20-1}
 
-## What questions does this chapter answer? {#sec-20-1-1}
+## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-20-1-1}
 
-`ceph -s` is enough for a quick look, but to answer questions like "why has write latency been high since Tuesday?" or "which OSD was the slowest in the last hour?" we need time series, alert rules and dashboards. Today Ceph has a standard monitoring stack that cephadm deploys: the prometheus module in the mgr, the **ceph-exporter** daemon on every host, node-exporter, Prometheus, Alertmanager and Grafana, and in Tentacle the **mgmt-gateway**.
+`ceph -s` برای یک نگاه سریع کافی است، اما برای پاسخ به پرسش‌هایی مانند «تأخیر نوشتن از سه‌شنبه چرا بالا رفته؟» یا «کدام OSD در یک ساعت گذشته کندترین بوده؟» به سری‌های زمانی، قواعد هشدار و داشبورد نیاز داریم. Ceph امروز پشته‌ی پایش استانداردی دارد که cephadm آن را مستقر می‌کند: ماژول prometheus در mgr، daemon **ceph-exporter** روی هر میزبان، node-exporter، Prometheus، Alertmanager و Grafana، و در Tentacle دروازه‌ی **mgmt-gateway**.
 
-- What data does each component of the stack produce, and why were performance counters moved from the mgr to ceph-exporter?
-- Which metrics are the most important signals?
-- What makes a good alert rule for Ceph?
-- How are the daemons' internal counters (perf counters) built and read?
-- What problem do mgmt-gateway and oauth2-proxy solve?
+- هر مؤلفه‌ی پشته چه داده‌ای تولید می‌کند و چرا شمارنده‌های عملکرد از mgr به ceph-exporter منتقل شدند؟
+- کدام متریک‌ها مهم‌ترین سیگنال‌ها هستند؟
+- قاعده‌ی هشدار خوب برای Ceph چه ویژگی‌هایی دارد؟
+- شمارنده‌های داخلی daemonها (perf counters) چگونه ساخته و خوانده می‌شوند؟
+- mgmt-gateway و oauth2-proxy چه مشکلی را حل می‌کنند؟
 
-# Architecture of the monitoring stack {#sec-20-2}
+# معماری پشته‌ی پایش {#sec-20-2}
 
-![The monitoring stack architecture in three rows: on each host, ceph-exporter reads the daemons' performance counters from the admin socket and node-exporter publishes operating system metrics; the active mgr with the prometheus module provides cluster-level metrics and the service discovery endpoint; Prometheus scrapes everything and evaluates alert rules, Alertmanager routes alerts and Grafana displays dashboards](figures/ch20/f01_stack.png){#fig-20-f01_stack}
+![معماری پشته‌ی پایش در سه ردیف: روی هر میزبان ceph-exporter شمارنده‌های عملکرد daemonها را از admin socket می‌خواند و node-exporter متریک‌های سیستم‌عامل را منتشر می‌کند؛ mgr فعال با ماژول prometheus متریک‌های سطح کلاستر و نقطه‌ی service discovery را ارائه می‌دهد؛ Prometheus همه را scrape و قواعد هشدار را ارزیابی می‌کند، Alertmanager هشدارها را مسیریابی و Grafana داشبوردها را نمایش می‌دهد](figures/ch20/f01_stack.png){#fig-20-f01_stack}
 
 ```bash
 ceph mgr module enable prometheus
@@ -34,27 +35,27 @@ ceph orch ls --service-type prometheus
 ceph dashboard get-prometheus-api-host
 ```
 
-| Component | Data | Note |
+| مؤلفه | داده | نکته |
 |---|---|---|
-| prometheus module in the mgr | health, health codes, OSD and PG state, pool usage, daemon metadata, RBD image metrics (optional) | default port 9283; only the active mgr serves data |
-| ceph-exporter | performance counters of each local daemon (from the admin socket) | on every host; reduces load on the mgr |
-| node-exporter | host CPU, memory, disk, network | for correlating Ceph slowness with hardware |
-| Prometheus | time series storage and rule evaluation | ceph-mixin rules ship with cephadm |
-| Alertmanager | grouping, silencing and sending alerts | the Dashboard displays the alerts |
-| Grafana | ready-made dashboards | embedded in the Dashboard |
+| ماژول prometheus در mgr | سلامت، کدهای health، وضعیت OSD و PG، مصرف pool، فراداده‌ی daemonها، متریک‌های تصویر RBD (اختیاری) | پورت پیش‌فرض 9283؛ فقط mgr فعال داده می‌دهد |
+| ceph-exporter | شمارنده‌های عملکرد هر daemon محلی (از admin socket) | روی هر میزبان؛ بار mgr را کم می‌کند |
+| node-exporter | CPU، حافظه، دیسک، شبکه‌ی میزبان | برای همبستگی کندی Ceph با سخت‌افزار |
+| Prometheus | ذخیره‌ی سری زمانی و ارزیابی قواعد | قواعد ceph-mixin همراه cephadm |
+| Alertmanager | گروه‌بندی، سکوت و ارسال هشدار | Dashboard هشدارها را نمایش می‌دهد |
+| Grafana | داشبوردهای آماده | درون Dashboard جاسازی می‌شود |
 
 ::: {.note}
-**Change from older versions.** According to the prometheus module documentation, daemon performance counters are no longer published by this module by default, and this job has been handed to ceph-exporter; the `mgr/prometheus/exclude_perf_counters` option should only be disabled when no ceph-exporter is deployed. The reason: collecting all counters from a single point degrades mgr performance in large clusters.
+**تغییر نسبت به نسخه‌های قدیمی.** طبق مستندات ماژول prometheus، شمارنده‌های عملکرد daemonها دیگر به‌صورت پیش‌فرض از این ماژول منتشر نمی‌شوند و این کار به ceph-exporter سپرده شده است؛ گزینه‌ی `mgr/prometheus/exclude_perf_counters` فقط وقتی باید غیرفعال شود که هیچ ceph-exporterی مستقر نیست. دلیل: جمع‌آوری همه‌ی شمارنده‌ها از یک نقطه در کلاسترهای بزرگ کارایی mgr را پایین می‌آورد.
 :::
 
 ::: {.warn}
-Only the **active** mgr publishes cluster metrics. If you have an external Prometheus, define all mgrs as targets (or use service discovery at `http(s)://<mgr>:8765/sd/prometheus/sd-config?service=...`) so that scraping is not interrupted after a failover. The behaviour of standby mgrs is set with `standby_behaviour` and their response code with `standby_error_status_code`.
+فقط mgr **فعال** متریک‌های کلاستر را منتشر می‌کند. اگر Prometheus بیرونی دارید، همه‌ی mgrها را به‌عنوان هدف تعریف کنید (یا از service discovery در `http(s)://<mgr>:8765/sd/prometheus/sd-config?service=...` استفاده کنید) تا پس از failover، scrape قطع نشود. رفتار mgrهای standby با `standby_behaviour` و کد پاسخ آن‌ها با `standby_error_status_code` تنظیم می‌شود.
 :::
 
-## External Prometheus {#sec-20-2-1}
+## Prometheus بیرونی {#sec-20-2-1}
 
 ```yaml
-# prometheus.yml — this book's example for an external Prometheus
+# prometheus.yml — نمونه‌ی این کتاب برای Prometheus بیرونی
 scrape_configs:
   - job_name: ceph
     honor_labels: true
@@ -70,41 +71,41 @@ scrape_configs:
 ```
 
 ::: {.tip}
-`honor_labels: true` is needed so that labels Ceph sets, such as `ceph_daemon` and `instance`, are not overwritten by Prometheus labels. Check the exact service names in service discovery against your version's documentation. According to the cephadm documentation, if `mgr/cephadm/secure_monitoring_stack` is enabled or mgmt-gateway is deployed, this endpoint serves over https with basic auth, and the job definition must have `basic_auth` and `tls_config`.
+`honor_labels: true` لازم است تا برچسب‌هایی مانند `ceph_daemon` و `instance` که Ceph تنظیم می‌کند، با برچسب‌های Prometheus بازنویسی نشوند. نام دقیق سرویس‌ها در service discovery را با مستندات نسخه‌ی خود تطبیق دهید. طبق مستندات cephadm، اگر `mgr/cephadm/secure_monitoring_stack` فعال باشد یا mgmt-gateway مستقر شده باشد، این endpoint روی https و با basic auth سرویس می‌دهد و تعریف job باید `basic_auth` و `tls_config` داشته باشد.
 :::
 
-# From inside the code: perf counters {#sec-20-3}
+# از درون کد: perf counters {#sec-20-3}
 
-## Building counters {#sec-20-3-1}
+## ساخت شمارنده‌ها {#sec-20-3-1}
 
-Every Ceph daemon defines its counters with `PerfCountersBuilder` (`src/common/perf_counters.h`). Each counter has a numeric key, a name, a type and a **priority**. The main types:
+هر daemon Ceph شمارنده‌های خود را با `PerfCountersBuilder` (`src/common/perf_counters.h`) تعریف می‌کند. هر شمارنده یک کلید عددی، یک نام، یک نوع و یک **اولویت** دارد. انواع اصلی:
 
-| Builder function | Type | Example |
+| تابع سازنده | نوع | مثال |
 |---|---|---|
-| add_u64 | instantaneous value (gauge) | number of operations in flight |
-| add_u64_counter | increasing counter | total number of write operations |
-| add_time_avg | sum of time and count (for an average) | op_w_latency |
-| add_u64_counter_histogram | two-dimensional histogram (e.g. size × latency) | latency distribution by size |
+| add_u64 | مقدار لحظه‌ای (gauge) | تعداد عملیات در جریان |
+| add_u64_counter | شمارنده‌ی افزایشی | تعداد کل عملیات نوشتن |
+| add_time_avg | مجموع زمان و تعداد (برای میانگین) | op_w_latency |
+| add_u64_counter_histogram | هیستوگرام دوبعدی (مثلاً اندازه × تأخیر) | توزیع تأخیر بر حسب اندازه |
 
-Priorities range from `PRIO_CRITICAL=10` to `PRIO_DEBUGONLY=0` (`PRIO_INTERESTING=8`, `PRIO_USEFUL=5`). This priority has a practical role: ceph-exporter only publishes counters whose priority is at least `exporter_prio_limit`, whose default in `src/common/options/ceph-exporter.yaml.in` is **5**. So DEBUGONLY counters do not reach Prometheus unless you lower this limit (which greatly increases the volume of metrics).
+اولویت‌ها از `PRIO_CRITICAL=10` تا `PRIO_DEBUGONLY=0` هستند (`PRIO_INTERESTING=8`، `PRIO_USEFUL=5`). این اولویت نقش عملی دارد: ceph-exporter فقط شمارنده‌هایی با اولویت دست‌کم `exporter_prio_limit` را منتشر می‌کند که در `src/common/options/ceph-exporter.yaml.in` پیش‌فرضش **۵** است. بنابراین شمارنده‌های DEBUGONLY به Prometheus نمی‌رسند مگر این حد را کاهش دهید (که حجم متریک‌ها را بسیار زیاد می‌کند).
 
-![The path of a performance counter from production to consumption: the OSD registers a counter such as op_w_latency with PerfCountersBuilder, the admin socket exposes it through the counter dump and counter schema commands, ceph-exporter converts it to Prometheus format with the ceph_daemon label, and Prometheus stores it and uses it with PromQL in alert rules and panels](figures/ch20/f02_metric.png){#fig-20-f02_metric}
+![مسیر یک شمارنده‌ی عملکرد از تولید تا مصرف: OSD شمارنده‌ای مثل op_w_latency را با PerfCountersBuilder ثبت می‌کند، admin socket آن را با فرمان‌های counter dump و counter schema عرضه می‌کند، ceph-exporter آن را با برچسب ceph_daemon به فرمت Prometheus تبدیل می‌کند و Prometheus آن را ذخیره و با PromQL در قواعد هشدار و پنل‌ها به کار می‌برد](figures/ch20/f02_metric.png){#fig-20-f02_metric}
 
 ```bash
-# reading counters directly on the host
+# خواندن مستقیم شمارنده‌ها روی میزبان
 ceph daemon osd.3 counter schema | jq 'keys' | head
 ceph daemon osd.3 counter dump | jq '.osd[0].counters | {op_w, op_r}'
-ceph daemon osd.3 perf dump osd | jq '.osd.op_w_latency'       # older form: avgcount and sum
+ceph daemon osd.3 perf dump osd | jq '.osd.op_w_latency'       # شکل قدیمی‌تر: avgcount و sum
 ceph config get client.ceph-exporter exporter_prio_limit
 ```
 
 ::: {.note}
-The `counter dump` and `counter schema` commands are registered in `src/common/ceph_context.cc` and return the labeled form of the counters; `perf dump` is the older form. ceph-exporter reads from the sockets in the `exporter_sock_dir` directory every `exporter_stats_period` (default 5 seconds) and publishes on port `exporter_http_port` (default 9926).
+فرمان‌های `counter dump` و `counter schema` در `src/common/ceph_context.cc` ثبت شده‌اند و شکل برچسب‌دار (labeled) شمارنده‌ها را برمی‌گردانند؛ `perf dump` شکل قدیمی‌تر است. ceph-exporter با فاصله‌ی `exporter_stats_period` (پیش‌فرض ۵ ثانیه) از socketهای پوشه‌ی `exporter_sock_dir` می‌خواند و روی پورت `exporter_http_port` (پیش‌فرض 9926) منتشر می‌کند.
 :::
 
-## From time_avg to latency {#sec-20-3-2}
+## از time_avg به تأخیر {#sec-20-3-2}
 
-An `add_time_avg` counter has two values: `sum` (total seconds) and `avgcount` (count). The average latency over an interval is the ratio of the **increase** in these two, not the ratio of the raw values (which is the average over the daemon's whole lifetime):
+شمارنده‌ی `add_time_avg` دو مقدار دارد: `sum` (مجموع ثانیه‌ها) و `avgcount` (تعداد). میانگین تأخیر در یک بازه، نسبت **افزایش** این دو است، نه نسبت مقادیر خام (که میانگین کل عمر daemon است):
 
 ```text
 avg_latency(window) = Δsum / Δavgcount
@@ -112,31 +113,31 @@ PromQL:  rate(ceph_osd_op_w_latency_sum[5m]) / rate(ceph_osd_op_w_latency_count[
 ```
 
 ::: {.tip}
-Read the exact metric names from the endpoint itself (`curl -s http://host:9926/metrics | grep op_w_latency`); suffixes (`_sum`, `_count`) and labels may differ between versions and between the mgr module and ceph-exporter.
+نام دقیق متریک‌ها را از خود endpoint بخوانید (`curl -s http://host:9926/metrics | grep op_w_latency`)؛ پسوندها (`_sum`، `_count`) و برچسب‌ها ممکن است بین نسخه‌ها و بین ماژول mgr و ceph-exporter متفاوت باشند.
 :::
 
-# Key signals {#sec-20-4}
+# سیگنال‌های کلیدی {#sec-20-4}
 
-| Signal | Example metric or PromQL | Why |
+| سیگنال | متریک یا PromQL نمونه | چرا |
 |---|---|---|
-| Overall health | `ceph_health_status` (0 healthy, 1 warning, 2 error) | status summary |
-| Specific health code | `ceph_health_detail{name="MON_DOWN"} == 1`; for SLOW_OPS the separate metric `ceph_healthcheck_slow_ops > 0` (the HEALTH_CHECKS list in module.py) | precise alerting on the codes from chapter 17 |
-| Down OSDs | `count(ceph_osd_up == 0)` | loss of capacity and redundancy |
-| Inactive PGs | `ceph_pool_metadata * on(cluster,pool_id,instance) group_left() (ceph_pg_total - ceph_pg_active) > 0` (exactly the CephPGsInactive rule) | I/O stops, per pool |
-| Pool fullness | `ceph_pool_percent_used` (a fraction between 0 and 1, not a percentage) | preventing OSD_FULL |
-| quorum | `ceph_mon_quorum_status` | health of the control plane |
-| OSD write latency | `rate(ceph_osd_op_w_latency_sum[5m]) / rate(ceph_osd_op_w_latency_count[5m])` per ceph_daemon | user-visible slowness |
-| mirroring | `topk by (cluster,ceph_daemon,image,namespace,pool) (1, ceph_rbd_mirror_snapshot_image_local_timestamp) - topk by (…) (1, ceph_rbd_mirror_snapshot_image_remote_timestamp) != 0` (the CephRBDMirrorImagesNotInSync rule) | RPO lag |
+| سلامت کلی | `ceph_health_status` (۰ سالم، ۱ هشدار، ۲ خطا) | خلاصه‌ی وضعیت |
+| کد سلامت مشخص | `ceph_health_detail{name="MON_DOWN"} == 1`؛ برای SLOW_OPS متریک جداگانه‌ی `ceph_healthcheck_slow_ops > 0` (فهرست HEALTH_CHECKS در module.py) | هشدار دقیق بر اساس کدهای فصل ۱۷ |
+| OSDهای down | `count(ceph_osd_up == 0)` | از دست رفتن ظرفیت و افزونگی |
+| PGهای غیرفعال | `ceph_pool_metadata * on(cluster,pool_id,instance) group_left() (ceph_pg_total - ceph_pg_active) > 0` (عین قاعده‌ی CephPGsInactive) | توقف I/O، به تفکیک pool |
+| پری pool | `ceph_pool_percent_used` (کسری بین 0 و 1، نه درصد) | پیشگیری از OSD_FULL |
+| quorum | `ceph_mon_quorum_status` | سلامت لایه‌ی کنترل |
+| تأخیر نوشتن OSD | `rate(ceph_osd_op_w_latency_sum[5m]) / rate(ceph_osd_op_w_latency_count[5m])` به تفکیک ceph_daemon | کندی کاربر |
+| mirroring | `topk by (cluster,ceph_daemon,image,namespace,pool) (1, ceph_rbd_mirror_snapshot_image_local_timestamp) - topk by (…) (1, ceph_rbd_mirror_snapshot_image_remote_timestamp) != 0` (قاعده‌ی CephRBDMirrorImagesNotInSync) | تأخیر RPO |
 
 ::: {.note}
-All metric names and expressions in the table above were checked in November 2026 against src/pybind/mgr/prometheus/module.py and the official alert rules `monitoring/ceph-mixin/prometheus_alerts.yml` on the main branch. The ceph-mixin rules file on the main branch (at the time of writing) has 109 rules, including CephHealthError, CephMonDownQuorumAtRisk, CephOSDDown, CephOSDNearFull, CephPGsInactive, CephPGUnavailableBlockingIO, CephSlowOps, CephPoolGrowthWarning, and hardware rules (such as PowerSupplyFailed) and NVMe-oF rules.
+همه‌ی نام‌های متریک و عبارت‌های جدول بالا در نوامبر 2026 با src/pybind/mgr/prometheus/module.py و قواعد هشدار رسمی `monitoring/ceph-mixin/prometheus_alerts.yml` شاخه‌ی main تطبیق داده شده‌اند. فایل قواعد ceph-mixin در شاخه‌ی main (هنگام نگارش) ۱۰۹ قاعده دارد؛ از جمله CephHealthError، CephMonDownQuorumAtRisk، CephOSDDown، CephOSDNearFull، CephPGsInactive، CephPGUnavailableBlockingIO، CephSlowOps، CephPoolGrowthWarning و قواعد سخت‌افزاری (مانند PowerSupplyFailed) و NVMe-oF.
 :::
 
-# Designing alert rules {#sec-20-5}
+# طراحی قواعد هشدار {#sec-20-5}
 
-![The alert cycle in three stages: signals from ceph_health_detail and the state and latency metrics; the rule in Prometheus with expr and a persistence duration for, a severity label and a description with a runbook link; and delivery in Alertmanager with grouping by alertname and cluster, inhibit to silence secondary alerts, and sending to on-call](figures/ch20/f03_alertflow.png){#fig-20-f03_alertflow}
+![چرخه‌ی هشدار در سه مرحله: سیگنال‌ها از ceph_health_detail و متریک‌های وضعیت و تأخیر؛ قاعده در Prometheus با expr و مدت پایداری for، برچسب severity و توضیح همراه لینک runbook؛ و تحویل در Alertmanager با گروه‌بندی بر اساس alertname و cluster، inhibit برای خاموش کردن هشدارهای فرعی و ارسال به on-call](figures/ch20/f03_alertflow.png){#fig-20-f03_alertflow}
 
-The rules below are this book's own examples and do not replace ceph-mixin; they show the pattern for adding local rules:
+قواعد زیر نمونه‌ی خود این کتاب‌اند و جایگزین ceph-mixin نیستند، بلکه الگوی افزودن قواعد محلی را نشان می‌دهند:
 
 ```yaml
 groups:
@@ -148,18 +149,18 @@ groups:
     for: 15m
     labels: { severity: warning }
     annotations:
-      summary: "write latency of {{ $labels.ceph_daemon }} above 50 milliseconds"
+      summary: "تأخیر نوشتن {{ $labels.ceph_daemon }} بیش از ۵۰ میلی‌ثانیه"
       runbook: "https://wiki.example.internal/runbooks/ceph-slow-osd"
   - alert: CephPoolFillingFast
     expr: predict_linear(ceph_pool_percent_used[6h], 3 * 24 * 3600) > 0.85
     for: 1h
     labels: { severity: warning }
     annotations:
-      summary: "pool {{ $labels.pool_id }} will pass 85% within the next three days"
+      summary: "pool {{ $labels.pool_id }} در سه روز آینده از ۸۵٪ می‌گذرد"
 ```
 
 ```yaml
-# Alertmanager: silence the single-OSD alert when the whole host is down
+# Alertmanager: خاموش کردن هشدار OSD منفرد وقتی کل میزبان down است
 inhibit_rules:
 - source_matchers: [ alertname = "CephOSDHostDown" ]
   target_matchers: [ alertname = "CephOSDDown" ]
@@ -167,71 +168,71 @@ inhibit_rules:
 ```
 
 ::: {.warn}
-The thresholds above (50 milliseconds, 85%) are examples. Derive the real threshold from your own cluster's baseline behaviour (for example the 95th percentile of the past week) and the service SLOs. An alert that fires every day for no reason is quickly ignored.
+مقادیر آستانه‌ی بالا (۵۰ میلی‌ثانیه، ۸۵٪) نمونه‌اند. آستانه‌ی واقعی را از پایه‌ی رفتار کلاستر خودتان (مثلاً صدک ۹۵ هفته‌ی گذشته) و SLOهای سرویس استخراج کنید. هشداری که هر روز بی‌دلیل به صدا درآید، به‌سرعت نادیده گرفته می‌شود.
 :::
 
 ::: {.tip}
-In cephadm, custom rules sit alongside the default rules: register the file with `ceph config-key set mgr/cephadm/services/prometheus/alerting/custom_alerts.yml -i custom_alerts.yml` and then run `ceph orch reconfig prometheus` (cephadm monitoring documentation). According to the same documentation, custom rules are not processed with Jinja.
+در cephadm، قواعد سفارشی کنار قواعد پیش‌فرض قرار می‌گیرند: فایل را با `ceph config-key set mgr/cephadm/services/prometheus/alerting/custom_alerts.yml -i custom_alerts.yml` ثبت و سپس `ceph orch reconfig prometheus` را اجرا کنید (مستندات monitoring در cephadm). طبق همان مستندات، قواعد سفارشی با Jinja پردازش نمی‌شوند.
 :::
 
-# The lower layer: from an atomic variable to a /metrics line {#sec-20-6}
+# لایه‌ی پایین‌تر: از متغیر atomic تا سطر /metrics {#sec-20-6}
 
-Every number on a dashboard starts as a `std::atomic<uint64_t>` variable in a daemon's memory. This section follows its path to Prometheus at the level of bytes and code, so you know exactly what each number measures and where it might lie.
+هر عدد روی داشبورد از یک متغیر `std::atomic<uint64_t>` در حافظه‌ی یک daemon شروع می‌شود. این بخش مسیر آن را تا Prometheus در سطح بایت و کد دنبال می‌کند تا بدانید هر عدد دقیقاً چه چیزی را اندازه می‌گیرد و کجا ممکن است دروغ بگوید.
 
-## Structure of a counter {#sec-20-6-1}
+## ساختار یک شمارنده {#sec-20-6-1}
 
-`perf_counter_data_any_d` in `src/common/perf_counters.h` keeps a type byte (bitmask), a priority and a unit for each counter:
+`perf_counter_data_any_d` در `src/common/perf_counters.h` برای هر شمارنده یک بایت نوع (bitmask)، یک اولویت و یک واحد نگه می‌دارد:
 
-| Type bit | Value | Meaning |
+| بیت نوع | مقدار | معنا |
 |---|---|---|
-| `PERFCOUNTER_TIME` | 0x1 | a time value; stored as nanoseconds in a u64 (`to_nsec`) |
-| `PERFCOUNTER_U64` | 0x2 | an integer (one of TIME or U64 must be set) |
-| `PERFCOUNTER_LONGRUNAVG` | 0x4 | a "sum + count" pair for a long-run average |
-| `PERFCOUNTER_COUNTER` | 0x8 | a monotonically increasing counter (as opposed to a gauge) |
-| `PERFCOUNTER_HISTOGRAM` | 0x10 | a histogram (e.g. two-dimensional size × latency) |
+| `PERFCOUNTER_TIME` | 0x1 | مقدار زمانی؛ به نانوثانیه در u64 ذخیره می‌شود (`to_nsec`) |
+| `PERFCOUNTER_U64` | 0x2 | عدد صحیح (یکی از TIME یا U64 باید روشن باشد) |
+| `PERFCOUNTER_LONGRUNAVG` | 0x4 | جفت «مجموع + تعداد» برای میانگین بلندمدت |
+| `PERFCOUNTER_COUNTER` | 0x8 | شمارنده‌ی صعودی (در برابر gauge) |
+| `PERFCOUNTER_HISTOGRAM` | 0x10 | هیستوگرام (مثلاً دوبعدی اندازه × تأخیر) |
 
-The priorities are `PRIO_CRITICAL=10`, `PRIO_INTERESTING=8`, `PRIO_USEFUL=5`, `PRIO_UNINTERESTING=2` and `PRIO_DEBUGONLY=0`. This number decides whether the counter leaves the daemon at all: MgrClient only reports counters whose configured priority is `>= mgr_stats_threshold` (default 5). ceph-exporter does the same with `exporter_prio_limit=5`. So a counter you see in `ceph daemon osd.3 perf dump` but not in Prometheus probably has a priority below 5.
+اولویت‌ها `PRIO_CRITICAL=10`، `PRIO_INTERESTING=8`، `PRIO_USEFUL=5`، `PRIO_UNINTERESTING=2` و `PRIO_DEBUGONLY=0` هستند. این عدد تعیین می‌کند شمارنده اصلاً از daemon بیرون برود یا نه: MgrClient فقط شمارنده‌هایی را گزارش می‌کند که اولویت تنظیم‌شده‌شان `>= mgr_stats_threshold` (پیش‌فرض 5) باشد. ceph-exporter هم همین کار را با `exporter_prio_limit=5` انجام می‌دهد. پس شمارنده‌ای که در `ceph daemon osd.3 perf dump` می‌بینید ولی در Prometheus نیست، احتمالاً اولویتی کمتر از 5 دارد.
 
-## A lock-free average {#sec-20-6-2}
+## میانگین بدون قفل {#sec-20-6-2}
 
-For a LONGRUNAVG counter, `tinc` does three things in this order: `avgcount++`, then `u64 += nsec`, and finally `avgcount2++`. The reader (`read_avg`) works in reverse:
+`tinc` برای یک شمارنده‌ی LONGRUNAVG سه کار را به این ترتیب انجام می‌دهد: `avgcount++`، سپس `u64 += nsec` و در پایان `avgcount2++`. خواننده (`read_avg`) برعکس عمل می‌کند:
 
 ```text
-pseudocode: read_avg (a seqlock-like pattern)
+pseudocode: read_avg (الگوی seqlock-مانند)
   repeat:
-    c   = avgcount2        # the "write finished" counter
+    c   = avgcount2        # شمارنده‌ی «پایان نوشتن»
     sum = u64
-  until avgcount == c      # no write started in between
+  until avgcount == c      # در این فاصله نوشتنی شروع نشده است
   return (sum, c)
 ```
 
-If a `tinc` happens in the middle of a read, `avgcount` gets ahead of `avgcount2` and the loop repeats. So the (sum, count) pair is always consistent, without a mutex on the hot I/O path. Because there are multiple concurrent writers (shard threads), this guarantee is "almost" consistent, which is enough for statistics but not for exact accounting.
+اگر وسط خواندن یک `tinc` انجام شود، `avgcount` از `avgcount2` جلو می‌افتد و حلقه تکرار می‌شود. بنابراین جفت (sum, count) همیشه با هم سازگار است، بدون mutex در مسیر داغ I/O. چون نویسنده‌های چندتایی (threadهای شارد) هم‌زمان هستند، این تضمین «تقریباً» سازگار است و برای آمار کافی است، نه برای حسابداری دقیق.
 
 ::: {.deep}
-**The raw number you see is the average since the daemon started.** `perf dump` gives `avgcount` and `sum` (in seconds) and `avgtime=sum/avgcount` for `op_r_latency`. avgtime is the average **since the daemon started**, and after a month of running it practically does not show a 5-minute slowdown. Always use the difference between two samples.
+**عدد خامی که می‌بینید میانگین از لحظه‌ی شروع daemon است.** `perf dump` برای `op_r_latency` مقادیر `avgcount` و `sum` (به ثانیه) و `avgtime=sum/avgcount` را می‌دهد. avgtime میانگین **از زمان شروع daemon** است و یک کندی ۵ دقیقه‌ای را پس از یک ماه کار عملاً نشان نمی‌دهد. همیشه از تفاضل دو نمونه استفاده کنید.
 :::
 
-### Numerical example
+### مثال عددی
 
-Suppose we took two samples from `osd.3` 60 seconds apart:
+فرض کنید دو نمونه به فاصله‌ی ۶۰ ثانیه از `osd.3` گرفته‌ایم:
 
-| Sample | op_r_latency.avgcount | op_r_latency.sum (s) | Reported avgtime |
+| نمونه | op_r_latency.avgcount | op_r_latency.sum (s) | avgtime گزارش‌شده |
 |---|---|---|---|
 | t=0 | 50,000 | 120.5 | 2.41 ms |
 | t=60s | 53,000 | 123.5 | 2.33 ms |
-| Difference | 3,000 | 3.0 | **1.00 ms** (the real latency of this minute) |
+| تفاضل | 3,000 | 3.0 | **1.00 ms** (تأخیر واقعی این دقیقه) |
 
-Read IOPS in this minute is 3000/60=50. avgtime went from 2.41 to 2.33 and seems to show a small improvement, while the real latency of this minute was 1ms. The reverse is also possible: a minute with 50ms latency raises avgtime only slightly. In PromQL the equivalent of this difference is:
+IOPS خواندن در این دقیقه 3000/60=50 است. avgtime از 2.41 به 2.33 رسیده و ظاهراً بهبود کمی نشان می‌دهد، در حالی که تأخیر واقعی این دقیقه 1ms بوده است. برعکسش هم ممکن است: یک دقیقه با تأخیر 50ms، avgtime را فقط کمی بالا می‌برد. در PromQL معادل همین تفاضل این است:
 
 ```text
 rate(ceph_osd_op_r_latency_sum[1m]) / rate(ceph_osd_op_r_latency_count[1m])
 ```
 
-## The admin socket protocol {#sec-20-6-3}
+## پروتکل admin socket {#sec-20-6-3}
 
-![The admin socket protocol. One UNIX connection is opened per command. The request is a JSON string terminated by 0x00 or 0x0A. The response comes as a 4-byte big-endian length followed by the payload. If the first byte of the request is 0x00, the old 4-byte protocol is assumed (code 1 means perfcounters_dump and code 2 means perfcounters_schema)](figures/ch20/f05_asok.png){#fig-20-f05_asok}
+![پروتکل admin socket. یک اتصال UNIX برای هر فرمان باز می‌شود. درخواست رشته‌ی JSON است که با 0x00 یا 0x0A تمام می‌شود. پاسخ با یک طول ۴ بایتی big-endian و سپس payload می‌آید. اگر اولین بایت درخواست 0x00 باشد، پروتکل قدیمی ۴ بایتی فرض می‌شود (کد ۱ یعنی perfcounters_dump و کد ۲ یعنی perfcounters_schema)](figures/ch20/f05_asok.png){#fig-20-f05_asok}
 
-In `AdminSocket::do_accept` the error code is not sent on the wire. If a command fails, the response starts with the string `ERROR: `, so automated tools must check for this prefix. A minimal client (written for this book, only to understand the protocol):
+در `AdminSocket::do_accept` کد خطا روی سیم ارسال نمی‌شود. اگر فرمان شکست بخورد، پاسخ با رشته‌ی `ERROR: ` شروع می‌شود، پس ابزار خودکار باید همین پیشوند را بررسی کند. یک کلاینت حداقلی (نوشته‌ی این کتاب، فقط برای فهم پروتکل):
 
 ```python
 import socket, struct, json, sys
@@ -249,229 +250,229 @@ lat = d["osd"]["op_r_latency"]; print(lat["avgcount"], lat["sum"])
 ```
 
 ::: {.warn}
-The admin socket gives full access to the daemon (including `config set` and destructive commands). Only root or the ceph user should have access to the `.asok` file. Never mount the `/var/run/ceph` directory with write access into a monitoring container, unless it is the official ceph-exporter itself.
+admin socket دسترسی کامل به daemon می‌دهد (از جمله `config set` و فرمان‌های مخرب). فقط root یا کاربر ceph باید به فایل `.asok` دسترسی داشته باشد. هرگز دایرکتوری `/var/run/ceph` را در یک کانتینر پایش با دسترسی نوشتن mount نکنید، مگر آنکه همان ceph-exporter رسمی باشد.
 :::
 
-## Two paths to Prometheus {#sec-20-6-4}
+## دو مسیر رسیدن به Prometheus {#sec-20-6-4}
 
-![Two paths by which a counter reaches Prometheus. The mgr path uses MgrClient and the MMgrReport message (every mgr_stats_period=5 seconds), and the prometheus module publishes it on port 9283. The ceph-exporter path on each host reads directly from each daemon's admin socket (counter schema and counter dump every exporter_stats_period=5 seconds) and publishes on port 9926. LONGRUNAVG counters become two series, _sum and _count](figures/ch20/f06_pcpath.png){#fig-20-f06_pcpath}
+![دو مسیر رسیدن یک شمارنده به Prometheus. مسیر mgr از MgrClient و پیام MMgrReport (هر mgr_stats_period=5 ثانیه) استفاده می‌کند و ماژول prometheus روی پورت 9283 آن را منتشر می‌کند. مسیر ceph-exporter روی هر میزبان مستقیماً از admin socket هر daemon می‌خواند (counter schema و counter dump هر exporter_stats_period=5 ثانیه) و روی پورت 9926 منتشر می‌کند. شمارنده‌های LONGRUNAVG به دو سری _sum و _count تبدیل می‌شوند](figures/ch20/f06_pcpath.png){#fig-20-f06_pcpath}
 
-| Option | Default (main) | Path |
+| گزینه | پیش‌فرض (main) | مسیر |
 |---|---|---|
 | `mgr_stats_period` | 5 s | MgrClient → mgr |
-| `mgr_stats_period_autotune` | true | automatically increases the period when the mgr's message queue fills (also present in the yaml of Squid and Tentacle) |
-| `mgr_stats_threshold` | 5 | lowest priority sent to the mgr |
+| `mgr_stats_period_autotune` | true | افزایش خودکار period وقتی صف پیام mgr پر شود (در yaml نسخه‌های Squid و Tentacle هم هست) |
+| `mgr_stats_threshold` | 5 | کمترین اولویت ارسالی به mgr |
 | `exporter_stats_period` | 5 s | ceph-exporter |
 | `exporter_http_port` | 9926 | ceph-exporter |
-| `exporter_prio_limit` | 5 | lowest priority published by the exporter |
-| `exporter_sock_dir` | `/var/run/ceph/` | where asoks are searched for |
+| `exporter_prio_limit` | 5 | کمترین اولویت منتشرشده در exporter |
+| `exporter_sock_dir` | `/var/run/ceph/` | محل جست‌وجوی asokها |
 
 ::: {.tip}
-**Why ceph-exporter?** In a large cluster, the mgr path passes every counter of every daemon through a single Python process, and the mgr becomes a bottleneck. ceph-exporter spreads this load across hosts. When both are active, scrape per-daemon counters from only one of them to avoid duplicate series (in cephadm, ceph-exporter is a separate service named `ceph-exporter`; see its status with `ceph orch ls ceph-exporter`).
+**چرا ceph-exporter؟** در خوشه‌ی بزرگ، مسیر mgr همه‌ی شمارنده‌های همه‌ی daemonها را از یک فرایند Python عبور می‌دهد و mgr گلوگاه می‌شود. ceph-exporter این بار را بین میزبان‌ها پخش می‌کند. وقتی هر دو فعال‌اند، شمارنده‌های per-daemon را فقط از یکی scrape کنید تا سری‌های تکراری نداشته باشید (در cephadm، ceph-exporter سرویس جداگانه‌ای با نام `ceph-exporter` است؛ وضعیت آن را با `ceph orch ls ceph-exporter` ببینید).
 :::
 
-### Time accuracy
+### دقت زمانی
 
-In the worst case, the Prometheus number is older than scrape_interval plus the collection period (5 seconds). With a scrape every 15 seconds, a three-second spike may show up only as a small increase in `rate()`. For moment-to-moment troubleshooting, use `ceph daemon osd.N perf dump` or `ceph tell osd.N dump_historic_ops` (chapter 22) directly, not the dashboard.
+عدد Prometheus در بدترین حالت قدیمی‌تر از scrape_interval به‌علاوه‌ی دوره‌ی جمع‌آوری (۵ ثانیه) است. با scrape هر 15 ثانیه، یک spike سه‌ثانیه‌ای ممکن است فقط به‌صورت افزایش کوچکی در `rate()` دیده شود. برای عیب‌یابی لحظه‌ای، مستقیم از `ceph daemon osd.N perf dump` یا `ceph tell osd.N dump_historic_ops` (فصل ۲۲) استفاده کنید، نه از داشبورد.
 
 ```bash
-ceph daemon osd.3 perf schema | jq '.osd.op_r_latency'      # type, priority, units
-ceph daemon osd.3 perf dump   | jq '.osd.op_r_latency'      # avgcount, sum, avgtime
-ceph daemon osd.3 counter dump | jq 'keys' | head            # labeled counters (newer versions)
+ceph daemon osd.3 perf schema | jq '.osd.op_r_latency'      # type، priority، units
+ceph daemon osd.3 perf dump   | jq '.osd.op_r_latency'      # avgcount، sum، avgtime
+ceph daemon osd.3 counter dump | jq 'keys' | head            # شمارنده‌های برچسب‌دار (نسخه‌های جدیدتر)
 curl -s localhost:9926/metrics | grep -m3 ceph_osd_op_r_latency
 ceph config get mgr mgr_stats_period
 ```
 
-# Monitoring in numbers: histograms, the cache and three alert rules {#sec-20-7}
+# پایش با عدد: هیستوگرام، cache و سه قاعده‌ی هشدار {#sec-20-7}
 
-This section examines five small algorithms of the monitoring stack with numbers. Two are inside Ceph itself: the two-dimensional perf counter histogram and the cache of the prometheus module in the mgr. The other three are default alert rules from the `monitoring/ceph-mixin` bundle, which cephadm deploys along with Prometheus. All references are to the main branch in November 2026. The text of the alert rules has changed many times across versions, so compare your own version's `prometheus_alerts.yml` with this text. The example numbers were computed with a Python reimplementation of the same logic. For `rate()` and `predict_linear()` in Prometheus, our implementation is an approximation of Prometheus's logic.
+این بخش پنج الگوریتم کوچک پشته‌ی پایش را با عدد بررسی می‌کند. دو الگوریتم درون خود Ceph هستند: هیستوگرام دوبعدی perf counterها و cache ماژول prometheus در mgr. سه الگوریتم دیگر قواعد هشدار پیش‌فرض بسته‌ی `monitoring/ceph-mixin` هستند که cephadm همراه Prometheus مستقر می‌کند. همه‌ی ارجاع‌ها به شاخه‌ی main در نوامبر 2026 است. متن قواعد هشدار در نسخه‌های مختلف بارها تغییر کرده است، پس فایل `prometheus_alerts.yml` نسخه‌ی خودتان را با این متن مقایسه کنید. عددهای مثال با بازپیاده‌سازی پایتونی همین منطق حساب شده‌اند. در مورد `rate()` و `predict_linear()` در Prometheus، پیاده‌سازی ما یک تقریب از منطق Prometheus است.
 
-## Two-dimensional latency and size histogram {#sec-20-7-1}
+## هیستوگرام دوبعدی تأخیر و اندازه {#sec-20-7-1}
 
-::: {.algo #alg-20-1 title="Mapping a value to a bucket in PerfHistogram" src="src/common/perf_histogram.cc :: PerfHistogramCommon::get_bucket_for_axis, get_axis_bucket_ranges; src/osd/osd_perf_counters.cc :: op_hist_x_axis_config, op_hist_y_axis_config" complexity="O(B) for B buckets per axis (B = 32); memory B_x × B_y counters"}
+::: {.algo #alg-20-1 title="نگاشت مقدار به bucket در PerfHistogram" src="src/common/perf_histogram.cc :: PerfHistogramCommon::get_bucket_for_axis، get_axis_bucket_ranges؛ src/osd/osd_perf_counters.cc :: op_hist_x_axis_config، op_hist_y_axis_config" complexity="O(B) برای B bucket در هر محور (B = 32)؛ حافظه B_x × B_y شمارنده"}
 :::
 
 ```text
 pseudocode
 bucket(v, axis):
-    if v < min: return 0                       # bucket zero: below min
+    if v < min: return 0                       # bucket صفر: کمتر از min
     q = (v − min) / quant
     LINEAR: return min(q + 1, buckets − 1)
     LOG2:   for i in 1 .. buckets−1: if q < 2^(i−1): return i
-            return buckets − 1                 # last bucket: anything larger
-range of bucket i in LOG2: [min + 2^(i−2)·quant , min + 2^(i−1)·quant − 1]   (i ≥ 2)
+            return buckets − 1                 # bucket آخر: هر چیز بزرگ‌تر
+محدوده‌ی bucket i در LOG2: [min + 2^(i−2)·quant ، min + 2^(i−1)·quant − 1]   (i ≥ 2)
 hinc(latency_ns, bytes): counts[bucket_x(latency)][bucket_y(bytes)] += 1
 ```
 
-The OSD has two histograms of this kind: `op_w_latency_in_bytes_histogram` and `op_r_latency_out_bytes_histogram`. The x axis is latency. Its label in the code is "Latency (usec)", but the input value is `latency.to_nsec()` and quant is 100000 nanoseconds, that is 100 microseconds. The y axis is the request size, with a quant of 512 bytes. Both axes are LOG2 with 32 buckets.
+OSD دو هیستوگرام از این نوع دارد: `op_w_latency_in_bytes_histogram` و `op_r_latency_out_bytes_histogram`. محور x تأخیر است. برچسب آن در کد «Latency (usec)» است، اما مقدار ورودی `latency.to_nsec()` است و quant برابر 100000 نانوثانیه، یعنی 100 میکروثانیه. محور y اندازه‌ی درخواست است با quant ‏512 بایت. هر دو محور LOG2 و 32 bucket دارند.
 
-**Numerical example.** A write with 1.5 ms latency: q = 1500000 / 100000 = 15. The smallest i with 15 < 2^(i−1) is 5, so bucket 5, with a range of 800 to 1600 microseconds. A size of 4 KiB: q = 4096 / 512 = 8 and i = 5, that is the range 4096 to 8191 bytes. A 4 MiB write goes to bucket 15. A 64 KiB write goes to bucket 9. A latency of 150 µs is in bucket 2 (100 to 200 µs) and 30 ms in bucket 10 (25.6 to 51.2 ms). The last bucket (31) starts at 2^29 × 100 µs ≈ 53687 seconds and in practice never fills. The whole histogram is 32 × 32 = 1024 64-bit counters, that is 8 KiB per OSD per direction.
+**مثال عددی.** نوشتنی با تأخیر 1.5 ms: q = 1500000 / 100000 = 15. کوچک‌ترین i با 15 < 2^(i−1) عدد 5 است، پس bucket 5 با محدوده‌ی 800 تا 1600 میکروثانیه. اندازه‌ی 4 KiB: q = 4096 / 512 = 8 و i = 5، یعنی محدوده‌ی 4096 تا 8191 بایت. نوشتن 4 MiB به bucket 15 می‌رود. نوشتن 64 KiB به bucket 9 می‌رود. تأخیر 150 µs در bucket 2 (100 تا 200 µs) و 30 ms در bucket 10 (25.6 تا 51.2 ms) است. bucket آخر (31) از 2^29 × 100 µs ≈ 53687 ثانیه شروع می‌شود و در عمل هرگز پر نمی‌شود. کل هیستوگرام 32 × 32 = 1024 شمارنده‌ی 64 بیتی، یعنی 8 KiB برای هر OSD و هر جهت است.
 
-![Left: a view of the two-dimensional write histogram for a synthetic load with three request sizes (4 KiB, 64 KiB and 4 MiB) and a log-normal latency distribution. Colour is the logarithm of the count. Each row is a request size and each column a latency range. Right: the ranges of the latency axis buckets on a logarithmic axis. Each bucket is twice the previous one, and three sample values (150 µs, 1.5 ms and 30 ms) are marked on it. The numbers on the left do not come from measurement and only show the shape of the data](figures/ch20/f07_hist.png){#fig-20-f07_hist}
+![سمت چپ: نمای هیستوگرام دوبعدی نوشتن برای یک بار مصنوعی با سه اندازه‌ی درخواست (4 KiB، 64 KiB و 4 MiB) و توزیع لگ‌نرمال تأخیر. رنگ لگاریتم تعداد است. هر سطر یک اندازه‌ی درخواست و هر ستون یک بازه‌ی تأخیر است. سمت راست: محدوده‌ی bucketهای محور تأخیر روی محور لگاریتمی. هر bucket دو برابر قبلی است و سه مقدار نمونه (150 µs، 1.5 ms و 30 ms) روی آن نشان داده شده‌اند. عددهای سمت چپ از اندازه‌گیری نیامده‌اند و فقط شکل داده را نشان می‌دهند](figures/ch20/f07_hist.png){#fig-20-f07_hist}
 
-The value of this histogram compared with `op_w_latency` (which is only an average) is that it shows the tail of the distribution. If the average latency is 2 ms, we do not know whether all requests take 2 ms or 95 percent take 1 ms and 5 percent 20 ms. The histogram separates these and shows, row by row, which request size is slow. The histogram is read through the admin socket with `ceph daemon osd.N perf histogram dump`. In the main code, the prometheus module explicitly skips histogram-type counters (the code comment: "they are represented by long running avgs"). ceph-exporter also reads counters from the output of counter dump and counter schema, which is not where these histograms are. So for p99 in Prometheus you need a third-party tool or a script that reads the dump.
+ارزش این هیستوگرام در مقایسه با `op_w_latency` (که فقط میانگین است) این است که دُم توزیع را نشان می‌دهد. اگر میانگین تأخیر 2 ms باشد، نمی‌دانیم همه‌ی درخواست‌ها 2 ms هستند یا 95 درصد 1 ms و 5 درصد 20 ms. هیستوگرام این را جدا می‌کند و سطر به سطر نشان می‌دهد کدام اندازه‌ی درخواست کند است. هیستوگرام از راه admin socket با `ceph daemon osd.N perf histogram dump` خوانده می‌شود. در کد main، ماژول prometheus شمارنده‌های نوع histogram را صریحاً رد می‌کند (توضیح کد: «they are represented by long running avgs»). ceph-exporter هم شمارنده‌ها را از خروجی counter dump و counter schema می‌خواند که محل این هیستوگرام‌ها نیست. پس برای p99 در Prometheus باید از ابزار جانبی یا از اسکریپتی استفاده کرد که dump را می‌خواند.
 
-## The prometheus module's cache {#sec-20-7-2}
+## cache ماژول prometheus {#sec-20-7-2}
 
-::: {.algo #alg-20-2 title="Metric cache and the stale policy" src="src/pybind/mgr/prometheus/module.py :: MetricCollectionThread.collect, Module.config_notify, Root.metrics" complexity="O(1) per scrape (served from the cache); collection O(OSD + PG + pool) in a separate thread"}
+::: {.algo #alg-20-2 title="cache متریک‌ها و سیاست stale" src="src/pybind/mgr/prometheus/module.py :: MetricCollectionThread.collect، Module.config_notify، Root.metrics" complexity="O(1) برای هر scrape (پاسخ از cache)؛ جمع‌آوری O(OSD + PG + pool) در thread جدا"}
 :::
 
 ```text
 pseudocode
-collection thread (if cache = true):
+thread جمع‌آوری (اگر cache = true):
     loop: start = now ; data = collect() ; d = now − start
           collect_cache = data ; collect_time = d
-          sleep(max(0, scrape_interval − d))            # if d > interval: warning in the log and no sleep
-config: if stale_cache_strategy ∉ {fail, return}: strategy = fail   # the option's default is "log"
+          sleep(max(0, scrape_interval − d))            # اگر d > interval: هشدار در لاگ و بدون خواب
+config: اگر stale_cache_strategy ∉ {fail, return}: strategy = fail   # پیش‌فرض گزینه «log» است
 GET /metrics:
-    if collect_cache is empty: 503
-    if collect_time < scrape_interval: 200 with the cache
-    if strategy == return: 200 with the stale cache (and a log message)
+    if collect_cache خالی: 503
+    if collect_time < scrape_interval: 200 با cache
+    if strategy == return: 200 با cache کهنه (و پیام در لاگ)
     if strategy == fail: 503
 ```
 
-There are two lesser-known points in this code. First, "staleness" is measured by the **duration of the last collection**, not by the age of the cache. If the last `collect()` took 17 seconds and scrape_interval is 15 seconds, the cache counts as stale, even if it was updated just a second ago. Second, the default value of the `stale_cache_strategy` option in the option definition is "log". This value is not in the list of valid values and is turned into fail when the configuration is loaded. The documentation also says the default behaviour is a 503 response. So in practice the default is fail.
+دو نکته‌ی کمتر شناخته‌شده در این کد هست. اول، «کهنه بودن» بر اساس **مدت آخرین جمع‌آوری** سنجیده می‌شود، نه بر اساس سن cache. اگر آخرین `collect()` 17 ثانیه طول کشیده باشد و scrape_interval برابر 15 ثانیه باشد، cache کهنه حساب می‌شود، حتی اگر همین یک ثانیه پیش به‌روز شده باشد. دوم، مقدار پیش‌فرض گزینه‌ی `stale_cache_strategy` در تعریف گزینه «log» است. این مقدار در فهرست مقادیر معتبر نیست و هنگام بارگذاری پیکربندی به fail تبدیل می‌شود. مستندات هم می‌گوید رفتار پیش‌فرض پاسخ 503 است. پس عملاً پیش‌فرض fail است.
 
-**Numerical example.** With scrape_interval = 15 seconds, suppose the collections take 5, 5, 6, 17, 18, 6 and 5 seconds (for example during widespread peering). The 17- and 18-second collections run back to back without sleeping. Prometheus scrapes that arrive after these two collections finish and before the next 6-second collection finishes get a 503 response in fail mode. In our simulation, two consecutive scrapes (at seconds 70 and 85) get 503. Prometheus sees `up == 0` or a "target down" alert for the mgr, while the mgr is healthy and only slow. In return mode, the same two scrapes get stale data and no gap is visible in the graphs. For large clusters (the documentation mentions more than 1000 OSDs), either raise the module's scrape_interval and align it with Prometheus, or set the strategy to return.
+**مثال عددی.** با scrape_interval = 15 ثانیه، فرض کنید مدت جمع‌آوری‌ها 5، 5، 6، 17، 18، 6 و 5 ثانیه باشد (مثلاً هنگام peering گسترده). جمع‌آوری‌های 17 و 18 ثانیه‌ای بدون خواب پشت هم اجرا می‌شوند. scrapeهای Prometheus که پس از پایان این دو جمع‌آوری و پیش از پایان جمع‌آوری 6 ثانیه‌ای بعدی می‌رسند، در حالت fail پاسخ 503 می‌گیرند. در شبیه‌سازی ما، دو scrape متوالی (در ثانیه‌ی 70 و 85) 503 می‌شوند. Prometheus هشدار `up == 0` یا «target down» را برای mgr می‌بیند، در حالی که mgr سالم است و فقط کند است. در حالت return همان دو scrape داده‌ی کهنه می‌گیرند و هیچ شکافی در نمودارها دیده نمی‌شود. برای کلاسترهای بزرگ (مستندات عدد بیش از 1000 OSD را ذکر می‌کند)، یا scrape_interval ماژول را بالا ببرید و با Prometheus هماهنگ کنید، یا strategy را return بگذارید.
 
-![Timeline of the prometheus module's cache with a scrape_interval of 15 seconds. The top row is the duration of each collect(). The orange collections took more than 15 seconds. The two lower rows show the responses to Prometheus scrapes under the two policies. In fail (which the default value log is also turned into), scrapes whose last completed collection was slow get 503. In return, the same scrapes get stale data with code 200. The durations are hypothetical and were chosen to show the logic](figures/ch20/f08_cache.png){#fig-20-f08_cache}
+![خط زمانی cache ماژول prometheus با scrape_interval ‏15 ثانیه. ردیف بالا مدت هر collect() است. جمع‌آوری‌های نارنجی بیش از 15 ثانیه طول کشیده‌اند. دو ردیف پایین پاسخ scrapeهای Prometheus را در دو سیاست نشان می‌دهند. در fail (که مقدار پیش‌فرض log هم به آن تبدیل می‌شود)، scrapeهایی که آخرین جمع‌آوری کامل‌شده‌شان کند بوده است 503 می‌گیرند. در return همان scrapeها داده‌ی کهنه با کد 200 می‌گیرند. مدت‌ها فرضی هستند و برای نشان دادن منطق انتخاب شده‌اند](figures/ch20/f08_cache.png){#fig-20-f08_cache}
 
-## The CephOSDFlapping rule {#sec-20-7-3}
+## قاعده‌ی CephOSDFlapping {#sec-20-7-3}
 
-::: {.algo #alg-20-3 title="Detecting flapping with rate on a gauge" src="monitoring/ceph-mixin/prometheus_alerts.yml :: CephOSDFlapping" complexity="O(n) for n samples in the 5-minute window per OSD"}
+::: {.algo #alg-20-3 title="تشخیص flapping با rate روی یک gauge" src="monitoring/ceph-mixin/prometheus_alerts.yml :: CephOSDFlapping" complexity="O(n) برای n نمونه در پنجره‌ی 5 دقیقه برای هر OSD"}
 :::
 
 ```text
 pseudocode
 expr: (rate(ceph_osd_up[5m]) × on(cluster, ceph_daemon) group_left(hostname) ceph_osd_metadata) × 60 > 1
-rate over samples: increase = Σ (v_i − v_{i−1} if v_i ≥ v_{i−1} , otherwise v_i)     # a 1→0 drop is a "reset" and adds 0
-                   each 0→1 transition is one unit of increase
-                   increase extrapolated to the window edges ; divided by 300 seconds
-×60 ⇒ number of "comes up" per minute ; alert if more than 1 (no for:)
+rate روی نمونه‌ها: increase = Σ (v_i − v_{i−1} اگر v_i ≥ v_{i−1} ، وگرنه v_i)     # افت 1→0 «reset» است و 0 اضافه می‌کند
+                   هر گذار 0→1 یک واحد افزایش است
+                   increase برون‌یابی به لبه‌های پنجره ؛ تقسیم بر 300 ثانیه
+×60 ⇒ تعداد «بالا آمدن» در دقیقه ؛ هشدار اگر بیش از 1 (بدون for:)
 ```
 
-`ceph_osd_up` is a gauge with value 0 or 1, but the rule applies `rate()`, which is made for counters, to it. The result works, because `rate()` treats every drop as a reset and counts every rise from 0 to 1 as one unit of increase. So rate × 60 is roughly the number of times per minute the OSD came back up.
+`ceph_osd_up` یک gauge با مقدار 0 یا 1 است، اما قاعده `rate()` را روی آن به کار می‌برد که برای counter ساخته شده است. نتیجه کار می‌کند، چون `rate()` هر افت را reset تلقی می‌کند و هر صعود از 0 به 1 را یک واحد افزایش حساب می‌کند. پس rate × 60 تقریباً تعداد دفعاتی است که OSD در هر دقیقه دوباره up شده است.
 
-**Numerical example.** Prometheus samples every 15 seconds. Between seconds 330 and 585 the OSD is seen down and back up seven times (each time it is 0 in one sample). In the evaluation at second 585, the window [285, 585] has twenty samples and seven increases. Prometheus's extrapolation makes that about 7 × 300 / 285 ≈ 7.4, and rate × 60 ≈ 1.26 > 1. The alert fires immediately. It has two important limitations. First, an OSD that goes down and up between two samples (in less than 15 seconds) is **not seen**. Second, six flaps in five minutes may still stay below the threshold. For a more accurate view, `ceph osd stat` and the mon log ("wrongly marked me down" messages) are more reliable.
+**مثال عددی.** Prometheus هر 15 ثانیه نمونه می‌گیرد. OSD در فاصله‌ی ثانیه‌ی 330 تا 585 هفت بار down و دوباره up دیده می‌شود (هر بار در یک نمونه 0 است). در ارزیابی ثانیه‌ی 585، پنجره‌ی [285، 585] بیست نمونه و هفت افزایش دارد. برون‌یابی Prometheus آن را حدود 7 × 300 / 285 ≈ 7.4 می‌کند، و rate × 60 ≈ 1.26 > 1 است. هشدار فوراً فعال می‌شود. دو محدودیت مهم دارد. اول، OSDی که بین دو نمونه down و up شود (کمتر از 15 ثانیه) **دیده نمی‌شود**. دوم، شش flap در پنج دقیقه هنوز ممکن است زیر آستانه بماند. برای دید دقیق‌تر، `ceph osd stat` و لاگ mon (پیام‌های «wrongly marked me down») قابل اعتمادترند.
 
-![Top: ceph_osd_up samples every 15 seconds for an OSD that goes down and up seven times in the last five minutes. The yellow area is the 5-minute evaluation window at second 585. Bottom: the value of rate(ceph_osd_up\[5m\]) × 60 at each evaluation, with an approximate implementation of Prometheus's extrapolation. The curve rises one step with each flap and crosses the dashed threshold line of 1 after the seventh flap](figures/ch20/f09_flap.png){#fig-20-f09_flap}
+![بالا: نمونه‌های ceph_osd_up هر 15 ثانیه برای یک OSD که در پنج دقیقه‌ی آخر هفت بار down و up می‌شود. ناحیه‌ی زرد پنجره‌ی 5 دقیقه‌ای ارزیابی در ثانیه‌ی 585 است. پایین: مقدار rate(ceph_osd_up\[5m\]) × 60 در هر ارزیابی، با پیاده‌سازی تقریبی برون‌یابی Prometheus. منحنی با هر flap یک پله بالا می‌رود و پس از هفتمین flap از خط‌چین آستانه‌ی 1 می‌گذرد](figures/ch20/f09_flap.png){#fig-20-f09_flap}
 
-## The CephPGImbalance rule {#sec-20-7-4}
+## قاعده‌ی CephPGImbalance {#sec-20-7-4}
 
-::: {.algo #alg-20-4 title="Deviation of each OSD's PG count from the device class average" src="monitoring/ceph-mixin/prometheus_alerts.yml :: CephPGImbalance" complexity="O(N) for N OSDs per evaluation"}
+::: {.algo #alg-20-4 title="انحراف تعداد PG هر OSD از میانگین کلاس دستگاه" src="monitoring/ceph-mixin/prometheus_alerts.yml :: CephPGImbalance" complexity="O(N) برای N OSD در هر ارزیابی"}
 :::
 
 ```text
 pseudocode
-x_o = ceph_osd_numpg{o} (only if > 0) with the device_class label from ceph_osd_metadata
-avg_c = average of x_o over OSDs of the same (cluster, job, device_class)
-alert if |x_o − avg_c| / avg_c > 0.30  for 5 minutes (for: 5m)
+x_o = ceph_osd_numpg{o} (فقط اگر > 0) با برچسب device_class از ceph_osd_metadata
+avg_c = میانگین x_o روی OSDهای همان (cluster, job, device_class)
+هشدار اگر |x_o − avg_c| / avg_c > 0.30  به مدت 5 دقیقه (for: 5m)
 ```
 
-**Numerical example.** Ten OSDs in the hdd class have 92, 95, 98, 100, 101, 103, 104, 106, 110 and 141 PGs respectively. The average is 105 and the allowed band is 73.5 to 136.5. osd.9 with 141 PGs is about 34.3 percent above the average and gets an alert after five minutes. osd.0, 12.4 percent below the average, is inside the band. Two points: an OSD with zero PGs (for example newly added or out) is excluded from the calculation by the `> 0` filter and does not get an alert itself. Also, the 30 percent threshold is much looser than the balancer's goal. In upmap mode the balancer tries to bring each OSD's deviation from its target down to a few PGs (chapter 19). So if this alert fires, the balancer is usually off or unable to work, for example because of wrong CRUSH weights or nearly full OSDs.
+**مثال عددی.** ده OSD در کلاس hdd به ترتیب 92، 95، 98، 100، 101، 103، 104، 106، 110 و 141 PG دارند. میانگین 105 است و باند مجاز 73.5 تا 136.5. osd.9 با 141 PG حدود 34.3 درصد بالاتر از میانگین است و پس از پنج دقیقه هشدار می‌گیرد. osd.0 با 12.4 درصد کمتر از میانگین در باند است. دو نکته: OSD با صفر PG (مثلاً تازه اضافه‌شده یا out) با فیلتر `> 0` از محاسبه کنار می‌رود و خودش هشدار نمی‌گیرد. همچنین آستانه‌ی 30 درصد بسیار گشاده‌تر از هدف balancer است. balancer در حالت upmap تلاش می‌کند انحراف هر OSD از هدف به حدود چند PG برسد (فصل ۱۹). پس اگر این هشدار فعال شد، معمولاً balancer خاموش است یا نمی‌تواند کار کند، مثلاً به دلیل وزن‌های نادرست CRUSH یا OSDهای تقریباً پر.
 
-![PG counts of ten OSDs in one device class, with an average of 105 (black line) and a ±30% band (green). The percentage above each bar is that OSD's deviation from the average. Only osd.9, at 34.3%, is outside the band (red), and if it stays that way for five minutes the CephPGImbalance alert fires. The numbers are an example](figures/ch20/f10_imbalance.png){#fig-20-f10_imbalance}
+![تعداد PG ده OSD در یک کلاس دستگاه، با میانگین 105 (خط سیاه) و باند ±30٪ (سبز). درصد بالای هر ستون انحراف آن OSD از میانگین است. فقط osd.9 با 34.3٪ بیرون از باند است (قرمز) و اگر پنج دقیقه همین‌طور بماند هشدار CephPGImbalance فعال می‌شود. عددها مثال هستند](figures/ch20/f10_imbalance.png){#fig-20-f10_imbalance}
 
-## The CephPoolGrowthWarning rule {#sec-20-7-5}
+## قاعده‌ی CephPoolGrowthWarning {#sec-20-7-5}
 
-::: {.algo #alg-20-5 title="Predicting pool fill-up with linear regression" src="monitoring/ceph-mixin/prometheus_alerts.yml :: CephPoolGrowthWarning; Prometheus :: predict_linear" complexity="O(n) for n samples in the 2-day window"}
+::: {.algo #alg-20-5 title="پیش‌بینی پر شدن pool با رگرسیون خطی" src="monitoring/ceph-mixin/prometheus_alerts.yml :: CephPoolGrowthWarning؛ Prometheus :: predict_linear" complexity="O(n) برای n نمونه در پنجره‌ی 2 روزه"}
 :::
 
 ```text
 pseudocode
 expr: (predict_linear(ceph_pool_percent_used[2d], 3600 × 24 × 5) × on(cluster, pool_id, instance) group_right() ceph_pool_metadata) ≥ 0.95
-predict_linear: (a, b) = least squares over the samples of the past 48 hours, with t relative to the evaluation time
-                output a + b × 432000                       # the predicted value 5 days later
-alert if output ≥ 0.95 (no for:)
+predict_linear: (a, b) = کمترین مربعات روی نمونه‌های 48 ساعت گذشته ، با t نسبت به زمان ارزیابی
+                خروجی a + b × 432000                       # مقدار پیش‌بینی‌شده 5 روز بعد
+هشدار اگر خروجی ≥ 0.95 (بدون for:)
 ```
 
-**Numerical example.** Over the past two days the pool went from 70 percent to 78 percent, that is a slope of 0.04 per day. Samples were taken every 10 minutes. Without noise, the prediction for 5 days later is 0.78 + 5 × 0.04 = 0.98, which is above 0.95, and the alert fires. With synthetic noise (standard deviation 0.004) the output was 0.987. The alert means "at this trend, the pool will be full in five days", not that it is full now. Conversely, if sudden growth happened in the last two hours, the regression over 48 hours dilutes it and the alert comes late. Note that `ceph_pool_percent_used` depends on `max_avail`. max_avail is computed from the fullest OSD under that pool's CRUSH rule. So data imbalance raises percent_used and makes this alert fire earlier.
+**مثال عددی.** pool در دو روز گذشته از 70 درصد به 78 درصد رسیده است، یعنی شیب 0.04 در روز. نمونه‌ها هر 10 دقیقه گرفته شده‌اند. بدون نویز، پیش‌بینی 5 روز بعد 0.78 + 5 × 0.04 = 0.98 است که از 0.95 بیشتر است و هشدار فعال می‌شود. با نویز مصنوعی (انحراف معیار 0.004) خروجی 0.987 شد. هشدار یعنی «با این روند، پنج روز دیگر pool پر است»، نه این‌که الان پر است. برعکس، اگر رشد ناگهانی در دو ساعت آخر رخ داده باشد، رگرسیون روی 48 ساعت آن را رقیق می‌کند و هشدار دیر می‌آید. توجه کنید که `ceph_pool_percent_used` به `max_avail` وابسته است. max_avail با پرترین OSD زیر CRUSH rule آن pool محاسبه می‌شود. بنابراین عدم توازن داده، percent_used را بالا می‌برد و این هشدار را زودتر فعال می‌کند.
 
-![Synthetic ceph_pool_percent_used samples over 48 hours (blue dots), with linear growth from 0.70 to 0.78 and some noise. The red dashed line is the least squares line over the same window, extended 5 days forward. The prediction at that point is 0.987, which crosses the 0.95 line, so the alert fires. The vertical line marks the evaluation point](figures/ch20/f11_growth.png){#fig-20-f11_growth}
+![نمونه‌های مصنوعی ceph_pool_percent_used در 48 ساعت (نقطه‌های آبی)، با رشد خطی از 0.70 به 0.78 و کمی نویز. خط‌چین قرمز خط کمترین مربعات روی همین پنجره است که 5 روز به جلو امتداد یافته. پیش‌بینی در آن نقطه 0.987 است که از خط 0.95 می‌گذرد، پس هشدار فعال می‌شود. خط عمودی نقطه‌ی ارزیابی را نشان می‌دهد](figures/ch20/f11_growth.png){#fig-20-f11_growth}
 
-# mgmt-gateway: a single front door {#sec-20-8}
+# mgmt-gateway: یک درِ ورودی {#sec-20-8}
 
-In deployments before Tentacle, the Dashboard, Grafana, Prometheus and Alertmanager each had their own port and certificate, and users needed access to several addresses. **mgmt-gateway** (an nginx-based cephadm service) puts them all behind a single entry point with TLS, and with **oauth2-proxy** it can delegate authentication to an external IdP (OIDC).
+در استقرارهای پیش از Tentacle، Dashboard، Grafana، Prometheus و Alertmanager هر کدام پورت و گواهی جدا داشتند و کاربر باید به چند نشانی دسترسی داشت. **mgmt-gateway** (سرویس cephadm مبتنی بر nginx) همه را پشت یک نقطه‌ی ورود با TLS قرار می‌دهد و با **oauth2-proxy** می‌تواند احراز هویت را به یک IdP بیرونی (OIDC) بسپارد.
 
-![mgmt-gateway as the single entry: the user's browser connects to the nginx-based gateway with TLS and a virtual address, which, when authentication is enabled, passes the user through oauth2-proxy and the external IdP; behind the gateway sit the Dashboard, Grafana, Prometheus and Alertmanager, which are no longer directly exposed to the network](figures/ch20/f04_gateway.png){#fig-20-f04_gateway}
+![mgmt-gateway به‌عنوان ورودی واحد: مرورگر کاربر به gateway مبتنی بر nginx با TLS و نشانی مجازی وصل می‌شود که در صورت فعال بودن احراز هویت، کاربر را از oauth2-proxy و IdP بیرونی عبور می‌دهد؛ پشت gateway، Dashboard، Grafana، Prometheus و Alertmanager قرار دارند و دیگر مستقیماً در معرض شبکه نیستند](figures/ch20/f04_gateway.png){#fig-20-f04_gateway}
 
 ```bash
 ceph orch apply mgmt-gateway --placement="label:mgmt"
-# with a virtual address and authentication (per the mgmt-gateway documentation)
+# با نشانی مجازی و احراز هویت (طبق مستندات mgmt-gateway)
 ceph orch apply mgmt-gateway --virtual_ip 192.0.2.50 --enable-auth=true --placement="label:mgmt"
 ceph orch apply oauth2-proxy -i oauth2-proxy.yaml
 ceph orch ls | grep -E "mgmt-gateway|oauth2"
 ```
 
 ::: {.note}
-According to the documentation, the `virtual_ip` address in mgmt-gateway must be a plain IP, and for high availability it is used together with an ingress service with the same IP (with a network prefix); oauth2-proxy is stateless and can have several instances. After the gateway is deployed, the monitoring stack endpoints (including service discovery) become secure (https).
+طبق مستندات، نشانی `virtual_ip` در mgmt-gateway باید IP ساده باشد و برای دسترسی‌پذیری بالا همراه سرویس ingress با همان IP (با پیشوند شبکه) به کار می‌رود؛ oauth2-proxy بی‌حالت است و می‌تواند چند نمونه داشته باشد. پس از استقرار gateway، endpointهای پشته‌ی پایش (از جمله service discovery) امن (https) می‌شوند.
 :::
 
 ::: {.warn}
-Do not expose Prometheus and Alertmanager directly to the users' network: the monitoring documentation points out that Prometheus's security model assumes untrusted users have access to the endpoint and the data, and its read-only API reveals all collected (meta)data. A gateway or firewall is necessary.
+Prometheus و Alertmanager را مستقیماً در معرض شبکه‌ی کاربران قرار ندهید: مستندات monitoring یادآوری می‌کند که مدل امنیتی Prometheus فرض می‌کند کاربران نامطمئن به endpoint و داده‌ها دسترسی دارند و API فقط‌خواندنی آن همه‌ی (فرا)داده‌های جمع‌آوری‌شده را آشکار می‌کند. gateway یا فایروال لازم است.
 :::
 
-# Logs and events {#sec-20-9}
+# log و رویدادها {#sec-20-9}
 
-- **Cluster log** in the MON: `ceph log last 200`, and live following with `ceph -w`; the cephadm channel with `ceph -W cephadm`.
-- **Daemon logs** in cephadm go to journald: `cephadm logs --name osd.3` or `journalctl -u ceph-<fsid>@osd.3`; to write to a file, `ceph config set global log_to_file true`.
-- **Crashes** are collected by the crash module and appear in the RECENT_CRASH warning; `ceph crash ls`, `ceph crash info <id>`, `ceph crash archive-all`.
-- **telemetry** (optional and opt-in): sends anonymous statistics to the project; preview with `ceph telemetry preview` (chapter 9).
+- **log کلاستر** در MON: `ceph log last 200`، و پیگیری زنده با `ceph -w`؛ کانال cephadm با `ceph -W cephadm`.
+- **log daemonها** در cephadm به journald می‌روند: `cephadm logs --name osd.3` یا `journalctl -u ceph-<fsid>@osd.3`؛ برای نوشتن در فایل `ceph config set global log_to_file true`.
+- **crashها** با ماژول crash جمع می‌شوند و در هشدار RECENT_CRASH ظاهر می‌شوند؛ `ceph crash ls`، `ceph crash info <id>`، `ceph crash archive-all`.
+- **telemetry** (اختیاری و با رضایت): ارسال آمار ناشناس به پروژه؛ پیش‌نمایش با `ceph telemetry preview` (فصل ۹).
 
 ::: {.tip}
-For centralized log collection, send the hosts' journald to the central system with your organization's tool of choice (for example a log collection agent) and keep the fsid and daemon name labels, so you can line up logs with metrics and alerts.
+برای جمع‌آوری متمرکز log، journald میزبان‌ها را با ابزار انتخابی سازمان (مثلاً یک عامل جمع‌آوری log) به سامانه‌ی مرکزی بفرستید و برچسب fsid و نام daemon را حفظ کنید تا بتوانید log را با متریک‌ها و هشدارها هم‌زمان کنید.
 :::
 
-# Dashboards and SLOs {#sec-20-10}
+# داشبوردها و SLO {#sec-20-10}
 
-The ceph-mixin dashboards (cluster, host, OSD, pool, RGW, RBD, CephFS) are deployed with Grafana. For running a service, build a few service-level views in addition to them:
+داشبوردهای ceph-mixin (کلاستر، میزبان، OSD، pool، RGW، RBD، CephFS) همراه Grafana مستقر می‌شوند. برای راهبری سرویس، علاوه بر آن‌ها چند نمای سطح سرویس بسازید:
 
-| SLI | Example definition | Source |
+| SLI | تعریف نمونه | منبع |
 |---|---|---|
-| RBD availability | percentage of time all of the pool's PGs are active | ceph_pg_active / ceph_pg_total for the pool |
-| Write latency | 99th percentile of OSD or client write latency | ceph-exporter (and librbd counters if enabled) |
-| S3 availability | ratio of non-5xx responses in RGW | the RGW access log or rgw counters |
-| Mirroring RPO | difference between local and remote image timestamps | ceph_rbd_mirror_snapshot_* metrics |
+| دسترس‌پذیری RBD | درصد زمانی که همه‌ی PGهای pool فعال‌اند | ceph_pg_active / ceph_pg_total برای pool |
+| تأخیر نوشتن | صدک ۹۹ تأخیر نوشتن OSD یا کلاینت | ceph-exporter (و شمارنده‌های librbd در صورت فعال بودن) |
+| دسترس‌پذیری S3 | نسبت پاسخ‌های غیر ۵xx در RGW | log دسترسی RGW یا شمارنده‌های rgw |
+| RPO mirroring | اختلاف timestamp محلی و راه دور تصاویر | متریک‌های ceph_rbd_mirror_snapshot_* |
 
-::: {.summary title="SRE notes for this chapter"}
+::: {.summary title="نکات SRE این فصل"}
 
-- Deploy the monitoring stack with cephadm and enable ceph-exporter on all hosts.
-- Define all mgrs or service discovery for scraping so that a failover does not create a blind spot.
-- Compute average latency from the ratio of the counters' rates, not from the raw value.
-- Pair local rules with a runbook and take thresholds from real behaviour.
-- Keep Prometheus and Alertmanager behind mgmt-gateway or a firewall.
+- پشته‌ی پایش را با cephadm مستقر و ceph-exporter را روی همه‌ی میزبان‌ها فعال کنید.
+- همه‌ی mgrها یا service discovery را برای scrape تعریف کنید تا failover نقطه‌ی کور نسازد.
+- میانگین تأخیر را از نسبت rate شمارنده‌ها حساب کنید، نه از مقدار خام.
+- قواعد محلی را با runbook همراه کنید و آستانه را از رفتار واقعی بگیرید.
+- Prometheus و Alertmanager را پشت mgmt-gateway یا فایروال نگه دارید.
 
 :::
 
-# Supplementary and up to date {#sec-20-11}
+# تکمیلی و به‌روز {#sec-20-11}
 
-- Moving perf counters from the prometheus module to ceph-exporter (the `exclude_perf_counters` default) is the most important change in monitoring architecture since 2019; in the original book, monitoring relied on Calamari and third-party tools, which today have given way to the Dashboard and the Prometheus stack.
-- mgmt-gateway and oauth2-proxy arrived in Tentacle.
-- Hardware rules (power supply, cooling, NVMe) and NVMe-oF rules have been added to ceph-mixin.
+- انتقال perf counters از ماژول prometheus به ceph-exporter (پیش‌فرض `exclude_perf_counters`) مهم‌ترین تغییر معماری پایش از ۲۰۱۹ است؛ در کتاب اصلی، پایش بر Calamari و ابزارهای جانبی تکیه داشت که امروز جای خود را به Dashboard و پشته‌ی Prometheus داده‌اند.
+- mgmt-gateway و oauth2-proxy در Tentacle آمده‌اند.
+- قواعد سخت‌افزاری (منبع تغذیه، خنک‌کننده، NVMe) و NVMe-oF به ceph-mixin افزوده شده‌اند.
 
-# Hands-on exercise {#sec-20-12}
+# تمرین عملی {#sec-20-12}
 
-1. Deploy the monitoring stack with cephadm and see all targets healthy on the Prometheus Targets page.
-2. With `ceph daemon osd.N counter dump` and `curl` on the ceph-exporter port, compare one counter in both forms.
-3. Add the CephWriteLatencyHigh rule and trigger it with `tc netem` on the cluster network.
-4. Write an inhibit rule for CephOSDHostDown and CephOSDDown and test it by shutting down a host.
-5. Move the active mgr with `ceph mgr fail` and check the continuity of the time series.
-6. Deploy mgmt-gateway and block direct access to the Prometheus port with a firewall.
+1. پشته‌ی پایش را با cephadm مستقر کنید و همه‌ی هدف‌ها را در صفحه‌ی Targets پرومتئوس سالم ببینید.
+2. با `ceph daemon osd.N counter dump` و `curl` روی پورت ceph-exporter، یک شمارنده را در هر دو شکل مقایسه کنید.
+3. قاعده‌ی CephWriteLatencyHigh را اضافه کنید و با `tc netem` روی شبکه‌ی cluster آن را فعال کنید.
+4. یک قاعده‌ی inhibit برای CephOSDHostDown و CephOSDDown بنویسید و با خاموش کردن یک میزبان آزمایش کنید.
+5. mgr فعال را با `ceph mgr fail` جابه‌جا کنید و پیوستگی سری‌های زمانی را بررسی کنید.
+6. mgmt-gateway را مستقر کنید و دسترسی مستقیم به پورت Prometheus را با فایروال ببندید.
 
-# Review questions {#sec-20-13}
+# پرسش‌های مرور {#sec-20-13}
 
-1. Why were perf counters moved from the prometheus module to ceph-exporter?
-2. Why should all mgrs or service discovery be defined for scraping?
-3. How are a counter's priority and exporter_prio_limit related?
-4. How is the average latency of an interval computed from a time_avg counter?
-5. What is the ceph_health_detail metric used for?
-6. What is the role of for in an alert rule?
-7. What problem does inhibit in Alertmanager solve?
-8. What are the advantages of mgmt-gateway?
-9. Why should Prometheus not be directly exposed to users?
-10. Name a few suitable SLIs for an RBD service.
+1. چرا perf counters از ماژول prometheus به ceph-exporter منتقل شدند؟
+2. چرا باید همه‌ی mgrها یا service discovery را برای scrape تعریف کرد؟
+3. اولویت شمارنده و exporter_prio_limit چه رابطه‌ای دارند؟
+4. میانگین تأخیر یک بازه از شمارنده‌ی time_avg چگونه محاسبه می‌شود؟
+5. متریک ceph_health_detail چه کاربردی دارد؟
+6. نقش for در قاعده‌ی هشدار چیست؟
+7. inhibit در Alertmanager چه مشکلی را حل می‌کند؟
+8. mgmt-gateway چه مزایایی دارد؟
+9. چرا Prometheus نباید مستقیماً در معرض کاربران باشد؟
+10. چند SLI مناسب برای سرویس RBD نام ببرید.
 
-# Sources for this chapter {#sec-20-14}
+# منابع این فصل {#sec-20-14}
 
 - Monitoring overview: https://docs.ceph.com/en/latest/monitoring/
 - cephadm monitoring services: https://docs.ceph.com/en/latest/cephadm/services/monitoring/

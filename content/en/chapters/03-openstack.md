@@ -5,69 +5,70 @@ title: Ceph and OpenStack
 part: main
 original_heading: Working with Ceph and OpenStack
 lang: en
+translation: pending
 ---
 
-# Before you start {#sec-03-1}
+# پیش از شروع {#sec-03-1}
 
-## What questions does this chapter answer? {#sec-03-1-1}
+## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-03-1-1}
 
-OpenStack and Ceph matured at almost the same time and very soon became the "default pair" of private clouds. OpenStack user surveys have shown for years that Ceph is its most popular block storage backend. In this chapter we look at:
+OpenStack و Ceph تقریباً هم‌زمان بالغ شدند و خیلی زود به «زوج پیش‌فرض» ابرهای خصوصی تبدیل شدند. نظرسنجی‌های کاربران OpenStack سال‌ها نشان داده‌اند که Ceph محبوب‌ترین پشتوانه‌ی ذخیره‌سازی بلوکی آن است. در این فصل می‌بینیم:
 
-- Why does Ceph fit OpenStack so well, and which OpenStack services use which part of Ceph?
-- Which pools and users, with which permissions, do Glance, Cinder, Cinder Backup and Nova need?
-- How is each service configured, and how does copy-on-write bring VM creation down from minutes to seconds?
-- Which tool makes it easiest to set up a test OpenStack environment today?
-- Which points matter in production for performance, security and operations?
+- چرا Ceph این‌قدر با OpenStack جور است و کدام سرویس‌های OpenStack از کدام بخش Ceph استفاده می‌کنند؟
+- برای Glance، Cinder، Cinder Backup و Nova چه poolها و کاربرانی با چه مجوزهایی لازم است؟
+- پیکربندی هر سرویس چگونه است و copy-on-write چطور ساختن ماشین مجازی را از دقیقه‌ها به ثانیه‌ها می‌رساند؟
+- راه‌اندازی یک محیط آزمایشی OpenStack امروز با چه ابزاری ساده‌تر است؟
+- در production چه نکته‌هایی در کارایی، امنیت و عملیات اهمیت دارد؟
 
-## Prerequisites {#sec-03-1-2}
+## پیش‌نیاز {#sec-03-1-2}
 
-The Ceph cluster from chapter 1 and familiarity with RBD (chapter 2). A basic familiarity with the OpenStack components helps. The original book used RDO packages on CentOS 7 to install OpenStack; we introduce today's options and present the configuration in a way that is independent of the installation tool.
+کلاستر Ceph فصل ۱ و آشنایی با RBD (فصل ۲). آشنایی مقدماتی با اجزای OpenStack کمک می‌کند. کتاب اصلی از بسته‌های RDO روی CentOS 7 برای نصب OpenStack استفاده می‌کرد؛ ما گزینه‌های امروزی را معرفی می‌کنیم و پیکربندی‌ها را به شکلی می‌آوریم که مستقل از ابزار نصب باشد.
 
-# Ceph: OpenStack's best companion {#sec-03-2}
+# Ceph: بهترین همراه OpenStack {#sec-03-2}
 
-## Why did this pair succeed? {#sec-03-2-1}
+## چرا این زوج موفق شد؟ {#sec-03-2-1}
 
-- **One backend for everything:** Glance (images), Cinder (volumes), Cinder Backup, Nova (ephemeral disks), Manila (file shares) and even the Swift- and S3-compatible API are all served by one Ceph cluster.
-- **End-to-end copy-on-write:** when Glance and Cinder/Nova are both on Ceph, creating a volume or a VM disk from an image is just an `rbd clone`. There is no need to copy a multi-gigabyte image onto the compute node's disk.
-- **Live migration without separate shared storage:** because the VM disk is on Ceph, live migration moves only the memory.
-- **Scaling at the pace of the cloud:** each new compute node is just another client. Storage capacity and performance grow by adding nodes to Ceph.
-- **Open source with no vendor lock-in:** both projects are open source and share a large community.
+- **یک پشتوانه برای همه:** Glance (imageها)، Cinder (volumeها)، Cinder Backup، Nova (دیسک‌های موقت)، Manila (اشتراک فایل) و حتی API سازگار با Swift و S3 همه از یک کلاستر Ceph سرویس می‌گیرند.
+- **copy-on-write سرتاسری:** وقتی Glance و Cinder/Nova هر دو روی Ceph هستند، ساختن volume یا دیسک VM از یک image فقط یک `rbd clone` است. نیازی به کپی چندگیگابایتی image روی دیسک compute نیست.
+- **مهاجرت زنده بدون ذخیره‌سازی مشترک جداگانه:** چون دیسک VM روی Ceph است، live migration فقط حافظه را جابه‌جا می‌کند.
+- **مقیاس هم‌پای ابر:** هر compute جدید فقط یک کلاینت دیگر است. ظرفیت و کارایی ذخیره‌سازی با افزودن node به Ceph بزرگ می‌شود.
+- **متن‌باز و بدون قفل فروشنده:** هر دو پروژه متن‌بازند و جامعه‌ی مشترک بزرگی دارند.
 
-![Mapping OpenStack services to Ceph components: each service has its own pool or interface](figures/ch03/f01_map.png){#fig-03-f01_map}
+![نگاشت سرویس‌های OpenStack به اجزای Ceph: هر سرویس pool یا رابط اختصاصی خودش را دارد](figures/ch03/f01_map.png){#fig-03-f01_map}
 
-## Services and pools {#sec-03-2-2}
+## سرویس‌ها و poolها {#sec-03-2-2}
 
-| OpenStack service | Ceph component | Suggested pool | Ceph user |
+| سرویس OpenStack | بخش Ceph | pool پیشنهادی | کاربر Ceph |
 |---|---|---|---|
 | Glance | RBD | images | client.glance |
 | Cinder | RBD | volumes | client.cinder |
 | Cinder Backup | RBD | backups | client.cinder-backup |
-| Nova (ephemeral) | RBD | vms | client.cinder (or client.nova) |
-| Manila | CephFS (native or NFS) | CephFS file system | client.manila |
-| Swift/S3 | RGW with Keystone | RGW pools | RGW user (chapter 4) |
+| Nova (ephemeral) | RBD | vms | client.cinder (یا client.nova) |
+| Manila | CephFS (بومی یا NFS) | فایل‌سیستم CephFS | client.manila |
+| Swift/S3 | RGW با Keystone | poolهای RGW | کاربر RGW (فصل ۴) |
 
-# Setting up a test OpenStack {#sec-03-3}
+# راه‌اندازی OpenStack آزمایشی {#sec-03-3}
 
-## Today's options {#sec-03-3-1}
+## گزینه‌های امروز {#sec-03-3-1}
 
-The original book installed OpenStack with RDO packages and the Packstack tool on CentOS 7, both of which are obsolete today. These are the most common ways today:
+کتاب اصلی OpenStack را با بسته‌های RDO و ابزار Packstack روی CentOS 7 نصب می‌کرد که امروز هر دو منسوخ‌اند. امروز معمول‌ترین راه‌ها این‌ها هستند:
 
-| Tool | Suitable for | Note |
+| ابزار | مناسب برای | نکته |
 |---|---|---|
-| DevStack | Quick development and testing on one machine | Not for production; Ceph can be attached with the devstack-plugin-ceph plugin |
-| Kolla-Ansible | Containerised lab and production | Mature support for external Ceph for Glance, Cinder, Nova and Manila |
-| OpenStack-Ansible | Production on LXC or bare metal | Ansible roles for attaching Ceph |
-| OpenStack Charms / Sunbeam | Canonical environments | Attaching to Ceph through Juju interfaces |
+| DevStack | توسعه و آزمایش سریع روی یک ماشین | برای production نیست؛ با افزونه‌ی devstack-plugin-ceph می‌توان Ceph را هم وصل کرد |
+| Kolla-Ansible | آزمایشگاه و production کانتینری | پشتیبانی جاافتاده از Ceph خارجی برای Glance، Cinder، Nova و Manila |
+| OpenStack-Ansible | production روی LXC یا مستقیم | نقش‌های Ansible برای اتصال Ceph |
+| OpenStack Charms / Sunbeam | محیط‌های Canonical | اتصال به Ceph از طریق رابط‌های Juju |
 
-In this chapter we assume a test OpenStack (for example with Kolla-Ansible or DevStack) is ready and Ceph already exists, that is the "**external Ceph**" pattern, which is also the most common pattern in production. We give the configuration with each service's standard file names; in Kolla-Ansible the same settings go into the `/etc/kolla/config/<service>/` directory.
+در این فصل فرض می‌کنیم یک OpenStack آزمایشی (مثلاً با Kolla-Ansible یا DevStack) آماده است و Ceph از قبل وجود دارد، یعنی الگوی «**Ceph خارجی**» که در production هم رایج‌ترین الگوست. پیکربندی‌ها را با نام فایل‌های استاندارد هر سرویس می‌آوریم؛ در Kolla-Ansible همین تنظیمات در پوشه‌ی `/etc/kolla/config/<service>/` قرار می‌گیرند.
 
 ::: {.tip}
-Do not deploy Ceph inside OpenStack (for example with the old Kolla or TripleO roles). Keep the life cycles of the two systems separate: Ceph is deployed and upgraded with cephadm, and OpenStack is only its client. This separation makes upgrading each of them independent and low-risk. TripleO, which once promoted this pattern, has itself been retired.
+Ceph را درون OpenStack (مثلاً با نقش‌های قدیمی Kolla یا TripleO) مستقر نکنید. چرخه‌ی عمر دو سیستم را جدا نگه دارید: Ceph با cephadm مستقر و ارتقا داده شود و OpenStack فقط کلاینت آن باشد. این جداسازی ارتقای هر کدام را مستقل و کم‌خطر می‌کند. TripleO هم که زمانی این الگو را ترویج می‌کرد، کنار گذاشته شده است.
 :::
 
-# Configuring OpenStack as a Ceph client {#sec-03-4}
+# پیکربندی OpenStack به‌عنوان کلاینت Ceph {#sec-03-4}
 
-## Creating the pools {#sec-03-4-1}
+## ساختن poolها {#sec-03-4-1}
 
 ```bash
 for p in images volumes backups vms; do
@@ -77,7 +78,7 @@ done
 ceph osd pool ls detail | grep -E "images|volumes|backups|vms"
 ```
 
-With pg_autoscaler enabled there is no need to set the number of PGs by hand, but it is better to tell the autoscaler the expected share of each pool so that it gets a suitable PG count from the start and you avoid a wave of PG splits later:
+با فعال بودن pg_autoscaler نیازی به تعیین دستی تعداد PG نیست، اما بهتر است سهم مورد انتظار هر pool را به autoscaler بگویید تا از ابتدا PG مناسب بگیرد و بعداً موج تقسیم PG نداشته باشید:
 
 ```bash
 ceph osd pool set volumes target_size_ratio 0.6
@@ -86,9 +87,9 @@ ceph osd pool set images target_size_ratio 0.1
 ceph osd pool set backups target_size_ratio 0.1
 ```
 
-## Users and permissions {#sec-03-4-2}
+## کاربران و مجوزها {#sec-03-4-2}
 
-The official Ceph documentation suggests these three users. Note that `client.cinder` only has read permission on `images`, because it only needs to create clones from images:
+مستندات رسمی Ceph این سه کاربر را پیشنهاد می‌کنند. دقت کنید که `client.cinder` روی `images` فقط اجازه‌ی خواندن دارد، چون فقط باید از imageها clone بسازد:
 
 ```bash
 ceph auth get-or-create client.glance \
@@ -101,33 +102,33 @@ ceph auth get-or-create client.cinder-backup \
   mon 'profile rbd' osd 'profile rbd pool=backups' mgr 'profile rbd pool=backups'
 ```
 
-![Distribution of users and keyrings: the control services each have their own user, and nova-compute reaches the client.cinder key through a secret in libvirt](figures/ch03/f03_auth.png){#fig-03-f03_auth}
+![توزیع کاربران و keyringها: سرویس‌های کنترلی هر کدام کاربر خودشان را دارند و nova-compute از طریق secret در libvirt به کلید client.cinder دسترسی پیدا می‌کند](figures/ch03/f03_auth.png){#fig-03-f03_auth}
 
-## Distributing keyrings and ceph.conf {#sec-03-4-3}
+## توزیع keyring و ceph.conf {#sec-03-4-3}
 
 ```bash
 ceph config generate-minimal-conf > /tmp/ceph.conf
-# Glance node
+# گره Glance
 scp /tmp/ceph.conf glance-host:/etc/ceph/ceph.conf
 ceph auth get client.glance | ssh glance-host sudo tee /etc/ceph/ceph.client.glance.keyring
 ssh glance-host sudo chown glance:glance /etc/ceph/ceph.client.glance.keyring
-# cinder-volume and nova-compute nodes
+# گره‌های cinder-volume و nova-compute
 ceph auth get client.cinder | ssh cinder-host sudo tee /etc/ceph/ceph.client.cinder.keyring
 ceph auth get client.cinder | ssh compute1 sudo tee /etc/ceph/ceph.client.cinder.keyring
-# cinder-backup node
+# گره cinder-backup
 ceph auth get client.cinder-backup | ssh backup-host sudo tee /etc/ceph/ceph.client.cinder-backup.keyring
 ```
 
 ::: {.warn}
-Keep keyrings with the right ownership and permissions (`chmod 600` and owned by the service user). If an OpenStack service cannot read its keyring, you usually get a misleading error such as "error connecting to the cluster" or "permission denied" with code 13.
+keyringها را با مالکیت و مجوز درست (`chmod 600` و مالک کاربر سرویس) نگه دارید. اگر سرویس OpenStack نتواند keyring را بخواند، خطای معمولاً گمراه‌کننده‌ای مثل «error connecting to the cluster» یا «permission denied» با کد ۱۳ می‌گیرید.
 :::
 
-## The secret in libvirt {#sec-03-4-4}
+## secret در libvirt {#sec-03-4-4}
 
-On compute nodes QEMU gets the Ceph key from libvirt, not from a file. We must create a secret with a fixed UUID and later use the same UUID in Cinder and Nova:
+QEMU روی گره‌های compute کلید Ceph را از libvirt می‌گیرد، نه از فایل. باید یک secret با UUID ثابت بسازیم و همان UUID را بعداً در Cinder و Nova به کار ببریم:
 
 ```bash
-UUID=$(uuidgen)        # create it once and use the same value on every compute node
+UUID=$(uuidgen)        # یک‌بار بسازید و روی همه‌ی computeها همین را استفاده کنید
 cat > secret.xml <<X
 <secret ephemeral='no' private='no'>
   <uuid>${UUID}</uuid>
@@ -141,14 +142,14 @@ sudo virsh secret-list
 ```
 
 ::: {.tip}
-The secret UUID must be the same on **all** compute nodes, otherwise live migration fails, because the domain XML is transferred to the destination host with that same UUID. Deployment tools such as Kolla-Ansible do this automatically; keep the UUID value in the inventory.
+UUID secret باید روی **همه‌ی** computeها یکسان باشد، وگرنه live migration شکست می‌خورد، چون XML دامنه با همان UUID به میزبان مقصد منتقل می‌شود. ابزارهای استقرار مثل Kolla-Ansible این کار را خودکار انجام می‌دهند؛ مقدار UUID را در inventory نگه دارید.
 :::
 
-# Configuring Glance with a Ceph backend {#sec-03-5}
+# پیکربندی Glance با پشتوانه‌ی Ceph {#sec-03-5}
 
-## glance-api settings {#sec-03-5-1}
+## تنظیمات glance-api {#sec-03-5-1}
 
-Glance keeps images as RBD images in the `images` pool and, after upload, creates a snapshot named `snap` of each image so that Cinder and Nova can clone from it.
+Glance imageها را به‌شکل image‌های RBD در pool `images` نگه می‌دارد و پس از آپلود، از هر image یک snapshot به نام `snap` می‌سازد تا Cinder و Nova بتوانند از آن clone بگیرند.
 
 ```ini
 # /etc/glance/glance-api.conf
@@ -167,12 +168,12 @@ rbd_store_chunk_size = 8
 ```
 
 ::: {.warn}
-`show_image_direct_url = True` is essential for copy-on-write, because Cinder and Nova use this address (`rbd://fsid/images/<id>/snap`) to recognise that the image is on the same cluster and that they can create a clone. But this option exposes the image's storage location through the API. If the Glance API is reachable by end users, restrict access to this field with Glance policies, or use the multiple-locations feature and an internal endpoint.
+`show_image_direct_url = True` برای copy-on-write ضروری است، چون Cinder و Nova از روی همین نشانی (`rbd://fsid/images/<id>/snap`) تشخیص می‌دهند image روی همان کلاستر است و می‌توانند clone بسازند. اما این گزینه محل ذخیره‌ی image را از طریق API نشان می‌دهد. اگر API Glance در دسترس کاربران نهایی است، با سیاست‌های Glance دسترسی به این فیلد را محدود کنید یا از قابلیت چند نشانی و endpoint داخلی استفاده کنید.
 :::
 
-## Image format: always raw {#sec-03-5-2}
+## قالب image: همیشه raw {#sec-03-5-2}
 
-Copy-on-write only works when the image is stored in Glance in **raw** format. If you upload qcow2, Cinder and Nova have to download and convert it every time, and the main advantage is lost.
+copy-on-write فقط وقتی کار می‌کند که image در Glance با قالب **raw** ذخیره شده باشد. اگر qcow2 آپلود کنید، Cinder و Nova باید هر بار آن را دانلود و تبدیل کنند و مزیت اصلی از بین می‌رود.
 
 ```bash
 qemu-img convert -f qcow2 -O raw ubuntu-24.04.qcow2 ubuntu-24.04.raw
@@ -184,19 +185,19 @@ openstack image create ubuntu-24.04 \
 rbd -p images ls -l --id glance
 ```
 
-The properties above, which the Ceph documentation also recommends, mean: a virtio-scsi controller (which supports discard), attaching the disks to it, enabling the QEMU guest agent, and requesting a quiesce (fsfreeze) during snapshots for better consistency.
+ویژگی‌های بالا که مستندات Ceph هم پیشنهاد می‌کنند، به این معنی‌اند: کنترلر virtio-scsi (که discard را پشتیبانی می‌کند)، اتصال دیسک‌ها به آن، فعال کردن QEMU guest agent و درخواست quiesce (fsfreeze) هنگام snapshot برای سازگاری بهتر.
 
 ::: {.note}
-Recent Glance releases can do "image conversion" during import (an import plugin). With it enabled, a user can upload qcow2 and Glance itself converts it to raw and stores it in Ceph. For public clouds where end users upload images, this is easier than educating them.
+نسخه‌های جدید Glance امکان «image conversion» هنگام import را دارند (import plugin). با فعال کردن آن، کاربر می‌تواند qcow2 آپلود کند و Glance خودش آن را به raw تبدیل و در Ceph ذخیره می‌کند. این برای ابرهای عمومی که کاربران نهایی image آپلود می‌کنند، راحت‌تر از آموزش دادن به آن‌هاست.
 :::
 
-## Disabling Glance's local cache {#sec-03-5-3}
+## غیرفعال کردن cache محلی Glance {#sec-03-5-3}
 
-If Glance's management cache is enabled, images are also copied onto the Glance node's local disk, which is pointless with Ceph. In the pipeline configuration, change the flavor from `keystone+cachemanagement` back to `keystone`.
+اگر cache مدیریتی Glance فعال باشد، imageها روی دیسک محلی گره Glance هم کپی می‌شوند که با Ceph بی‌فایده است. در پیکربندی pipeline، flavor را از `keystone+cachemanagement` به `keystone` برگردانید.
 
-# Configuring Cinder {#sec-03-6}
+# پیکربندی Cinder {#sec-03-6}
 
-## The RBD backend {#sec-03-6-1}
+## backend RBD {#sec-03-6-1}
 
 ```ini
 # /etc/cinder/cinder.conf
@@ -217,17 +218,17 @@ rbd_user = cinder
 rbd_secret_uuid = 457eb676-33da-42ec-9a8c-9293d545c337
 ```
 
-| Option | Meaning | Recommendation |
+| گزینه | معنا | توصیه |
 |---|---|---|
-| rbd_flatten_volume_from_snapshot | Should a volume created from a snapshot be flattened immediately? | false for speed; true if you want to delete the snapshot soon |
-| rbd_max_clone_depth | Maximum depth of the clone chain before an automatic flatten | 5 (the default) is fine |
-| rbd_store_chunk_size | Object size in megabytes | 4 (the same as the RBD default) |
-| rbd_secret_uuid | The libvirt secret UUID | Must match the secret defined on the compute nodes |
-| rbd_exclusive_cinder_pool | The pool is used only by Cinder | true for faster capacity calculation on large pools |
+| rbd_flatten_volume_from_snapshot | volume ساخته‌شده از snapshot فوراً flatten شود؟ | false برای سرعت؛ true اگر می‌خواهید snapshot را زود پاک کنید |
+| rbd_max_clone_depth | حداکثر عمق زنجیره‌ی clone پیش از flatten خودکار | ۵ (پیش‌فرض) مناسب است |
+| rbd_store_chunk_size | اندازه‌ی شیء به مگابایت | ۴ (همان پیش‌فرض RBD) |
+| rbd_secret_uuid | UUID secret در libvirt | باید با secret تعریف‌شده روی computeها یکی باشد |
+| rbd_exclusive_cinder_pool | pool فقط در اختیار Cinder است | true برای سرعت محاسبه‌ی ظرفیت در poolهای بزرگ |
 
-## Volume types and multiple backends {#sec-03-6-2}
+## نوع volume و چند backend {#sec-03-6-2}
 
-In production you usually have more than one storage class, for example one pool on NVMe and one on HDD. Each becomes a separate backend in Cinder and a **volume type**:
+در production معمولاً بیش از یک کلاس ذخیره‌سازی دارید، مثلاً یک pool روی NVMe و یکی روی HDD. هر کدام یک backend جداگانه در Cinder و یک **volume type** می‌شوند:
 
 ```ini
 [DEFAULT]
@@ -255,15 +256,15 @@ openstack volume type create capacity
 openstack volume type set capacity --property volume_backend_name=ceph-hdd
 ```
 
-Remember that the permissions of `client.cinder` must also cover the new pools (`ceph auth caps`). The NVMe pool is placed on the right disks with a CRUSH rule based on device class (`ceph osd crush rule create-replicated nvme-rule default host nvme`) (chapter 8).
+یادتان باشد که مجوز `client.cinder` باید poolهای جدید را هم شامل شود (`ceph auth caps`). pool NVMe هم با قاعده‌ی CRUSH مبتنی بر device class (`ceph osd crush rule create-replicated nvme-rule default host nvme`) روی دیسک‌های درست قرار می‌گیرد (فصل ۸).
 
 ::: {.tip}
-For clusters with thousands of volumes, consider **Cinder active-active** and the `backend_host` option (or `cluster` in recent releases), so that several cinder-volume services can manage one Ceph backend and the failure of one does not stop volume management.
+برای کلاسترهای چندهزار volume، **Cinder active-active** و نیز گزینه‌ی `backend_host` (یا `cluster` در نسخه‌های جدید) را در نظر بگیرید تا چند سرویس cinder-volume بتوانند یک backend Ceph را مدیریت کنند و خرابی یکی، مدیریت volumeها را متوقف نکند.
 :::
 
-# Configuring Cinder Backup {#sec-03-7}
+# پیکربندی Cinder Backup {#sec-03-7}
 
-Volume backups go to a separate pool (or preferably another Ceph cluster). The Ceph driver for Cinder Backup supports **incremental backup**: if the source and target are both Ceph, only the diff of changes is transferred with `rbd export-diff` and `import-diff`.
+پشتیبان‌گیری از volume به یک pool جداگانه (یا ترجیحاً یک کلاستر Ceph دیگر) انجام می‌شود. درایور Ceph برای Cinder Backup قابلیت **پشتیبان‌گیری افزایشی** را دارد: اگر مبدأ و مقصد هر دو Ceph باشند، فقط تفاضل تغییرات با `rbd export-diff` و `import-diff` منتقل می‌شود.
 
 ```ini
 [DEFAULT]
@@ -278,17 +279,17 @@ restore_discard_excess_bytes = true
 ```
 
 ::: {.warn}
-A backup kept on the same Ceph cluster gives no protection against the failure of the cluster itself (an administrative mistake, a software bug, ransomware that has reached the admin credentials). Do not forget the 3-2-1 rule: for critical data, send backups with `backup_ceph_conf` to another cluster (preferably on another site).
+پشتیبانی که روی همان کلاستر Ceph نگه داشته شود، در برابر خرابی خود کلاستر (اشتباه مدیریتی، باگ نرم‌افزاری، باج‌افزاری که به اعتبارنامه‌ی مدیر رسیده) محافظتی ندارد. قاعده‌ی ۳-۲-۱ را فراموش نکنید: برای داده‌ی حیاتی، backup را با `backup_ceph_conf` به یک کلاستر دیگر (ترجیحاً در سایت دیگر) بفرستید.
 :::
 
-# Configuring Nova {#sec-03-8}
+# پیکربندی Nova {#sec-03-8}
 
-## Booting directly from Ceph (ephemeral on RBD) {#sec-03-8-1}
+## بوت مستقیم از Ceph (ephemeral روی RBD) {#sec-03-8-1}
 
-By default Nova creates the machines' ephemeral disks on the compute node's local disk. With the following configuration, each VM's root disk becomes an image in the `vms` pool, cloned from the Glance image:
+به‌طور پیش‌فرض Nova دیسک‌های موقت ماشین‌ها را روی دیسک محلی compute می‌سازد. با پیکربندی زیر، دیسک ریشه‌ی هر VM یک image در pool `vms` می‌شود که از image Glance clone شده است:
 
 ```ini
-# /etc/nova/nova.conf on every compute node
+# /etc/nova/nova.conf روی همه‌ی computeها
 [libvirt]
 images_type = rbd
 images_rbd_pool = vms
@@ -300,24 +301,24 @@ hw_disk_discard = unmap
 live_migration_permit_auto_converge = true
 ```
 
-![End-to-end copy-on-write: both the Cinder volume and the Nova ephemeral disk are clones of the same snapshot in Glance](figures/ch03/f02_cow.png){#fig-03-f02_cow}
+![copy-on-write سرتاسری: هم volume در Cinder و هم دیسک موقت Nova clone همان snapshot در Glance‌اند](figures/ch03/f02_cow.png){#fig-03-f02_cow}
 
 ::: {.deep}
-`disk_cachemodes = "network=writeback"` sets the cache mode of network disks in QEMU to writeback so that the librbd client cache is enabled. This is safe, because librbd honours the guest operating system's flushes, and the option `rbd cache writethrough until flush` (default true) guarantees that the cache stays in writethrough mode until the guest has shown that it sends flushes. `hw_disk_discard = unmap` passes the guest's discards to Ceph so that deleted space is really freed.
+`disk_cachemodes = "network=writeback"` حالت cache دیسک‌های شبکه‌ای در QEMU را writeback می‌کند تا cache کلاینت librbd فعال شود. این امن است، چون librbd به flushهای سیستم‌عامل مهمان احترام می‌گذارد و گزینه‌ی `rbd cache writethrough until flush` (پیش‌فرض true) تضمین می‌کند تا وقتی مهمان نشان نداده flush می‌فرستد، cache در حالت writethrough بماند. `hw_disk_discard = unmap` هم discard مهمان را به Ceph می‌رساند تا فضای حذف‌شده واقعاً آزاد شود.
 :::
 
-## Attaching Cinder volumes {#sec-03-8-2}
+## اتصال volumeهای Cinder {#sec-03-8-2}
 
-Attaching volumes needs no further configuration in Nova, provided that the libvirt secret is defined and the `client.cinder` keyring is on the compute node. Nova gets the connection information (the rbd protocol, pool, image name, user and secret UUID) from Cinder and defines a disk of type `network` with the `rbd` protocol in the domain XML.
+برای attach کردن volumeها نیازی به پیکربندی بیشتر در Nova نیست، به شرط آن‌که secret libvirt تعریف شده و keyring `client.cinder` روی compute باشد. Nova از Cinder اطلاعات اتصال (پروتکل rbd، pool، نام image، کاربر و UUID secret) را می‌گیرد و در XML دامنه یک دیسک از نوع `network` با پروتکل `rbd` تعریف می‌کند.
 
-![The boot-from-volume path: Cinder creates the volume with a clone, and nova-compute hands it to QEMU through libvirt and librbd](figures/ch03/f04_boot.png){#fig-03-f04_boot}
+![مسیر بوت از volume: Cinder volume را با clone می‌سازد و nova-compute از طریق libvirt و librbd آن را به QEMU می‌دهد](figures/ch03/f04_boot.png){#fig-03-f04_boot}
 
-## Admin socket and logs for virtual machines {#sec-03-8-3}
+## admin socket و لاگ برای ماشین‌های مجازی {#sec-03-8-3}
 
-The Ceph documentation suggests enabling an admin socket and a log file for the QEMU clients on each hypervisor. This is very valuable when troubleshooting the performance of a particular VM:
+مستندات Ceph پیشنهاد می‌کنند روی هر hypervisor برای کلاینت‌های QEMU، admin socket و فایل لاگ فعال شود. این کار هنگام عیب‌یابی کارایی یک VM خاص بسیار ارزشمند است:
 
 ```ini
-# /etc/ceph/ceph.conf on the compute nodes
+# /etc/ceph/ceph.conf روی computeها
 [client]
 rbd cache = true
 rbd cache writethrough until flush = true
@@ -328,24 +329,24 @@ rbd concurrent management ops = 20
 
 ```bash
 sudo mkdir -p /var/run/ceph/guests/ /var/log/qemu/
-sudo chown qemu:libvirt /var/run/ceph/guests /var/log/qemu/   # the user and group names depend on the distribution
-# After restarting the VM:
+sudo chown qemu:libvirt /var/run/ceph/guests /var/log/qemu/   # نام کاربر و گروه به توزیع بستگی دارد
+# بعد از راه‌اندازی دوباره‌ی VM:
 sudo ceph --admin-daemon /var/run/ceph/guests/ceph-client.cinder.<pid>.<cctid>.asok perf dump
 ```
 
-# From the code: clone, copy-on-write and copyup in librbd {#sec-03-9}
+# از درون کد: clone، copy-on-write و copyup در librbd {#sec-03-9}
 
-## Why this section matters for OpenStack {#sec-03-9-1}
+## چرا این بخش برای OpenStack مهم است {#sec-03-9-1}
 
-When Glance and Cinder/Nova are both on Ceph, creating a new VM **does not mean copying the image**. The service takes a snapshot of the Glance image and creates a layered clone of it (the `layering` feature). A clone is only metadata: a new header with a `parent` pointer to (pool, image id, snap id) and an overlap. The real cost is paid later and gradually, on the **first write to each object**, with an operation called copyup.
+وقتی Glance و Cinder/Nova هر دو روی Ceph باشند، ساختن یک VM جدید به معنای **کپی کردن تصویر نیست**. سرویس یک snapshot از تصویر Glance می‌گیرد و یک clone لایه‌ای (feature `layering`) از آن می‌سازد. clone فقط فراداده است: یک header جدید با اشاره‌گر `parent` به (pool، image id، snap id) و overlap. هزینه‌ی واقعی بعداً و به‌صورت تدریجی پرداخت می‌شود، یعنی در **اولین نوشتن روی هر شیء** با عملیاتی به نام copyup.
 
-![The common OpenStack pattern on RBD. The top row shows that Glance stores the image with a snapshot. In clone v1 this snapshot must be protected; in clone v2 (default rbd_default_clone_format=auto, provided min_compat_client is at least mimic) this is not needed, and the parent snapshot can even be deleted while it has children, in which case it goes to the trash. The middle row shows hundreds of volumes created from one snapshot without copying data. The bottom row is the operational consequences: reads of unwritten regions are served from the parent, the first write to each object causes a copyup the size of the whole object, and flatten cuts the dependency but consumes the full space](figures/ch03/s02_openstack.png){#fig-03-s02_openstack}
+![الگوی رایج OpenStack روی RBD. ردیف بالا نشان می‌دهد که Glance تصویر را با یک snapshot ذخیره می‌کند. در clone v1 این snapshot باید protect شود؛ در clone v2 (پیش‌فرض rbd_default_clone_format=auto، در صورتی که min_compat_client حداقل mimic باشد) این کار لازم نیست و snapshot والد حتی با وجود فرزند قابل حذف است و به trash می‌رود. ردیف میانی صدها volume را نشان می‌دهد که بدون کپی داده از یک snapshot ساخته شده‌اند. ردیف پایین پیامدهای عملیاتی است: خواندن ناحیه‌های نوشته‌نشده از والد سرویس داده می‌شود، اولین نوشتن روی هر شیء یک copyup به اندازه‌ی کل شیء ایجاد می‌کند، و flatten وابستگی را قطع ولی کل فضا را مصرف می‌کند](figures/ch03/s02_openstack.png){#fig-03-s02_openstack}
 
-## The CopyupRequest state machine {#sec-03-9-2}
+## ماشین حالت CopyupRequest {#sec-03-9-2}
 
-In `src/librbd/io/CopyupRequest.cc` the functions run in this order: `send` → `read_from_parent` → (`deep_copy` if needed) → `update_object_maps` → `copyup` → `finish`. Several concurrent write requests to one object are attached to **one** shared copyup with `append_request`, so that the parent's data is read only once.
+در `src/librbd/io/CopyupRequest.cc` توابع به ترتیب اجرا این‌ها هستند: `send` → `read_from_parent` → (`deep_copy` در صورت نیاز) → `update_object_maps` → `copyup` → `finish`. چند درخواست نوشتن هم‌زمان روی یک شیء با `append_request` به **یک** copyup مشترک متصل می‌شوند تا داده‌ی والد فقط یک بار خوانده شود.
 
-![The write path on a cloned image. If the child object exists, the write goes straight through. Otherwise CopyupRequest reads the whole object range from the parent snapshot, copies the data to the child's snapshots as well if deep-flatten and child snapshots exist (deep_copy), updates the object map, and finally sends a single atomic operation to the OSD. This operation contains the cls method rbd.copyup or sparse_copyup, which writes the parent's data only if the object does not exist, followed by the user's own write. The atomicity of this combination guarantees that no reader sees a half-copied object](figures/ch03/s01_copyup.png){#fig-03-s01_copyup}
+![مسیر نوشتن روی یک تصویر clone. اگر شیء فرزند وجود داشته باشد، نوشتن مستقیم است. در غیر این صورت، CopyupRequest کل محدوده‌ی شیء را از snapshot والد می‌خواند، در صورت وجود deep-flatten و snapshotهای فرزند داده را به آن‌ها هم کپی می‌کند (deep_copy)، object map را به‌روز می‌کند و در نهایت یک عملیات اتمیک واحد روی OSD می‌فرستد. این عملیات شامل متد cls به نام rbd.copyup یا sparse_copyup است که داده‌ی والد را فقط در صورت نبود شیء می‌نویسد، و به دنبال آن خود write کاربر می‌آید. اتمیک بودن این ترکیب تضمین می‌کند که هیچ خواننده‌ای شیء نیمه‌کپی‌شده نبیند](figures/ch03/s01_copyup.png){#fig-03-s01_copyup}
 
 ```cpp
 // from ceph/ceph, LGPL — src/librbd/io/CopyupRequest.cc, copyup() (excerpt)
@@ -355,12 +356,12 @@ In `src/librbd/io/CopyupRequest.cc` the functions run in this order: `send` → 
 ```
 
 ```text
-pseudocode: the clone read/write path (this book's summary)
+pseudocode: مسیر خواندن/نوشتن clone (خلاصه‌ی این کتاب)
   read(objno, extent):
      r = osd_read(child_obj)
      if r == -ENOENT and extent within parent_overlap:
          r = read parent image @snap at same image offset
-         if rbd_clone_copy_on_read: schedule copyup(objno)   # default false
+         if rbd_clone_copy_on_read: schedule copyup(objno)   # پیش‌فرض false
      return r
   write(objno, extent, data):
      if child object may not exist (object map != EXISTS) and within overlap:
@@ -368,43 +369,43 @@ pseudocode: the clone read/write path (this book's summary)
      else: osd_write(child_obj, data)
 ```
 
-| Option (rbd.yaml.in) | Default | Effect |
+| گزینه (rbd.yaml.in) | پیش‌فرض | اثر |
 |---|---|---|
-| rbd_default_clone_format | auto | v2 if min_compat_client is at least mimic |
-| rbd_clone_copy_on_read | false | copyup on read (warms the child at the cost of writes) |
-| rbd_parent_cache_enabled | false | A read-only cache of the parent on the host (immutable object cache) |
-| rbd_sparse_read_threshold_bytes | 64_K | Threshold for using sparse-read |
+| rbd_default_clone_format | auto | v2 اگر min_compat_client حداقل mimic باشد |
+| rbd_clone_copy_on_read | false | copyup هنگام خواندن (گرم کردن فرزند، با هزینه‌ی نوشتن) |
+| rbd_parent_cache_enabled | false | کش فقط‌خواندنی والد روی میزبان (immutable object cache) |
+| rbd_sparse_read_threshold_bytes | 64_K | آستانه‌ی استفاده از sparse-read |
 
 ::: {.warn}
-The "copyup storm": after hundreds of VMs boot at the same time from one image, every small write (such as logs or cloud-init) to an untouched object causes a 4 MiB read and write. Symptoms: a sudden rise in write bandwidth with low IOPS in `ceph osd pool stats`. Remedies: smaller objects for base images, gradual `rbd flatten` of write-heavy VMs, or limiting the boot rate.
+«طوفان copyup»: پس از راه‌اندازی هم‌زمان صدها VM از یک تصویر، هر نوشتن کوچکی (مثل لاگ یا cloud-init) روی شیئی دست‌نخورده یک خواندن و نوشتن ۴MiB ایجاد می‌کند. نشانه‌ها: افزایش ناگهانی write bandwidth با IOPS پایین در `ceph osd pool stats`. راه‌حل‌ها: اشیای کوچک‌تر برای تصاویر پایه، `rbd flatten` تدریجی برای VMهای پرنوشتن، یا محدود کردن شدت boot.
 :::
 
 ::: {.debug}
-Inspecting the parent chain:
+بررسی زنجیره‌ی والد:
 :::
 
 ```bash
 rbd info volumes/volume-aaa | grep -A3 parent
-rbd children images/ubuntu@snap           # all children (v2 includes other pools)
-rbd du volumes/volume-aaa                 # real usage after copyups
-rbd flatten volumes/volume-aaa            # a long operation; reports progress
+rbd children images/ubuntu@snap           # همه‌ی فرزندان (v2 شامل pool دیگر)
+rbd du volumes/volume-aaa                 # مصرف واقعی پس از copyupها
+rbd flatten volumes/volume-aaa            # عملیات طولانی؛ پیشرفت را گزارش می‌دهد
 ceph osd get-require-min-compat-client
 ```
 
-# librbd beneath OpenStack, by the numbers {#sec-03-10}
+# librbd زیر پای OpenStack، با عدد {#sec-03-10}
 
-Every disk that Nova, Cinder or Glance creates on Ceph is ultimately an image in librbd. This section follows four librbd algorithms that directly affect the behaviour of OpenStack virtual machines, with code and numbers: mapping disk bytes to objects, the object map, computing the difference between snapshots (the basis of cinder-backup's incremental backups) and the QoS limiter. All code references are to the main branch of the Ceph repository as reviewed in November 2026. The numbers in the examples were recomputed with Python re-implementations of the same functions.
+هر دیسکی که Nova، Cinder یا Glance روی Ceph می‌سازند، در نهایت یک image در librbd است. این بخش چهار الگوریتم librbd را که مستقیم روی رفتار ماشین‌های مجازی OpenStack اثر می‌گذارند، با کد و عدد دنبال می‌کند: نگاشت بایت‌های دیسک به شیء، object map، محاسبه‌ی تفاوت میان snapshotها (پایه‌ی پشتیبان افزایشی cinder-backup) و محدودکننده‌ی QoS. همه‌ی ارجاع‌های کد به شاخه‌ی main مخزن Ceph است که در نوامبر 2026 بررسی شد. عددهای مثال‌ها با بازپیاده‌سازی پایتونی همین توابع دوباره حساب شده‌اند.
 
-## From disk offset to object name {#sec-03-10-1}
+## از offset دیسک تا نام شیء {#sec-03-10-1}
 
-::: {.algo #alg-03-1 title="Mapping an image range to RADOS objects (striping)" src="src/osdc/Striper.cc :: Striper::file_to_extents; src/librbd/ImageCtx.cc :: ImageCtx::init_layout" complexity="O(len / stripe_unit) pieces per request; O(1) per piece"}
+::: {.algo #alg-03-1 title="نگاشت بازه‌ی image به شیءهای RADOS (striping)" src="src/osdc/Striper.cc :: Striper::file_to_extents؛ src/librbd/ImageCtx.cc :: ImageCtx::init_layout" complexity="O(len / stripe_unit) قطعه برای هر درخواست؛ O(1) برای هر قطعه"}
 :::
 
 ```text
 pseudocode
 os = object_size ; su = stripe_unit ; sc = stripe_count
-if sc == 1: su = os                      # the RBD default: each object is one "block"
-spo = os / su                             # stripes per object
+if sc == 1: su = os                      # حالت پیش‌فرض RBD: هر شیء یک «بلوک»
+spo = os / su                             # stripe در هر شیء
 cur = off ; left = len
 while left > 0:
     blockno   = cur / su
@@ -413,78 +414,78 @@ while left > 0:
     objectno  = objectset × sc + stripepos
     x_off = (stripeno mod spo) × su + cur mod su
     x_len = min(left, su − cur mod su)
-    add to the extent of object objectno (buffer_extents keeps the order of the user buffer)
+    به extent شیء objectno اضافه کن (buffer_extents ترتیب بافر کاربر را نگه می‌دارد)
     cur += x_len ; left −= x_len
-oid(objectno) = object_prefix + "." + hex16(objectno)   # format 2 image: rbd_data.<id>.%016llx
+oid(objectno) = object_prefix + "." + hex16(objectno)   # image قالب 2: rbd_data.<id>.%016llx
 ```
 
-**Numeric example.** Consider an image with `order = 22` (4 MiB objects) and the default stripe (stripe_count = 1). The guest VM writes 1 MiB at offset 10.5 MiB. Because sc = 1, su becomes 4 MiB. blockno = ⌊10.5 / 4⌋ = 2, so objectno = 2 and the offset inside the object is 10.5 − 8 = 2.5 MiB (0x280000). The whole write becomes one extent on object `rbd_data.<id>.0000000000000002`.
+**مثال عددی.** یک image با `order = 22` (شیء 4 MiB) و stripe پیش‌فرض (stripe_count = 1) را در نظر بگیرید. VM مهمان 1 MiB را از offset ‏10.5 MiB می‌نویسد. چون sc = 1 است، su برابر 4 MiB می‌شود. blockno = ⌊10.5 / 4⌋ = 2، پس objectno = 2 و offset درون شیء 10.5 − 8 = 2.5 MiB (0x280000) است. کل نوشتن یک extent روی شیء `rbd_data.<id>.0000000000000002` می‌شود.
 
-Now create the same image with "fancy striping" (`--stripe-unit 65536 --stripe-count 4`, which requires the STRIPINGV2 feature). su = 64 KiB and spo = 4 MiB / 64 KiB = 64. Offset 10.5 MiB means blockno = 168, stripeno = 42, stripepos = 0, objectset = ⌊42 / 64⌋ = 0 and objectno = 0. The 1 MiB write breaks into 16 pieces of 64 KiB (blockno 168 to 183). The pieces go in turn to objects 0, 1, 2 and 3: piece 0 to object 0, piece 1 to object 1, and so on. Each object receives four consecutive pieces in the range 0x2a0000 to 0x2e0000 (stripeno 42 to 45 times 64 KiB). The practical result is that one large sequential write engages four PGs, and probably four primary OSDs, at the same time, while each random 4 KiB request still goes to one object. Neither QEMU nor Nova sees any of this. Striping is set only when the image is created and cannot be changed later.
+حالا همان image را با «striping پیشرفته» بسازید (`--stripe-unit 65536 --stripe-count 4`، که ویژگی STRIPINGV2 را لازم دارد). su = 64 KiB و spo = 4 MiB / 64 KiB = 64. offset ‏10.5 MiB یعنی blockno = 168، stripeno = 42، stripepos = 0، objectset = ⌊42 / 64⌋ = 0 و objectno = 0. نوشتن 1 MiB به 16 قطعه‌ی 64 KiB می‌شکند (blockno 168 تا 183). قطعه‌ها به نوبت به شیءهای 0، 1، 2 و 3 می‌روند: قطعه‌ی 0 به شیء 0، قطعه‌ی 1 به شیء 1 و همین‌طور تا آخر. هر شیء چهار قطعه‌ی پشت‌سرهم در بازه‌ی 0x2a0000 تا 0x2e0000 می‌گیرد (stripeno 42 تا 45 ضرب در 64 KiB). نتیجه‌ی عملی این است که یک نوشتن ترتیبی بزرگ همزمان چهار PG و احتمالاً چهار OSD اصلی را درگیر می‌کند، اما هر درخواست 4 KiB تصادفی همچنان به یک شیء می‌رود. QEMU و Nova هیچ‌کدام از این را نمی‌بینند. striping فقط هنگام ساخت image تعیین می‌شود و بعداً قابل تغییر نیست.
 
-![Mapping a 1 MB write at offset 10.5 MiB to RADOS objects in two layouts. Top: stripe_count = 1 (the default), where the whole write lands in object number 2 from offset 0x280000. Bottom: stripe_unit = 64K and stripe_count = 4, where the same write is divided into 16 pieces of 64K and spread in turn across four objects. The buffer piece numbers are written on each object. All pieces are in "object set" zero, because 42 to 45 is less than the 64 stripes per object](figures/ch03/f05_stripe.png){#fig-03-f05_stripe}
+![نگاشت یک نوشتن 1 مگابایتی از offset ‏10.5 MiB به شیءهای RADOS در دو چیدمان. بالا: stripe_count = 1 (پیش‌فرض)، که کل نوشتن در شیء شماره‌ی 2 و از offset ‏0x280000 قرار می‌گیرد. پایین: stripe_unit = 64K و stripe_count = 4، که همان نوشتن به 16 قطعه‌ی 64K تقسیم و به نوبت میان چهار شیء پخش می‌شود. شماره‌ی قطعه‌های بافر روی هر شیء نوشته شده است. همه‌ی قطعه‌ها در «مجموعه‌ی شیء» صفر هستند، چون 42 تا 45 کمتر از 64 stripe در هر شیء است](figures/ch03/f05_stripe.png){#fig-03-f05_stripe}
 
-The chart above makes a practical point clear. When a volume is backed up or migrated with `rbd export`, its performance depends on the number of objects read at the same time. With the default stripe, librbd relies on `rbd_concurrent_management_ops` and several concurrent requests for parallelism. With fancy striping, even a single large request engages several objects at once. For OpenStack VMs the default is usually better, because guest workloads are small and random.
+نمودار بالا یک نکته‌ی عملی را روشن می‌کند. وقتی پشتیبان‌گیری یا مهاجرت یک volume با `rbd export` انجام می‌شود، کارایی آن به تعداد شیءهایی بستگی دارد که هم‌زمان خوانده می‌شوند. با stripe پیش‌فرض، librbd برای موازی‌سازی به `rbd_concurrent_management_ops` و چند درخواست هم‌زمان تکیه می‌کند. با striping پیشرفته، حتی یک درخواست بزرگ واحد هم چند شیء را با هم درگیر می‌کند. برای VMهای OpenStack معمولاً همان پیش‌فرض بهتر است، چون بار مهمان‌ها کوچک و تصادفی است.
 
-## The object map: two bits per object {#sec-03-10-2}
+## object map: دو بیت برای هر شیء {#sec-03-10-2}
 
-::: {.algo #alg-03-2 title="Size and states of the object map" src="src/include/rbd/object_map_types.h; src/librbd/ObjectMap.cc :: ObjectMap::is_compatible; src/cls/rbd/cls_rbd_types.h :: MAX_OBJECT_MAP_OBJECT_COUNT; src/librbd/io/ObjectRequest.cc :: AbstractObjectWriteRequest; src/librbd/object_map/SnapshotCreateRequest.cc :: update_object_map" complexity="Memory 2·N bits for N objects; each update O(1) plus one cls call on the rbd_object_map object"}
+::: {.algo #alg-03-2 title="اندازه و وضعیت‌های object map" src="src/include/rbd/object_map_types.h؛ src/librbd/ObjectMap.cc :: ObjectMap::is_compatible؛ src/cls/rbd/cls_rbd_types.h :: MAX_OBJECT_MAP_OBJECT_COUNT؛ src/librbd/io/ObjectRequest.cc :: AbstractObjectWriteRequest؛ src/librbd/object_map/SnapshotCreateRequest.cc :: update_object_map" complexity="حافظه 2·N بیت برای N شیء؛ هر به‌روزرسانی O(1) به‌علاوه‌ی یک فراخوانی cls روی شیء rbd_object_map"}
 :::
 
 ```text
 pseudocode
 N = ceil(image_size / object_size)
-if N > 256000000: object map incompatible ⇒ the object-map/fast-diff feature cannot be used
-map = BitVector<2>[N]  (00 NONEXISTENT, 01 EXISTS, 10 PENDING, 11 EXISTS_CLEAN)
-write(objectno):  if map[o] ≠ EXISTS: first map[o] = EXISTS (before writing the data)
-discard/remove(o): map[o] = PENDING ; remove the object ; then map[o] = NONEXISTENT
-snap create:      copy the map to rbd_object_map.<id>.<snapid> ; in HEAD every EXISTS ⇒ EXISTS_CLEAN
-read(o):          if map[o] == NONEXISTENT ⇒ no trip to the OSD (or straight to the parent)
+if N > 256000000: object map ناسازگار ⇒ ویژگی object-map/fast-diff قابل استفاده نیست
+map = BitVector<2>[N]  (00 NONEXISTENT، 01 EXISTS، 10 PENDING، 11 EXISTS_CLEAN)
+write(objectno):  اگر map[o] ≠ EXISTS: ابتدا map[o] = EXISTS (پیش از نوشتن داده)
+discard/remove(o): map[o] = PENDING ; حذف شیء ; سپس map[o] = NONEXISTENT
+snap create:      کپی map در rbd_object_map.<id>.<snapid> ؛ در HEAD همه‌ی EXISTS ⇒ EXISTS_CLEAN
+read(o):          اگر map[o] == NONEXISTENT ⇒ بدون رفتن به OSD (یا مستقیم به parent)
 ```
 
-**Numeric example.** A one-terabyte volume with 4 MiB objects has 2^40 / 2^22 = 262144 objects. Its object map is 262144 × 2 / 8 = 65536 bytes, that is 64 KiB, and fits easily in any client's memory. The limit of 256000000 objects with 4 MiB objects means a maximum image of 256000000 × 4 MiB ≈ 976.6 TiB. With 64 KiB objects the same limit drops to about 15.3 TiB. The map in that case is 256000000 × 2 / 8 = 64000000 bytes (about 61 MiB). Anyone who creates an image with `order = 16` for a database should know that above this size they lose the object map, and therefore fast-diff and a fast `rbd du`.
+**مثال عددی.** volume یک ترابایتی با شیء 4 MiB برابر 2^40 / 2^22 = 262144 شیء است. object map آن 262144 × 2 / 8 = 65536 بایت، یعنی 64 KiB می‌شود و به‌راحتی در حافظه‌ی هر کلاینت جا می‌گیرد. سقف 256000000 شیء با شیء 4 MiB یعنی image حداکثر 256000000 × 4 MiB ≈ 976.6 TiB. همین سقف با شیء 64 KiB به حدود 15.3 TiB کاهش می‌یابد. map در این حالت 256000000 × 2 / 8 = 64000000 بایت (حدود 61 MiB) است. اگر کسی برای پایگاه داده‌ای image با `order = 16` بسازد، باید بداند که بالاتر از این اندازه object map و در نتیجه fast-diff و `rbd du` سریع را از دست می‌دهد.
 
-![Object map size as a function of image size, for three object sizes, on logarithmic axes. Each object takes two bits, so the map size is linear in the image size. The vertical dashed lines are the largest image compatible with the object map for each object size, that is where the number of objects reaches 256 million. The black dot is a typical one-terabyte volume with 4 MiB objects, which has only a 64 KiB map](figures/ch03/f06_objmap.png){#fig-03-f06_objmap}
+![اندازه‌ی object map برحسب اندازه‌ی image، برای سه اندازه‌ی شیء، روی محورهای لگاریتمی. هر شیء دو بیت می‌گیرد، پس اندازه‌ی map با اندازه‌ی image نسبت خطی دارد. خط‌چین‌های عمودی بزرگ‌ترین image سازگار با object map برای هر اندازه‌ی شیء هستند، یعنی جایی که تعداد شیءها به 256 میلیون می‌رسد. نقطه‌ی سیاه volume یک ترابایتی معمولی با شیء 4 MiB است که فقط 64 KiB map دارد](figures/ch03/f06_objmap.png){#fig-03-f06_objmap}
 
-![The state machine of one object map cell. Cells start as NONEXISTENT. Before the first write they move to EXISTS, because librbd updates the map before the data so that after a client crash an existing object is never marked "nonexistent". When a snapshot is created, every EXISTS cell in the current map (HEAD) becomes EXISTS_CLEAN. Every later write makes the cell EXISTS again. Removal has two steps: first PENDING, then NONEXISTENT after a successful removal](figures/ch03/f07_omstates.png){#fig-03-f07_omstates}
+![ماشین حالت یک خانه‌ی object map. خانه‌ها در آغاز NONEXISTENT هستند. پیش از نخستین نوشتن به EXISTS می‌روند، چون librbd map را قبل از داده به‌روز می‌کند تا پس از خرابی کلاینت، شیءِ موجودی «ناموجود» علامت نخورد. هنگام ساخت snapshot همه‌ی خانه‌های EXISTS در map فعلی (HEAD) به EXISTS_CLEAN تبدیل می‌شوند. هر نوشتن بعدی خانه را دوباره EXISTS می‌کند. حذف دو مرحله دارد: ابتدا PENDING، سپس پس از حذف موفق NONEXISTENT](figures/ch03/f07_omstates.png){#fig-03-f07_omstates}
 
-The "map first, data second" order has a cost: the first write to each object adds an extra round trip to the OSD holding `rbd_object_map.<image id>`. This cost is paid only once per object, after which the cell is EXISTS. After each snapshot the cells become CLEAN, and the first write to each object again carries a map update. For this reason very frequent snapshots (for example every minute for snapshot-based mirroring) raise write latency slightly on write-heavy volumes. The object map only works with the exclusive lock, because only one client may update the map.
+ترتیب «اول map، بعد داده» هزینه دارد: نخستین نوشتن روی هر شیء یک رفت‌وبرگشت اضافه به OSD نگه‌دارنده‌ی `rbd_object_map.<image id>` اضافه می‌کند. این هزینه فقط یک بار برای هر شیء پرداخت می‌شود و پس از آن خانه EXISTS است. پس از هر snapshot، خانه‌ها CLEAN می‌شوند و نخستین نوشتن روی هر شیء دوباره یک به‌روزرسانی map دارد. به همین دلیل، snapshotهای بسیار مکرر (مثلاً هر دقیقه برای mirroring مبتنی بر snapshot) روی volumeهای پرنوشتن کمی تأخیر نوشتن را بالا می‌برند. object map فقط با قفل انحصاری (exclusive-lock) کار می‌کند، چون فقط یک کلاینت باید map را به‌روز کند.
 
-## The difference between snapshots (fast-diff) {#sec-03-10-3}
+## تفاوت میان snapshotها (fast-diff) {#sec-03-10-3}
 
-::: {.algo #alg-03-3 title="Computing a diff from object maps" src="src/librbd/object_map/DiffRequest.cc :: DiffRequest::handle_load_object_map" complexity="O(N × S) for N objects and S object maps between the two snapshots; no data reads"}
+::: {.algo #alg-03-3 title="محاسبه‌ی diff از روی object mapها" src="src/librbd/object_map/DiffRequest.cc :: DiffRequest::handle_load_object_map" complexity="O(N × S) برای N شیء و S object map میان دو snapshot؛ بدون خواندن داده"}
 :::
 
 ```text
 pseudocode
-# for diff-iterate from snap_start to snap_end
-first map (snap_start):  NONEXISTENT ⇒ HOLE , otherwise DATA (PENDING ⇒ DATA_UPDATED)
-for each later map m and each object o:
-    HOLE:          if m[o] ≠ NONEXISTENT and this is the last map ⇒ DATA_UPDATED (stays HOLE in intermediate maps)
-    DATA:          NONEXISTENT ⇒ HOLE_UPDATED ; EXISTS or PENDING ⇒ DATA_UPDATED ; EXISTS_CLEAN ⇒ unchanged
-    HOLE_UPDATED:  if m[o] ≠ NONEXISTENT ⇒ DATA_UPDATED
+# برای diff-iterate از snap_start تا snap_end
+نخستین map (snap_start):  NONEXISTENT ⇒ HOLE ، وگرنه DATA (PENDING ⇒ DATA_UPDATED)
+برای هر map بعدی m و هر شیء o:
+    HOLE:          اگر m[o] ≠ NONEXISTENT و این map آخر است ⇒ DATA_UPDATED (در mapهای میانی HOLE می‌ماند)
+    DATA:          NONEXISTENT ⇒ HOLE_UPDATED ؛ EXISTS یا PENDING ⇒ DATA_UPDATED ؛ EXISTS_CLEAN ⇒ بدون تغییر
+    HOLE_UPDATED:  اگر m[o] ≠ NONEXISTENT ⇒ DATA_UPDATED
     DATA_UPDATED:  NONEXISTENT ⇒ HOLE_UPDATED
-output: *_UPDATED objects have changed ; HOLE_UPDATED means "report as zero/removed"
+خروجی: شیءهای *_UPDATED تغییرکرده‌اند ؛ HOLE_UPDATED یعنی «صفر/حذف‌شده گزارش کن»
 ```
 
-**Numeric example.** We have six objects o0 to o5 and three maps: snap1, snap2 and HEAD. cinder-backup wants to make an incremental backup from snap1 to the current state (the same thing `rbd export-diff --from-snap snap1` does).
+**مثال عددی.** شش شیء o0 تا o5 و سه map داریم: snap1، snap2 و HEAD. cinder-backup می‌خواهد پشتیبان افزایشی از snap1 تا وضعیت فعلی بسازد (همان کاری که `rbd export-diff --from-snap snap1` می‌کند).
 
-- o0: EXISTS in snap1, EXISTS_CLEAN in snap2 and HEAD. It starts as DATA and stays DATA. Unchanged and not transferred.
-- o1: written before snap2 (EXISTS in snap2). It goes to DATA_UPDATED in snap2 and stays there. Transferred.
-- o2: does not exist in snap1 (HOLE). Created in snap2, but because snap2 is intermediate it stays HOLE. In HEAD (the last map) it goes to DATA_UPDATED. Transferred.
-- o3: removed in snap2 and goes to HOLE_UPDATED. Reported as a "zero region".
-- o4: exists nowhere and is HOLE. No data is transferred.
-- o5: written again after snap2 (EXISTS in HEAD). It goes from DATA to DATA_UPDATED. Transferred.
+- o0: در snap1 EXISTS، در snap2 و HEAD EXISTS_CLEAN. از DATA شروع می‌شود و DATA می‌ماند. تغییر نکرده و منتقل نمی‌شود.
+- o1: پیش از snap2 نوشته شده است (در snap2 EXISTS). در snap2 به DATA_UPDATED می‌رود و همان می‌ماند. منتقل می‌شود.
+- o2: در snap1 وجود ندارد (HOLE). در snap2 ساخته شده، اما چون snap2 میانی است HOLE می‌ماند. در HEAD (map آخر) به DATA_UPDATED می‌رود. منتقل می‌شود.
+- o3: در snap2 حذف شده است و به HOLE_UPDATED می‌رود. به‌صورت «ناحیه‌ی صفر» گزارش می‌شود.
+- o4: هیچ‌جا وجود ندارد و HOLE است. هیچ داده‌ای منتقل نمی‌شود.
+- o5: پس از snap2 دوباره نوشته شده است (در HEAD EXISTS). از DATA به DATA_UPDATED می‌رود. منتقل می‌شود.
 
-Of six objects, three transfer data and one transfers a zero marker. No object was read for comparison: the whole diff came from three small maps. For a one-terabyte volume this means walking 3 × 64 KiB instead of reading a terabyte.
+از شش شیء، سه شیء داده و یک شیء علامت صفر منتقل می‌کنند. هیچ شیئی برای مقایسه خوانده نشد: کل diff فقط از سه map کوچک به دست آمد. برای volume یک ترابایتی، این یعنی پیمایش 3 × 64 KiB به‌جای خواندن یک ترابایت.
 
-![The diff state table for six sample objects from snap1 to HEAD. Each cell shows the object's state in that object map (orange EXISTS, blue EXISTS_CLEAN, grey NONEXISTENT), and under it the diff state after processing that map. The last column is the result: red means changed data that must be transferred, purple means a region that must be reported as zero, green and white mean unchanged. o2 shows why HOLE does not change in an intermediate snapshot: the result depends only on the state in the last map](figures/ch03/f08_fastdiff.png){#fig-03-f08_fastdiff}
+![جدول حالت محاسبه‌ی diff برای شش شیء نمونه از snap1 تا HEAD. هر خانه وضعیت شیء در آن object map را نشان می‌دهد (نارنجی EXISTS، آبی EXISTS_CLEAN، خاکستری NONEXISTENT) و زیر آن حالت diff پس از پردازش همان map آمده است. ستون آخر نتیجه است: قرمز یعنی داده‌ی تغییرکرده که باید منتقل شود، بنفش یعنی ناحیه‌ای که باید صفر گزارش شود، سبز و سفید یعنی بدون تغییر. o2 نشان می‌دهد چرا HOLE در snapshot میانی تغییر نمی‌کند: نتیجه فقط به وضعیت در map آخر بستگی دارد](figures/ch03/f08_fastdiff.png){#fig-03-f08_fastdiff}
 
-This algorithm relies on an important assumption: the object map must be valid. If a client fails without releasing its lock, librbd may set the "object map invalid" flag. In that case diff falls back to a full walk (list-snaps on every object), which is much slower. `rbd object-map check` and `rbd object-map rebuild` are there for rebuilding it. In practice, if cinder-backup's incremental backups suddenly become slow, the first thing to check is this flag in `rbd info`.
+این الگوریتم به یک فرض مهم تکیه دارد: object map باید معتبر باشد. اگر کلاینتی بدون آزاد کردن قفل از کار بیفتد، ممکن است librbd پرچم «object map invalid» بگذارد. در آن حالت diff به پیمایش کامل (list-snaps روی هر شیء) برمی‌گردد که بسیار کندتر است. `rbd object-map check` و `rbd object-map rebuild` برای بازسازی هستند. در عمل اگر پشتیبان‌های افزایشی cinder-backup ناگهان کند شدند، اولین چیزی که باید بررسی شود همین پرچم در `rbd info` است.
 
-## Client-side QoS: the librbd token bucket {#sec-03-10-4}
+## QoS سمت کلاینت: سطل توکن librbd {#sec-03-10-4}
 
-::: {.algo #alg-03-4 title="The TokenBucketThrottle token bucket for rbd_qos_*" src="src/common/Throttle.cc :: TokenBucketThrottle::set_limit, tokens_this_tick, add_tokens, Bucket::put, Bucket::get; src/librbd/io/QosImageDispatch.cc" complexity="O(1) per tick; O(b) to release b waiting requests"}
+::: {.algo #alg-03-4 title="سطل توکن TokenBucketThrottle برای rbd_qos_*" src="src/common/Throttle.cc :: TokenBucketThrottle::set_limit، tokens_this_tick، add_tokens، Bucket::put، Bucket::get؛ src/librbd/io/QosImageDispatch.cc" complexity="O(1) برای هر tick؛ O(b) برای آزاد کردن b درخواست منتظر"}
 :::
 
 ```text
@@ -493,26 +494,26 @@ set_limit(avg, burst, burst_seconds):
     tick_ms = max(1000 / avg, rbd_qos_schedule_tick_min = 50)
     ticks_per_s = 1000 / tick_ms
     max = (burst == 0) ? avg : burst ; capacity = max × max(burst_seconds, 1) ; remain = capacity
-each tick:
+هر tick:
     tokens = ⌊i × avg / ticks_per_s⌋ − ⌊(i−1) × avg / ticks_per_s⌋     # i = 1..ticks_per_s
     remain = min(capacity, remain + tokens)
-    inc = tokens × (max / avg)  if max > avg , otherwise tokens         # refills faster during a burst
+    inc = tokens × (max / avg)  اگر max > avg ، وگرنه tokens         # در burst سریع‌تر پر می‌شود
     available = min(available + inc, min(remain, max))
-    release waiting requests in arrival order while available is enough
-get(c): subtract from available and remain ; if not enough, the request stays queued
+    درخواست‌های منتظر را به ترتیب ورود تا جایی که available کافی است آزاد کن
+get(c): از available و remain کم کن ؛ اگر کافی نبود، درخواست در صف می‌ماند
 ```
 
-**Numeric example.** Consider the limit `rbd_qos_iops_limit = 30`. tick = max(1000 / 30 = 33, 50) = 50 ms, so there are 20 ticks per second. The tokens per tick have the form ⌊1.5 i⌋ − ⌊1.5 (i−1)⌋, that is 1, 2, 1, 2 and so on. Their sum is exactly 30. For avg = 100, each tick gets exactly 5 tokens. For avg = 7, the tick is ⌊1000 / 7⌋ = 142 ms and there are ⌊1000 / 142⌋ = 7 ticks per second, each with one token.
+**مثال عددی.** محدودیت `rbd_qos_iops_limit = 30` را در نظر بگیرید. tick = max(1000 / 30 = 33، 50) = 50 ms، پس 20 tick در ثانیه داریم. توکن‌های هر tick به شکل ⌊1.5 i⌋ − ⌊1.5 (i−1)⌋ هستند، یعنی 1، 2، 1، 2 و همین‌طور تا آخر. جمع آن‌ها دقیقاً 30 است. برای avg = 100، هر tick دقیقاً 5 توکن می‌گیرد. برای avg = 7، tick برابر ⌊1000 / 7⌋ = 142 ms است و ⌊1000 / 142⌋ = 7 tick در ثانیه داریم، هر کدام یک توکن.
 
-Now look at bursts: avg = 100, burst = 300 and burst_seconds = 2. So max = 300 and capacity = 600. The burst factor is 300 / 100 = 3, and available rises by 15 units per tick while remain refills by only 5 units. A saturated client (one that always has a waiting request) gets this many IOs in successive seconds in our simulation: 300, 300, 295, 100, 100. remain drops by a net 10 units per tick and runs out after about 60 ticks (three seconds). Then the rate returns to the average. For a client that has been idle for three seconds, available has filled up to the cap of 300, and its first second of activity gets 585 IOs: 300 from the reserve and 15 in each of the next 19 ticks. Note that burst_seconds = 2 does not mean "exactly two seconds of burst". Because the bucket also refills during the burst, the burst lasts somewhat longer.
+اکنون burst را ببینیم: avg = 100، burst = 300 و burst_seconds = 2. پس max = 300 و capacity = 600. ضریب burst ‏300 / 100 = 3 است و available در هر tick ‏15 واحد بالا می‌رود، در حالی که remain فقط 5 واحد پر می‌شود. یک کلاینت اشباع (که همیشه درخواست منتظر دارد) در شبیه‌سازی ما این تعداد IO را در ثانیه‌های پیاپی می‌گیرد: 300، 300، 295، 100، 100. remain در هر tick خالص 10 واحد کم می‌شود و بعد از حدود 60 tick (سه ثانیه) تمام می‌شود. سپس نرخ به میانگین برمی‌گردد. برای کلاینتی که سه ثانیه بی‌کار بوده، available تا سقف 300 پر شده است و ثانیه‌ی نخست فعالیت 585 IO می‌گیرد: 300 از ذخیره و 15 در هر یک از 19 tick بعدی. توجه کنید که burst_seconds = 2 به معنای «دقیقاً دو ثانیه burst» نیست. چون سطل در حین burst هم پر می‌شود، طول burst کمی بیشتر است.
 
-![Left: the number of IOs accepted per second for a saturated client, in three configurations. Without burst the rate is a constant 100. With burst 300 and burst_seconds 2, the rate stays at 300 for about three seconds and then returns to 100. If the client was idle beforehand for those three seconds, the first second gets 585 IOs. Right: the tokens added per tick for three values of avg. Distributing avg across ticks with integers keeps each second's total exact. These numbers come from a Python re-implementation of TokenBucketThrottle assuming continuous demand, not from measurements on a cluster](figures/ch03/f09_qos.png){#fig-03-f09_qos}
+![سمت چپ: تعداد IO پذیرفته‌شده در هر ثانیه برای یک کلاینت اشباع، در سه پیکربندی. بدون burst نرخ ثابت 100 است. با burst ‏300 و burst_seconds ‏2، نرخ حدود سه ثانیه 300 می‌ماند و بعد به 100 برمی‌گردد. اگر کلاینت پیش از آن سه ثانیه بی‌کار بوده باشد، ثانیه‌ی نخست 585 IO می‌گیرد. سمت راست: توکن‌های افزوده‌شده در هر tick برای سه مقدار avg. پخش صحیح avg میان tickها، جمع هر ثانیه را دقیق نگه می‌دارد. این عددها از بازپیاده‌سازی پایتونی TokenBucketThrottle با فرض تقاضای پیوسته به دست آمده‌اند، نه از اندازه‌گیری روی کلاستر](figures/ch03/f09_qos.png){#fig-03-f09_qos}
 
-In OpenStack there are two ways to limit a volume's IO. Cinder's "front-end" QoS hands the limit to libvirt (`<iotune>`), and QEMU applies it before librbd. librbd-side QoS is set with the `rbd_qos_*` options on the image or pool (`rbd config image set vol rbd_qos_iops_limit 300`) and runs inside the QEMU process in the `QosImageDispatch` layer. The first is managed by Cinder and moves with the VM when it migrates. The second is stored in the image's own metadata and applies to every client that opens the image (even `rbd bench`). Both are client-side and give no global protection to the OSDs. For that, mClock in the OSD (chapter 21) is needed.
+در OpenStack دو راه برای محدود کردن IO یک volume وجود دارد. QoS «front-end» در Cinder محدودیت را به libvirt می‌دهد (`<iotune>`) و QEMU آن را پیش از librbd اعمال می‌کند. QoS سمت librbd با گزینه‌های `rbd_qos_*` روی image یا pool تنظیم می‌شود (`rbd config image set vol rbd_qos_iops_limit 300`) و درون فرایند QEMU و در لایه‌ی `QosImageDispatch` اجرا می‌شود. اولی را Cinder مدیریت می‌کند و با migrate کردن VM همراه آن می‌رود. دومی در فراداده‌ی خود image ذخیره می‌شود و برای هر کلاینتی که image را باز کند (حتی `rbd bench`) اعمال می‌شود. هر دو کلاینت‌محور هستند و از OSDها محافظت سراسری نمی‌کنند. برای آن کار، mClock در OSD (فصل ۲۱) لازم است.
 
-# End-to-end test {#sec-03-11}
+# آزمایش سرتاسری {#sec-03-11}
 
-## Booting a machine from a volume {#sec-03-11-1}
+## بوت یک ماشین از volume {#sec-03-11-1}
 
 ```bash
 openstack volume create --image ubuntu-24.04 --size 20 --type fast vol-web01
@@ -524,143 +525,143 @@ openstack server create --flavor m1.small --network private \
 openstack server show web01 -c status
 ```
 
-If copy-on-write works correctly, creating the 20 GB volume takes a few seconds and the output of `rbd info` shows a `parent` in the `images` pool.
+اگر copy-on-write درست کار کند، ساختن volume بیست‌گیگابایتی چند ثانیه طول می‌کشد و خروجی `rbd info` یک `parent` در pool `images` نشان می‌دهد.
 
-## Attaching an extra volume {#sec-03-11-2}
+## اتصال volume اضافه {#sec-03-11-2}
 
 ```bash
 openstack volume create --size 50 data01
 openstack server add volume web01 data01
-# Inside the VM
+# داخل VM
 lsblk
 ```
 
-## Checking from the compute side {#sec-03-11-3}
+## بررسی از سمت compute {#sec-03-11-3}
 
 ```bash
 sudo virsh list
 sudo virsh dumpxml instance-0000000a | grep -A6 "protocol='rbd'"
 ```
 
-In the output you should see a `<source protocol='rbd' name='volumes/volume-...'>` with the list of MONs and an `<auth username='cinder'>` referring to the secret.
+در خروجی باید یک `<source protocol='rbd' name='volumes/volume-...'>` با فهرست MONها و یک `<auth username='cinder'>` با ارجاع به secret ببینید.
 
 ::: {.debug}
-Some common problems and their symptoms:
+چند مشکل رایج و نشانه‌هایشان:
 
-Volume creation is slow and the compute node's disk fills up: the image is in qcow2 format or `show_image_direct_url` is off; CoW does not work and Cinder downloads the image.
+ساخت volume کند است و فضای compute پر می‌شود: image در قالب qcow2 است یا `show_image_direct_url` خاموش است؛ CoW کار نمی‌کند و Cinder image را دانلود می‌کند.
 
-The VM does not boot and the libvirt log has the error `error connecting: Permission denied`: the secret UUID does not match `rbd_secret_uuid`, or the key inside the secret is old.
+VM بوت نمی‌شود و در لاگ libvirt خطای `error connecting: Permission denied` هست: UUID secret با `rbd_secret_uuid` یکی نیست، یا کلید داخل secret قدیمی است.
 
-Attach works but live migration fails: the secret is not defined on the destination compute node or the UUID differs.
+attach کار می‌کند اما live migration شکست می‌خورد: secret روی compute مقصد تعریف نشده یا UUID متفاوت است.
 
-Deleting a volume stops with "has dependent snapshots" or "image has children": the volume was cloned from a parent snapshot or image, and the chain must first be flattened or removed. Look at `rbd children`.
+حذف volume با خطای «has dependent snapshots» یا «image has children» متوقف می‌شود: volume از snapshot یا image والد clone شده و زنجیره باید ابتدا flatten یا پاک شود. `rbd children` را ببینید.
 
-The capacity reported in Cinder does not match `ceph df`: Cinder calculates capacity from MAX AVAIL and the pool's share, and it is adjusted by thin provisioning and the `max_over_subscription_ratio` ratio.
+ظرفیت گزارش‌شده در Cinder با `ceph df` نمی‌خواند: Cinder ظرفیت را از MAX AVAIL و سهم pool محاسبه می‌کند و با thin provisioning و نسبت `max_over_subscription_ratio` تنظیم می‌شود.
 :::
 
-# Beyond block: Manila and the object API {#sec-03-12}
+# فراتر از بلوک: Manila و API شیء {#sec-03-12}
 
-## Manila with CephFS {#sec-03-12-1}
+## Manila با CephFS {#sec-03-12-1}
 
-Manila is OpenStack's file share service and has two drivers for CephFS:
+Manila سرویس اشتراک فایل OpenStack است و دو درایور برای CephFS دارد:
 
-- **Native CephFS:** guests connect directly to the cluster with a CephFS client (kernel or FUSE). The fastest path, but the Ceph network must be reachable from the VMs and the guests must be trusted.
-- **CephFS through NFS:** Manila exports shares through Ceph's NFS module (NFS-Ganesha deployed with cephadm). The guest sees only NFS and network isolation is preserved. In recent releases Manila works with the `nfs` module in the MGR.
+- **CephFS بومی (native):** مهمان‌ها با کلاینت CephFS (kernel یا FUSE) مستقیم به کلاستر وصل می‌شوند. سریع‌ترین مسیر، اما شبکه‌ی Ceph باید به VMها در دسترس باشد و مهمان‌ها باید قابل‌اعتماد باشند.
+- **CephFS از طریق NFS:** Manila از طریق ماژول NFS در Ceph (NFS-Ganesha مستقرشده با cephadm) اشتراک‌ها را صادر می‌کند. مهمان فقط NFS می‌بیند و جداسازی شبکه حفظ می‌شود. در نسخه‌های جدید Manila با ماژول `nfs` در MGR کار می‌کند.
 
 ```bash
 ceph fs volume create manila-fs
 ceph auth get-or-create client.manila mon 'allow r' mgr 'allow rw'
 ```
 
-The permission `mgr 'allow rw'` is enough for Manila, because Manila creates subvolumes and their users through the volumes interface in the MGR (`ceph fs subvolume ...`) (chapter 6).
+مجوز `mgr 'allow rw'` برای Manila کافی است، چون Manila از طریق رابط volumes در MGR (`ceph fs subvolume ...`) subvolumeها و کاربرانشان را می‌سازد (فصل ۶).
 
-## Swift and S3 {#sec-03-12-2}
+## Swift و S3 {#sec-03-12-2}
 
-Many OpenStack clouds use RGW instead of Swift and register it in Keystone as the endpoint of the `object-store` service. RGW provides both a Swift-compatible and an S3-compatible API and can accept Keystone tokens. The details of this integration are in chapter 4.
+بسیاری از ابرهای OpenStack به‌جای Swift از RGW استفاده می‌کنند و آن را در Keystone به‌عنوان endpoint سرویس `object-store` ثبت می‌کنند. RGW هم API سازگار با Swift و هم S3 را ارائه می‌دهد و می‌تواند توکن‌های Keystone را بپذیرد. جزئیات این یکپارچه‌سازی در فصل ۴ آمده است.
 
-# Production notes {#sec-03-13}
+# نکته‌های production {#sec-03-13}
 
-## Performance {#sec-03-13-1}
+## کارایی {#sec-03-13-1}
 
-- **A separate storage network for compute nodes:** separate librbd traffic from tenant traffic. Each compute node's bandwidth must match the number of VMs and their needs.
-- **librbd cache and readahead:** `disk_cachemodes=network=writeback` enables the cache. For sequential workloads, client readahead (`rbd_readahead_*`) also has an effect.
-- **QoS:** Cinder can define front-end QoS (applied in QEMU): `openstack volume qos create --consumer front-end --property total_iops_sec=3000 iops3k`. This method works with any backend and is more controllable than librbd QoS for a multi-tenant cloud.
-- **Spreading pools over device classes:** database volumes on NVMe, archives on HDD.
+- **شبکه‌ی ذخیره‌سازی جداگانه برای computeها:** ترافیک librbd را از ترافیک tenant جدا کنید. پهنای باند هر compute باید با تعداد VMها و نیازشان متناسب باشد.
+- **librbd cache و readahead:** با `disk_cachemodes=network=writeback` cache فعال می‌شود. برای بارهای ترتیبی، readahead کلاینت (`rbd_readahead_*`) هم اثر دارد.
+- **QoS:** Cinder می‌تواند QoS front-end (اعمال در QEMU) تعریف کند: `openstack volume qos create --consumer front-end --property total_iops_sec=3000 iops3k`. این روش با هر backendی کار می‌کند و از librbd QoS برای ابر چندمستاجری قابل‌کنترل‌تر است.
+- **توزیع pool روی device class:** volumeهای پایگاه داده روی NVMe، آرشیو روی HDD.
 
-## Operations {#sec-03-13-2}
+## عملیات {#sec-03-13-2}
 
-- **Upgrade Ceph and OpenStack separately.** Bring the librbd clients on the compute nodes to a compatible version. Newer clients work with an older cluster and vice versa across a range of several releases, but check `ceph features` before turning on new features (such as `require-min-compat-client`).
-- **Cleaning up orphaned snapshots:** incomplete deletion in OpenStack sometimes leaves images or snapshots behind in Ceph. Periodically compare the list of images in the pools with the list of OpenStack volumes and instances.
-- **rbd-mirror for DR:** send sensitive volumes to a second site with snapshot-mode mirroring. Since Queens, Cinder supports replication in the RBD driver (`replication_device`) and backend-level failover.
+- **ارتقای Ceph و OpenStack را جدا انجام دهید.** کلاینت‌های librbd روی computeها را به نسخه‌ی سازگار برسانید. کلاینت‌های جدیدتر با کلاستر قدیمی‌تر و برعکس در بازه‌ی چند نسخه کار می‌کنند، اما پیش از روشن کردن ویژگی‌های جدید (مثل `require-min-compat-client`) `ceph features` را بررسی کنید.
+- **پاک‌سازی snapshotهای یتیم:** حذف ناقص در OpenStack گاهی imageها یا snapshotهایی در Ceph باقی می‌گذارد. دوره‌ای فهرست imageهای pool را با فهرست volumeها و instanceهای OpenStack مقایسه کنید.
+- **rbd-mirror برای DR:** volumeهای حساس را با mirroring حالت snapshot به سایت دوم بفرستید. Cinder از نسخه‌های Queens به بعد از replication در درایور RBD (`replication_device`) و failover در سطح backend پشتیبانی می‌کند.
 
 ::: {.warn}
-In many real clouds a compute node that mistakenly lacked `images_type=rbd` has left some VMs on local disk. When that compute node fails, those VMs are lost with their data and evacuate does not work. Keep the configuration of all compute nodes identical with a configuration management tool, and test its correctness with `openstack server show` (the `OS-EXT-SRV-ATTR` field) and by inspecting the domain XML.
+در بسیاری از ابرهای واقعی، دیسک compute که اشتباهاً `images_type=rbd` نداشته، باعث شده بخشی از VMها روی دیسک محلی باشند. وقتی آن compute خراب می‌شود، این VMها با داده‌شان از دست می‌روند و evacuate کار نمی‌کند. پیکربندی همه‌ی computeها را با ابزار مدیریت پیکربندی یکسان نگه دارید و با `openstack server show` (فیلد `OS-EXT-SRV-ATTR`) و بررسی XML دامنه، صحتش را آزمون کنید.
 :::
 
-## Security {#sec-03-13-3}
+## امنیت {#sec-03-13-3}
 
-- Each service has its own Ceph user with the least privilege; `client.admin` is never placed on OpenStack nodes.
-- If you use volume encryption in Cinder (with Barbican and LUKS), encryption happens on the compute side (dm-crypt, or LUKS in librbd in recent releases), and Ceph sees encrypted data.
-- msgr2 in `secure` mode (`ms_client_mode = secure`) encrypts the traffic between compute nodes and Ceph; it costs CPU, so measure it before enabling it.
+- هر سرویس کاربر Ceph خودش را با کمترین مجوز دارد؛ `client.admin` هرگز روی گره‌های OpenStack قرار نمی‌گیرد.
+- اگر از رمزنگاری volume در Cinder (با Barbican و LUKS) استفاده می‌کنید، رمزنگاری در سمت compute (dm-crypt یا LUKS در librbd در نسخه‌های جدید) انجام می‌شود و Ceph داده‌ی رمزشده می‌بیند.
+- msgr2 با حالت `secure` (`ms_client_mode = secure`) ترافیک بین compute و Ceph را رمزنگاری می‌کند؛ هزینه‌ی CPU دارد، پس پیش از فعال کردن آن را بسنجید.
 
-# Supplementary and up to date {#sec-03-14}
+# تکمیلی و به‌روز {#sec-03-14}
 
-- **Ceph CSI and Kubernetes:** today many OpenStack-based clouds also serve Kubernetes on the same Ceph. Ceph CSI (the RBD and CephFS drivers) follows the same pattern of a dedicated user and a separate pool.
-- **Glance with multiple stores:** Glance supports several backends at once (`enabled_backends`), for example one Ceph cluster per availability zone, and can copy an image between stores (`copy-image`). This matters for multi-site clouds where each site has an independent Ceph.
-- **The NVMe-oF gateway:** for mixed environments that also have VMware next to OpenStack, the NVMe-oF gateway is the way to serve RBD to ESXi.
-- **Deployment tools:** Packstack and TripleO have been retired; Kolla-Ansible and OpenStack-Ansible are the most common open-source options today.
+- **Ceph CSI و Kubernetes:** امروز بسیاری از ابرهای مبتنی بر OpenStack، Kubernetes را هم روی همان Ceph سرویس می‌دهند. Ceph CSI (درایور RBD و CephFS) همان الگوی کاربر اختصاصی و pool جداگانه را دنبال می‌کند.
+- **Glance با چند store:** Glance از چند backend هم‌زمان پشتیبانی می‌کند (`enabled_backends`)، مثلاً یک کلاستر Ceph در هر منطقه‌ی دسترس‌پذیری، و می‌تواند image را بین storeها کپی کند (`copy-image`). این قابلیت برای ابرهای چندسایتی که هر سایت Ceph مستقل دارد، اهمیت دارد.
+- **دروازه‌ی NVMe-oF:** برای محیط‌های مختلط که کنار OpenStack، VMware هم دارند، دروازه‌ی NVMe-oF راه ارائه‌ی RBD به ESXi است.
+- **ابزار استقرار:** Packstack و TripleO کنار گذاشته شده‌اند؛ Kolla-Ansible و OpenStack-Ansible رایج‌ترین گزینه‌های متن‌باز امروزند.
 
-# Summary and review {#sec-03-15}
+# جمع‌بندی و مرور {#sec-03-15}
 
-## Chapter summary {#sec-03-15-1}
+## خلاصه‌ی فصل {#sec-03-15-1}
 
-::: {.summary title="Key points"}
+::: {.summary title="نکته‌های کلیدی"}
 
-- Ceph meets all of OpenStack's storage needs from one cluster: Glance, Cinder, Backup, Nova, Manila and Swift/S3.
-- Each service has its own pool and Ceph user; `client.cinder` is read-only on images.
-- End-to-end copy-on-write requires raw-format images and `show_image_direct_url = True`.
-- QEMU gets the Ceph key from a secret in libvirt, and its UUID must be the same on all compute nodes and equal to `rbd_secret_uuid`.
-- `images_type = rbd` moves ephemeral disks to Ceph as well and simplifies live migration and evacuate.
-- Manage Ceph outside OpenStack with cephadm; OpenStack should only be a client.
+- Ceph همه‌ی نیازهای ذخیره‌سازی OpenStack را از یک کلاستر تأمین می‌کند: Glance، Cinder، Backup، Nova، Manila و Swift/S3.
+- هر سرویس pool و کاربر Ceph خودش را دارد؛ `client.cinder` روی images فقط خواندنی است.
+- copy-on-write سرتاسری نیازمند image با قالب raw و `show_image_direct_url = True` است.
+- QEMU کلید Ceph را از secret در libvirt می‌گیرد و UUID آن باید روی همه‌ی computeها یکسان و برابر `rbd_secret_uuid` باشد.
+- `images_type = rbd` دیسک‌های موقت را هم به Ceph می‌برد و live migration و evacuate را ساده می‌کند.
+- Ceph را خارج از OpenStack و با cephadm مدیریت کنید؛ OpenStack فقط کلاینت باشد.
 
 :::
 
-## Common mistakes {#sec-03-15-2}
+## اشتباهات رایج {#sec-03-15-2}
 
-- Uploading images in qcow2 format and losing CoW.
-- A different secret UUID on compute nodes, and failed live migrations.
-- Using one Ceph user with broad permissions for all services.
-- Keeping backups on the same cluster.
-- Compute nodes that quietly still use local disk.
+- آپلود imageها با قالب qcow2 و از دست دادن CoW.
+- UUID متفاوت secret روی computeها و شکست live migration.
+- استفاده از یک کاربر Ceph با مجوز گسترده برای همه‌ی سرویس‌ها.
+- نگه داشتن backup روی همان کلاستر.
+- computeهایی که بی‌سروصدا هنوز دیسک محلی دارند.
 
-## Hands-on exercise {#sec-03-15-3}
+## تمرین عملی {#sec-03-15-3}
 
-1. Create the four pools and three users of this chapter and check the permissions with `ceph auth get`. Show that `client.cinder` cannot write to the `images` pool (`rbd --id cinder create images/test --size 1G`).
-2. Build a single-node OpenStack with DevStack or Kolla-Ansible and connect Glance, Cinder and Nova to Ceph.
-3. Upload an image once in qcow2 format and once as raw, and compare the time to create a 20 GB volume from each.
-4. Create one volume type for NVMe and one for HDD, and show with `rbd ls` that volumes are created in the right pool.
-5. Enable the admin socket of the QEMU client and look at a VM's read and write latency with `perf dump`.
+1. چهار pool و سه کاربر این فصل را بسازید و با `ceph auth get` مجوزها را بررسی کنید. نشان دهید `client.cinder` نمی‌تواند در pool `images` بنویسد (`rbd --id cinder create images/test --size 1G`).
+2. با DevStack یا Kolla-Ansible یک OpenStack تک‌نودی بسازید و Glance، Cinder و Nova را به Ceph وصل کنید.
+3. یک image را یک‌بار با قالب qcow2 و یک‌بار raw آپلود کنید و زمان ساخت volume بیست‌گیگابایتی از هر کدام را مقایسه کنید.
+4. یک volume type برای NVMe و یکی برای HDD بسازید و با `rbd ls` نشان دهید volumeها در pool درست ساخته می‌شوند.
+5. admin socket کلاینت QEMU را فعال کنید و با `perf dump` تأخیر خواندن و نوشتن یک VM را ببینید.
 
-## Review questions {#sec-03-15-4}
+## پرسش‌های مرور {#sec-03-15-4}
 
-1. What are the three main reasons that made Ceph a popular backend for OpenStack?
-2. Why does `client.cinder` have only read permission on the `images` pool?
-3. Which two conditions are needed for copy-on-write between Glance and Cinder?
-4. What role does the secret in libvirt play, and why must its UUID be the same on all compute nodes?
-5. What does the `images_type = rbd` option change in Nova, and what advantage does it bring for evacuate?
-6. Which trade-off do `rbd_flatten_volume_from_snapshot` and `rbd_max_clone_depth` control?
-7. Why is a backup on the same Ceph cluster not enough?
-8. How do the two Manila drivers for CephFS differ?
-9. Why is `disk_cachemodes = "network=writeback"` safe?
-10. Why is it better to manage Ceph independently of the OpenStack deployment tool?
+1. سه دلیل اصلی که Ceph را به پشتوانه‌ی محبوب OpenStack تبدیل کرده کدام‌اند؟
+2. چرا `client.cinder` روی pool `images` فقط مجوز خواندن دارد؟
+3. چه دو شرطی برای copy-on-write بین Glance و Cinder لازم است؟
+4. secret در libvirt چه نقشی دارد و چرا UUID آن باید روی همه‌ی computeها یکسان باشد؟
+5. گزینه‌ی `images_type = rbd` در Nova چه چیزی را عوض می‌کند و چه مزیتی برای evacuate دارد؟
+6. `rbd_flatten_volume_from_snapshot` و `rbd_max_clone_depth` چه مصالحه‌ای را کنترل می‌کنند؟
+7. چرا backup روی همان کلاستر Ceph کافی نیست؟
+8. دو درایور Manila برای CephFS چه تفاوتی دارند؟
+9. `disk_cachemodes = "network=writeback"` چرا امن است؟
+10. چرا بهتر است Ceph را مستقل از ابزار استقرار OpenStack مدیریت کنیم؟
 
-## Sources for this chapter {#sec-03-15-5}
+## منابع این فصل {#sec-03-15-5}
 
-- Ceph documentation — Block Devices and OpenStack: https://docs.ceph.com/en/latest/rbd/rbd-openstack/
-- Ceph documentation — librbd configuration reference: https://docs.ceph.com/en/latest/rbd/rbd-config-ref/
-- Ceph documentation — User management: https://docs.ceph.com/en/latest/rados/operations/user-management/
-- Cinder documentation — The Ceph RBD driver: https://docs.openstack.org/cinder/latest/configuration/block-storage/drivers/ceph-rbd-volume-driver.html
-- Glance documentation — Configuring backends: https://docs.openstack.org/glance/latest/configuration/configuring.html
-- Manila documentation — The CephFS driver: https://docs.openstack.org/manila/latest/configuration/shared-file-systems/drivers/cephfs_driver.html
-- Kolla-Ansible documentation — External Ceph integration: https://docs.openstack.org/kolla-ansible/latest/reference/storage/external-ceph-guide.html
-- libvirt documentation — Secrets: https://libvirt.org/formatsecret.html
+- مستندات Ceph — Block Devices and OpenStack: https://docs.ceph.com/en/latest/rbd/rbd-openstack/
+- مستندات Ceph — مرجع پیکربندی librbd: https://docs.ceph.com/en/latest/rbd/rbd-config-ref/
+- مستندات Ceph — مدیریت کاربران: https://docs.ceph.com/en/latest/rados/operations/user-management/
+- مستندات Cinder — درایور Ceph RBD: https://docs.openstack.org/cinder/latest/configuration/block-storage/drivers/ceph-rbd-volume-driver.html
+- مستندات Glance — پیکربندی backendها: https://docs.openstack.org/glance/latest/configuration/configuring.html
+- مستندات Manila — درایور CephFS: https://docs.openstack.org/manila/latest/configuration/shared-file-systems/drivers/cephfs_driver.html
+- مستندات Kolla-Ansible — یکپارچه‌سازی Ceph خارجی: https://docs.openstack.org/kolla-ansible/latest/reference/storage/external-ceph-guide.html
+- مستندات libvirt — secretها: https://libvirt.org/formatsecret.html

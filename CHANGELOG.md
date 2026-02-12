@@ -9,6 +9,13 @@ restructures the book.
 
 ### Changed
 
+- English edition: every chapter (1–33) and its answers is now a placeholder page with the
+  note "The English translation of this chapter is in progress…" (`translation: pending`),
+  so chapter, section, figure and algorithm numbering stay identical to the Persian edition.
+  The existing English drafts (chapters 1–25 and part of 26) are kept on the `en-drafts`
+  branch; chapters will be brought back one by one after the Persian pages are reviewed.
+- `make fonts` installs the book fonts with `tools/install_fonts.sh` only when fontconfig
+  cannot find them (macOS: `~/Library/Fonts`); `pdf`, `html` and `site` depend on it.
 - The web book serves high-resolution figures: `make webfig` (`tools/render_web_figures.py`)
   renders mermaid diagrams at 3x and byte-layout figures at 2x as WebP (`srcset` 1x/2x) and
   re-runs the matplotlib scripts as SVG with text converted to paths, so zoomed figures stay
