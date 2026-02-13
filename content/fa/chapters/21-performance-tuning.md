@@ -3,7 +3,6 @@ chapter: 21
 id: ch21
 title: "تنظیم کارایی Ceph: از mClock تا هسته و شبکه"
 part: main
-original_heading: "Performance Tuning"
 lang: fa
 ---
 

@@ -3,7 +3,6 @@ chapter: 12
 id: ch12
 title: 'BlueStore: The OSD Storage Engine'
 part: main
-original_heading: BlueStore
 lang: en
 translation: pending
 ---

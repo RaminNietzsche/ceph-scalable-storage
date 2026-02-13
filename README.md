@@ -1,6 +1,6 @@
 # Ceph: Scalable Storage — راهنمای جامع Ceph
 
-A Persian study guide to Ceph, with a parallel English edition. It goes from first
+An original Persian book on Ceph, with a parallel English edition. It goes from first
 cluster to source code and on-disk bytes, in 33 chapters with 350 figures and 143
 algorithm boxes, and is built from Markdown sources with one `make` command.
 
@@ -14,7 +14,7 @@ algorithm boxes, and is built from Markdown sources with one `make` command.
 |---|---|---|
 | Content | `content/fa/` | `content/en/` (translation of the Persian text) |
 | Print | `make pdf` | `make pdf LANG=en` |
-| Status | v1.4, 1080 pages | in progress (see `make check-parity`) |
+| Status | v1.5, 1080 pages | in progress (see `make check-parity`) |
 
 ## ساختن کتاب (فارسی)
 
@@ -118,5 +118,4 @@ The text, figures, templates and the tools/scripts are under a single licence,
 [CC BY-NC-SA 4.0](LICENSE) (Attribution-NonCommercial-ShareAlike 4.0 International):
 free to share and adapt with attribution, under the same licence, and **not for
 commercial use**. Quoted upstream code excerpts keep their original licences; see
-[NOTICE.md](NOTICE.md). The original book's
-public table of contents was used only to order the topics of chapters 1–21.
+[NOTICE.md](NOTICE.md).

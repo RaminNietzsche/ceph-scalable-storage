@@ -3,7 +3,6 @@ chapter: 17
 id: ch17
 title: 'Troubleshooting Ceph: From HEALTH_WARN to the Peering State Machine'
 part: main
-original_heading: Troubleshooting
 lang: en
 translation: pending
 ---

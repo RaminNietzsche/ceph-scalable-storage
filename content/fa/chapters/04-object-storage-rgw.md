@@ -3,7 +3,6 @@ chapter: 4
 id: ch04
 title: "ذخیره‌سازی شیء با RADOS Gateway"
 part: main
-original_heading: "Working with Ceph Object Storage"
 lang: fa
 ---
 
@@ -78,7 +77,7 @@ pool index را هرگز erasure-coded نکنید (EC از omap پشتیبانی
 
 ## استقرار با cephadm {#sec-04-3-1}
 
-کتاب اصلی RGW را دستی با بسته‌ها و ceph-deploy روی یک node جداگانه نصب می‌کرد. با cephadm یک دستور کافی است:
+در گذشته RGW را دستی با بسته‌ها و ceph-deploy روی یک node جداگانه نصب می‌کردند. با cephadm یک دستور کافی است:
 
 ```bash
 ceph orch host label add ceph-node4 rgw

@@ -3,7 +3,6 @@ chapter: 15
 id: ch15
 title: 'RADOS Classes: Computing Next to the Data'
 part: main
-original_heading: Distributed Computation with Ceph RADOS Classes
 lang: en
 translation: pending
 ---

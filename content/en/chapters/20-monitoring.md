@@ -3,7 +3,6 @@ chapter: 20
 id: ch20
 title: 'Monitoring Ceph: Prometheus, ceph-exporter, Alerts and Observability'
 part: main
-original_heading: Monitoring Ceph
 lang: en
 translation: pending
 ---
@@ -446,7 +445,7 @@ Prometheus و Alertmanager را مستقیماً در معرض شبکه‌ی ک�
 
 # تکمیلی و به‌روز {#sec-20-11}
 
-- انتقال perf counters از ماژول prometheus به ceph-exporter (پیش‌فرض `exclude_perf_counters`) مهم‌ترین تغییر معماری پایش از ۲۰۱۹ است؛ در کتاب اصلی، پایش بر Calamari و ابزارهای جانبی تکیه داشت که امروز جای خود را به Dashboard و پشته‌ی Prometheus داده‌اند.
+- انتقال perf counters از ماژول prometheus به ceph-exporter (پیش‌فرض `exclude_perf_counters`) مهم‌ترین تغییر معماری پایش از ۲۰۱۹ است؛ در آن سال‌ها پایش بیشتر بر Calamari و ابزارهای جانبی تکیه داشت که امروز جای خود را به Dashboard و پشته‌ی Prometheus داده‌اند.
 - mgmt-gateway و oauth2-proxy در Tentacle آمده‌اند.
 - قواعد سخت‌افزاری (منبع تغذیه، خنک‌کننده، NVMe) و NVMe-oF به ceph-mixin افزوده شده‌اند.
 

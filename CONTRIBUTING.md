@@ -22,8 +22,7 @@ upstream code excerpts must stay short, attributed and keep their original licen
 
 ## Content rules
 
-- **Original text only.** Do not copy prose, figures or exercises from any book. The
-  original book is used only for the order of topics (public TOC).
+- **Original text only.** Do not copy prose, figures or exercises from any book.
 - **No invented facts.** Never invent version numbers, defaults or behaviour. Mark
   version-specific behaviour, for example "(since Squid 19.2)". Mark examples that
   were not measured as examples.
@@ -36,7 +35,7 @@ upstream code excerpts must stay short, attributed and keep their original licen
 
 | Construct | Syntax |
 |---|---|
-| Chapter metadata | YAML front matter: `chapter`, `id`, `title`, `part` (`main`, `special`, `lower`), `original_heading`, `lang` |
+| Chapter metadata | YAML front matter: `chapter`, `id`, `title`, `part` (`main`, `special`, `lower`), `lang` |
 | Section | `# Title {#sec-NN-K}`, and `## Title {#sec-NN-K-M}` for subsections |
 | Figure | `![caption](figures/chNN/name.png){#fig-NN-name}` |
 | Callout | `::: {.tip}` … `:::`; also `.warn` `.note` `.try` `.deep` `.debug` |

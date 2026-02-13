@@ -3,7 +3,6 @@ chapter: 16
 id: ch16
 title: 'Storage Tiering: From Cache Tiering to Device Classes and Storage Classes'
 part: main
-original_heading: Tiering with Ceph
 lang: en
 translation: pending
 ---

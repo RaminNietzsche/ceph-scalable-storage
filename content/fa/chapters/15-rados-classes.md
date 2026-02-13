@@ -3,7 +3,6 @@ chapter: 15
 id: ch15
 title: "کلاس‌های RADOS: محاسبه در کنار داده"
 part: main
-original_heading: "Distributed Computation with Ceph RADOS Classes"
 lang: fa
 ---
 

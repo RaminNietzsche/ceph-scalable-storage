@@ -3,7 +3,6 @@ chapter: 21
 id: ch21
 title: 'Ceph Performance Tuning: From mClock to the Kernel and Network'
 part: main
-original_heading: Performance Tuning
 lang: en
 translation: pending
 ---

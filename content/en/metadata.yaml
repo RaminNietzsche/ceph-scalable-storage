@@ -1,21 +1,14 @@
-# Edition metadata (English) — a translation of the original Persian text
+# Edition metadata (English)
 lang: en
 dir: ltr
 title: "The Comprehensive Ceph Guide"
 subtitle: "Designing, Implementing and Operating Scalable Storage — from the Code to Operations"
 author: "Ramin Najarbashi"
-translator_note: "English translation of the original Persian edition. It is not the text of the original book."
-version: "1.4"
-version_display: "1.4"
+version: "1.5"
+version_display: "1.5"
 date_display: "November 2026"
 date: "2026-11"
 technical_basis: "Ceph Squid (19.2), Tentacle (20.2) and Umbrella (21.2)"
-based_on:
-  title: "Ceph: Designing and Implementing Scalable Storage Systems"
-  authors: ["Vikhyat Umrao", "Karan Singh", "Nick Fisk", "Anthony D'Atri", "Vaibhav Bhembre"]
-  year: 2019
-  isbn: "9781788295413"
-  note: "Only the public table of contents was used to order topics; no text or figures from the original book."
 license: "CC-BY-NC-SA-4.0"
 fonts:
   body: "Source Serif Pro"

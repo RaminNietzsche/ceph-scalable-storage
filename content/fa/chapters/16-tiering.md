@@ -3,7 +3,6 @@ chapter: 16
 id: ch16
 title: "لایه‌بندی ذخیره‌سازی: از Cache Tiering تا Device Class و Storage Class"
 part: main
-original_heading: "Tiering with Ceph"
 lang: fa
 ---
 

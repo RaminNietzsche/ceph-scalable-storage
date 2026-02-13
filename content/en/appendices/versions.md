@@ -3,11 +3,11 @@ id: versions
 lang: en
 ---
 
-The table below shows the major Ceph releases from the publication of the original book (2019) to today. Dates for active releases were taken from the official releases page (docs.ceph.com/en/latest/releases, November 2026).
+The table below shows the major Ceph releases from 2019 to today. Dates for active releases were taken from the official releases page (docs.ceph.com/en/latest/releases, November 2026).
 
 | Name | Number | Status (November 2026) | Notes relevant to this book |
 |---|---|---|---|
-| Nautilus | 14.2 | Archived | Current when the original book was published; msgr2, pg_autoscaler, PG merging |
+| Nautilus | 14.2 | Archived | Current in 2019; msgr2, pg_autoscaler, PG merging |
 | Octopus | 15.2 | Archived | Introduced cephadm |
 | Pacific | 16.2 | Archived | `bluestore_min_alloc_size_hdd` reduced to 4K; sharded RocksDB in BlueStore |
 | Quincy | 17.2 | Archived | mClock as the default OSD scheduler |

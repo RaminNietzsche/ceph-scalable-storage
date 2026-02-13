@@ -3,7 +3,6 @@ chapter: 19
 id: ch19
 title: 'Day-to-Day Operations: Upgrades, Disk Replacement, Autoscaler and Balancer'
 part: main
-original_heading: Operations and Maintenance
 lang: en
 translation: pending
 ---

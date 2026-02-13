@@ -3,7 +3,6 @@ chapter: 5
 id: ch05
 title: "ذخیره‌سازی شیء چندسایتی با RGW Multi-Site"
 part: main
-original_heading: "Working with Ceph Object Storage Multi-Site v2"
 lang: fa
 ---
 

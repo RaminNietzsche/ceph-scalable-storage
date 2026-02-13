@@ -3,7 +3,6 @@ chapter: 11
 id: ch11
 title: 'Deploying Ceph: Lab, cephadm, Ansible and Rook'
 part: main
-original_heading: Deploying Ceph
 lang: en
 translation: pending
 ---
@@ -12,7 +11,7 @@ translation: pending
 
 ## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-11-1-1}
 
-سرفصل ۲۰۱۹ استقرار را با سه ابزار آموزش می‌داد: Vagrant و VirtualBox برای آزمایشگاه، `ceph-deploy` برای نصب دستی و ceph-ansible برای خودکارسازی. از آن زمان هر سه لایه تغییر کرده‌اند: مخزن ceph-deploy آرشیو شده است، README خود ceph-ansible می‌گوید پروژه «فعلاً» نگهداری می‌شود اما مهاجرت به cephadm را توصیه می‌کند، و ابزار رسمی استقرار، **cephadm** (روی سرور و VM) و **Rook** (درون Kubernetes) است. این فصل همان اهداف را با ابزار امروزی دنبال می‌کند:
+تا چند سال پیش استقرار معمولاً با سه ابزار انجام می‌شد: Vagrant و VirtualBox برای آزمایشگاه، `ceph-deploy` برای نصب دستی و ceph-ansible برای خودکارسازی. از آن زمان هر سه لایه تغییر کرده‌اند: مخزن ceph-deploy آرشیو شده است، README خود ceph-ansible می‌گوید پروژه «فعلاً» نگهداری می‌شود اما مهاجرت به cephadm را توصیه می‌کند، و ابزار رسمی استقرار، **cephadm** (روی سرور و VM) و **Rook** (درون Kubernetes) است. این فصل همان اهداف را با ابزار امروزی دنبال می‌کند:
 
 - یک آزمایشگاه تکرارپذیر Ceph را چطور بسازیم؟
 - ابزارهای استقرار چه سیری داشته‌اند و امروز کدام را انتخاب کنیم؟

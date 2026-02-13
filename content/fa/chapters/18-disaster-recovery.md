@@ -3,7 +3,6 @@ chapter: 18
 id: ch18
 title: "بازیابی از فاجعه: rbd-mirror، stretch mode و نجات کلاستر"
 part: main
-original_heading: "Disaster Recovery"
 lang: fa
 ---
 
@@ -420,7 +419,7 @@ ceph-objectstore-tool --data-path /var/lib/ceph/osd/ceph-30 --op import --file /
 - mirroring مبتنی بر snapshot از Octopus در دسترس است و برای بیشتر کاربردها جایگزین مناسب journal شده است.
 - Umbrella پشتیبان‌گیری داخلی از store مانیتور را افزوده است (فصل ۸).
 - مستندات شاخه‌ی در حال توسعه مدل تازه‌ی stretch با `num_zones` را شرح می‌دهد؛ تا انتشار رسمی آن در یک نسخه، از روال enable_stretch_mode استفاده کنید.
-- `ceph-deploy` که در کتاب اصلی ۲۰۱۹ برای بازسازی به کار می‌رفت، بایگانی شده است؛ همه‌ی روال‌ها امروز با cephadm انجام می‌شود.
+- `ceph-deploy` که در روال‌های قدیمی بازسازی به کار می‌رفت، بایگانی شده است؛ همه‌ی روال‌ها امروز با cephadm انجام می‌شود.
 
 # تمرین عملی {#sec-18-12}
 

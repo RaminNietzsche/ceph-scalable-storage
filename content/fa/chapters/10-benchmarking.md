@@ -3,7 +3,6 @@ chapter: 10
 id: ch10
 title: "سنجش کارایی و ابزارهای کارشناسی Ceph"
 part: main
-original_heading: "More on Ceph"
 lang: fa
 ---
 
@@ -224,7 +223,7 @@ ceph tell mds.fs01:0 perf dump
 
 ## API مدیریتی {#sec-10-6-2}
 
-سرفصل قدیمی «Ceph REST API» را بر اساس ماژول `restful` توضیح می‌داد. این ماژول در Tentacle حذف شد. برای خودکارسازی امروز دو راه دارید:
+در گذشته «Ceph REST API» بر اساس ماژول `restful` ارائه می‌شد. این ماژول در Tentacle حذف شد. برای خودکارسازی امروز دو راه دارید:
 
 - **API Dashboard** برای عملیات مدیریتی (فصل ۹)، با احراز هویت JWT و نسخه‌دار.
 - **کتابخانه‌های librados** (پایتون، C، Go و ...) برای دسترسی برنامه‌نویسی به RADOS و حتی ارسال دستورهای MON (فصل ۱۴).
@@ -515,7 +514,7 @@ ceph pg 5.3a query | jq .state
 
 ## ابزارهای کنار رفته {#sec-10-11-5}
 
-| ابزار سرفصل قدیمی | وضعیت امروز | جایگزین |
+| ابزار قدیمی | وضعیت امروز | جایگزین |
 |---|---|---|
 | ceph-medic | توسعه‌ی فعال ندارد (آخرین تغییر مخزن در ۲۰۲۰) و از مستندات پایش حذف شده است | `ceph health detail`، health checkهای cephadm، هشدارهای Prometheus |
 | ماژول restful | در Tentacle حذف شد | API Dashboard |

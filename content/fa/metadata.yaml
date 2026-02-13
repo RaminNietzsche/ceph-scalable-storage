@@ -4,17 +4,11 @@ dir: rtl
 title: "راهنمای جامع Ceph"
 subtitle: "طراحی، پیاده‌سازی و راهبری ذخیره‌سازی مقیاس‌پذیر — از درون کد تا عملیات"
 author: "رامین نجارباشی"
-version: "1.4"
-version_display: "۱٫۴"
+version: "1.5"
+version_display: "۱٫۵"
 date_display: "آبان ۱۴۰۵"
 date: "2026-11"
 technical_basis: "Ceph Squid (۱۹.۲)، Tentacle (۲۰.۲) و Umbrella (۲۱.۲)"
-based_on:
-  title: "Ceph: Designing and Implementing Scalable Storage Systems"
-  authors: ["Vikhyat Umrao", "Karan Singh", "Nick Fisk", "Anthony D'Atri", "Vaibhav Bhembre"]
-  year: 2019
-  isbn: "9781788295413"
-  note: "Only the public table of contents was used to order topics; no text or figures from the original book."
 license: "CC-BY-NC-SA-4.0"
 fonts:
   body: "Vazirmatn"

@@ -3,7 +3,6 @@ chapter: 2
 id: ch02
 title: "کار با Ceph Block Device (RBD)"
 part: main
-original_heading: "Working with Ceph Block Device"
 lang: fa
 ---
 

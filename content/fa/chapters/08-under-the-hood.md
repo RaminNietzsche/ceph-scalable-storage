@@ -3,7 +3,6 @@ chapter: 8
 id: ch08
 title: "Ceph از درون: CRUSH، نقشه‌ها، احراز هویت و PGها"
 part: main
-original_heading: "Ceph under the Hood"
 lang: fa
 ---
 

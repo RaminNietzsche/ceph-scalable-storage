@@ -3,7 +3,6 @@ chapter: 14
 id: ch14
 title: "برنامه‌نویسی با librados"
 part: main
-original_heading: "Developing with Librados"
 lang: fa
 ---
 

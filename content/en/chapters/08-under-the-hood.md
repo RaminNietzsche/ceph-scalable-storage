@@ -3,7 +3,6 @@ chapter: 8
 id: ch08
 title: 'Ceph Under the Hood: CRUSH, Maps, Authentication and PGs'
 part: main
-original_heading: Ceph under the Hood
 lang: en
 translation: pending
 ---

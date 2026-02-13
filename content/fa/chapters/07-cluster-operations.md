@@ -3,7 +3,6 @@ chapter: 7
 id: ch07
 title: "راهبری و مدیریت کلاستر Ceph"
 part: main
-original_heading: "Operating and Managing a Ceph Cluster"
 lang: fa
 ---
 
@@ -525,7 +524,7 @@ ceph osd unset-group noout ceph-node3
 
 ## کنترل سرعت بازیابی و backfill {#sec-07-10-3}
 
-کتاب ۲۰۱۹ برای کند کردن بازیابی، تنظیم مستقیم `osd_max_backfills`، `osd_recovery_max_active` و `osd_recovery_sleep` را آموزش می‌داد. از Quincy، زمان‌بند پیش‌فرض OSD **mClock** است و این تنظیمات را خودش مدیریت می‌کند. راه درست امروزی انتخاب **پروفایل** است:
+راهنماهای قدیمی برای کند کردن بازیابی، تنظیم مستقیم `osd_max_backfills`، `osd_recovery_max_active` و `osd_recovery_sleep` را آموزش می‌دادند. از Quincy، زمان‌بند پیش‌فرض OSD **mClock** است و این تنظیمات را خودش مدیریت می‌کند. راه درست امروزی انتخاب **پروفایل** است:
 
 | پروفایل | اولویت | کاربرد |
 |---|---|---|

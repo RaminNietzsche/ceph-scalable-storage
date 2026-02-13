@@ -8,16 +8,12 @@ licensed under a single licence, [CC BY-NC-SA 4.0](LICENSE)
 permitted without separate written permission. Quoted upstream code excerpts keep
 their original licences (see below).
 
-## What this book is based on
+## Original work
 
-The **order of topics** in chapters 1–21 follows the *public table of contents* of
-*Ceph: Designing and Implementing Scalable Storage Systems* (Vikhyat Umrao, Karan Singh, Nick Fisk, Anthony D'Atri, Vaibhav Bhembre, 2019, ISBN 9781788295413). No text, figures, code or exercises
-from that book were used. Every sentence, diagram, algorithm write-up and question
-here is original. Chapter headings that repeat the public TOC wording are kept in
-the `original_heading` front-matter field only.
-
-The English edition (`content/en/`) is a translation of **this book's own Persian
-text** (`content/fa/`), not of the original book.
+This book is an original work by Ramin Najarbashi. Every sentence, diagram,
+algorithm write-up and question in it was written for this book. The English
+edition (`content/en/`) is the author's English version of the Persian text
+(`content/fa/`).
 
 ## Quoted source code
 

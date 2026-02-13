@@ -3,7 +3,6 @@ chapter: 17
 id: ch17
 title: "عیب‌یابی Ceph: از HEALTH_WARN تا ماشین حالت Peering"
 part: main
-original_heading: "Troubleshooting"
 lang: fa
 ---
 

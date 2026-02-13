@@ -3,7 +3,6 @@ chapter: 14
 id: ch14
 title: Programming with librados
 part: main
-original_heading: Developing with Librados
 lang: en
 translation: pending
 ---

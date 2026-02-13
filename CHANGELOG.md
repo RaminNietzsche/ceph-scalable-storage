@@ -7,7 +7,19 @@ restructures the book.
 
 ## [Unreleased]
 
+## [1.5] - 2026-11
+
 ### Changed
+
+- The book is presented as an original authored work. Every reference to another book
+  (title, authors, publisher, ISBN, rights notice, "not a translation" wording, page
+  correspondences and the `original_heading` front-matter field) was removed from the
+  front matter, colophon, preface, chapters, appendices, cover, metadata, README, NOTICE,
+  CONTRIBUTING and LICENSE. Citations of Ceph documentation and papers are unchanged.
+- New cover for both editions (`tools/render_cover.py`): an abstract CRUSH hierarchy and
+  placement-group grid on a deep ink background, Vazirmatn / Inter, CC BY-NC-SA note.
+
+### Earlier unreleased changes
 
 - English edition: every chapter (1–33) and its answers is now a placeholder page with the
   note "The English translation of this chapter is in progress…" (`translation: pending`),
@@ -134,7 +146,7 @@ restructures the book.
 
 ### Added
 
-- First complete edition with 22 chapters. Chapters 1–21 follow the public TOC.
+- First complete edition with 22 chapters.
   Chapter 22, "Ceph code architecture", walks end to end through a RADOS write, RBD,
   an RGW PUT and CephFS.
 - "From the code" deep dives in every chapter, with short attributed excerpts

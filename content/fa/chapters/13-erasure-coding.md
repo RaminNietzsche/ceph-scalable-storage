@@ -3,7 +3,6 @@ chapter: 13
 id: ch13
 title: "کدگذاری پاک‌شونده (Erasure Coding) برای بهره‌وری ذخیره‌سازی"
 part: main
-original_heading: "Erasure Coding for Better Storage Efficiency"
 lang: fa
 ---
 

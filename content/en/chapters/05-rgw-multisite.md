@@ -3,7 +3,6 @@ chapter: 5
 id: ch05
 title: Multi-Site Object Storage with RGW Multi-Site
 part: main
-original_heading: Working with Ceph Object Storage Multi-Site v2
 lang: en
 translation: pending
 ---

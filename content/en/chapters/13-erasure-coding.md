@@ -3,7 +3,6 @@ chapter: 13
 id: ch13
 title: Erasure Coding for Storage Efficiency
 part: main
-original_heading: Erasure Coding for Better Storage Efficiency
 lang: en
 translation: pending
 ---

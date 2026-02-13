@@ -3,7 +3,6 @@ chapter: 12
 id: ch12
 title: "BlueStore: موتور ذخیره‌سازی OSD"
 part: main
-original_heading: "BlueStore"
 lang: fa
 ---
 

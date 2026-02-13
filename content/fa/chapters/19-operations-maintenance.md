@@ -3,7 +3,6 @@ chapter: 19
 id: ch19
 title: "راهبری و نگه‌داری روزمره: ارتقا، جایگزینی دیسک، autoscaler و balancer"
 part: main
-original_heading: "Operations and Maintenance"
 lang: fa
 ---
 
