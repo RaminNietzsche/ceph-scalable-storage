@@ -1,0 +1,6 @@
+flowchart LR
+  H["hash = 0x8c7e1b1f<br/>low 5 bits = 11111"] --> PG["pg_num=32 → PG 3.1f"]
+  H --> B["bitwise key = reverse_bits(hash)<br/>= 0xf8d87e31"]
+  B --> R["PG 3.1f range<br/>[0xf8000000, 0xffffffff]"]
+  R --> S1["after split (pg_num=64)<br/>PG 3.1f: [0xf8000000, 0xfbffffff]"]
+  R --> S2["PG 3.3f: [0xfc000000, 0xffffffff]"]

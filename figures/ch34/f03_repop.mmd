@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant C as Client
+  participant P as Primary osd.12
+  participant R1 as Replica osd.4
+  participant R2 as Replica osd.27
+  C->>P: MOSDOp write (reqid client.24183.0:131)
+  P->>P: do_op gates · execute_ctx · at_version 1462'93
+  par
+    P->>R1: MOSDRepOp (txn + log entry)
+    P->>R2: MOSDRepOp (txn + log entry)
+    P->>P: queue_transactions (local)
+  end
+  R1-->>P: MOSDRepOpReply ONDISK
+  P->>P: local commit
+  R2-->>P: MOSDRepOpReply ONDISK
+  P->>P: all_committed → on_committed
+  P-->>C: MOSDOpReply ack+ondisk, version 94

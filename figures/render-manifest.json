@@ -412,5 +412,9 @@
  "figures/ch33/f05_shards.mmd": "c2667d09da8fdeb207de55a7b14938bb26716e7cb352b38922355fa9ee3fbb55",
  "figures/ch33/f06_numa.mmd": "af4b1d3b2086bd28621f12d6a5ae3c48d0129d27a7ff48b0085a91888aaa05ca",
  "figures/ch33/f07_tcmalloc.mmd": "d203efe770da2c17e7df057f3d6c4c7de783f156121bc448991d56e7d871307f",
- "figures/ch33/f08_tools.mmd": "d50edf8ffde8e4316d91e6f832d1d28f1ab2ad823ce19399b7a0c7ff2fec4dcc"
+ "figures/ch33/f08_tools.mmd": "d50edf8ffde8e4316d91e6f832d1d28f1ab2ad823ce19399b7a0c7ff2fec4dcc",
+ "figures/ch34/f01_oppath.mmd": "481ca59e01d2b0e0ea54ead1ff228a6edd14ac98a6edab2a600003b81f65371c",
+ "figures/ch34/f02_bitwise.mmd": "588a184f214e49a1fe05d60365ae8afe91bba5a286ea72236d736edc1949bb41",
+ "figures/ch34/f03_repop.mmd": "cf371359fff6ad05c60d629c6cf72207865ba7d8b6cf921b084d1e22918ace30",
+ "figures/ch34/f04_logkey.bf.json": "252098a02bee56ec054aa8831a02ef1be7bb58d55f96b21072bab08b20b9ef91"
 }

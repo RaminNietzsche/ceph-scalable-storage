@@ -1,0 +1,22 @@
+flowchart TB
+  M["Messenger thread<br/>ms_fast_dispatch(MOSDOp)"] --> E["enqueue_op<br/>shard = ps % num_shards"]
+  E --> Q["OSDShard[i]<br/>mClock scheduler"]
+  Q --> W["worker thread<br/>lock PG · do_request"]
+  W --> G1{"peered / active?"}
+  G1 -- no --> WP["waiting_for_peered<br/>waiting_for_active"]
+  G1 -- yes --> G2{"laggy? caps? full?"}
+  G2 -- fail --> R1["requeue / EPERM / ENOSPC"]
+  G2 -- ok --> G3{"head missing<br/>or degraded?"}
+  G3 -- yes --> WD["waiting_for_unreadable_object<br/>waiting_for_degraded_object"]
+  G3 -- no --> G4{"scrub blocks write?<br/>dup reqid?"}
+  G4 -- scrub --> WS["waiting_for_scrub"]
+  G4 -- dup --> WO["reply saved result<br/>or waiting_for_ondisk"]
+  G4 -- ok --> OBC["find_object_context<br/>get_rw_locks"]
+  OBC -- busy --> WL["rwstate.waiters"]
+  OBC --> X["execute_ctx<br/>prepare_transaction · finish_ctx"]
+  X --> RP["issue_repop<br/>submit_transaction"]
+  RP --> C["all_committed → reply ONDISK"]
+  WP -. requeue .-> Q
+  WD -. requeue .-> Q
+  WS -. requeue .-> Q
+  WL -. requeue .-> Q

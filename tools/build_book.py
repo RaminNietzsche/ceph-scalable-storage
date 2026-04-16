@@ -388,6 +388,10 @@ def prep(rest, n):
 
 
 # ---------- chapters ----------
+# Book parts that get a part title page before their first chapter: (first chapter, anchor id, ui.yaml key prefix).
+SPEC_START = 34
+PARTS = [(23, 'part-low', 'part_low'), (SPEC_START, 'part-spec', 'part_spec')]
+PART_IDS = {pid for _, pid, _ in PARTS}
 MD = []
 body = []
 chapters = []
@@ -413,16 +417,17 @@ for path in sorted(glob.glob(os.path.join(C, 'chapters', '[0-9][0-9]-*.md'))):
         if not inc and x.startswith('# '):
             mains.append(x[2:])
     chap_html = render(rest, n, MD)
-    word = UI['special_word'] if n == 22 else (UI['lower_word'] if n >= 23 else CH)
+    word = UI['special_word'] if n == 22 else (UI['spec_word'] if n >= SPEC_START else (UI['lower_word'] if n >= 23 else CH))
     opener = f'''<section class="chapter" id="ch{n}">
 <div class="opener"><div class="ch-word">{word}</div><div class="ch-num">{fa(n)}</div><div class="rule"></div>
 <h1 class="ch-title">{inline(title)}</h1><div class="ch-meta">{esc(meta)}</div>
 <div class="inthis"><div class="lab">{UI["in_this_chapter"]}</div><ol>{''.join(f'<li><span class="oln">{fa(n)}-{fa(k + 1)}</span> {inline(t)}</li>' for k, t in enumerate(mains))}</ol></div></div>
 <div class="chbody">{chap_html}</div></section>'''
-    if n == 23:
-        toc.append((1, 'part-low', '', UI['part_low_toc'], 0))
-        body.append(f'<section class="partpg" id="part-low"><div class="pp-word">{UI["part_low_word"]}</div><h1 class="pp-title">{UI["part_low_title"]}</h1><div class="rule"></div><p class="pp-desc">{UI["part_low_desc"]}</p></section>')
-        MD.append(f'\n\n# {UI["part_low_word"]}: {UI["part_low_title"]}\n\n{UI["part_low_md"]}\n')
+    for pstart, pid, pkey in PARTS:
+        if n == pstart:
+            toc.append((1, pid, '', UI[f'{pkey}_toc'], 0))
+            body.append(f'<section class="partpg" id="{pid}"><div class="pp-word">{UI[f"{pkey}_word"]}</div><h1 class="pp-title">{UI[f"{pkey}_title"]}</h1><div class="rule"></div><p class="pp-desc">{UI[f"{pkey}_desc"]}</p></section>')
+            MD.append(f'\n\n# {UI[f"{pkey}_word"]}: {UI[f"{pkey}_title"]}\n\n{UI[f"{pkey}_md"]}\n')
     body.append(opener)
 
 # ---------- appendices ----------
@@ -525,7 +530,7 @@ N_ALGO, N_FIG = (len(ALGOS), len(figs)) if LANG == 'fa' else canonical_counts(RO
 pref = render([x.replace('@NALGO@', fa(N_ALGO)).replace('@NFIG@', fa(N_FIG)) for x in PREF], md=pref_md)
 toc_html = []
 for lvl, hid, num, txt, ch in toc:
-    if lvl == 1 and hid == 'part-low':
+    if lvl == 1 and hid in PART_IDS:
         toc_html.append(f'<tr class="t1 tpart"><td class="tt" colspan="2"><a href="#{hid}">{inline(txt)}</a></td><td class="pg"><a class="pgn" href="#{hid}"></a></td></tr>')
         continue
     if lvl == 1:
@@ -562,7 +567,7 @@ md = [f'# {BOOK}\n\n{UI["md_title_line"]}\n\n{UI["md_byline"].format(version=MET
       f'\n# {UI["preface"]}\n' + ''.join(x + '\n' for x in pref_md).replace('\n### ', '\n## '),
       f'\n# {UI["toc"]}\n']
 for lvl, hid, num, txt, ch in toc:
-    if hid == 'part-low':
+    if hid in PART_IDS:
         md.append(f'- **{txt}**')
         continue
     md.append(f'- {CH} {ch}: {txt}' if lvl == 1 else f'  - {num.translate(EN).replace("-", ".")} {txt}')

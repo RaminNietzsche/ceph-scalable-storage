@@ -306,15 +306,19 @@ Page('preface', 'front', UI['preface'], UI['preface'], 'front', body_of(pref, ['
 copyright_box = soup.select_one('.fm.copyright .cbox')
 
 # chapters -------------------------------------------------------------------
-part = soup.select_one('section#part-low')
+SITE_PARTS = [(23, 34, 'part-low', 'part_low', 'part-3'), (34, 10 ** 6, 'part-spec', 'part_spec', 'part-4')]
+PART_RANGE = {}
 for sec in soup.select('section.chapter'):
     n = int(sec['id'][2:])
-    if n == 23 and part is not None:
-        desc = part.select_one('.pp-desc')
-        pb = soup.new_tag('div')
-        pb.append(frag(str(desc)))
-        pg = Page('part-3', 'part', esc(UI['part_low_title']), esc(UI['part_low_toc']), 'chapters', pb, eyebrow=UI['part_low_word'])
-        ids['part-low'] = ('part-3', '')
+    for pstart, pend, pid, pkey, pslug in SITE_PARTS:
+        part = soup.select_one(f'section#{pid}')
+        if n == pstart and part is not None:
+            desc = part.select_one('.pp-desc')
+            pb = soup.new_tag('div')
+            pb.append(frag(str(desc)))
+            pg = Page(pslug, 'part', esc(UI[f'{pkey}_title']), esc(UI[f'{pkey}_toc']), 'chapters', pb, eyebrow=UI[f'{pkey}_word'])
+            ids[pid] = (pslug, '')
+            PART_RANGE[pslug] = (pstart, pend)
     word = text_of(sec.select_one('.ch-word'))
     title = ''.join(str(c) for c in sec.select_one('h1.ch-title').contents)
     slug = os.path.splitext(os.path.basename(CHFILES[n]))[0]
@@ -630,7 +634,8 @@ for p in pages:
     eyebrow = f'<div class="eyebrow">{esc(p.eyebrow)}</div>' if p.eyebrow else ''
     extra = ''
     if p.kind == 'part':
-        lis = ''.join(f'<li><a href="{q.slug}.html">{q.nav_html}</a></li>' for q in pages if q.chap and q.chap >= 23)
+        lo, hi = PART_RANGE.get(p.slug, (23, 10 ** 6))
+        lis = ''.join(f'<li><a href="{q.slug}.html">{q.nav_html}</a></li>' for q in pages if q.chap and lo <= q.chap < hi)
         extra = f'<ol class="part-list">{lis}</ol>'
     main = f'<article class="content" id="top"><header class="page-head">{eyebrow}<h1>{p.title_html}</h1></header>{"".join(str(c) for c in p.body.contents)}{extra}</article>'
     tt = (f'{p.eyebrow}: ' if p.kind in ('chapter', 'appendix') else '') + p.title_text + ' · ' + BOOK
