@@ -416,5 +416,8 @@
  "figures/ch34/f01_oppath.mmd": "481ca59e01d2b0e0ea54ead1ff228a6edd14ac98a6edab2a600003b81f65371c",
  "figures/ch34/f02_bitwise.mmd": "588a184f214e49a1fe05d60365ae8afe91bba5a286ea72236d736edc1949bb41",
  "figures/ch34/f03_repop.mmd": "cf371359fff6ad05c60d629c6cf72207865ba7d8b6cf921b084d1e22918ace30",
- "figures/ch34/f04_logkey.bf.json": "252098a02bee56ec054aa8831a02ef1be7bb58d55f96b21072bab08b20b9ef91"
+ "figures/ch34/f04_logkey.bf.json": "252098a02bee56ec054aa8831a02ef1be7bb58d55f96b21072bab08b20b9ef91",
+ "figures/ch35/f01_intervals.mmd": "2c2b2cf2f90df9b4c3566015f442a5f329ecd130b7b5e729e7eac08d767e2936",
+ "figures/ch35/f02_divergent.mmd": "6a33cda90050a68a29ec92dfc3d26f233b4a003a9929677a15bde922ecdf585b",
+ "figures/ch35/f03_backfill.mmd": "374b1ee748fd4139da06554bac4c08a4c5986353e4bb9764eed688fef08e4eb3"
 }

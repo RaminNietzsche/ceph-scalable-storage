@@ -1,0 +1,5 @@
+flowchart LR
+  I1["interval 1400–1449<br/>acting [12,4,27] p12<br/>up_thru[12]=1401 ≥ 1400<br/><b>maybe_went_rw = true</b>"] --> I2["interval 1450–1460<br/>acting [12] (size 1 < min_size 2)<br/><b>maybe_went_rw = false</b>"]
+  I2 --> I3["interval 1461–<br/>acting [4,27] p4<br/>peering now"]
+  I3 -. "probe: 4, 27 (up)<br/>12 down → down_osds_we_would_probe" .-> I1
+  I3 -. "skipped: could not have gone active" .-> I2

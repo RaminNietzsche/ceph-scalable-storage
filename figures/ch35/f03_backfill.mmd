@@ -1,0 +1,12 @@
+flowchart LR
+  subgraph P["primary BackfillInterval (sorted)"]
+    p1["a  v10"] --> p2["c  v12"] --> p3["d  v15"]
+  end
+  subgraph T["target osd.31 interval"]
+    t1["a  v10"] --> t2["b  v7"] --> t3["d  v9"]
+  end
+  p1 -.-> s1["a: same version → skip"]
+  t2 -.-> s2["b: only on target → remove"]
+  p2 -.-> s3["c: only on primary → push"]
+  p3 -.-> s4["d: v15 ≠ v9 → push"]
+  s4 --> L["last_backfill → d<br/>MOSDPGBackfill PROGRESS"]

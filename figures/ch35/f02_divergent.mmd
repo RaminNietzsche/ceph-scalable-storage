@@ -1,0 +1,12 @@
+flowchart TB
+  subgraph A["osd.12 (old primary) log"]
+    A1["1462'92"] --> A2["1462'93"] --> A3["1462'94 obj X ✗ divergent"] --> A4["1462'95 obj Y ✗ divergent"]
+  end
+  subgraph B["osd.4 authoritative log"]
+    B1["1462'92"] --> B2["1462'93"] --> B3["1470'94 obj Z"] --> B4["1470'95 obj X"]
+  end
+  A2 == "lower_bound = 1462'93" ==> M["merge_log on osd.12"]
+  B2 ==> M
+  M --> R1["X: case 1 — newer entry 1470'95 in log → missing need 1470'95"]
+  M --> R2["Y: case 4 (rollback) or case 5 (remove, missing need = prior)"]
+  M --> R3["Z: appended → missing need 1470'94"]
