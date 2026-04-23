@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant U as rbd snap rm
+  participant M as Monitor
+  participant P as PG primary
+  participant SM as SnapMapper (omap of "snapmapper")
+  U->>M: selfmanaged snap remove 5
+  M->>M: removed_snaps_queue += 5 (new_removed_snaps)
+  M-->>P: new OSDMap epoch
+  P->>P: snap_trimq += 5 · SnapTrimmer: WaitReservation → Trimming
+  loop until no objects
+    P->>SM: get_next_objects_to_trim(5) — scan SNA_3_0000000000000005_
+    SM-->>P: clones [@6 of obj A, ...]
+    P->>P: trim_object: clone_snaps[6] = [6] (MODIFY) or delete clone (DELETE)
+  end
+  P-->>M: PG reports snap 5 trimmed (pg stats / beacon)
+  M->>M: purged_snaps += 5 (PSN_ keys on OSDs)

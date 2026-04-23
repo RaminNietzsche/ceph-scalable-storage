@@ -1,0 +1,6 @@
+flowchart LR
+  S0["step 0<br/>head 4 MiB<br/>seq 0 · clones []"] -->|"snap 4, write [0,64K)<br/>snapc {4,[4]}"| S1["step 1<br/>clone @4 (4 MiB)<br/>clone_snaps[4]=[4]<br/>overlap[4]=[64K,4M)<br/>seq 4"]
+  S1 -->|"snaps 5,6, write [1M,1M+64K)<br/>snapc {6,[6,5,4]}"| S2["step 2<br/>clone @6 (4 MiB)<br/>clone_snaps[6]=[6,5]<br/>overlap[6]=[0,1M)∪[1M+64K,4M)<br/>seq 6"]
+  S2 -->|"write again, same snapc"| S3["step 3<br/>no new clone<br/>overlap[6] shrinks"]
+  R5["read @snap 5"] -.-> S2
+  R3["read @snap 3 → ENOENT"] -.-> S1
