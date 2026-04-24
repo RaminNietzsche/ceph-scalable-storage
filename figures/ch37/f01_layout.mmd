@@ -1,0 +1,19 @@
+flowchart LR
+  subgraph MP["pool 'rbd' (id 3, replicated) — metadata"]
+    ID["rbd_id.vm01<br/>data: 5f3a2b8c1d4e"]
+    DIR["rbd_directory<br/>name_vm01 → 5f3a2b8c1d4e<br/>id_5f3a2b8c1d4e → vm01"]
+    H["rbd_header.5f3a2b8c1d4e<br/>omap: size, order, features,<br/>object_prefix, snap_seq, snapshot_*, data_pool_id<br/>xattr: lock.rbd_lock"]
+    OM["rbd_object_map.5f3a2b8c1d4e<br/>rbd_object_map.5f3a2b8c1d4e.0000000000000004"]
+    INFO["rbd_info · rbd_trash · rbd_mirroring · rbd_namespace"]
+  end
+  subgraph DP["pool 'rbd-ec' (EC, allow_ec_overwrites) — data"]
+    D0["rbd_data.3.5f3a2b8c1d4e.0000000000000000"]
+    D1["rbd_data.3.5f3a2b8c1d4e.0000000000000001"]
+    DN["… .0000000000000a00 (2560 objects)"]
+  end
+  C1["librbd client A<br/>(lock owner)"] -- "watch" --> H
+  C2["librbd client B"] -- "watch" --> H
+  C1 -- "write" --> D0
+  ID --> H
+  DIR --> H
+  H --> OM

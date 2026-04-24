@@ -421,5 +421,8 @@
  "figures/ch35/f02_divergent.mmd": "6a33cda90050a68a29ec92dfc3d26f233b4a003a9929677a15bde922ecdf585b",
  "figures/ch35/f03_backfill.mmd": "374b1ee748fd4139da06554bac4c08a4c5986353e4bb9764eed688fef08e4eb3",
  "figures/ch36/f01_snapset.mmd": "c537fd448df3a2c31cd2f933680d27d355ab2c3e806acb7dea2843da588d7b48",
- "figures/ch36/f02_snaptrim.mmd": "1fa2fc5c58e22809c5082873a8ecd025fb539b83b477b7883e161531669dbe81"
+ "figures/ch36/f02_snaptrim.mmd": "1fa2fc5c58e22809c5082873a8ecd025fb539b83b477b7883e161531669dbe81",
+ "figures/ch37/f01_layout.mmd": "cbfdf4e055e65ab18d58914131b3c40597bccab66786e85220cc05bf00fd211d",
+ "figures/ch37/f02_striping.mmd": "6758f5ec2bdd2d47c9f56cb4023d601a723fbb08a39b52c208aadf37d0acb9d7",
+ "figures/ch37/f03_objectmap.bf.json": "8b1a59840cf1d9f3a8bea0b45fd6d38bd732f02777bafa6f8d2237075c3835e4"
 }
