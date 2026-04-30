@@ -1,0 +1,15 @@
+{"title":"یک رویداد journal (Entry::encode)، بایت به بایت","sub":"مثال: entry_tid=1234، tag_tid=3، داده‌ی EventEntry ‏4142 بایت؛ اعداد little-endian","cols":16,
+"fields":[
+{"row":"header (25 B)"},
+{"n":"preamble","s":8,"t":"le64 0x3141592653589793","v":"93 97 58 53 26 59 41 31","c":1},
+{"n":"version","s":1,"t":"u8","v":"01","c":3},
+{"n":"entry_tid","s":8,"t":"le64","v":"d2 04 00 00 00 00 00 00","c":4},
+{"n":"tag_tid","s":8,"t":"le64","v":"03 00 00 00 00 00 00 00","c":4},
+{"row":"data"},
+{"n":"data len","s":4,"t":"le32","v":"2e 10 00 00","c":3},
+{"n":"EventEntry (AIO_WRITE: offset, length, data, timestamp)","s":"var","u":12,"t":"4142 B","v":"01 …","c":6},
+{"row":"trailer"},
+{"n":"crc","s":4,"t":"le32 crc32c(seed 0) of all above","v":"crc","c":2}
+],
+"legend":{"1":"پیش‌درآمد ثابت","3":"نسخه و طول","4":"شناسه‌ها","6":"payload ‏librbd","2":"checksum"},
+"notes":["HEADER_FIXED_SIZE = 25 و REMAINDER_FIXED_SIZE = 8؛ سربار ثابت هر رویداد 33 بایت است.","شیء مقصد: splay_offset = entry_tid % splay_width؛ object_number = active_set × splay_width + splay_offset.","بایت‌های صفر پس از آخرین رویداد padding شمرده می‌شوند و خواننده از آن‌ها رد می‌شود."]}

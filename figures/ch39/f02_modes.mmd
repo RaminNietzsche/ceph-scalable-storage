@@ -1,0 +1,13 @@
+flowchart LR
+  subgraph A["site A (primary)"]
+    VM["VM (librbd)"] -->|"1 append event"| J["journal.ID / journal_data.*"]
+    VM -->|"2 write data"| D["rbd_data.*"]
+    SCH["mgr snapshot schedule"] -->|"mirror snap (PRIMARY)"| D
+  end
+  subgraph B["site B (non-primary)"]
+    RM["rbd-mirror"]
+    LD["local image (non-primary)"]
+  end
+  J -->|"journal mode: fetch + replay events<br/>commit position"| RM
+  D -->|"snapshot mode: fast-diff between mirror snaps<br/>deep-copy changed objects"| RM
+  RM --> LD
