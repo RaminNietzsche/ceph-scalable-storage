@@ -1,0 +1,12 @@
+sequenceDiagram
+  participant V as VM (librbd)
+  participant OM as object map (child)
+  participant P as parent rbd_data.PID.0500
+  participant C as child rbd_data.CID.0500
+  V->>OM: object 1280 state? → NONEXISTENT
+  V->>P: sparse read [0, 4 MiB) at parent snap
+  P-->>V: data + extent map
+  V->>OM: update 1280 → EXISTS (object_map_update)
+  V->>C: op [ rbd.sparse_copyup(extents, data), write(8 KiB, 4 KiB) ] snapc=child
+  C->>C: cls: object exists? no → write parent data · then apply write
+  C-->>V: ack

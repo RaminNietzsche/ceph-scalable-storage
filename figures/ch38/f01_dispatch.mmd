@@ -1,0 +1,4 @@
+flowchart TB
+  A["rbd_aio_write / QEMU"] --> Q["QUEUE"] --> QS["QOS"] --> EL["EXCLUSIVE_LOCK"] --> RF["REFRESH"] --> MG["MIGRATION"] --> JR["JOURNAL"] --> WB["WRITE_BLOCK"] --> WC["WRITEBACK_CACHE (PWL)"] --> CO["CORE: Striper → object extents"]
+  CO --> OC["CACHE (writearound / ObjectCacher)"] --> CR["CRYPTO (LUKS)"] --> OJ["JOURNAL (wait for event commit)"] --> PC["PARENT_CACHE"] --> SC["SCHEDULER"] --> OCore["CORE: ObjectWriteRequest<br/>object map update · copyup"]
+  OCore --> R["RADOS op (snapc) → OSD"]

@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant B as client B (wants lock)
+  participant H as rbd_header (cls_lock + watchers)
+  participant A as client A (owner?)
+  participant M as Monitor
+  B->>H: lock rbd_lock EXCLUSIVE cookie "auto 7311"
+  H-->>B: EBUSY (locker client.24183 "auto 9482…")
+  B->>H: list_watchers
+  alt owner watch alive
+    B->>A: notify RequestLock
+    A->>H: release (unlock) after flushing
+    B->>H: lock → OK
+  else no matching watch (owner dead)
+    B->>M: osd blocklist add 10.20.0.31:0/2846217731
+    M-->>B: new OSDMap epoch
+    B->>H: break_lock(client.24183)  · lock → OK
+  end
