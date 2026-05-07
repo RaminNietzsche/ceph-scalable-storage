@@ -429,5 +429,8 @@
  "figures/ch38/f02_copyup.mmd": "5cdf8d9e497e24d78c31d66453ad7bf79713e8822d2eba7a9ab1f36144e936cc",
  "figures/ch38/f03_lock.mmd": "09d34916f7a92e7f6eaa6788cd9cca6ad474ff487e81dfbb618566a11f23fdc1",
  "figures/ch39/f01_entry.bf.json": "065b7f79a42d11920688a4206b737f22d2cfb9ba1a99ba2b9daee0c36739f937",
- "figures/ch39/f02_modes.mmd": "5a77b8dbdff76e6235a90b8a11b875c659ebd0821ad5568d01d03d801a1d1b68"
+ "figures/ch39/f02_modes.mmd": "5a77b8dbdff76e6235a90b8a11b875c659ebd0821ad5568d01d03d801a1d1b68",
+ "figures/ch40/f01_index.bf.json": "2597d55baebfcab85c676e9255d9f83aacd9ca79258d7d05c411dc8bea57ea5c",
+ "figures/ch40/f02_manifest.mmd": "6d116a6155fa37204f6f1d76ef597329b9872864278ce0092022174c6fc228b1",
+ "figures/ch40/f03_twophase.mmd": "82ec4347c7b20b762fb28d377223abfb1505f050a9912fc26ad3d078927f9f74"
 }

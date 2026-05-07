@@ -1,0 +1,9 @@
+flowchart TB
+  subgraph S["PUT 10 MiB · STANDARD"]
+    direction LR
+    H1["head big.bin<br/>4 MiB data + xattrs"] --> T1["tail stripe 1<br/>4 MiB"] --> T2["tail stripe 2<br/>2 MiB"]
+  end
+  subgraph C["PUT 10 MiB · COLD"]
+    direction LR
+    H2["head big.bin<br/>0 B data · manifest, xattrs<br/>(STANDARD pool)"] --> U1["tail 0 · 4 MiB<br/>(COLD pool)"] --> U2["tail 1 · 4 MiB"] --> U3["tail 2 · 2 MiB"]
+  end

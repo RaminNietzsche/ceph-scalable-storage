@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant G as radosgw
+  participant I as index shard .dir.M.7
+  participant D as data pool
+  G->>I: cls rgw.bucket_prepare_op(ADD, key, tag)
+  I-->>G: ok · pending_map gets tag
+  G->>D: write head + tails
+  D-->>G: ok · head version
+  G->>I: cls rgw.bucket_complete_op(ADD, tag, ver, meta)
+  I->>I: drop tag · update entry and stats · append bilog
+  Note over G,I: crash before complete → stale tag older than 120 s
+  G->>D: listing: check_disk_state(head)
+  G->>I: cls rgw.dir_suggest_changes(UPDATE or REMOVE)
