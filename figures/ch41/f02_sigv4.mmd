@@ -1,0 +1,9 @@
+flowchart TB
+  S["AWS4 + secret"] --> K1["kDate = HMAC(·, 20261115)"]
+  K1 --> K2["kRegion = HMAC(·, default)"]
+  K2 --> K3["kService = HMAC(·, s3)"]
+  K3 --> K4["kSigning = HMAC(·, aws4_request)"]
+  CR["canonical request<br/>method · URI · query · headers · payload hash"] --> H["SHA256 hex"]
+  H --> STS["string to sign<br/>AWS4-HMAC-SHA256 · date · scope · hash"]
+  K4 --> SIG["Signature = hex HMAC(kSigning, string to sign)"]
+  STS --> SIG

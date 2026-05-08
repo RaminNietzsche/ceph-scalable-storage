@@ -1,0 +1,17 @@
+sequenceDiagram
+  participant C as client
+  participant R as radosgw
+  participant Q as gc.N queue
+  participant L as lc.N shard
+  participant D as data pool
+  C->>R: DELETE big.bin
+  R->>Q: enqueue chain(tail_tag) · expires now + 2 h
+  R-->>C: 204
+  Note over R,Q: gc thread every 1 h
+  R->>Q: lock gc_process · list expired
+  R->>D: delete tails (10 in flight)
+  R->>Q: remove entries
+  Note over R,L: lc window 00:00-06:00
+  R->>L: lock lc_process · next bucket entry
+  R->>D: expire or transition objects per rule
+  R->>L: mark entry COMPLETE

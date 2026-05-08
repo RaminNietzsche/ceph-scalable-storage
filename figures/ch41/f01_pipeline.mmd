@@ -1,0 +1,12 @@
+flowchart LR
+  A["Beast<br/>coroutine per connection"] --> B["REST handler<br/>S3 · Swift · admin · STS"]
+  B --> C["get_op"]
+  C --> D["authorize<br/>SigV4 · STS · anon"]
+  D --> E["read permissions<br/>policy · ACL (cached)"]
+  E --> F["verify mask · CORS<br/>permission · params"]
+  F --> G["rate limit"]
+  G --> H["execute<br/>RADOS I/O · quota"]
+  H --> I["complete<br/>response · ops log · notify"]
+  D -. "403" .-> X["error response"]
+  F -. "403 / 400" .-> X
+  G -. "503 SlowDown" .-> X
