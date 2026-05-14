@@ -1,0 +1,10 @@
+flowchart LR
+  subgraph G0["gen 0 · 11 shards"]
+    S0["bilog shards 0..10"]
+  end
+  subgraph G1["gen 1 · 23 shards (after reshard)"]
+    S1["bilog shards 0..22"]
+  end
+  S0 -- "all shards done<br/>shards_done_with_gen" --> T["incremental_gen = 1"]
+  T --> S1
+  S0 -. "trim only after every peer finished gen 0" .-> X["gen 0 logs removed"]

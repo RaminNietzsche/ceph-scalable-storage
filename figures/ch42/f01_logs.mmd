@@ -1,0 +1,15 @@
+sequenceDiagram
+  participant C as client
+  participant A as zone A radosgw
+  participant I as A index shard
+  participant DL as A data_log.N
+  participant B as zone B radosgw
+  C->>A: PUT logs/k
+  A->>I: complete_op → bilog entry (zones_trace)
+  A->>DL: add key logs:inst:7 (gen)
+  A-->>B: notify modified shard N
+  B->>DL: datalog list after marker
+  B->>I: bilog list shard 7 after inc_marker
+  B->>A: GET object (sync manifest, attrs)
+  B->>B: write locally if newer · zones_trace += A
+  Note over B: advance markers in datalog.sync-status.shard and bucket.sync-status

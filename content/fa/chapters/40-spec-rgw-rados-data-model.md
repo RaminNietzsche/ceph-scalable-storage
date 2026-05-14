@@ -71,7 +71,7 @@ AKIAEXAMPLEP5T8H4N
 | فضا | قالب کلید | محتوا |
 |---|---|---|
 | ورودی معمولی | `<name>` | `rgw_bucket_dir_entry` نسخه‌ی جاری (یا شیء نسخه‌نشده) |
-| bilog | `0x80` + `0_` + `<index_ver:%011llu>.<osd ver>.<subop>` | ورودی bilog برای multisite (فصل ۴۲) |
+| bilog (حالت InIndex) | `0x80` + `0_` + `<index_ver:%011llu>.<osd ver>.<subop>` | ورودی bilog برای multisite (فصل ۴۲) |
 | instance | `0x80` + `1000_` + `<name>` + `\0i` + `<instance>` | یک نسخه از شیء در bucket نسخه‌دار |
 | OLH | `0x80` + `1001_` + `<name>` | `rgw_bucket_olh_entry`: نسخه‌ی جاری و log تغییرات |
 | reshard log | `0x80` + `2001_` + … | تغییرهای حین reshard |
@@ -242,7 +242,7 @@ radosgw-admin object stat --bucket photos --object big.bin | jq '.manifest | {ob
 # تنظیم و عیب‌یابی {#sec-40-8}
 
 - **فهرست‌گیری کند و `bucket stats` نادرست:** ورودی‌های pending قدیمی زیادند. `radosgw-admin bucket check --check-objects --fix` را در زمان خلوت اجرا کنید.
-- **large omap در pool ایندکس:** shard بیش از `rgw_max_objs_per_shard` ‏(100000) ورودی دارد یا bilog trim نشده است. `bucket limit check` و `bilog list` را ببینید (فصل ۴۲).
+- **large omap در pool ایندکس:** shard بیش از `rgw_max_objs_per_shard` ‏(100000) ورودی دارد یا (در حالت InIndex) bilog trim نشده است. `bucket limit check` و `bilog list` را ببینید (فصل ۴۲).
 - **pool ‏STANDARD با وجود کلاس سرد پر می‌شود:** هر شیء یک head در STANDARD دارد؛ برای میلیاردها شیء کوچک این خودش حجم و تعداد شیء زیادی است.
 - **فضای pool داده آزاد نمی‌شود:** tailهای حذف‌شده منتظر gc هستند (پیش‌فرض دست‌کم 2 ساعت؛ فصل ۴۱). `gc list --include-all` را ببینید.
 - **multipartهای رهاشده:** فقط lifecycle با `AbortIncompleteMultipartUpload` یا `radosgw-admin bucket rm --purge-objects` آن‌ها را پاک می‌کند؛ `rados ls` روی `data_extra_pool` تعدادشان را نشان می‌دهد.
@@ -251,6 +251,7 @@ radosgw-admin object stat --bucket photos --object big.bin | jq '.manifest | {ob
 
 - در شاخه‌ی main، `epoch` نسخه‌ها در link_olh از زمان جاری به نانوثانیه گرفته می‌شود (مگر از multisite بیاید). نسخه‌های قدیمی‌تر رفتار دیگری داشتند و همین در مقایسه‌ی نسخه‌ها میان zoneها اهمیت دارد.
 - گزینه‌ی `inline_data` در placement (پیش‌فرض روشن) تعیین می‌کند head داده داشته باشد یا نه؛ خاموش کردن آن برای poolهای EC که head کوچک را بد نگه می‌دارند سودمند است.
+- در شاخه‌ی main، bucketهای جدید به‌طور پیش‌فرض bilog را به‌جای omap ایندکس در FIFO جدا نگه می‌دارند (`rgw_default_bucket_bilog_type = fifo`)؛ کلیدهای `0_` فقط در حالت `inindex` و bucketهای قدیمی دیده می‌شوند.
 - poolهای `:accounts`، `:groups` و `:vector` و `dedup_pool` در نسخه‌های جدید اضافه شده‌اند؛ پیش از تکیه بر آن‌ها نسخه‌ی خود را بررسی کنید.
 
 # تمرین عملی {#sec-40-10}
