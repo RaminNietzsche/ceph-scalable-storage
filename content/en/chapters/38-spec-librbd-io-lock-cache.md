@@ -1,7 +1,7 @@
 ---
 chapter: 38
 id: ch38
-title: 'بخش تخصصی (۵): RBD — مسیر I/O در librbd، layering و copyup، exclusive-lock، cache و QoS'
+title: 'Specialist Part (5): RBD — The librbd I/O Path, Layering and Copyup, Exclusive Lock, Caches and QoS'
 part: specialist
 lang: en
 translation: pending

@@ -7,6 +7,28 @@ restructures the book.
 
 ## [Unreleased]
 
+## [1.6] - 2026-11
+
+### Added
+
+- Part IV, "Specialist Part" (chapters 34–42), on RADOS, RBD and RGW, checked against the
+  Ceph main branch (November 2026): RADOS object model and op path; pg log, past intervals
+  and recovery; snapshots, watch/notify and cls; RBD image layout, striping and object map;
+  the librbd I/O path, exclusive lock and caches; rbd-mirror internals; the RGW data model
+  (bucket index, OLH versioning, manifest, multipart); the RGW request path (SigV4, quota,
+  rate limit, gc, lifecycle); and multisite internals (period commit, log records, sync
+  status objects, bilog generations, conflict resolution). 45 new algorithm boxes and 25
+  new figures, with answers for every review question.
+- English placeholder pages for chapters 34–42, so numbering matches the Persian edition.
+- Glossary: 20 new terms (OLH, bilog, mdlog, period, error repo, bilog generation, SigV4,
+  placement target, delete marker, multipart upload, RGW gc, RGW rate limit, SnapSet,
+  SnapMapper, PastIntervals, divergent entry, watch/notify, hobject_t, PWL, mirror snapshot).
+- Bibliography: Ceph developer docs for the bucket index, RGW placement and multisite.
+
+### Changed
+
+- Version 1.6 in metadata, covers (back text lists the specialist part), preface and README.
+
 ## [1.5] - 2026-11
 
 ### Changed

@@ -88,6 +88,39 @@
     }
   },
   {
+    "id": "official-docs-9",
+    "type": "webpage",
+    "title": "مستند توسعه‌دهنده: bucket index در RGW",
+    "URL": "https://docs.ceph.com/en/latest/dev/radosgw/bucket_index/",
+    "custom": {
+      "group": "official-docs",
+      "title-fa": "مستند توسعه‌دهنده: bucket index در RGW",
+      "title-en": "Developer docs: RGW bucket index"
+    }
+  },
+  {
+    "id": "official-docs-10",
+    "type": "webpage",
+    "title": "مستند placement و storage class در RGW",
+    "URL": "https://docs.ceph.com/en/latest/radosgw/placement/",
+    "custom": {
+      "group": "official-docs",
+      "title-fa": "مستند placement و storage class در RGW",
+      "title-en": "RGW placement and storage classes"
+    }
+  },
+  {
+    "id": "official-docs-11",
+    "type": "webpage",
+    "title": "مستند multisite در RGW",
+    "URL": "https://docs.ceph.com/en/latest/radosgw/multisite/",
+    "custom": {
+      "group": "official-docs",
+      "title-fa": "مستند multisite در RGW",
+      "title-en": "RGW multisite"
+    }
+  },
+  {
     "id": "code-community-1",
     "type": "webpage",
     "title": "مخزن کد Ceph",

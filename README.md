@@ -1,12 +1,12 @@
 # Ceph: Scalable Storage — راهنمای جامع Ceph
 
 An original Persian book on Ceph, with a parallel English edition. It goes from first
-cluster to source code and on-disk bytes, in 33 chapters with 350 figures and 143
+cluster to source code and on-disk bytes, in 42 chapters with 375 figures and 188
 algorithm boxes, and is built from Markdown sources with one `make` command.
 
 <div dir="rtl">
 
-راهنمای فارسی و جامع Ceph، با ویرایش انگلیسی موازی. کتاب از نخستین کلاستر شروع می‌کند و تا کد منبع و بایت‌های روی دیسک پیش می‌رود: ۳۳ فصل، ۳۵۰ شکل و ۱۴۳ کادر الگوریتم. همه‌ی خروجی‌ها از منابع Markdown و با یک فرمان `make` ساخته می‌شوند.
+راهنمای فارسی و جامع Ceph، با ویرایش انگلیسی موازی. کتاب از نخستین کلاستر شروع می‌کند و تا کد منبع و بایت‌های روی دیسک پیش می‌رود: ۴۲ فصل، ۳۷۵ شکل و ۱۸۸ کادر الگوریتم. همه‌ی خروجی‌ها از منابع Markdown و با یک فرمان `make` ساخته می‌شوند.
 
 </div>
 

@@ -1,7 +1,7 @@
 ---
 chapter: 34
 id: ch34
-title: 'بخش تخصصی (۱): RADOS — هویت شیء، فراداده و مسیر op درون OSD'
+title: 'Specialist Part (1): RADOS — Object Identity, Metadata and the Op Path Inside the OSD'
 part: specialist
 lang: en
 translation: pending

@@ -1,7 +1,7 @@
 ---
 chapter: 42
 id: ch42
-title: 'بخش تخصصی (۹): RGW — درون multisite: period، قالب لاگ‌ها، نسل‌های bucket و موتور همگام‌سازی'
+title: 'Specialist Part (9): RGW — Inside Multisite: Periods, Log Formats, Bucket Generations and the Sync Engine'
 part: specialist
 lang: en
 translation: pending
@@ -240,4 +240,4 @@ radosgw-admin bucket sync status --bucket logs --source-zone zone-a
 - rgw_datalog.h: https://github.com/ceph/ceph/blob/main/src/rgw/driver/rados/rgw_datalog.h
 - cls_rgw_types.h (rgw_bi_log_entry): https://github.com/ceph/ceph/blob/main/src/cls/rgw/cls_rgw_types.h
 - مستند multisite: https://docs.ceph.com/en/latest/radosgw/multisite/
-- مستند طراحی همگام‌سازی پس از reshard: https://docs.ceph.com/en/latest/dev/radosgw/multisite-reshard/
+- مستند reshard پویا (شامل multisite): https://docs.ceph.com/en/latest/radosgw/dynamicresharding/

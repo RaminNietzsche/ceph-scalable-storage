@@ -1,7 +1,7 @@
 ---
 chapter: 39
 id: ch39
-title: 'بخش تخصصی (۶): RBD — درون rbd-mirror: journal در برابر snapshot'
+title: 'Specialist Part (6): RBD — Inside rbd-mirror: Journal versus Snapshot'
 part: specialist
 lang: en
 translation: pending

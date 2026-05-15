@@ -1,7 +1,7 @@
 ---
 chapter: 37
 id: ch37
-title: 'بخش تخصصی (۴): RBD — چیدمان روی RADOS، striping، object map و fast-diff، و مرجع rbd'
+title: 'Specialist Part (4): RBD — Layout on RADOS, Striping, Object Map and Fast-Diff, and the rbd Reference'
 part: specialist
 lang: en
 translation: pending

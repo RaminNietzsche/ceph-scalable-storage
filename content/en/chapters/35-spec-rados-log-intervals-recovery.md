@@ -1,7 +1,7 @@
 ---
 chapter: 35
 id: ch35
-title: 'بخش تخصصی (۲): RADOS — pg log، intervalها، missing و سازوکار recovery و backfill'
+title: 'Specialist Part (2): RADOS — The PG Log, Intervals, Missing Sets, and How Recovery and Backfill Work'
 part: specialist
 lang: en
 translation: pending

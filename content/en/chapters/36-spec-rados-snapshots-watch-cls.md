@@ -1,7 +1,7 @@
 ---
 chapter: 36
 id: ch36
-title: 'بخش تخصصی (۳): RADOS — snapshot و clone، watch/notify و cls در سمت OSD، و مرجع rados و pool'
+title: 'Specialist Part (3): RADOS — Snapshots and Clones, Watch/Notify, OSD-Side cls, and the rados and pool Reference'
 part: specialist
 lang: en
 translation: pending

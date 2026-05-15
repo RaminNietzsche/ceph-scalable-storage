@@ -1,7 +1,7 @@
 ---
 chapter: 40
 id: ch40
-title: 'بخش تخصصی (۷): RGW — مدل داده روی RADOS: فراداده، bucket index، نسخه‌بندی، manifest و multipart'
+title: 'Specialist Part (7): RGW — The Data Model on RADOS: Metadata, Bucket Index, Versioning, Manifest and Multipart'
 part: specialist
 lang: en
 translation: pending

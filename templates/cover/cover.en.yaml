@@ -8,12 +8,12 @@ subtitle_html: "Designing, implementing and operating<br/><b>scalable storage</b
 topics2: "cephadm · monitoring and troubleshooting · tuning · code architecture"
 author_label: "Written by"
 author: "Ramin Najarbashi"
-edition_html: "Version 1.5<br/>November 2026"
+edition_html: "Version 1.6<br/>November 2026"
 tagline: "CC BY-NC-SA 4.0 · free for non-commercial use"
 back_title: "About this book"
 back_body_html: |
-  In twenty-one chapters, a special part and eleven “lower layers” chapters, this guide takes Ceph from the RADOS architecture and the CRUSH algorithm to running large clusters in production, and from there down to the bytes on disk and the frames on the wire. Besides explanations and hands-on commands, every chapter has a “from the code” section that shows data structures, algorithms and call paths with purpose-made diagrams and pseudocode. The book opens up dozens of Ceph algorithms with worked numeric examples and figures.
-  <ul><li>RBD, RGW and multisite, CephFS and OpenStack</li><li>BlueStore, erasure coding, librados and RADOS classes</li><li>cephadm, monitoring, troubleshooting, disaster recovery and performance tuning</li><li>Ceph's code architecture and the full request path</li><li>Lower layers: BlueStore and RocksDB on disk, msgr2, EC math, CRUSH at the bit level and the kernel clients</li><li>Crimson and SeaStore, SPDK and NVMe-oF, scrub and recovery, memory and CPU inside the OSD</li></ul>
+  In twenty-one chapters, a special part, eleven “lower layers” chapters and nine “specialist” chapters, this guide takes Ceph from the RADOS architecture and the CRUSH algorithm to running large clusters in production, and from there down to the bytes on disk and the frames on the wire. Besides explanations and hands-on commands, every chapter has a “from the code” section that shows data structures, algorithms and call paths with purpose-made diagrams and pseudocode. The book opens up dozens of Ceph algorithms with worked numeric examples and figures.
+  <ul><li>RBD, RGW and multisite, CephFS and OpenStack</li><li>BlueStore, erasure coding, librados and RADOS classes</li><li>cephadm, monitoring, troubleshooting, disaster recovery and performance tuning</li><li>Ceph's code architecture and the full request path</li><li>Lower layers: BlueStore and RocksDB on disk, msgr2, EC math, CRUSH at the bit level and the kernel clients</li><li>Crimson and SeaStore, SPDK and NVMe-oF, scrub and recovery, memory and CPU inside the OSD</li><li>Specialist part: the op path and pg log in RADOS, layout, I/O and mirroring in RBD, the index, gc, lifecycle and multisite in RGW</li></ul>
   With a glossary, command cheat sheet, troubleshooting guide, answers to review questions, list of algorithms, bibliography and index.
 back_note_html: "An original work by Ramin Najarbashi · licensed under CC BY-NC-SA 4.0 · share and adapt with attribution; no commercial use without written permission."
 legend_html: "CRUSH map: each PG places three replicas in three separate zones"

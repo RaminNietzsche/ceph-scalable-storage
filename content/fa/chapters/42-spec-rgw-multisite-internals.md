@@ -239,4 +239,4 @@ radosgw-admin bucket sync status --bucket logs --source-zone zone-a
 - rgw_datalog.h: https://github.com/ceph/ceph/blob/main/src/rgw/driver/rados/rgw_datalog.h
 - cls_rgw_types.h (rgw_bi_log_entry): https://github.com/ceph/ceph/blob/main/src/cls/rgw/cls_rgw_types.h
 - مستند multisite: https://docs.ceph.com/en/latest/radosgw/multisite/
-- مستند طراحی همگام‌سازی پس از reshard: https://docs.ceph.com/en/latest/dev/radosgw/multisite-reshard/
+- مستند reshard پویا (شامل multisite): https://docs.ceph.com/en/latest/radosgw/dynamicresharding/

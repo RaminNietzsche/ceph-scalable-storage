@@ -1,7 +1,7 @@
 ---
 chapter: 41
 id: ch41
-title: 'بخش تخصصی (۸): RGW — مسیر درخواست، SigV4، سهمیه، محدودیت نرخ، gc و lifecycle'
+title: 'Specialist Part (8): RGW — The Request Path, SigV4, Quotas, Rate Limits, GC and Lifecycle'
 part: specialist
 lang: en
 translation: pending

@@ -384,3 +384,63 @@
 - term: Lifecycle (RGW)
   fa: قواعد انقضا و انتقال اشیا که LCWorkerها در پنجره‌ی زمانی اجرا می‌کنند
   en: Expiration and transition rules for objects, run by LCWorkers in a time window
+- term: OLH (Object Logical Head)
+  fa: نشانگر نسخه‌ی جاری یک شیء در bucket نسخه‌دار RGW؛ یک ورودی 1001_ در ایندکس و یک head بی‌داده با xattrهای user.rgw.olh.*
+  en: The pointer to the current version of an object in a versioned RGW bucket; a 1001_ index entry plus a data-less head with user.rgw.olh.* xattrs
+- term: Bilog (bucket index log)
+  fa: لاگ تغییرات هر shard ایندکس bucket که multisite آن را برای همگام‌سازی افزایشی می‌خواند؛ در ایندکس (InIndex) یا در FIFO جدا
+  en: The per-shard change log of a bucket index, read by multisite for incremental sync; kept in the index (InIndex) or in a separate FIFO
+- term: Mdlog (metadata log)
+  fa: لاگ تغییرات فراداده‌ی RGW (کاربر، bucket) به ازای هر period در اشیای meta.log.<period>.<N>
+  en: The RGW metadata change log (users, buckets), one per period, in meta.log.<period>.<N> objects
+- term: Period
+  fa: نسخه‌ی ثبت‌شده‌ی پیکربندی multisite با شناسه، epoch و realm_epoch؛ تغییر master zone یک period تازه می‌سازد
+  en: A committed version of the multisite configuration with an id, epoch and realm_epoch; changing the master zone creates a new period
+- term: Error repo (sync)
+  fa: omap شیء ‎.retry کنار وضعیت هر shard ‏datalog که bucket shardهای شکست‌خورده را برای تلاش دوباره نگه می‌دارد
+  en: The omap of the .retry object beside each datalog shard status, holding failed bucket shards for retry
+- term: Bilog generation
+  fa: نسل layout لاگ bucket پس از reshard؛ مقصد نسل قدیم را تا انتها همگام می‌کند و سپس به نسل جدید می‌رود
+  en: The generation of a bucket's log layout after a reshard; peers finish the old generation before moving to the new one
+- term: SigV4
+  fa: امضای AWS Signature Version 4؛ HMAC-SHA256 روی string to sign با کلیدی که از secret، تاریخ، region و سرویس مشتق می‌شود
+  en: AWS Signature Version 4; HMAC-SHA256 over the string to sign with a key derived from the secret, date, region and service
+- term: Placement target
+  fa: قاعده‌ی zonegroup که pool ایندکس، data_extra_pool و pool هر storage class یک bucket را در zone تعیین می‌کند
+  en: A zonegroup rule that maps a bucket to the index pool, data_extra_pool and per-storage-class data pools in a zone
+- term: Delete marker
+  fa: نسخه‌ی بی‌داده‌ای که حذف بدون versionId در bucket نسخه‌دار می‌سازد و نسخه‌ی جاری می‌شود
+  en: A data-less version created by a delete without versionId in a versioned bucket, which becomes the current version
+- term: Multipart upload
+  fa: آپلود یک شیء در چند بخش مستقل که complete آن‌ها را بدون کپی داده با یک manifest به هم وصل می‌کند؛ ETag با پسوند ‎-N
+  en: Uploading an object in independent parts that complete joins with one manifest and no data copy; ETag carries a -N suffix
+- term: Garbage collection (RGW)
+  fa: صف حذف tailهای شیء حذف‌شده یا بازنویسی‌شده در اشیای gc.N که پس از rgw_gc_obj_min_wait پردازش می‌شود
+  en: The queue of tails of deleted or overwritten objects in gc.N objects, processed after rgw_gc_obj_min_wait
+- term: Rate limit (RGW)
+  fa: سطل توکن در حافظه‌ی هر RGW برای account، کاربر و bucket که درخواست اضافی را با 503 SlowDown رد می‌کند
+  en: An in-memory token bucket per RGW for accounts, users and buckets that rejects excess requests with 503 SlowDown
+- term: SnapSet
+  fa: فراداده‌ی snapshot یک شیء RADOS روی head (seq، clones، clone_overlap، clone_size) که خواندن از snapshot را حل می‌کند
+  en: The snapshot metadata of a RADOS object on its head (seq, clones, clone_overlap, clone_size) used to resolve snapshot reads
+- term: SnapMapper
+  fa: نگاشت omap میان snapshot و اشیا (کلیدهای SNA_ و OBJ_) که snap trim برای یافتن cloneها به کار می‌برد
+  en: The omap mapping between snapshots and objects (SNA_ and OBJ_ keys) that snap trim uses to find clones
+- term: PastIntervals
+  fa: خلاصه‌ی بازه‌هایی که acting set یک PG در آن‌ها ثابت بوده؛ peering با آن OSDهایی را می‌یابد که باید پرسیده شوند
+  en: A summary of intervals in which a PG's acting set was stable; peering uses it to find the OSDs it must query
+- term: Divergent entry
+  fa: ورودی PG log در یک replica که در لاگ authoritative نیست و هنگام merge_log باید برگردانده یا حذف شود
+  en: A PG log entry on a replica that is not in the authoritative log and must be rolled back or removed during merge_log
+- term: Watch/Notify
+  fa: سازوکار RADOS که کلاینت‌ها روی یک شیء watch ثبت می‌کنند و notify پیامی را به همه می‌رساند و منتظر ack می‌ماند
+  en: The RADOS mechanism where clients register a watch on an object and a notify delivers a message to all and waits for acks
+- term: hobject_t
+  fa: شناسه‌ی کامل شیء در OSD (pool، namespace، key، name، snap، hash) با ترتیب bitwise که فهرست‌گیری و backfill بر آن تکیه دارند
+  en: The full object identifier in the OSD (pool, namespace, key, name, snap, hash) with the bitwise order that listing and backfill rely on
+- term: PWL (persistent write log)
+  fa: cache نوشتن پایدار librbd روی SSD یا PMEM که نوشتن‌ها را به‌ترتیب ثبت و بعداً به خوشه flush می‌کند
+  en: librbd's persistent write-back cache on SSD or PMEM that logs writes in order and flushes them to the cluster later
+- term: Mirror snapshot
+  fa: snapshot ویژه‌ی RBD با فضای نام mirror که حالت snapshot-based mirroring بر پایه‌ی آن تفاوت دو نقطه را کپی می‌کند
+  en: A special RBD snapshot in the mirror namespace on which snapshot-based mirroring copies the difference between two points
