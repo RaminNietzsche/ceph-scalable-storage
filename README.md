@@ -14,7 +14,7 @@ algorithm boxes, and is built from Markdown sources with one `make` command.
 |---|---|---|
 | Content | `content/fa/` | `content/en/` (translation of the Persian text) |
 | Print | `make pdf` | `make pdf LANG=en` |
-| Status | v1.5, 1080 pages | in progress (see `make check-parity`) |
+| Status | v1.6, 1250 pages | in progress (see `make check-parity`) |
 
 ## ساختن کتاب (فارسی)
 
