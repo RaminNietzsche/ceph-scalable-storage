@@ -473,9 +473,22 @@ ICON = {
     'chev': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>',
     'close': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
     'panel': '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>',
+    'arrow': '<svg class="i-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+    'spark': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></svg>',
+    'cluster': '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M11 7 6 16M13 7l5 9M7.2 18h9.6"/></svg>',
+    'deploy': '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01M11 7h6M11 17h6"/></svg>',
+    'ops': '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
+    'alert': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/></svg>',
+    'code': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg>',
+    'layers': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg>',
+    'cpu': '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>',
+    'book': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z"/><path d="M4 19a2 2 0 0 1 2-2h13"/></svg>',
 }
 GROUPS = [('front', S['front']), ('chapters', S['chapters']), ('appendices', S['appendices']), ('lists', S['lists'])]
 order = [None] + pages  # None = home
+
+
+SB_PART_LABEL = {1: S['sb_p1'], 22: S['sb_p2']}
 
 
 def sidebar(cur):
@@ -488,6 +501,8 @@ def sidebar(cur):
         for p in pages:
             if p.group != g:
                 continue
+            if p.kind == 'chapter' and p.chap in SB_PART_LABEL:
+                out.append(f'<li class="sb-part" role="presentation">{esc(SB_PART_LABEL[p.chap])}</li>')
             is_cur = p is cur
             curattr = ' aria-current="page"' if is_cur else ''
             cls = 'sb-link' + (' part' if p.kind == 'part' else '')
@@ -510,10 +525,11 @@ def header(cur):
     other = f'../{OTHER}/{cur.slug if cur else "index"}.html'
     return (f'<header class="topbar"><div class="tb-start">'
             f'<button type="button" class="icon-btn" id="menu-btn" aria-controls="sidebar" aria-expanded="false" aria-label="{esc(S["toggle_sidebar"])}">{ICON["menu"]}</button>'
-            f'<a class="brand" href="index.html">{esc(BOOK)}</a></div><div class="tb-end">'
+            f'<a class="brand" href="index.html"><span class="logo" aria-hidden="true"></span>{esc(BOOK)}</a></div><div class="tb-end">'
             f'<button type="button" class="search-btn" id="search-btn" aria-haspopup="dialog" aria-label="{esc(S["search"])}">{ICON["search"]}<span class="sb-txt">{esc(S["search_placeholder"])}</span><kbd>/</kbd></button>'
             f'<a class="icon-btn lang-btn" href="{other}" hreflang="{OTHER}" lang="{OTHER}" title="{esc(SO["lang_name"])}">{ICON["globe"]}<span>{esc(SO["lang_name"])}</span></a>'
             f'<button type="button" class="icon-btn" id="theme-btn" aria-label="{esc(S["theme"])}" aria-pressed="false">{ICON["sun"]}{ICON["moon"]}</button>'
+            f'<a class="tb-cta" href="index.html#get-started">{ICON["spark"]}<span>{esc(S["get_started"])}</span></a>'
             f'</div></header>')
 
 
@@ -659,13 +675,53 @@ about = ''.join(str(c) for c in copyright_box.contents) if copyright_box else ''
 for x in ('<span class="en">',):
     about = about.replace(x, '<span class="en" lang="en">')
 first = pages[0]
+CH = {p.chap: p for p in pages if p.kind == 'chapter'}
+PG = {p.slug: p for p in pages}
+from booklib.structure import canonical_counts  # noqa: E402
+N_ALGO, N_FIG = canonical_counts(ROOT)
+
+
+def ch_href(n):
+    return f'{CH[n].slug}.html' if n in CH else f'{first.slug}.html'
+
+
+ROLES = [('cluster', 1, 1), ('deploy', 2, 11), ('ops', 3, 7), ('alert', 4, 17), ('code', 5, 22), ('layers', 6, 'part-4')]
+gs_cards = []
+for icon, k, tgt in ROLES:
+    href = f'{tgt}.html' if isinstance(tgt, str) and tgt in PG else ch_href(tgt if isinstance(tgt, int) else 34)
+    tag = esc(UI['part_spec_word']) if isinstance(tgt, str) else f'{esc(UI["chapter_word"])} {loc(tgt)}'
+    gs_cards.append(f'<a class="hcard role r{k}" href="{href}"><span class="hc-ic">{ICON[icon]}</span><span class="hc-tag">{tag}</span>'
+                    f'<span class="hc-t">{esc(S[f"role{k}_t"])}</span><span class="hc-d">{esc(S[f"role{k}_d"])}</span>'
+                    f'<span class="hc-go">{esc(S["gs_go"])} {ICON["arrow"]}</span></a>')
+PARTS_HOME = [('book', S['p1_word'], S['p1_title'], S['p1_range'], S['p1_desc'], 1, 21, ch_href(1), False),
+              ('code', S['p2_word'], S['p2_title'], S['p2_range'], S['p2_desc'], 22, 22, ch_href(22), False),
+              ('cpu', UI['part_low_word'], UI['part_low_title'], S['p3_range'], UI['part_low_md'], 23, 33, 'part-3.html' if 'part-3' in PG else ch_href(23), False),
+              ('layers', UI['part_spec_word'], UI['part_spec_title'], S['p4_range'], UI['part_spec_md'], 34, 42, 'part-4.html' if 'part-4' in PG else ch_href(34), True)]
+part_cards = []
+for i, (icon, word, title, rng, desc, lo, hi, href, new_) in enumerate(PARTS_HOME, 1):
+    chips = ''.join(f'<a class="chip" href="{ch_href(n)}" title="{esc(text_of(frag(CH[n].title_html)))}">{loc(n)}</a>' for n in range(lo, hi + 1) if n in CH)
+    badge = f'<span class="hc-new">{esc(S["new"])}</span>' if new_ else ''
+    part_cards.append(f'<div class="pcard p{i}"><div class="pc-top"><span class="hc-ic">{ICON[icon]}</span><span class="hc-tag">{esc(word)} · {esc(rng)}</span>{badge}</div>'
+                      f'<h3><a href="{href}">{esc(title)}</a></h3><p>{esc(desc)}</p><div class="chips">{chips}</div></div>')
+nparts = len(PARTS_HOME)
+stats = (f'<div class="stats"><div><b>{loc(len(CH))}</b><span>{esc(S["stat_ch"])}</span></div><div><b>{loc(N_FIG)}</b><span>{esc(S["stat_fig"])}</span></div>'
+         f'<div><b>{loc(N_ALGO)}</b><span>{esc(S["stat_algo"])}</span></div><div><b>{loc(nparts)}</b><span>{esc(S["stat_parts"])}</span></div></div>')
+term = ('<div class="term" dir="ltr" aria-hidden="true"><div class="term-bar"><i></i><i></i><i></i><span>' + esc(S['term_label']) + '</span></div>'
+        '<pre><span class="tp">$</span> ceph -s\n  cluster:\n    health: <span class="tok">HEALTH_OK</span>\n  services:\n    mon: 3 daemons, quorum a,b,c\n'
+        '    osd: 36 osds: 36 up, 36 in\n    rgw: 3 daemons active\n  data:\n    pgs: <span class="tok">1024 active+clean</span></pre></div>')
 home = f'''<article class="content home" id="top">
-<section class="hero"><img class="cover" src="../assets/cover.{LANG}.webp" width="{COVER_WH[0]}" height="{COVER_WH[1]}" alt="{esc(BOOK)}">
-<div class="hero-text"><div class="eyebrow">{esc(S["study_guide"])}</div><h1>{esc(BOOK)}</h1><p class="subtitle">{esc(META.get("subtitle", ""))}</p>
-<p class="byline">{esc(S["written_by"])}</p><p class="meta">{esc(S["version"])} {esc(loc(META["version_display"]))} · {esc(META["date_display"])}<br>{esc(S["basis"])}: <span dir="auto">{esc(META["technical_basis"])}</span></p>
-<p class="cta"><a class="btn primary" href="{first.slug}.html">{esc(S["start"])}</a> <a class="btn" href="#contents">{esc(S["contents"])}</a> <a class="btn" href="../{OTHER}/index.html" hreflang="{OTHER}" lang="{OTHER}">{esc(S["read_in_other"])}</a></p></div></section>
-<section class="about" aria-labelledby="about-h"><h2 id="about-h">{esc(S["about"])}</h2>{about}</section>
-<section aria-labelledby="contents"><h2 id="contents">{esc(S["contents"])}</h2>{"".join(grp)}</section></article>'''
+<section class="hero"><div class="hero-text">
+<div class="hbadge"><span class="pulse" aria-hidden="true"></span>{esc(S["badge"].format(v=loc(META["version_display"])))}</div>
+<div class="eyebrow">{esc(S["study_guide"])}</div><h1>{esc(BOOK).replace("Ceph", '<span class="grad">Ceph</span>')}</h1>
+<p class="subtitle">{esc(META.get("subtitle", ""))}</p><p class="lead">{esc(S["hero_lead"])}</p>
+<p class="cta"><a class="btn primary" href="{first.slug}.html">{esc(S["start"])} {ICON["arrow"]}</a> <a class="btn" href="#get-started">{esc(S["get_started"])}</a> <a class="btn ghost" href="../{OTHER}/index.html" hreflang="{OTHER}" lang="{OTHER}">{esc(S["read_in_other"])}</a></p>
+{stats}
+<p class="byline">{esc(S["written_by"])}</p><p class="meta">{esc(S["version"])} {esc(loc(META["version_display"]))} · {esc(META["date_display"])}<br>{esc(S["basis"])}: <span dir="auto">{esc(META["technical_basis"])}</span></p></div>
+<div class="hero-art"><div class="glow" aria-hidden="true"></div><img class="cover" src="../assets/cover.{LANG}.webp" width="{COVER_WH[0]}" height="{COVER_WH[1]}" alt="{esc(BOOK)}">{term}</div></section>
+<section class="hsec" id="get-started" aria-labelledby="gs-h"><div class="hsec-head"><h2 id="gs-h">{esc(S["gs_title"])}</h2><p>{esc(S["gs_sub"])}</p></div><div class="hgrid roles">{"".join(gs_cards)}</div></section>
+<section class="hsec" id="parts" aria-labelledby="parts-h"><div class="hsec-head"><h2 id="parts-h">{esc(S["parts_title"])}</h2><p>{esc(S["parts_sub"])}</p></div><div class="hgrid parts">{"".join(part_cards)}</div></section>
+<section class="hsec" aria-labelledby="contents"><div class="hsec-head"><h2 id="contents">{esc(S["contents"])}</h2></div>{"".join(grp)}</section>
+<section class="about" aria-labelledby="about-h"><h2 id="about-h">{esc(S["about"])}</h2>{about}</section></article>'''
 emit(None, home, BOOK)
 docs.insert(0, ['index.html', BOOK, '', text_of(frag(about))])
 open(os.path.join(LOUT, 'search-index.js'), 'w', encoding='utf-8').write(

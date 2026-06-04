@@ -31,6 +31,7 @@ OUT = os.path.abspath(a.out)
 os.makedirs(OUT, exist_ok=True)
 chrome = os.environ.get('CHROME') or shutil.which('google-chrome') or shutil.which('chromium')
 problems = []
+notes = []
 shots = []
 
 
@@ -61,31 +62,37 @@ with sync_playwright() as pw:
             snap('home')
             page.goto(url(lang, chap))
             page.evaluate('document.fonts.ready')
-            fig = page.locator('figure img.zoomable').first
-            fig.scroll_into_view_if_needed()
-            page.evaluate('window.scrollBy(0, -120)')
-            page.wait_for_timeout(300)
-            snap('chapter-figure')
-            fig.click()
-            page.wait_for_selector('.lb:not([hidden])')
-            page.wait_for_timeout(250)
-            snap('zoom-open')
-            if w > 800:
-                box = page.locator('.lb-stage').bounding_box()
-                page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
-                for _ in range(4):
-                    page.mouse.wheel(0, -240)
-                page.wait_for_timeout(150)
+            figs = page.locator('figure img.zoomable')
+            if figs.count() == 0:
+                # e.g. a translation still pending: no figures to zoom
+                notes.append(f'[{lang} {tag}] {chap} has no figures; lightbox step skipped')
+                snap('chapter-figure')
             else:
-                page.locator('.lb-bar [data-a="in"]').click()
-                page.locator('.lb-bar [data-a="in"]').click()
-            page.wait_for_timeout(150)
-            zoom = page.locator('.lb-zoomv').inner_text()
-            if zoom.strip() == '100%':
-                problems.append(f'[{lang} {tag}] lightbox did not zoom')
-            snap('zoom-zoomed')
-            page.keyboard.press('Escape')
-            page.wait_for_selector('.lb', state='hidden')
+                fig = figs.first
+                fig.scroll_into_view_if_needed()
+                page.evaluate('window.scrollBy(0, -120)')
+                page.wait_for_timeout(300)
+                snap('chapter-figure')
+                fig.click()
+                page.wait_for_selector('.lb:not([hidden])')
+                page.wait_for_timeout(250)
+                snap('zoom-open')
+                if w > 800:
+                    box = page.locator('.lb-stage').bounding_box()
+                    page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                    for _ in range(4):
+                        page.mouse.wheel(0, -240)
+                    page.wait_for_timeout(150)
+                else:
+                    page.locator('.lb-bar [data-a="in"]').click()
+                    page.locator('.lb-bar [data-a="in"]').click()
+                page.wait_for_timeout(150)
+                zoom = page.locator('.lb-zoomv').inner_text()
+                if zoom.strip() == '100%':
+                    problems.append(f'[{lang} {tag}] lightbox did not zoom')
+                snap('zoom-zoomed')
+                page.keyboard.press('Escape')
+                page.wait_for_selector('.lb', state='hidden')
             if w < 800:
                 page.locator('#menu-btn').click()
                 page.wait_for_timeout(350)
@@ -117,14 +124,14 @@ with sync_playwright() as pw:
             page.evaluate("localStorage.setItem('book-theme','light')")
             # code copy button and language switch exist on the chapter page
             page.goto(url(lang, chap))
-            if page.locator('.code .copy').count() == 0:
+            if page.locator('.code').count() and page.locator('.code .copy').count() == 0:
                 problems.append(f'[{lang}] no copy buttons on {chap}')
             other = page.locator('.lang-btn').get_attribute('href')
             if not other.endswith(f'/{chap}.html'):
                 problems.append(f'[{lang}] language switch points to {other}')
             ctx.close()
     browser.close()
-json.dump({'screenshots': shots, 'problems': problems}, open(os.path.join(OUT, 'report.json'), 'w'), indent=1, ensure_ascii=False)
+json.dump({'screenshots': shots, 'problems': problems, 'notes': notes}, open(os.path.join(OUT, 'report.json'), 'w'), indent=1, ensure_ascii=False)
 for p in problems:
     print('shoot_site:', p)
 print(f'shoot_site: {len(shots)} screenshots in {OUT}, {len(problems)} problems')

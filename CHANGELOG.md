@@ -7,6 +7,14 @@ restructures the book.
 
 ## [Unreleased]
 
+### Web edition redesign
+- New home page: hero with the cover, a version badge, gradient title, call-to-action buttons and a stats row (chapters, figures, algorithms, parts); a decorative `ceph -s` terminal panel.
+- "Where to start" section (`#get-started`) with six reader paths (new to Ceph, deployment, operations, troubleshooting, developer, Part IV specialist).
+- "Four parts of the book" cards with chapter chips; Part IV marked as new.
+- Header: logo mark and a "Get started" pill; sidebar groups chapters under part labels.
+- New slate/cyan/emerald/indigo palette for light and dark themes; own CSS and SVG icons.
+- `tools/shoot_site.py` skips the lightbox step on chapters without figures (pending English chapters) and records it as a note.
+
 ## [1.6] - 2026-11
 
 ### Added
