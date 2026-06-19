@@ -45,7 +45,7 @@ with sync_playwright() as pw:
         chap = a.chapter_fa if lang == 'fa' else a.chapter_en
         for w, h, tag in ((1440, 900, 'desktop'), (390, 844, 'mobile')):
             ctx = browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=1 if w > 800 else 2,
-                                      has_touch=w < 800, color_scheme='light')
+                                      has_touch=w < 800, color_scheme='light', reduced_motion='reduce')
             ctx.route('http*://**', lambda r: (problems.append(f'network request {r.request.url}'), r.abort()))
             page = ctx.new_page()
             page.on('console', lambda m, l=lang, t=tag: m.type == 'error' and problems.append(f'[{l} {t}] console: {m.text}'))
@@ -58,8 +58,61 @@ with sync_playwright() as pw:
                 shots.append(p)
 
             page.goto(url(lang, 'index'))
+            # seed a reading history: chapters 1-11 read, the test chapter 46 % in
+            page.evaluate('''([lang, chap]) => {
+                const P = JSON.parse(document.getElementById('site-data').textContent).pages;
+                const chs = Object.keys(P).filter(k => P[k][2] > 0).sort((a, b) => P[a][2] - P[b][2]);
+                const read = {}; chs.slice(0, 11).forEach((k, i) => read[k] = 1794700000000 + i);
+                localStorage.setItem('book-progress:' + lang, JSON.stringify({v: 1, read, max: {[chap]: 0.46},
+                    last: {s: chap, f: 0.46, h: '', t: 1794740000000}, marks: []}));
+            }''', [lang, chap])
+            page.reload()
             page.evaluate('document.fonts.ready')
             snap('home')
+            if not page.locator('#rp').is_visible() or not page.locator('.rp-cont').is_visible():
+                problems.append(f'[{lang} {tag}] home progress panel / continue button not shown')
+            if page.locator('.sb-link.is-read').count() != 11:
+                problems.append(f'[{lang} {tag}] sidebar shows {page.locator(".sb-link.is-read").count()} read chapters, expected 11')
+            if w < 800:
+                page.locator('#rp').scroll_into_view_if_needed()
+                page.evaluate('window.scrollBy(0, -140)')
+                snap('home-progress')
+            # "continue reading" lands on the chapter
+            page.locator('.rp-cont').click()
+            page.wait_for_load_state('load')
+            if not page.url.split('#')[0].endswith(f'/{chap}.html'):
+                problems.append(f'[{lang} {tag}] continue button went to {page.url}')
+            page.evaluate('document.fonts.ready')
+            page.evaluate('window.scrollTo(0, 0)')
+            if not page.locator('#read-tog').is_visible() or page.locator('.ph-meta .rt').count() != 1:
+                problems.append(f'[{lang} {tag}] chapter read time / read toggle missing')
+            hb = page.locator('article.content h2[id] .hbm')
+            if hb.count() < 2:
+                (notes if lang == 'en' else problems).append(f'[{lang} {tag}] fewer than two bookmarkable headings on {chap}')
+            else:
+                h2 = page.locator('article.content h2[id]').nth(1)
+                h2.scroll_into_view_if_needed()
+                hb.nth(1).click()
+                n = page.evaluate(f"JSON.parse(localStorage.getItem('book-progress:{lang}')).marks.length")
+                if n != 1 or hb.nth(1).get_attribute('aria-pressed') != 'true':
+                    problems.append(f'[{lang} {tag}] bookmarking a heading did not stick')
+                page.evaluate("document.querySelectorAll('article.content h2[id]')[1].scrollIntoView({block: 'start'}); window.scrollBy(0, -200)")
+                page.wait_for_timeout(250)
+                if 'scaleX(0)' == page.evaluate("document.querySelector('.rbar i').style.transform"):
+                    problems.append(f'[{lang} {tag}] reading progress bar did not move')
+                snap('chapter-progress')
+                page.evaluate('window.scrollTo(0, 0)')
+                page.wait_for_timeout(150)
+                snap('chapter-head')
+                page.locator('#my-btn').click()
+                page.wait_for_timeout(200)
+                if page.locator('#mk-list li').count() != 1:
+                    problems.append(f'[{lang} {tag}] bookmark not listed in the panel')
+                snap('my-reading')
+                page.keyboard.press('Escape')
+                page.wait_for_timeout(100)
+                if not page.locator('#my-dlg').is_hidden():
+                    problems.append(f'[{lang} {tag}] my-reading panel did not close on Escape')
             page.goto(url(lang, chap))
             page.evaluate('document.fonts.ready')
             figs = page.locator('figure img.zoomable')
@@ -130,6 +183,25 @@ with sync_playwright() as pw:
             if not other.endswith(f'/{chap}.html'):
                 problems.append(f'[{lang}] language switch points to {other}')
             ctx.close()
+    # full motion once: entrance animations, scroll reveal and hero counters must settle without errors
+    ctx = browser.new_context(viewport={'width': 1440, 'height': 900}, color_scheme='dark', reduced_motion='no-preference')
+    ctx.route('http*://**', lambda r: (problems.append(f'network request {r.request.url}'), r.abort()))
+    page = ctx.new_page()
+    page.on('console', lambda m: m.type == 'error' and problems.append(f'[motion] console: {m.text}'))
+    page.on('pageerror', lambda e: problems.append(f'[motion] pageerror: {e}'))
+    page.goto(url('fa', 'index'))
+    page.wait_for_timeout(1800)
+    got = page.evaluate("[...document.querySelectorAll('.stats b[data-n]')].map(b => b.textContent.replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)) === b.dataset.n)")
+    if not got or not all(got):
+        problems.append('[motion] hero counters did not settle on their final values')
+    p = os.path.join(OUT, 'fa-desktop-motion-home.png')
+    page.screenshot(path=p)
+    shots.append(p)
+    page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)')
+    page.wait_for_timeout(900)
+    if page.locator('.rv').count() and not page.locator('.rv.in').count():
+        problems.append('[motion] scroll reveal never revealed anything')
+    ctx.close()
     browser.close()
 json.dump({'screenshots': shots, 'problems': problems, 'notes': notes}, open(os.path.join(OUT, 'report.json'), 'w'), indent=1, ensure_ascii=False)
 for p in problems:

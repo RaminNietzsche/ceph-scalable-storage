@@ -482,13 +482,74 @@ ICON = {
     'code': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg>',
     'layers': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg>',
     'cpu': '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>',
+    'clock': '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    'check': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
+    'bookmark': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>',
+    'up': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+    'download': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+    'upload': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>',
+    'trash': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
     'book': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z"/><path d="M4 19a2 2 0 0 1 2-2h13"/></svg>',
 }
 GROUPS = [('front', S['front']), ('chapters', S['chapters']), ('appendices', S['appendices']), ('lists', S['lists'])]
 order = [None] + pages  # None = home
 
 
+# ---------------------------------------------------------------- reading time / progress
+WPM = 170 if LANG == 'fa' else 220   # technical prose; Persian words counted by whitespace (ZWNJ keeps a word whole)
+
+
+def reading_minutes(body):
+    words = code = figs = 0
+    for el in body.find_all(string=True):
+        if el.find_parent(['script', 'style']):
+            continue
+        if el.find_parent('pre'):
+            code += str(el).count('\n')
+        else:
+            words += len(str(el).split())
+    figs = len(body.find_all('figure'))
+    return max(1, round(words / WPM + code * 3 / 60 + figs * 12 / 60))
+
+
+def fmt_min(n, short=False):
+    if n < 60:
+        return S['min_short' if short else 'read_min'].format(n=loc(n))
+    return S['hm_short' if short else 'read_hm'].format(h=loc(n // 60), m=loc(n % 60))
+
+
+TRACK = {}
+for _p in pages:
+    if _p.kind in ('chapter', 'appendix', 'front'):
+        _p.minutes = reading_minutes(_p.body)
+        _t = _p.nav_text if _p.kind != 'chapter' else _p.title_text
+        _t = re.sub(r'\(\s+', '(', re.sub(r'\s+\)', ')', re.sub(r'\s+([:؛،])', r'\1', _t))).strip()
+        TRACK[_p.slug] = [_t, _p.minutes, _p.chap or 0]
+PROG_KEYS = ('read_min', 'min_short', 'mark_read', 'is_read', 'unmark_read', 'marked_read_msg', 'unmarked_read_msg', 'progress_line',
+             'progress_empty', 'continue', 'bookmarks', 'bookmark_add', 'bookmark_remove', 'bookmarked_msg', 'unbookmarked_msg',
+             'reset_confirm', 'import_ok', 'import_bad', 'reset_ok', 'part_prog', 'in_progress')
+
+
+def ring(cls=''):
+    return (f'<svg class="ring {cls}" viewBox="0 0 36 36" aria-hidden="true"><circle class="trk" cx="18" cy="18" r="15.5"/>'
+            f'<circle class="val" cx="18" cy="18" r="15.5" pathLength="100"/></svg>')
+
+
 SB_PART_LABEL = {1: S['sb_p1'], 22: S['sb_p2']}
+
+
+EXTRAS = (f'<div class="my-dlg" id="my-dlg" role="dialog" aria-modal="true" aria-labelledby="my-h" hidden><div class="my-box">'
+          f'<div class="my-head"><h2 id="my-h">{ICON["bookmark"]}{esc(S["my_reading"])}</h2><button type="button" class="icon-btn" data-close-my aria-label="{esc(S["close"])}">{ICON["close"]}</button></div>'
+          f'<div class="my-prog"><div class="ring-wrap">{ring("big")}<b class="my-pct"></b></div><div><div class="rp-t">{esc(S["progress_title"])}</div><p class="my-line"></p>'
+          f'<a class="btn primary my-cont" href="index.html" hidden>{esc(S["continue"])} {ICON["arrow"]}</a></div></div>'
+          f'<h3>{esc(S["bookmarks"])}</h3><ul class="mk-list" id="mk-list"></ul><p class="mk-empty">{esc(S["bookmarks_empty"])}</p>'
+          f'<div class="my-actions"><button type="button" class="btn" data-act="export">{ICON["download"]}{esc(S["export"])}</button>'
+          f'<label class="btn file-btn">{ICON["upload"]}<span>{esc(S["import"])}</span><input type="file" id="my-import" accept="application/json,.json"></label>'
+          f'<button type="button" class="btn danger" data-act="reset">{ICON["trash"]}{esc(S["reset"])}</button></div>'
+          f'<p class="my-note">{esc(S["store_note"])}</p></div></div>'
+          f'<button type="button" class="totop" id="totop" aria-label="{esc(S["to_top"])}" title="{esc(S["to_top"])}" hidden>'
+          f'<svg class="ring" viewBox="0 0 48 48" aria-hidden="true"><circle class="trk" cx="24" cy="24" r="21"/><circle class="val" cx="24" cy="24" r="21" pathLength="100"/></svg>{ICON["up"]}</button>'
+          f'<p class="vh" id="live" role="status" aria-live="polite"></p>')
 
 
 def sidebar(cur):
@@ -506,16 +567,17 @@ def sidebar(cur):
             is_cur = p is cur
             curattr = ' aria-current="page"' if is_cur else ''
             cls = 'sb-link' + (' part' if p.kind == 'part' else '')
+            trk = f' data-slug="{p.slug}"' if p.slug in TRACK else ''
             kids = [s for s in p.sections if s[0] == 2]
             if kids and p.kind in ('chapter', 'appendix'):
                 sid = f'sb-{p.slug}'
                 exp = 'true' if is_cur else 'false'
                 sub = ''.join(f'<li><a class="sb-sub" href="{p.slug}.html#{nid}" data-sec="{nid}">{t}</a></li>' for _, nid, t in kids)
-                out.append(f'<li class="has-kids{" open" if is_cur else ""}"><div class="sb-row"><a class="{cls}" href="{p.slug}.html"{curattr}>{p.nav_html}</a>'
+                out.append(f'<li class="has-kids{" open" if is_cur else ""}"><div class="sb-row"><a class="{cls}" href="{p.slug}.html"{curattr}{trk}>{p.nav_html}</a>'
                            f'<button type="button" class="sb-tog" aria-expanded="{exp}" aria-controls="{sid}" aria-label="{esc(p.nav_text)}">{ICON["chev"]}</button></div>'
                            f'<ul class="sb-kids" id="{sid}"{"" if is_cur else " hidden"}>{sub}</ul></li>')
             else:
-                out.append(f'<li><a class="{cls}" href="{p.slug}.html"{curattr}>{p.nav_html}</a></li>')
+                out.append(f'<li><a class="{cls}" href="{p.slug}.html"{curattr}{trk}>{p.nav_html}</a></li>')
         out.append('</ul>')
     out.append('</div></nav>')
     return ''.join(out)
@@ -528,9 +590,10 @@ def header(cur):
             f'<a class="brand" href="index.html"><span class="logo" aria-hidden="true"></span>{esc(BOOK)}</a></div><div class="tb-end">'
             f'<button type="button" class="search-btn" id="search-btn" aria-haspopup="dialog" aria-label="{esc(S["search"])}">{ICON["search"]}<span class="sb-txt">{esc(S["search_placeholder"])}</span><kbd>/</kbd></button>'
             f'<a class="icon-btn lang-btn" href="{other}" hreflang="{OTHER}" lang="{OTHER}" title="{esc(SO["lang_name"])}">{ICON["globe"]}<span>{esc(SO["lang_name"])}</span></a>'
+            f'<button type="button" class="icon-btn mk-btn" id="my-btn" aria-haspopup="dialog" aria-controls="my-dlg" aria-label="{esc(S["my_reading"])}" title="{esc(S["my_reading"])}">{ICON["bookmark"]}<span class="mk-n" aria-hidden="true"></span></button>'
             f'<button type="button" class="icon-btn" id="theme-btn" aria-label="{esc(S["theme"])}" aria-pressed="false">{ICON["sun"]}{ICON["moon"]}</button>'
             f'<a class="tb-cta" href="index.html#get-started">{ICON["spark"]}<span>{esc(S["get_started"])}</span></a>'
-            f'</div></header>')
+            f'</div><div class="rbar" aria-hidden="true"><i></i></div></header>')
 
 
 def crumbs(cur):
@@ -571,7 +634,7 @@ def page_toc(cur):
 
 PAGE_TPL = string.Template(open(os.path.join(TPL, 'page.html'), encoding='utf-8').read())
 SITE_DATA = json.dumps({k: S[k] for k in ('search', 'search_placeholder', 'search_hint', 'no_results', 'results', 'loading',
-                                           'zoom_in', 'zoom_out', 'zoom_reset', 'close', 'copied', 'copy', 'zoom')} | {'lang': LANG, 'rtl': RTL}, ensure_ascii=False)
+                                           'zoom_in', 'zoom_out', 'zoom_reset', 'close', 'copied', 'copy', 'zoom') + PROG_KEYS} | {'lang': LANG, 'rtl': RTL, 'pages': TRACK}, ensure_ascii=False)
 
 
 def emit(cur, main_html, title_text):
@@ -588,7 +651,7 @@ def emit(cur, main_html, title_text):
         links='\n'.join(links), site_data=SITE_DATA.replace('</', '<\\/'),
         skip=esc(S['skip']), header=header(cur), sidebar=sidebar(cur), crumbs=crumbs(cur),
         toc_inline=inline, main=main_html, pager=pager(cur), toc=side,
-        has_toc='has-toc' if side else 'no-toc', kind=cur.kind if cur else 'home',
+        has_toc='has-toc' if side else 'no-toc', kind=cur.kind if cur else 'home', extras=EXTRAS,
         search_title=esc(S['search']), search_placeholder=esc(S['search_placeholder']), close=esc(S['close']),
         search_hint=esc(S['search_hint']), lic=esc('© 2026 Ramin Najarbashi · CC BY-NC-SA 4.0'), version=esc(META['version_display']),
         date=esc(META['date_display']))
@@ -645,6 +708,10 @@ def index_docs(p):
 for p in pages:
     if p.kind not in ('list',):
         index_docs(p)
+    meta = ''
+    if p.slug in TRACK:
+        meta = (f'<div class="ph-meta"><span class="rt">{ICON["clock"]}{esc(fmt_min(p.minutes))}</span>'
+                f'<button type="button" class="read-tog" id="read-tog" aria-pressed="false" hidden>{ICON["check"]}<span>{esc(S["mark_read"])}</span></button></div>')
     if HYPH:
         HYPH(p.body)
     eyebrow = f'<div class="eyebrow">{esc(p.eyebrow)}</div>' if p.eyebrow else ''
@@ -653,7 +720,7 @@ for p in pages:
         lo, hi = PART_RANGE.get(p.slug, (23, 10 ** 6))
         lis = ''.join(f'<li><a href="{q.slug}.html">{q.nav_html}</a></li>' for q in pages if q.chap and lo <= q.chap < hi)
         extra = f'<ol class="part-list">{lis}</ol>'
-    main = f'<article class="content" id="top"><header class="page-head">{eyebrow}<h1>{p.title_html}</h1></header>{"".join(str(c) for c in p.body.contents)}{extra}</article>'
+    main = f'<article class="content" id="top"><header class="page-head">{eyebrow}<h1>{p.title_html}</h1>{meta}</header>{"".join(str(c) for c in p.body.contents)}{extra}</article>'
     tt = (f'{p.eyebrow}: ' if p.kind in ('chapter', 'appendix') else '') + p.title_text + ' · ' + BOOK
     emit(p, main, tt)
 
@@ -669,7 +736,9 @@ for g, label in GROUPS:
             secs = '<span class="secs">' + ' · '.join(t for lvl, _, t in p.sections if lvl == 2)[:0] + '</span>'
             secs = '<span class="secs">' + ' · '.join(text_of(frag(t)) for lvl, _, t in p.sections if lvl == 2 and not text_of(frag(t)).startswith((UI['review_questions'], UI['chapter_sources'])))[:220] + '</span>'
         cls = ' class="part"' if p.kind == 'part' else ''
-        lis.append(f'<li{cls}><a href="{p.slug}.html"><span class="ct">{p.nav_html}</span>{secs}</a></li>')
+        trk = f' data-slug="{p.slug}"' if p.slug in TRACK else ''
+        rt = f'<span class="rt-s">{ICON["clock"]}{esc(fmt_min(p.minutes, True))}</span>' if p.slug in TRACK else ''
+        lis.append(f'<li{cls}><a href="{p.slug}.html"{trk}><span class="ct">{p.nav_html}</span>{secs}{rt}</a></li>')
     grp.append(f'<h3>{esc(label)}</h3><ol class="home-toc g-{g}">{"".join(lis)}</ol>')
 about = ''.join(str(c) for c in copyright_box.contents) if copyright_box else ''
 for x in ('<span class="en">',):
@@ -699,13 +768,18 @@ PARTS_HOME = [('book', S['p1_word'], S['p1_title'], S['p1_range'], S['p1_desc'],
               ('layers', UI['part_spec_word'], UI['part_spec_title'], S['p4_range'], UI['part_spec_md'], 34, 42, 'part-4.html' if 'part-4' in PG else ch_href(34), True)]
 part_cards = []
 for i, (icon, word, title, rng, desc, lo, hi, href, new_) in enumerate(PARTS_HOME, 1):
-    chips = ''.join(f'<a class="chip" href="{ch_href(n)}" title="{esc(text_of(frag(CH[n].title_html)))}">{loc(n)}</a>' for n in range(lo, hi + 1) if n in CH)
+    chips = ''.join(f'<a class="chip" href="{ch_href(n)}" data-slug="{CH[n].slug}" title="{esc(text_of(frag(CH[n].title_html)))}">{loc(n)}</a>' for n in range(lo, hi + 1) if n in CH)
     badge = f'<span class="hc-new">{esc(S["new"])}</span>' if new_ else ''
-    part_cards.append(f'<div class="pcard p{i}"><div class="pc-top"><span class="hc-ic">{ICON[icon]}</span><span class="hc-tag">{esc(word)} · {esc(rng)}</span>{badge}</div>'
-                      f'<h3><a href="{href}">{esc(title)}</a></h3><p>{esc(desc)}</p><div class="chips">{chips}</div></div>')
+    part_cards.append(f'<div class="pcard p{i}"><div class="pc-top"><span class="hc-ic">{ICON[icon]}</span><span class="hc-tag">{esc(word)} · {esc(rng)}</span>{badge}'
+                      f'<span class="pc-prog" data-lo="{lo}" data-hi="{hi}" hidden>{ring()}<span class="pc-pt"></span></span></div>'
+                      f'<h3><a href="{href}">{esc(title)}</a></h3><p>{esc(desc)}</p>'
+                      f'<p class="pc-time">{ICON["clock"]}{esc(fmt_min(sum(CH[n].minutes for n in range(lo, hi + 1) if n in CH), True))}</p><div class="chips">{chips}</div></div>')
 nparts = len(PARTS_HOME)
-stats = (f'<div class="stats"><div><b>{loc(len(CH))}</b><span>{esc(S["stat_ch"])}</span></div><div><b>{loc(N_FIG)}</b><span>{esc(S["stat_fig"])}</span></div>'
-         f'<div><b>{loc(N_ALGO)}</b><span>{esc(S["stat_algo"])}</span></div><div><b>{loc(nparts)}</b><span>{esc(S["stat_parts"])}</span></div></div>')
+stats = ('<div class="stats">' + ''.join(f'<div><b data-n="{n}">{loc(n)}</b><span>{esc(S[k])}</span></div>'
+                                         for n, k in ((len(CH), 'stat_ch'), (N_FIG, 'stat_fig'), (N_ALGO, 'stat_algo'), (nparts, 'stat_parts'))) + '</div>')
+rp = (f'<div class="rp" id="rp" hidden><div class="ring-wrap">{ring("big")}<b class="rp-pct"></b></div><div class="rp-body"><div class="rp-t">{esc(S["progress_title"])}</div>'
+      f'<p class="rp-line"></p><div class="rp-acts"><a class="btn primary rp-cont" href="{first.slug}.html" hidden>{ICON["book"]}<span class="rp-ct">{esc(S["continue"])}</span> {ICON["arrow"]}</a>'
+      f'<button type="button" class="btn" data-open-my>{ICON["bookmark"]}{esc(S["my_reading"])}</button></div></div></div>')
 term = ('<div class="term" dir="ltr" aria-hidden="true"><div class="term-bar"><i></i><i></i><i></i><span>' + esc(S['term_label']) + '</span></div>'
         '<pre><span class="tp">$</span> ceph -s\n  cluster:\n    health: <span class="tok">HEALTH_OK</span>\n  services:\n    mon: 3 daemons, quorum a,b,c\n'
         '    osd: 36 osds: 36 up, 36 in\n    rgw: 3 daemons active\n  data:\n    pgs: <span class="tok">1024 active+clean</span></pre></div>')
@@ -716,6 +790,7 @@ home = f'''<article class="content home" id="top">
 <p class="subtitle">{esc(META.get("subtitle", ""))}</p><p class="lead">{esc(S["hero_lead"])}</p>
 <p class="cta"><a class="btn primary" href="{first.slug}.html">{esc(S["start"])} {ICON["arrow"]}</a> <a class="btn" href="#get-started">{esc(S["get_started"])}</a> <a class="btn ghost" href="../{OTHER}/index.html" hreflang="{OTHER}" lang="{OTHER}">{esc(S["read_in_other"])}</a></p>
 {stats}
+{rp}
 <p class="byline">{esc(S["written_by"])}</p><p class="meta">{esc(S["version"])} {esc(loc(META["version_display"]))} · {esc(META["date_display"])}<br>{esc(S["basis"])}: <span dir="auto">{esc(META["technical_basis"])}</span></p></div>
 <div class="hero-art"><div class="glow" aria-hidden="true"></div><img class="cover" src="../assets/cover.{LANG}.webp" width="{COVER_WH[0]}" height="{COVER_WH[1]}" alt="{esc(BOOK)}">{term}</div></section>
 <section class="hsec" id="get-started" aria-labelledby="gs-h"><div class="hsec-head"><h2 id="gs-h">{esc(S["gs_title"])}</h2><p>{esc(S["gs_sub"])}</p></div><div class="hgrid roles">{"".join(gs_cards)}</div></section>

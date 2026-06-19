@@ -8,12 +8,24 @@ restructures the book.
 ## [Unreleased]
 
 ### Web edition redesign
+
 - New home page: hero with the cover, a version badge, gradient title, call-to-action buttons and a stats row (chapters, figures, algorithms, parts); a decorative `ceph -s` terminal panel.
 - "Where to start" section (`#get-started`) with six reader paths (new to Ceph, deployment, operations, troubleshooting, developer, Part IV specialist).
 - "Four parts of the book" cards with chapter chips; Part IV marked as new.
 - Header: logo mark and a "Get started" pill; sidebar groups chapters under part labels.
 - New slate/cyan/emerald/indigo palette for light and dark themes; own CSS and SVG icons.
 - `tools/shoot_site.py` skips the lightbox step on chapters without figures (pending English chapters) and records it as a note.
+
+### Reading progress and motion (web edition)
+
+- Reading-progress bar under the header on every page; back-to-top button with a progress ring.
+- Per-chapter read state, stored per language in `localStorage` only: marked automatically at 90 % of the chapter, or with the toggle in the chapter header; shown as checkmarks and in-progress rings in the sidebar, chapter chips, home contents and part-card rings.
+- Home "progress through the book" panel with a "Continue reading" button that reopens the last page at the saved scroll position.
+- Estimated reading time per page (whitespace word count, so Persian words joined by ZWNJ count once; code lines and figures add time) in chapter headers, home contents and part cards.
+- Bookmark buttons on section headings, highlighted bookmarked headings and a "My reading" panel listing bookmarks with export/import of progress as JSON and a reset.
+- Motion: scroll reveal for cards, figures and headings; hero entrance and animated stat counters; hover micro-interactions; cross-document View Transitions where the browser supports them. All of it is switched off under `prefers-reduced-motion`.
+- Mobile header no longer cuts off the book title (the "Get started" pill is hidden below 600 px).
+- `tools/shoot_site.py` seeds a reading history and checks the progress panel, continue button, read toggle, bookmarks, the panel's Escape handling and, once with full motion, the hero counters and scroll reveal.
 
 ## [1.6] - 2026-11
 
