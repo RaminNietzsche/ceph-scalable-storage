@@ -451,7 +451,7 @@ open(os.path.join(ASSETS, 'fonts', 'README.txt'), 'w', encoding='utf-8').write(
     'Vazirmatn (github.com/rastikerdar/vazirmatn), Inter (github.com/rsms/inter) and JetBrains Mono\n'
     '(github.com/JetBrains/JetBrainsMono) are subset copies licensed under the SIL Open Font License 1.1\n'
     '(openfontlicense.org). They are not covered by the book\'s CC BY-NC-SA 4.0 licence.\n')
-for f in ('site.css', 'site.js'):
+for f in ('site.css', 'site.js', 'game.js'):
     shutil.copy2(os.path.join(TPL, f), os.path.join(ASSETS, f))
 light = HtmlFormatter(style='friendly').get_style_defs('html:not([data-theme="dark"]) .hl')
 dark = HtmlFormatter(style='github-dark').get_style_defs('html[data-theme="dark"] .hl')
@@ -489,6 +489,9 @@ ICON = {
     'download': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
     'upload': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>',
     'trash': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+    'trophy': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 21h8M9 17h6"/></svg>',
+    'cards': '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="13" height="13" rx="2"/><path d="M8 4h11a2 2 0 0 1 2 2v11"/></svg>',
+    'flame': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2.2-4.8.2 1.6 1 2.6 2 3 0-3 .3-5.6.8-8.2z"/></svg>',
     'book': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z"/><path d="M4 19a2 2 0 0 1 2-2h13"/></svg>',
 }
 GROUPS = [('front', S['front']), ('chapters', S['chapters']), ('appendices', S['appendices']), ('lists', S['lists'])]
@@ -525,6 +528,50 @@ for _p in pages:
         _t = _p.nav_text if _p.kind != 'chapter' else _p.title_text
         _t = re.sub(r'\(\s+', '(', re.sub(r'\s+\)', ')', re.sub(r'\s+([:؛،])', r'\1', _t))).strip()
         TRACK[_p.slug] = [_t, _p.minutes, _p.chap or 0]
+# ---------------------------------------------------------------- learning data (cards, glossary) for review/quizzes
+GAMEY = yaml.safe_load(open(os.path.join(TPL, 'game.yaml'), encoding='utf-8'))
+GM = GAMEY[LANG]
+PG_BY = {_p.slug: _p for _p in pages}
+CARDS, GLOSS = [], []
+
+
+def ltext(node):   # keeps the RLM marks around Latin runs (bidi) and does not add spaces between inline tags
+    return re.sub(r'\s+', ' ', node.get_text('')).strip()
+
+
+if 'answers' in PG_BY:
+    for _h in PG_BY['answers'].body.find_all('h2', id=re.compile(r'^answers-\d+$')):
+        _ch = int(_h['id'].split('-')[1])
+        _ol = _h.find_next_sibling()
+        if not (_ol and _ol.name == 'ol'):
+            continue
+        for _k, _li in enumerate(_ol.find_all('li', recursive=False), 1):
+            _li = frag(str(_li))
+            for _x in _li.select('.oln, .ixa'):
+                _x.decompose()
+            _b = _li.find('b')
+            if not _b:
+                continue
+            _q = ltext(_b)
+            _b.decompose()
+            _a = ltext(_li)
+            if _q and _a:
+                CARDS.append([f'q{_ch}-{_k}', _ch, _q, _a])
+if 'glossary' in PG_BY:
+    _seen = set()
+    for _tr in PG_BY['glossary'].body.select('table.gloss tbody tr'):
+        _td = _tr.find_all('td')
+        if len(_td) < 2:
+            continue
+        _t, _dd = ltext(_td[0]).replace('\u00ad', ''), ltext(_td[1]).replace('\u00ad', '')
+        _id = 'g-' + (re.sub(r'[^a-z0-9]+', '-', _t.lower()).strip('-') or str(len(GLOSS)))
+        while _id in _seen:
+            _id += '-2'
+        _seen.add(_id)
+        GLOSS.append([_id, _t, _dd])
+CARDS_BY_CH = {}
+for _c in CARDS:
+    CARDS_BY_CH[_c[1]] = CARDS_BY_CH.get(_c[1], 0) + 1
 PROG_KEYS = ('read_min', 'min_short', 'mark_read', 'is_read', 'unmark_read', 'marked_read_msg', 'unmarked_read_msg', 'progress_line',
              'progress_empty', 'continue', 'bookmarks', 'bookmark_add', 'bookmark_remove', 'bookmarked_msg', 'unbookmarked_msg',
              'reset_confirm', 'import_ok', 'import_bad', 'reset_ok', 'part_prog', 'in_progress')
@@ -536,6 +583,17 @@ def ring(cls=''):
 
 
 SB_PART_LABEL = {1: S['sb_p1'], 22: S['sb_p2']}
+
+
+class AppPage:
+    """A page that is rendered by game.js (dashboard, review, certificate); not part of the reading order."""
+    def __init__(self, slug, title):
+        self.slug, self.kind, self.title_text, self.nav_text, self.crumb = slug, 'app', title, title, title
+        self.sections, self.group, self.chap = [], None, None
+
+
+APP_PAGES = {'progress': AppPage('progress', GM['s']['my_progress']), 'review': AppPage('review', GM['s']['review_page']),
+             'certificate': AppPage('certificate', GM['s']['cert_page'])}
 
 
 EXTRAS = (f'<div class="my-dlg" id="my-dlg" role="dialog" aria-modal="true" aria-labelledby="my-h" hidden><div class="my-box">'
@@ -556,7 +614,10 @@ def sidebar(cur):
     out = [f'<nav class="sidebar" id="sidebar" aria-label="{esc(S["navigation"])}"><div class="sb-head"><a class="sb-home" href="index.html">{esc(BOOK)}</a>'
            f'<button type="button" class="icon-btn sb-close" data-close-menu aria-label="{esc(S["close_menu"])}">{ICON["close"]}</button></div><div class="sb-scroll">']
     homecur = ' aria-current="page"' if cur is None else ''
-    out.append(f'<ul class="sb-list"><li><a class="sb-link" href="index.html"{homecur}>{esc(S["home"])}</a></li></ul>')
+    acur = lambda k: ' aria-current="page"' if getattr(cur, 'slug', None) == k else ''  # noqa: E731
+    out.append(f'<ul class="sb-list"><li><a class="sb-link" href="index.html"{homecur}>{esc(S["home"])}</a></li>'
+               f'<li><a class="sb-link app" href="progress.html"{acur("progress")}>{ICON["trophy"]}<span>{esc(GM["s"]["my_progress"])}</span></a></li>'
+               f'<li><a class="sb-link app" href="review.html"{acur("review")}>{ICON["cards"]}<span>{esc(GM["s"]["review_today"])}</span><span class="sb-due" data-due hidden></span></a></li></ul>')
     for g, label in GROUPS:
         out.append(f'<div class="sb-group">{esc(label)}</div><ul class="sb-list">')
         for p in pages:
@@ -590,6 +651,7 @@ def header(cur):
             f'<a class="brand" href="index.html"><span class="logo" aria-hidden="true"></span>{esc(BOOK)}</a></div><div class="tb-end">'
             f'<button type="button" class="search-btn" id="search-btn" aria-haspopup="dialog" aria-label="{esc(S["search"])}">{ICON["search"]}<span class="sb-txt">{esc(S["search_placeholder"])}</span><kbd>/</kbd></button>'
             f'<a class="icon-btn lang-btn" href="{other}" hreflang="{OTHER}" lang="{OTHER}" title="{esc(SO["lang_name"])}">{ICON["globe"]}<span>{esc(SO["lang_name"])}</span></a>'
+            f'<a class="g-chip game" id="g-chip" href="progress.html" hidden>{ICON["flame"]}<span class="g-s"></span><span class="g-l"></span></a>'
             f'<button type="button" class="icon-btn mk-btn" id="my-btn" aria-haspopup="dialog" aria-controls="my-dlg" aria-label="{esc(S["my_reading"])}" title="{esc(S["my_reading"])}">{ICON["bookmark"]}<span class="mk-n" aria-hidden="true"></span></button>'
             f'<button type="button" class="icon-btn" id="theme-btn" aria-label="{esc(S["theme"])}" aria-pressed="false">{ICON["sun"]}{ICON["moon"]}</button>'
             f'<a class="tb-cta" href="index.html#get-started">{ICON["spark"]}<span>{esc(S["get_started"])}</span></a>'
@@ -599,12 +661,17 @@ def header(cur):
 def crumbs(cur):
     if cur is None:
         return ''
+    if isinstance(cur, AppPage):
+        return (f'<nav class="crumbs" aria-label="{esc(S["breadcrumb"])}"><ol><li><a href="index.html">{esc(S["home"])}</a></li>'
+                f'<li><a href="{cur.slug}.html" aria-current="page">{esc(cur.title_text)}</a></li></ol></nav>')
     glabel = dict(GROUPS)[cur.group]
     return (f'<nav class="crumbs" aria-label="{esc(S["breadcrumb"])}"><ol><li><a href="index.html">{esc(S["home"])}</a></li>'
             f'<li><span>{esc(glabel)}</span></li><li><a href="{cur.slug}.html" aria-current="page">{esc(cur.crumb)}</a></li></ol></nav>')
 
 
 def pager(cur):
+    if isinstance(cur, AppPage):
+        return ''
     i = order.index(cur)
     prv = order[i - 1] if i > 0 else None
     nxt = order[i + 1] if i + 1 < len(order) else None
@@ -639,11 +706,11 @@ SITE_DATA = json.dumps({k: S[k] for k in ('search', 'search_placeholder', 'searc
 
 def emit(cur, main_html, title_text):
     side, inline = page_toc(cur)
-    i = order.index(cur)
+    i = order.index(cur) if not isinstance(cur, AppPage) else -1
     links = []
     if i > 0:
         links.append(f'<link rel="prev" href="{order[i - 1].slug if order[i - 1] else "index"}.html">')
-    if i + 1 < len(order):
+    if 0 <= i and i + 1 < len(order):
         links.append(f'<link rel="next" href="{order[i + 1].slug}.html">')
     slug = cur.slug if cur else 'index'
     doc = PAGE_TPL.substitute(
@@ -720,6 +787,10 @@ for p in pages:
         lo, hi = PART_RANGE.get(p.slug, (23, 10 ** 6))
         lis = ''.join(f'<li><a href="{q.slug}.html">{q.nav_html}</a></li>' for q in pages if q.chap and lo <= q.chap < hi)
         extra = f'<ol class="part-list">{lis}</ol>'
+    if p.kind == 'chapter' and CARDS_BY_CH.get(p.chap):
+        extra += (f'<aside class="quiz-cta" aria-labelledby="qz-{p.chap}"><span class="hc-ic">{ICON["cards"]}</span><div><h2 id="qz-{p.chap}" class="qz-h">{esc(GM["s"]["ch_quiz"])}</h2>'
+                  f'<p>{esc(GM["s"]["ch_quiz_sub"].format(n=loc(CARDS_BY_CH[p.chap])))}</p></div>'
+                  f'<a class="btn primary" href="review.html?ch={p.chap}">{esc(GM["s"]["rv_start"])} {ICON["arrow"]}</a></aside>')
     main = f'<article class="content" id="top"><header class="page-head">{eyebrow}<h1>{p.title_html}</h1>{meta}</header>{"".join(str(c) for c in p.body.contents)}{extra}</article>'
     tt = (f'{p.eyebrow}: ' if p.kind in ('chapter', 'appendix') else '') + p.title_text + ' · ' + BOOK
     emit(p, main, tt)
@@ -779,7 +850,8 @@ stats = ('<div class="stats">' + ''.join(f'<div><b data-n="{n}">{loc(n)}</b><spa
                                          for n, k in ((len(CH), 'stat_ch'), (N_FIG, 'stat_fig'), (N_ALGO, 'stat_algo'), (nparts, 'stat_parts'))) + '</div>')
 rp = (f'<div class="rp" id="rp" hidden><div class="ring-wrap">{ring("big")}<b class="rp-pct"></b></div><div class="rp-body"><div class="rp-t">{esc(S["progress_title"])}</div>'
       f'<p class="rp-line"></p><div class="rp-acts"><a class="btn primary rp-cont" href="{first.slug}.html" hidden>{ICON["book"]}<span class="rp-ct">{esc(S["continue"])}</span> {ICON["arrow"]}</a>'
-      f'<button type="button" class="btn" data-open-my>{ICON["bookmark"]}{esc(S["my_reading"])}</button></div></div></div>')
+      f'<button type="button" class="btn" data-open-my>{ICON["bookmark"]}{esc(S["my_reading"])}</button></div>'
+      f'<a class="rp-game game" href="progress.html" hidden></a></div></div>')
 term = ('<div class="term" dir="ltr" aria-hidden="true"><div class="term-bar"><i></i><i></i><i></i><span>' + esc(S['term_label']) + '</span></div>'
         '<pre><span class="tp">$</span> ceph -s\n  cluster:\n    health: <span class="tok">HEALTH_OK</span>\n  services:\n    mon: 3 daemons, quorum a,b,c\n'
         '    osd: 36 osds: 36 up, 36 in\n    rgw: 3 daemons active\n  data:\n    pgs: <span class="tok">1024 active+clean</span></pre></div>')
@@ -798,6 +870,29 @@ home = f'''<article class="content home" id="top">
 <section class="hsec" aria-labelledby="contents"><div class="hsec-head"><h2 id="contents">{esc(S["contents"])}</h2></div>{"".join(grp)}</section>
 <section class="about" aria-labelledby="about-h"><h2 id="about-h">{esc(S["about"])}</h2>{about}</section></article>'''
 emit(None, home, BOOK)
+
+# gamification: app pages and data ---------------------------------------------
+GS = GM['s']
+NOSCRIPT = f'<noscript><p class="call note">{esc(GS["noscript"])}</p></noscript>'
+for _slug, _ap in APP_PAGES.items():
+    _main = (f'<article class="content app app-{_slug}" id="top"><header class="page-head"><h1>{esc(_ap.title_text)}</h1></header>{NOSCRIPT}'
+             f'<div id="gm-{_slug}" class="gm-root" aria-busy="true"><p class="gm-loading">{esc(GS["loading"])}</p></div></article>')
+    emit(_ap, _main, f'{_ap.title_text} · {BOOK}')
+PATHS = [(1, [1, 2, 4, 6, 7, 8]), (2, [1, 11, 12, 13, 20]), (3, [7, 19, 20, 17, 18, 21]), (4, [17, 8, 32, 18, 20]),
+         (5, [22, 14, 15, 23, 26]), (6, list(range(34, 43)))]
+PARTS_G = {1: range(1, 22), 2: range(22, 23), 3: range(23, 34), 4: range(34, 43)}
+game_data = {
+    'lang': LANG, 'other': OTHER, 'book': BOOK, 's': GS, 'levels': GM['levels'], 'badges': GM['badges'],
+    'paths': [{'k': k, 't': S[f'role{k}_t'], 'd': S[f'role{k}_d'], 'ch': [CH[n].slug for n in chs if n in CH]} for k, chs in PATHS],
+    'parts': {str(k): [CH[n].slug for n in r if n in CH] for k, r in PARTS_G.items()},
+    'chs': {CH[n].slug: n for n in CH}, 'chTitle': {str(n): TRACK[CH[n].slug][0] for n in CH},
+    'nAlgo': N_ALGO, 'nFig': N_FIG, 'gids': [g[0] for g in GLOSS], 'cardsByCh': {str(k): v for k, v in CARDS_BY_CH.items()},
+    'weekStart': 6 if LANG == 'fa' else 1, 'rest': [5] if LANG == 'fa' else [6, 0], 'wpm': WPM,
+}
+open(os.path.join(LOUT, 'game-data.js'), 'w', encoding='utf-8').write(
+    'window.__GAME__=' + json.dumps(game_data, ensure_ascii=False, separators=(',', ':')) + ';\n')
+open(os.path.join(LOUT, 'learn-data.js'), 'w', encoding='utf-8').write(
+    'window.__LEARN__=' + json.dumps({'cards': CARDS, 'gloss': GLOSS}, ensure_ascii=False, separators=(',', ':')) + ';\n')
 docs.insert(0, ['index.html', BOOK, '', text_of(frag(about))])
 open(os.path.join(LOUT, 'search-index.js'), 'w', encoding='utf-8').write(
     'window.__SEARCH_DOCS__=' + json.dumps(docs, ensure_ascii=False, separators=(',', ':')) + ';\n')

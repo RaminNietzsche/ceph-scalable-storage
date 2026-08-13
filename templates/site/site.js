@@ -257,6 +257,8 @@
   function openLb(img) {
     if (!lb) buildLb();
     lbReturn = img;
+    var fg = img.closest('figure');
+    emit('zoom', { id: (fg && fg.id) || img.getAttribute('src') });
     lbImg.src = img.dataset.zoom || img.currentSrc || img.src;
     lbImg.alt = img.alt;
     var cap = img.closest('figure') && img.closest('figure').querySelector('figcaption');
@@ -428,14 +430,28 @@
   function fmt(t, o) { return String(t || '').replace(/\{(\w+)\}/g, function (_, k) { return o[k] != null ? o[k] : ''; }); }
   function pct(n) { return LANG === 'fa' ? L(n) + '٪' : n + '%'; }
   function say(t) { if (live) { live.textContent = ''; setTimeout(function () { live.textContent = t; }, 30); } }
-  function blank() { return { v: 1, read: {}, max: {}, last: null, marks: [] }; }
-  function valid(o) { return o && o.v === 1 && typeof o.read === 'object' && Array.isArray(o.marks); }
+  /* schema: v1 = read/max/last/marks; v2 adds g (gamification state, owned by game.js). migrate() upgrades in place. */
+  var SCHEMA = 2;
+  function blank() { return { v: SCHEMA, read: {}, max: {}, last: null, marks: [], g: null }; }
+  function valid(o) { return o && (o.v === 1 || o.v === 2) && typeof o.read === 'object' && Array.isArray(o.marks); }
+  function migrate(o) {
+    o.max = o.max || {};
+    if (o.v === 1) { o.v = 2; o.g = null; }
+    if (!('g' in o)) o.g = null;
+    return o;
+  }
   function load() {
-    try { var o = JSON.parse(store.get(PKEY) || 'null'); if (valid(o)) { o.max = o.max || {}; return o; } } catch (e) { /* corrupt */ }
+    try { var o = JSON.parse(store.get(PKEY) || 'null'); if (valid(o)) return migrate(o); } catch (e) { /* corrupt */ }
     return blank();
   }
+  function emit(name, detail) { try { d.dispatchEvent(new CustomEvent('book:' + name, { detail: detail || {} })); } catch (e) { /* old browser */ } }
   var P = load();
   function save() { store.set(PKEY, JSON.stringify(P)); }
+  /* shared with game.js: always call get() (import/reset replace the object) */
+  window.BookStore = {
+    get: function () { return P; }, save: function () { save(); }, key: PKEY, lang: LANG, slug: SLUG, tracked: TRACKED,
+    pages: PAGES, say: function (t) { say(t); }, refresh: function () { refreshAll(); }
+  };
   var chapters = Object.keys(PAGES).filter(function (k) { return PAGES[k][2] > 0; });
   function setRing(svg, f) { if (svg) svg.style.setProperty('--p', String(Math.round(Math.max(0, Math.min(1, f)) * 100))); }
   function bookFrac() {
@@ -515,6 +531,7 @@
   function setRead(on, quiet) {
     if (on) P.read[SLUG] = Date.now(); else delete P.read[SLUG];
     save(); syncReadBtn(); paintLinks();
+    emit('read', { slug: SLUG, on: on });
     if (!quiet) say(on ? S.marked_read_msg : S.unmarked_read_msg);
     if (on && readBtn && !REDUCE) { readBtn.classList.remove('pop'); void readBtn.offsetWidth; readBtn.classList.add('pop'); }
   }
@@ -523,7 +540,7 @@
     readBtn.addEventListener('click', function () { var on = !P.read[SLUG]; userUnread = !on; setRead(on); });
   }
   function topHeading() {
-    var hs = $$('article.content h2[id], article.content h3[id]'), id = '';
+    var hs = $$('article.content h2[id]:not(.qz-h), article.content h3[id]'), id = '';
     for (var i = 0; i < hs.length; i++) { if (hs[i].getBoundingClientRect().top < 120) id = hs[i].id; else break; }
     return id;
   }
@@ -596,7 +613,7 @@
   }
   var headBtns = [];
   if (TRACKED) {
-    $$('article.content h2[id], article.content h3[id]').forEach(function (h) {
+    $$('article.content h2[id]:not(.qz-h), article.content h3[id]').forEach(function (h) {
       if (h.closest('.page-head')) return;
       var b = d.createElement('button');
       b.type = 'button'; b.className = 'hbm';
@@ -608,7 +625,7 @@
         e.preventDefault(); e.stopPropagation();
         var i = markIndex(SLUG, h.id);
         if (i >= 0) { P.marks.splice(i, 1); say(S.unbookmarked_msg); }
-        else { P.marks.unshift({ s: SLUG, id: h.id, t: headText(h), ts: Date.now() }); say(S.bookmarked_msg); }
+        else { P.marks.unshift({ s: SLUG, id: h.id, t: headText(h), ts: Date.now() }); say(S.bookmarked_msg); emit('mark', { n: P.marks.length }); }
         save(); syncHeadBtn(h, b); paintLinks(); renderMarks();
       });
     });
@@ -677,8 +694,7 @@
         try {
           var o = JSON.parse(rd.result), data = o && o.app === 'ceph-book-progress' ? o.data : o;
           if (!valid(data)) throw new Error('bad');
-          data.max = data.max || {};
-          P = data; save(); refreshAll(); say(S.import_ok);
+          P = migrate(data); save(); refreshAll(); say(S.import_ok); emit('replaced');
         } catch (e) { say(S.import_bad); }
         inp.value = '';
       };
@@ -686,7 +702,7 @@
     });
     $('[data-act="reset"]', my).addEventListener('click', function () {
       if (!confirm(S.reset_confirm)) return;
-      P = blank(); save(); refreshAll(); say(S.reset_ok);
+      P = blank(); save(); refreshAll(); say(S.reset_ok); emit('replaced');
     });
   }
   function refreshAll() {

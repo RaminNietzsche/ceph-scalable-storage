@@ -1,0 +1,346 @@
+# Gamification strings and tables for the web edition (tools/build_site.py -> <lang>/game-data.js, templates/site/game.js).
+# Design notes: docs/GAMIFICATION.md. Everything runs in the browser; nothing is sent anywhere.
+fa:
+  s:
+    my_progress: "پیشرفت من"
+    review_today: "مرور امروز"
+    review_page: "مرور و آزمونک"
+    cert_page: "گواهی پایان مسیر"
+    level: "سطح {n}"
+    xp: "{n} XP"
+    xp_plus: "+{n} XP"
+    to_next: "{n} XP تا سطح بعد"
+    max_level: "بالاترین سطح!"
+    streak: "{n} روز پیاپی"
+    streak_short: "{n} روز"
+    streak_title: "روند مطالعه"
+    best_streak: "بهترین: {n} روز"
+    freezes: "{n} یخ‌بند روند"
+    freeze_help: "هر ۵۰۰ XP یک یخ‌بند (حداکثر ۳). اگر روزی جا بماند، یخ‌بند خودکار روند را نگه می‌دارد."
+    freeze_used: "یخ‌بند روند {n} روز جاافتاده را پوشش داد؛ روندتان سر جایش است."
+    new_streak: "یک روند تازه شروع شد. هر روز یک قدم کافی است."
+    chip_label: "روند {s} روزه، سطح {l}: {t}"
+    goal_title: "هدف امروز"
+    goal_min: "{n} دقیقه مطالعه"
+    goal_sec: "{n} بخش"
+    goal_done: "هدف امروز انجام شد!"
+    goal_prog: "{a} از {b}"
+    goal_pick: "هدف روزانه"
+    rest_label: "آخر هفته‌ها روند را قطع نکند"
+    rest_help: "جمعه‌ها (در نسخه‌ی فارسی) روز استراحت حساب می‌شوند: مطالعه امتیاز دارد، ولی نخواندن روند را نمی‌شکند."
+    heat_title: "تقویم مطالعه"
+    heat_label: "{n} روز فعال در {w} هفته‌ی گذشته"
+    heat_less: "کمتر"
+    heat_more: "بیشتر"
+    heat_day: "{d}: {m} دقیقه"
+    heat_frozen: "{d}: با یخ‌بند حفظ شد"
+    stats_title: "آمار"
+    st_time: "زمان مطالعه"
+    st_chapters: "فصل خوانده‌شده"
+    st_sections: "بخش خوانده‌شده"
+    st_cards: "کارت مرورشده"
+    st_acc: "دقت آزمونک"
+    st_algo: "کادر الگوریتم دیده‌شده"
+    st_figs: "شکل بزرگ‌نمایی‌شده"
+    st_marks: "نشانه"
+    hm: "{h} ساعت و {m} دقیقه"
+    m_only: "{m} دقیقه"
+    next_title: "پیشنهاد بعدی"
+    next_ch: "بهترین فصل بعدی برای شما:"
+    next_review: "{n} کارت برای مرور امروز آماده است."
+    next_none: "همه‌ی فصل‌ها را خوانده‌اید. مرور کارت‌ها دانسته‌ها را تازه نگه می‌دارد."
+    go: "برو"
+    quests_title: "چالش‌های این هفته"
+    quests_sub: "هر چالش {n} XP؛ از شنبه دوباره چیده می‌شوند."
+    q_sec: "{n} بخش بخوانید"
+    q_ch: "{n} فصل را تمام کنید"
+    q_cards: "{n} کارت مرور کنید"
+    q_gd: "در {n} روز به هدف روزانه برسید"
+    q_mc: "به {n} پرسش آزمونک درست جواب دهید"
+    q_min: "{n} دقیقه مطالعه کنید"
+    q_algo: "{n} کادر الگوریتم را ببینید"
+    quest_done: "چالش انجام شد: {t}"
+    paths_title: "مسیرهای یادگیری"
+    paths_sub: "همان مسیرهای «از کجا شروع کنم؟»؛ با پایان هر مسیر گواهی چاپی می‌گیرید."
+    path_prog: "{r} از {n} فصل"
+    cert_get: "گواهی"
+    badges_title: "نشان‌ها"
+    badges_sub: "{a} از {b} نشان باز شده"
+    tier1: "برنز"
+    tier2: "نقره"
+    tier3: "طلا"
+    hidden: "نشان پنهان"
+    hidden_hint: "با کشف یک عادت خاص باز می‌شود."
+    locked: "قفل"
+    badge_new: "نشان تازه: {t} ({tier})"
+    level_up: "سطح {n}: {t}"
+    level_up_sub: "تبریک! به سطح تازه رسیدید."
+    settings_title: "تنظیمات"
+    set_game: "نمایش امتیاز، نشان و روند"
+    set_game_help: "اگر خاموش باشد، همه‌ی عناصر بازی‌وار پنهان می‌شوند؛ پیشرفت مطالعه و مرور کارت‌ها همچنان کار می‌کنند."
+    set_sound: "صدای کوتاه برای امتیاز و نشان"
+    set_reset: "پاک کردن داده‌های بازی"
+    set_reset_confirm: "امتیاز، نشان‌ها، روند، چالش‌ها و برنامه‌ی مرور کارت‌ها پاک شود؟ فصل‌های خوانده‌شده و نشانه‌ها می‌مانند."
+    set_reset_ok: "داده‌های بازی پاک شد."
+    set_note: "همه‌چیز فقط در همین مرورگر ذخیره می‌شود. خروجی JSON پنل «مطالعه‌ی من» داده‌های بازی را هم دارد."
+    game_off: "عناصر بازی‌وار خاموش است."
+    on: "روشن"
+    off: "خاموش"
+    rv_tab_today: "مرور امروز"
+    rv_tab_ch: "فلش‌کارت فصل"
+    rv_tab_quiz: "آزمونک واژه‌نامه"
+    rv_due: "{n} کارت آماده"
+    rv_empty: "امروز کارتی برای مرور نمانده. فصل تازه‌ای بخوانید یا واژه‌نامه را به مرور اضافه کنید."
+    rv_gloss: "واژه‌نامه را هم در مرور روزانه بیاور (روزی تا ۱۰ واژه‌ی تازه)"
+    rv_pick_ch: "فصل"
+    rv_no_cards: "برای این فصل هنوز پرسش مروری در این نسخه نیست."
+    rv_show: "نمایش پاسخ"
+    rv_again: "دوباره"
+    rv_hard: "سخت بود"
+    rv_good: "بلد بودم"
+    rv_keys: "میان‌بر: فاصله برای نمایش پاسخ، ۱ ۲ ۳ برای امتیاز"
+    rv_count: "کارت {i} از {n}"
+    rv_src: "منبع: پیوست پاسخ‌ها، فصل {n}"
+    rv_src_g: "منبع: واژه‌نامه"
+    rv_done: "پایان این دور: {n} کارت مرور شد."
+    rv_again_round: "دور دیگر"
+    rv_start: "شروع"
+    rv_box: "جعبه‌ی {n} از ۶"
+    qz_q_def: "کدام توضیح مربوط به «{t}» است؟"
+    qz_q_term: "این توضیح مربوط به کدام اصطلاح است؟"
+    qz_ok: "درست است!"
+    qz_bad: "نه؛ پاسخ درست مشخص شده است."
+    qz_next: "پرسش بعدی"
+    qz_count: "پرسش {i} از {n}"
+    qz_done: "پایان آزمونک: {a} از {n} درست."
+    qz_keys: "میان‌بر: ۱ تا ۴ برای انتخاب، Enter برای پرسش بعدی"
+    qz_need: "برای آزمونک دست‌کم ۴ اصطلاح لازم است."
+    ch_quiz: "آزمونک این فصل"
+    ch_quiz_sub: "{n} کارت از پرسش‌های مرور همین فصل، با پاسخ‌های پیوست؛ خودتان را بسنجید."
+    cert_name: "نام شما روی گواهی"
+    cert_name_help: "نام فقط در همین مرورگر می‌ماند."
+    cert_print: "چاپ یا ذخیره به‌صورت PDF"
+    cert_head: "گواهی پایان مسیر یادگیری"
+    cert_body: "گواهی می‌شود که {name} مسیر «{path}» از کتاب «{book}» را با خواندن {n} فصل به پایان رسانده است."
+    cert_date: "تاریخ: {d}"
+    cert_level: "سطح در زمان صدور: {l}"
+    cert_note: "این گواهی در مرورگر خود خواننده و بدون هیچ سرور یا ثبت مرکزی ساخته شده است."
+    cert_incomplete: "هنوز این مسیر کامل نشده است. فصل‌های باقی‌مانده:"
+    cert_pick: "یک مسیر را انتخاب کنید:"
+    someone: "خواننده‌ی این کتاب"
+    welcome_back: "خوش برگشتید! از همان‌جا که بودید ادامه دهید."
+    loading: "در حال بارگذاری…"
+    noscript: "این صفحه برای کار به جاوااسکریپت نیاز دارد؛ همه‌چیز آفلاین و در مرورگر شما اجرا می‌شود."
+  levels:
+    - [0, "کلاینت"]
+    - [100, "شیء"]
+    - [250, "گروه جایگذاری (PG)"]
+    - [500, "OSD"]
+    - [850, "مانیتور (MON)"]
+    - [1300, "مدیر (MGR)"]
+    - [1900, "دروازه‌ی RGW"]
+    - [2700, "نگهبان BlueStore"]
+    - [3700, "استاد Erasure Code"]
+    - [5000, "نگهبان حد نصاب Paxos"]
+    - [6500, "ناخدای کلاستر"]
+    - [8500, "معمار CRUSH"]
+  badges:
+    reader: ["کتاب‌خوان", "فصل‌ها را تا پایان بخوانید."]
+    sections: ["بخش‌به‌بخش", "بخش‌ها را با دقت بخوانید."]
+    hours: ["وقت‌گذار", "ساعت‌های مطالعه را جمع کنید."]
+    streak: ["پیوسته", "روزهای پیاپی به هدف روزانه برسید."]
+    algo: ["شکارچی الگوریتم", "کادرهای الگوریتم را ببینید."]
+    figs: ["کاوشگر شکل", "شکل‌ها را بزرگ‌نمایی کنید."]
+    cards: ["مرورکننده", "کارت‌های مرور را پاسخ دهید."]
+    quiz: ["استاد آزمونک", "به پرسش‌های آزمونک درست جواب دهید."]
+    gloss: ["واژه‌دان", "اصطلاح‌ها را در مرور به جعبه‌ی ۴ برسانید."]
+    marks: ["نشانه‌گذار", "بخش‌های مهم را نشانه بگذارید."]
+    xp: ["پرانرژی", "XP جمع کنید."]
+    goals: ["هدف‌مند", "در روزهای بیشتری به هدف روزانه برسید."]
+    part1: ["مبانی و راهبری", "همه‌ی فصل‌های بخش اول را تمام کنید."]
+    part2: ["معمار کد", "فصل معماری کد را تمام کنید."]
+    part3: ["غواص لایه‌های پایین", "همه‌ی فصل‌های بخش سوم را تمام کنید."]
+    part4: ["متخصص RADOS، RBD و RGW", "همه‌ی فصل‌های بخش تخصصی را تمام کنید."]
+    path1: ["مسیرپیما", "یک مسیر یادگیری را کامل کنید."]
+    pathall: ["همه‌ی مسیرها", "هر شش مسیر یادگیری را کامل کنید."]
+    reviewclear: ["صندوق خالی", "صف مرور امروز را با دست‌کم ۱۰ کارت تمام کنید."]
+    night: ["جغد شب", "بین نیمه‌شب تا ۴ صبح مطالعه کنید."]
+    early: ["سحرخیز", "بین ۵ تا ۷ صبح مطالعه کنید."]
+    weekend: ["جمعه‌خوان", "در روز استراحت دست‌کم ۱۰ دقیقه مطالعه کنید."]
+    comeback: ["بازگشت", "پس از دست‌کم یک هفته دوری، دوباره برگردید."]
+    deep: ["غرق در متن", "در یک روز ۶۰ دقیقه مطالعه کنید."]
+    perfect: ["بی‌خطا", "۱۰ پرسش آزمونک را پشت سر هم درست جواب دهید."]
+    polyglot: ["دوزبانه", "در هر دو نسخه‌ی فارسی و انگلیسی مطالعه کنید."]
+    freeze: ["یخ‌بند به‌موقع", "یک یخ‌بند روندتان را نجات دهد."]
+en:
+  s:
+    my_progress: "My progress"
+    review_today: "Today's review"
+    review_page: "Review & quizzes"
+    cert_page: "Path certificate"
+    level: "Level {n}"
+    xp: "{n} XP"
+    xp_plus: "+{n} XP"
+    to_next: "{n} XP to the next level"
+    max_level: "Top level!"
+    streak: "{n}-day streak"
+    streak_short: "{n} d"
+    streak_title: "Streak"
+    best_streak: "Best: {n} days"
+    freezes: "{n} streak freezes"
+    freeze_help: "One freeze per 500 XP (up to 3). If you miss a day, a freeze keeps your streak automatically."
+    freeze_used: "A streak freeze covered {n} missed day(s); your streak is intact."
+    new_streak: "A new streak has started. One small step a day is enough."
+    chip_label: "{s}-day streak, level {l}: {t}"
+    goal_title: "Today's goal"
+    goal_min: "{n} min of reading"
+    goal_sec: "{n} section"
+    goal_done: "Today's goal is done!"
+    goal_prog: "{a} of {b}"
+    goal_pick: "Daily goal"
+    rest_label: "Weekends don't break the streak"
+    rest_help: "Saturdays and Sundays count as rest days: reading still earns XP, but skipping them never breaks a streak."
+    heat_title: "Reading calendar"
+    heat_label: "{n} active days in the last {w} weeks"
+    heat_less: "Less"
+    heat_more: "More"
+    heat_day: "{d}: {m} min"
+    heat_frozen: "{d}: kept by a freeze"
+    stats_title: "Stats"
+    st_time: "Time reading"
+    st_chapters: "Chapters read"
+    st_sections: "Sections read"
+    st_cards: "Cards reviewed"
+    st_acc: "Quiz accuracy"
+    st_algo: "Algorithm boxes seen"
+    st_figs: "Figures zoomed"
+    st_marks: "Bookmarks"
+    hm: "{h} h {m} min"
+    m_only: "{m} min"
+    next_title: "Up next"
+    next_ch: "Best next chapter for you:"
+    next_review: "{n} cards are ready for today's review."
+    next_none: "You have read every chapter. Reviewing cards keeps it fresh."
+    go: "Go"
+    quests_title: "This week's challenges"
+    quests_sub: "{n} XP each; a new set every Monday."
+    q_sec: "Read {n} sections"
+    q_ch: "Finish {n} chapters"
+    q_cards: "Review {n} cards"
+    q_gd: "Meet your daily goal on {n} days"
+    q_mc: "Answer {n} quiz questions correctly"
+    q_min: "Read for {n} minutes"
+    q_algo: "See {n} algorithm boxes"
+    quest_done: "Challenge done: {t}"
+    paths_title: "Learning paths"
+    paths_sub: "The same paths as \"Where to start\"; finishing one gives you a printable certificate."
+    path_prog: "{r} of {n} chapters"
+    cert_get: "Certificate"
+    badges_title: "Badges"
+    badges_sub: "{a} of {b} badges unlocked"
+    tier1: "Bronze"
+    tier2: "Silver"
+    tier3: "Gold"
+    hidden: "Hidden badge"
+    hidden_hint: "Unlocks when you discover a particular habit."
+    locked: "Locked"
+    badge_new: "New badge: {t} ({tier})"
+    level_up: "Level {n}: {t}"
+    level_up_sub: "Congratulations, you reached a new level."
+    settings_title: "Settings"
+    set_game: "Show XP, badges and streaks"
+    set_game_help: "When off, every game element is hidden; reading progress and card review keep working."
+    set_sound: "Tiny sounds for XP and badges"
+    set_reset: "Reset game data"
+    set_reset_confirm: "Clear XP, badges, streak, challenges and the card review schedule? Read chapters and bookmarks stay."
+    set_reset_ok: "Game data cleared."
+    set_note: "Everything is stored only in this browser. The JSON export in \"My reading\" includes the game data."
+    game_off: "Game elements are switched off."
+    on: "On"
+    off: "Off"
+    rv_tab_today: "Today's review"
+    rv_tab_ch: "Chapter flashcards"
+    rv_tab_quiz: "Glossary quiz"
+    rv_due: "{n} cards ready"
+    rv_empty: "Nothing left to review today. Read a new chapter or add the glossary to your reviews."
+    rv_gloss: "Include the glossary in daily review (up to 10 new terms a day)"
+    rv_pick_ch: "Chapter"
+    rv_no_cards: "This edition has no review questions for this chapter yet."
+    rv_show: "Show answer"
+    rv_again: "Again"
+    rv_hard: "Hard"
+    rv_good: "Knew it"
+    rv_keys: "Keys: Space shows the answer, 1 2 3 rate it"
+    rv_count: "Card {i} of {n}"
+    rv_src: "Source: answers appendix, chapter {n}"
+    rv_src_g: "Source: glossary"
+    rv_done: "Round finished: {n} cards reviewed."
+    rv_again_round: "Another round"
+    rv_start: "Start"
+    rv_box: "Box {n} of 6"
+    qz_q_def: "Which definition belongs to \"{t}\"?"
+    qz_q_term: "Which term does this definition describe?"
+    qz_ok: "Correct!"
+    qz_bad: "Not quite; the right answer is highlighted."
+    qz_next: "Next question"
+    qz_count: "Question {i} of {n}"
+    qz_done: "Quiz finished: {a} of {n} correct."
+    qz_keys: "Keys: 1 to 4 to choose, Enter for the next question"
+    qz_need: "The quiz needs at least 4 glossary terms."
+    ch_quiz: "Chapter quiz"
+    ch_quiz_sub: "{n} cards from this chapter's review questions, with the appendix answers; check yourself."
+    cert_name: "Your name on the certificate"
+    cert_name_help: "The name stays in this browser."
+    cert_print: "Print or save as PDF"
+    cert_head: "Learning path certificate"
+    cert_body: "This certifies that {name} has completed the \"{path}\" path of \"{book}\" by reading {n} chapters."
+    cert_date: "Date: {d}"
+    cert_level: "Level when issued: {l}"
+    cert_note: "Generated in the reader's own browser, without any server or central registry."
+    cert_incomplete: "This path is not complete yet. Chapters left:"
+    cert_pick: "Pick a path:"
+    someone: "A reader of this book"
+    welcome_back: "Welcome back! Pick up where you left off."
+    loading: "Loading…"
+    noscript: "This page needs JavaScript; it runs offline, entirely in your browser."
+  levels:
+    - [0, "Client"]
+    - [100, "Object"]
+    - [250, "Placement Group"]
+    - [500, "OSD"]
+    - [850, "Monitor"]
+    - [1300, "Manager"]
+    - [1900, "RADOS Gateway"]
+    - [2700, "BlueStore Keeper"]
+    - [3700, "Erasure-Code Adept"]
+    - [5000, "Paxos Quorum Keeper"]
+    - [6500, "Cluster Captain"]
+    - [8500, "CRUSH Architect"]
+  badges:
+    reader: ["Bookworm", "Finish chapters to the end."]
+    sections: ["Section by section", "Read sections carefully."]
+    hours: ["Time well spent", "Add up hours of reading."]
+    streak: ["Steady", "Meet your daily goal on consecutive days."]
+    algo: ["Algorithm hunter", "See the algorithm boxes."]
+    figs: ["Figure explorer", "Zoom into figures."]
+    cards: ["Reviewer", "Answer review cards."]
+    quiz: ["Quiz master", "Answer quiz questions correctly."]
+    gloss: ["Wordsmith", "Bring glossary terms to box 4 in review."]
+    marks: ["Bookmarker", "Bookmark important sections."]
+    xp: ["Energised", "Collect XP."]
+    goals: ["Goal-getter", "Meet your daily goal on more days."]
+    part1: ["Foundations and operations", "Finish every chapter of Part I."]
+    part2: ["Code architect", "Finish the code architecture chapter."]
+    part3: ["Deep diver", "Finish every chapter of Part III."]
+    part4: ["RADOS, RBD and RGW specialist", "Finish every chapter of the specialist part."]
+    path1: ["Pathfinder", "Complete one learning path."]
+    pathall: ["Every path", "Complete all six learning paths."]
+    reviewclear: ["Inbox zero", "Clear today's review queue with at least 10 cards."]
+    night: ["Night owl", "Read between midnight and 4 a.m."]
+    early: ["Early bird", "Read between 5 and 7 a.m."]
+    weekend: ["Weekend reader", "Read at least 10 minutes on a rest day."]
+    comeback: ["Comeback", "Return after at least a week away."]
+    deep: ["Deep focus", "Read 60 minutes in a single day."]
+    perfect: ["Flawless", "Answer 10 quiz questions correctly in a row."]
+    polyglot: ["Bilingual", "Read in both the Persian and the English edition."]
+    freeze: ["Saved by the freeze", "Let a streak freeze rescue your streak."]

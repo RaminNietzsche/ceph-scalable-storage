@@ -25,6 +25,7 @@ config:
 globs:
   - "content/**/*.md"
   - "*.md"
+  - "docs/**/*.md"
 ignores:
   - "build/**"
   - "dist/**"

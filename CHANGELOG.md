@@ -16,6 +16,19 @@ restructures the book.
 - New slate/cyan/emerald/indigo palette for light and dark themes; own CSS and SVG icons.
 - `tools/shoot_site.py` skips the lightbox step on chapters without figures (pending English chapters) and records it as a note.
 
+### Gamification (web edition)
+
+- Optional game layer designed around Self-Determination Theory and the "white hat" Octalysis drives, without dark patterns; see `docs/GAMIFICATION.md` (principles, mechanics, references).
+- XP for validated section reading (time on screen plus scrolling to the end, activity and visibility checks, daily caps), finished chapters, flashcards, quiz answers, algorithm boxes, daily goals, weekly challenges and badges; 12 Ceph-themed levels from «کلاینت» to «معمار CRUSH» with a reduced-motion-safe level-up celebration.
+- Daily goal (10/20/30 minutes or one section), streak with automatic streak freezes (earned by XP, used only when they cover a whole gap) and rest days on by default; GitHub-style reading heatmap that runs right to left in Persian.
+- 27 badges (12 tiered bronze/silver/gold, 7 single, 8 hidden) with a gallery that shows progress toward locked tiers.
+- `review.html`: flashcards from each chapter's review questions and the answers appendix, a multiple-choice glossary quiz (options drawn only from the glossary), and Leitner spaced repetition (6 boxes) with a «مرور امروز» queue; chapter pages end with a chapter quiz card.
+- `progress.html` dashboard «پیشرفت من»: level and XP bar, streak and freezes, today's goal, heatmap, stats, next-best-chapter nudge, weekly challenges, learning paths (the home page's six paths) and badges; settings to hide all game elements, enable tiny WebAudio sounds (off by default), choose the goal and rest days, and reset game data.
+- `certificate.html?p=N`: printable path certificate with a name kept only in the browser.
+- Header streak/level chip, subtle toasts in an ARIA live region; print hides all game UI.
+- Progress record schema v2 with migration from v1; JSON export/import includes the game state.
+- `tools/shoot_site.py` seeds a history and checks/shoots the dashboard, heatmap, badges, flashcards, quiz, level-up toast, chapter quiz card and certificate.
+
 ### Reading progress and motion (web edition)
 
 - Reading-progress bar under the header on every page; back-to-top button with a progress ring.
