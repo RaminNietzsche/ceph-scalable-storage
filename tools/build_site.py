@@ -186,6 +186,52 @@ def code_block(div):
                 f'<pre dir="ltr" tabindex="0"><code class="hl">{body}</code></pre></div>')
 
 
+# ---------------------------------------------------------------- simulators
+# templates/site/sims: the interactive lab. The chapters carry <div class="sim-slot" data-sim="NAME">
+# (from ::: {.sim name="NAME"}); sims.js mounts the live simulator there and the static figure made
+# by tools/sim_fallback.js (the same view code, run in node) is what print and no-JS readers see.
+SIMDIR = os.path.join(TPL, 'sims')
+SIMY = yaml.safe_load(open(os.path.join(SIMDIR, f'strings-{LANG}.yaml'), encoding='utf-8'))
+SIM_PARTS = ['crush-ln-table.js', 'sim-core.js', 'sims.js', 'sim-crush.js', 'sim-calc.js', 'sim-peering.js', 'sim-flow.js', 'sim-striping.js', 'sim-ui.js']
+SIM_NAMES = ['crush', 'pgcalc', 'ecprofile', 'peering', 'bluestore', 'rgwput', 'striping']
+SIM_WHERE = {n: [] for n in SIM_NAMES}   # name -> [(page, section id, section title)]
+
+
+def sim_fallbacks():
+    node = shutil.which('node')
+    if not node:
+        print('build_site: node not found; simulators get a text-only fallback', file=sys.stderr)
+        return {'html': {}, 'icon': {}}
+    r = subprocess.run([node, os.path.join(ROOT, 'tools', 'sim_fallback.js')], input=json.dumps({'lang': LANG, 'strings': SIMY, 'names': SIM_NAMES}),
+                       capture_output=True, text=True, check=True)
+    return json.loads(r.stdout)
+
+
+SIMFB = sim_fallbacks()
+
+
+def sim_icon(name):
+    d = SIMFB['icon'].get(name, 'M4 4h16v16H4z')
+    return f'<svg class="sim-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="{d}"/></svg>'
+
+
+def sim_slot_html(name):
+    inner = SIMFB['html'].get(name) or f'<div class="sim-head">{sim_icon(name)}<div class="sim-ttl"><h3>{esc(SIMY[name + "_t"])}</h3></div></div><p class="sim-sub">{esc(SIMY[name + "_d"])}</p>'
+    return (f'<div class="sim-slot" data-sim="{name}" data-href="lab-{name}.html"><figure class="sim-fallback"><div class="sim sim-{name} sim-static">{inner}</div>'
+            f'<figcaption class="sim-cap">{esc(SIMY["static_note"])} <a href="lab-{name}.html">{esc(SIMY["lab_title"])}: {esc(SIMY[name + "_t"])}</a></figcaption></figure></div>')
+
+
+def decorate_sims(body, page):
+    for div in body.select('div.sim-slot'):
+        name = div.get('data-sim', '')
+        if name not in SIM_WHERE:
+            sys.exit(f'build_site: unknown simulator "{name}" in {page.slug}')
+        h = div.find_previous(['h2', 'h3'])
+        SIM_WHERE[name].append((page, h.get('id', '') if h else '', text_of(frag(heading_inner(h))) if h else page.title_text))
+        page.sims = getattr(page, 'sims', []) + [name]
+        div.replace_with(frag(sim_slot_html(name)).find('div'))
+
+
 # ---------------------------------------------------------------- pages
 pages = []          # ordered
 ids = {}            # any id (old or new) -> (slug, new id)
@@ -298,6 +344,7 @@ def decorate(body, page):
         for p_ in body.select('p.ansref'):
             p_.append(' ')
             p_.append(frag(f'<a class="anslink" href="answers.html#answers-{page.chap:02d}">{esc(S["answers_link"])} →</a>'))
+    decorate_sims(body, page)
 
 
 # front matter ---------------------------------------------------------------
@@ -453,6 +500,14 @@ open(os.path.join(ASSETS, 'fonts', 'README.txt'), 'w', encoding='utf-8').write(
     '(openfontlicense.org). They are not covered by the book\'s CC BY-NC-SA 4.0 licence.\n')
 for f in ('site.css', 'site.js', 'game.js'):
     shutil.copy2(os.path.join(TPL, f), os.path.join(ASSETS, f))
+shutil.copy2(os.path.join(SIMDIR, 'sims.css'), os.path.join(ASSETS, 'sims.css'))
+with open(os.path.join(ASSETS, 'sims.js'), 'w', encoding='utf-8') as _f:
+    _f.write('/* The interactive lab of "Ceph: Scalable Storage", concatenated from templates/site/sims by tools/build_site.py.\n'
+             ' * crush-ln-table.js is LGPL-2.1 data from Ceph (see NOTICE.md); the rest is CC BY-NC-SA 4.0. */\n')
+    for _part in SIM_PARTS:
+        _f.write(f'\n/* ---- {_part} ---- */\n' + open(os.path.join(SIMDIR, _part), encoding='utf-8').read())
+open(os.path.join(LOUT, 'sim-data.js'), 'w', encoding='utf-8').write(
+    'window.__SIMS__=' + json.dumps({'lang': LANG, 's': SIMY}, ensure_ascii=False, separators=(',', ':')) + ';\n')
 light = HtmlFormatter(style='friendly').get_style_defs('html:not([data-theme="dark"]) .hl')
 dark = HtmlFormatter(style='github-dark').get_style_defs('html[data-theme="dark"] .hl')
 drop_bg = lambda css: '\n'.join(l for l in css.split('\n') if not re.match(r'^\S.*\.hl \{ background', l) and 'pre {' not in l and '.hll' not in l and 'linenos' not in l and not l.startswith('td.') and not l.startswith('span.linenos'))  # noqa: E731
@@ -494,6 +549,7 @@ ICON = {
     'flame': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2.2-4.8.2 1.6 1 2.6 2 3 0-3 .3-5.6.8-8.2z"/></svg>',
     'book': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z"/><path d="M4 19a2 2 0 0 1 2-2h13"/></svg>',
 }
+ICON['flask'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6l-5.6 9.6A1.6 1.6 0 0 0 5.8 21h12.4a1.6 1.6 0 0 0 1.4-2.4L14 9V3M7.2 15h9.6"/></svg>'
 GROUPS = [('front', S['front']), ('chapters', S['chapters']), ('appendices', S['appendices']), ('lists', S['lists'])]
 order = [None] + pages  # None = home
 
@@ -617,7 +673,8 @@ def sidebar(cur):
     acur = lambda k: ' aria-current="page"' if getattr(cur, 'slug', None) == k else ''  # noqa: E731
     out.append(f'<ul class="sb-list"><li><a class="sb-link" href="index.html"{homecur}>{esc(S["home"])}</a></li>'
                f'<li><a class="sb-link app" href="progress.html"{acur("progress")}>{ICON["trophy"]}<span>{esc(GM["s"]["my_progress"])}</span></a></li>'
-               f'<li><a class="sb-link app" href="review.html"{acur("review")}>{ICON["cards"]}<span>{esc(GM["s"]["review_today"])}</span><span class="sb-due" data-due hidden></span></a></li></ul>')
+               f'<li><a class="sb-link app" href="review.html"{acur("review")}>{ICON["cards"]}<span>{esc(GM["s"]["review_today"])}</span><span class="sb-due" data-due hidden></span></a></li>'
+               f'<li><a class="sb-link app" href="lab.html"{acur("lab")}>{ICON["flask"]}<span>{esc(SIMY["lab_title"])}</span></a></li></ul>')
     for g, label in GROUPS:
         out.append(f'<div class="sb-group">{esc(label)}</div><ul class="sb-list">')
         for p in pages:
@@ -713,7 +770,10 @@ def emit(cur, main_html, title_text):
     if 0 <= i and i + 1 < len(order):
         links.append(f'<link rel="next" href="{order[i + 1].slug}.html">')
     slug = cur.slug if cur else 'index'
-    doc = PAGE_TPL.substitute(
+    has_sims = bool(getattr(cur, 'sims', None))
+    head_extra = '<link rel="stylesheet" href="../assets/sims.css">' if has_sims or cur is None or slug == 'lab' else ''
+    scripts_extra = '<script src="sim-data.js" defer></script>\n<script src="../assets/sims.js" defer></script>' if has_sims else ''
+    doc = PAGE_TPL.substitute(head_extra=head_extra, scripts_extra=scripts_extra,
         lang=LANG, dir=DIR, other=OTHER, slug=slug, title=esc(title_text), book=esc(BOOK),
         links='\n'.join(links), site_data=SITE_DATA.replace('</', '<\\/'),
         skip=esc(S['skip']), header=header(cur), sidebar=sidebar(cur), crumbs=crumbs(cur),
@@ -739,7 +799,7 @@ if LANG == 'en':
         for t in list(body.find_all(string=True)):
             if type(t) is not NavigableString or not t.strip():
                 continue
-            if t.find_parent(SKIP) or t.find_parent(class_=['url', 'code', 'hanchor', 'term', 'cmd', 'src']):
+            if t.find_parent(SKIP) or t.find_parent(class_=['url', 'code', 'hanchor', 'term', 'cmd', 'src', 'sim-slot']):
                 continue
             new_t = _word.sub(lambda m: m.group(0) if any(c.isupper() for c in m.group(0)[1:]) else _dic.inserted(m.group(0), hyphen='\u00ad'), str(t))
             if new_t != str(t):
@@ -766,7 +826,7 @@ def index_docs(p):
             continue
         if type(el) is not NavigableString:
             continue
-        if el.find_parent(['h2', 'h3']) or el.find_parent(class_='hanchor') or el.find_parent(class_='code-head'):
+        if el.find_parent(['h2', 'h3']) or el.find_parent(class_='hanchor') or el.find_parent(class_='code-head') or el.find_parent(class_='sim-slot'):
             continue
         state['buf'].append(str(el).replace('\u200f', ''))
     flush()
@@ -855,6 +915,7 @@ rp = (f'<div class="rp" id="rp" hidden><div class="ring-wrap">{ring("big")}<b cl
 term = ('<div class="term" dir="ltr" aria-hidden="true"><div class="term-bar"><i></i><i></i><i></i><span>' + esc(S['term_label']) + '</span></div>'
         '<pre><span class="tp">$</span> ceph -s\n  cluster:\n    health: <span class="tok">HEALTH_OK</span>\n  services:\n    mon: 3 daemons, quorum a,b,c\n'
         '    osd: 36 osds: 36 up, 36 in\n    rgw: 3 daemons active\n  data:\n    pgs: <span class="tok">1024 active+clean</span></pre></div>')
+LAB_CARDS = ''.join(f'<a class="lab-card" href="lab-{n}.html">{sim_icon(n)}<b>{esc(SIMY[n + "_t"])}</b><span>{esc(SIMY[n + "_d"])}</span></a>' for n in SIM_NAMES)
 home = f'''<article class="content home" id="top">
 <section class="hero"><div class="hero-text">
 <div class="hbadge"><span class="pulse" aria-hidden="true"></span>{esc(S["badge"].format(v=loc(META["version_display"])))}</div>
@@ -866,6 +927,7 @@ home = f'''<article class="content home" id="top">
 <p class="byline">{esc(S["written_by"])}</p><p class="meta">{esc(S["version"])} {esc(loc(META["version_display"]))} · {esc(META["date_display"])}<br>{esc(S["basis"])}: <span dir="auto">{esc(META["technical_basis"])}</span></p></div>
 <div class="hero-art"><div class="glow" aria-hidden="true"></div><img class="cover" src="../assets/cover.{LANG}.webp" width="{COVER_WH[0]}" height="{COVER_WH[1]}" alt="{esc(BOOK)}">{term}</div></section>
 <section class="hsec" id="get-started" aria-labelledby="gs-h"><div class="hsec-head"><h2 id="gs-h">{esc(S["gs_title"])}</h2><p>{esc(S["gs_sub"])}</p></div><div class="hgrid roles">{"".join(gs_cards)}</div></section>
+<section class="hsec" id="lab" aria-labelledby="lab-h"><div class="hsec-head"><h2 id="lab-h">{esc(SIMY["lab_title"])}</h2><p>{esc(SIMY["lab_intro"])}</p></div><div class="lab-grid">{LAB_CARDS}</div><p><a class="btn" href="lab.html">{ICON["flask"]}{esc(SIMY["lab_title"])} {ICON["arrow"]}</a></p></section>
 <section class="hsec" id="parts" aria-labelledby="parts-h"><div class="hsec-head"><h2 id="parts-h">{esc(S["parts_title"])}</h2><p>{esc(S["parts_sub"])}</p></div><div class="hgrid parts">{"".join(part_cards)}</div></section>
 <section class="hsec" aria-labelledby="contents"><div class="hsec-head"><h2 id="contents">{esc(S["contents"])}</h2></div>{"".join(grp)}</section>
 <section class="about" aria-labelledby="about-h"><h2 id="about-h">{esc(S["about"])}</h2>{about}</section></article>'''
@@ -878,6 +940,32 @@ for _slug, _ap in APP_PAGES.items():
     _main = (f'<article class="content app app-{_slug}" id="top"><header class="page-head"><h1>{esc(_ap.title_text)}</h1></header>{NOSCRIPT}'
              f'<div id="gm-{_slug}" class="gm-root" aria-busy="true"><p class="gm-loading">{esc(GS["loading"])}</p></div></article>')
     emit(_ap, _main, f'{_ap.title_text} · {BOOK}')
+# the interactive lab: an index page and one full page per simulator ---------------
+# an edition whose chapters are still pending has no slots; its lab pages then point at the chapters from the source
+for _n, _l in [(n, l) for n in SIM_WHERE if not SIM_WHERE[n] for l in [None]]:
+    for _ch, _f in sorted(CHFILES.items()):
+        if f'.sim name="{_n}"' in open(_f, encoding='utf-8').read() and _ch in CH:
+            SIM_WHERE[_n].append((CH[_ch], '', CH[_ch].title_text))
+
+
+def lab_where(name):
+    return SIMY['lab_in'] + ' ' + UI['list_sep'].join(f'<a href="{pg.slug}.html' + (f'#{sid}' if sid else '') + f'">{esc(pg.nav_text if not pg.chap else f"{UI["chapter_word"]} {loc(pg.chap)}")}</a>'
+                                                      for pg, sid, _ in SIM_WHERE[name])
+
+
+LAB = AppPage('lab', SIMY['lab_title'])
+_cards = ''.join(f'<a class="lab-card" href="lab-{n}.html">{sim_icon(n)}<b>{esc(SIMY[n + "_t"])}</b><span>{esc(SIMY[n + "_d"])}</span>'
+                 f'<small>{esc(SIMY["lab_in"])} {esc(UI["list_sep"].join((f"{UI["chapter_word"]} {loc(pg.chap)}" if pg.chap else pg.nav_text) for pg, _, _ in SIM_WHERE[n]))}</small></a>'
+                 for n in SIM_NAMES)
+emit(LAB, f'<article class="content app app-lab" id="top"><header class="page-head"><h1>{esc(LAB.title_text)}</h1></header>'
+          f'<p class="lead">{esc(SIMY["lab_intro"])}</p><div class="lab-grid">{_cards}</div></article>', f'{LAB.title_text} · {BOOK}')
+for n in SIM_NAMES:
+    _ap = AppPage(f'lab-{n}', SIMY[n + '_t'])
+    _ap.sims = [n]
+    _ap.crumb = _ap.title_text
+    emit(_ap, f'<article class="content app app-sim" id="top"><header class="page-head"><div class="eyebrow"><a href="lab.html">{esc(SIMY["lab_title"])}</a></div>'
+              f'<h1>{esc(_ap.title_text)}</h1></header><p class="lab-in">{lab_where(n)}</p>{sim_slot_html(n)}'
+              f'<noscript><p class="call note">{esc(SIMY["noscript"])}</p></noscript></article>', f'{_ap.title_text} · {SIMY["lab_title"]} · {BOOK}')
 PATHS = [(1, [1, 2, 4, 6, 7, 8]), (2, [1, 11, 12, 13, 20]), (3, [7, 19, 20, 17, 18, 21]), (4, [17, 8, 32, 18, 20]),
          (5, [22, 14, 15, 23, 26]), (6, list(range(34, 43)))]
 PARTS_G = {1: range(1, 22), 2: range(22, 23), 3: range(23, 34), 4: range(34, 43)}

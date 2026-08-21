@@ -6,6 +6,7 @@ Source files use standard Pandoc Markdown:
 * fenced divs for callouts: ``::: {.tip}``, ``.warn``, ``.note``, ``.try``,
   ``.deep``, ``.debug``, ``.box``, ``.summary title="..."``
 * ``::: {.algo #alg-NN-K title="..." src="..." complexity="..."}`` + ``:::``
+* ``::: {.sim name="crush"}`` + ``:::``: an interactive simulator of the web edition
 * figures: ``![caption](figures/chNN/name.png){#fig-NN-name}``
 * pipe tables
 * headings with explicit ids: ``# Title {#sec-NN-K}``
@@ -108,6 +109,8 @@ def lower(lines, resolve_image=None):
             kind = classes[0] if classes else ''
             if kind == 'algo':
                 out.append(f"!ALGO {attrs.get('title', '')}|{attrs.get('src', '')}|{attrs.get('complexity', '')}")
+            elif kind == 'sim':
+                out.append(f"!SIM {attrs.get('name', '')}")
             elif kind in CALLOUTS:
                 if content:
                     out.append(CALLOUTS[kind] + ' ' + content[0])

@@ -1,7 +1,8 @@
 -- Pandoc Lua filter for the book's fenced divs (HTML, EPUB, DOCX outputs).
 -- * callouts (.tip .warn .note .try .deep .debug .box .summary .signature)
 --   get a bold label paragraph and, for DOCX, a custom paragraph style;
--- * .algo divs (empty in the source) are expanded from their attributes.
+-- * .algo divs (empty in the source) are expanded from their attributes;
+-- * .sim divs (empty) become a pointer to the web edition's interactive lab.
 local labels = {}
 
 function Meta(m)
@@ -32,6 +33,15 @@ function Div(el)
     el.attributes['custom-style'] = 'Algorithm'
     return el
   end
+  if cls == 'sim' then
+    -- an interactive simulator of the web edition: a one-line pointer in the other formats
+    local t = labels[(el.attributes.name or '') .. '_t'] or el.attributes.name or ''
+    local s = (labels.sim_print or '{t}'):gsub('{t}', function() return t end)
+    el.content = { pandoc.Para({ pandoc.Emph({ pandoc.Str(s) }) }) }
+    el.attributes = {}
+    el.attributes['custom-style'] = 'Callout note'
+    return el
+  end
   if callout[cls] then
     table.insert(el.content, 1, label_para(labels[cls] or cls))
     el.attributes['custom-style'] = 'Callout ' .. cls
@@ -45,3 +55,6 @@ function Div(el)
   end
   return nil
 end
+
+-- Meta must run before Div (pandoc otherwise visits block elements before the metadata)
+return { { Meta = Meta }, { Div = Div } }

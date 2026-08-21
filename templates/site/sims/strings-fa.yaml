@@ -1,0 +1,350 @@
+# رشته‌های شبیه‌سازهای تعاملی، نسخهٔ فارسی (متن اصلی؛ strings-en.yaml ترجمهٔ آن است).
+lab_title: آزمایشگاه تعاملی
+lab_intro: "هفت شبیه‌ساز کوچک که الگوریتم‌های کتاب را در همین مرورگر اجرا می‌کنند: بی‌نیاز به شبکه و نصب. محاسبات، برگردان خط‌به‌خط کد خود Ceph است و آزمون‌های tests/sims (make check-sims) آن را با همان کد مقایسه می‌کنند."
+lab_tag: آزمایشگاه
+lab_in: "در کتاب:"
+lab_open: باز کردن
+follows: "مطابق با:"
+info: چطور کار می‌کند
+reset: از نو
+reset_done: به حالت آغازین برگشت.
+open_lab: صفحهٔ کامل
+play: پخش
+pause: توقف
+prev: قبلی
+next: بعدی
+seq_label: گام‌ها
+error: این ورودی‌ها قابل محاسبه نیستند.
+static_note: "تصویری ثابت از شبیه‌ساز؛ نسخهٔ تعاملی در آزمایشگاه نسخهٔ وب است."
+noscript: نسخهٔ تعاملی به JavaScript نیاز دارد؛ این تصویری ثابت از آن است.
+
+crush_t: زمین بازی CRUSH
+crush_d: یک root، چند host و OSD بسازید، قاعده را انتخاب کنید و ببینید straw2 هر PG را کجا می‌گذارد؛ یک OSD را out یا down کنید یا وزنش را تغییر دهید و ببینید کدام PGها جابه‌جا می‌شوند.
+crush_what: "بذر هر PG (pps) همان‌طور که Ceph حساب می‌کند به دست می‌آید و سپس crush_do_rule روی نقشه‌ای با tunables نسخهٔ jewel اجرا می‌شود: یک root از نوع straw2 با hostهای straw2 و همان قاعده‌ای که ceph osd pool create می‌سازد (chooseleaf firstn برای replicated و chooseleaf indep برای EC، با host یا osd به‌عنوان failure domain). «out» مقدار reweight آن OSD را صفر می‌کند (CRUSH از آن می‌گذرد)؛ «down» آن را در نقشه نگه می‌دارد ولی از مجموعهٔ up حذف می‌کند. ستون‌ها تعداد shardهای PG روی هر OSD است و خط نازک سهمی است که وزنش به آن می‌دهد."
+crush_limit: "بدون pg_temp، upmap، primary affinity و device class؛ وزن هر OSD اندازهٔ آن به TiB است. برای این نقشه‌ها خروجی دقیقاً با کد C خود Ceph یکی است (tests/sims/golden.json)."
+cr_preset: نقشهٔ آغازین
+cr_p3: ۳ host × ۳ OSD
+cr_pmix: ۴ host ناهمسان
+cr_p6: ۶ host × ۲ OSD
+cr_type: نوع pool
+type_l: نوع pool
+cr_rep: replicated
+cr_ec: erasure coded
+cr_fd: Failure domain
+cr_obj: نام شیء برای ceph osd map
+cr_weight: "وزن CRUSH برای {o} (TiB)"
+cr_tg_out: "تغییر in/out برای {o}"
+cr_tg_down: "تغییر up/down برای {o}"
+cr_rm: "حذف {o}"
+cr_hist: shardهای PG روی هر OSD
+cr_hist_cap: "shardهای PG روی هر OSD (ستون) در برابر سهمی که وزنش می‌دهد (خط). قرمز: out؛ کهربایی: down."
+cr_s_pgs: PG × نسخه
+cr_s_moved: داده‌ای که تغییر آخر جابه‌جا کرد
+cr_s_remap: PGهایی که مجموعهٔ upشان عوض شد
+cr_s_degraded: PGهایی با نسخه‌ای کمتر از size
+cr_s_none: جای خالی (NONE)
+cr_hint: وزنی را تغییر دهید یا یک OSD را خاموش و روشن کنید؛ سهم جابه‌جاشده نسبت به نقشهٔ پیش از تغییر سنجیده می‌شود.
+cr_moved_note: "تغییر آخر: {what}. shardهای جابه‌جاشده در فهرست برجسته شده‌اند."
+cr_map: "PG ← مجموعهٔ up ({n} PG؛ primary زیرخط‌دار)"
+cr_ch_w: "وزن {o} شد {w}"
+cr_ch_out: "{o} out شد"
+cr_ch_in: "{o} in شد"
+cr_ch_down: "{o} down شد"
+cr_ch_up: "{o} up شد"
+cr_ch_rm: "{o} حذف شد"
+cr_ch_add: "{o} اضافه شد"
+cr_ch_host: "{h} با سه OSD اضافه شد"
+r_do_rule: اجرای گام‌های قاعده (take، chooseleaf، emit)
+r_choose: حلقه‌های انتخاب replicated (firstn) و EC (indep) با تلاش دوباره
+r_straw2: "straw2: بزرگ‌ترین ln(hash)/weight برنده است"
+r_isout: بررسی reweight که OSD خارج‌شده را رد می‌کند
+r_hash: hash جنکینز که CRUSH به کار می‌برد
+r_pps: بذر PG که وارد CRUSH می‌شود
+r_stable: نگاشت hash شیء به PG وقتی pg_num توانی از ۲ نیست
+r_strhash: hash نام شیء
+r_up: از مجموعهٔ خام تا مجموعهٔ up (OSDهای down حذف یا NONE می‌شوند)
+r_rule: قاعده‌ای که ceph osd pool create می‌سازد و tunables نسخهٔ jewel
+
+pgcalc_t: ماشین‌حساب تعداد PG
+pgcalc_d: "تعداد OSDها و سهم هر pool از داده را بدهید: پاسخ pgcalc کلاسیک و انتخاب pg_autoscaler را گذر به گذر ببینید."
+pgcalc_what: "بخش autoscaler برگردان module.py در شاخهٔ main خود Ceph است: بودجهٔ root برابر mon_target_pg_per_osd × تعداد OSD است؛ اول poolهایی که autoscale ندارند، بعد poolهای غیر bulk، بعد poolهای bulk که بیش از سهم برابر نیاز دارند و در آخر بقیه به‌طور برابر. در هر گذر یک knapsack هر گروه از poolها را درون بودجهٔ باقی‌مانده به توان ۲ بالاتر یا پایین‌تر گرد می‌کند. تغییر فقط وقتی پیشنهاد می‌شود که از آستانه بگذرد (۳ برابر؛ ۱ برابر نزدیک ۵۱۲ و ۱۰۲۴، ۲ برابر نزدیک ۲۰۴۸)."
+pgcalc_limit: "یک CRUSH root، سهم به‌صورت capacity_ratio (target_size_ratio)، bias برابر ۱ و بدون pg_num_max. برای حالت‌های آزمون، خروجی با module.py واقعی یکی است."
+pc_osds: OSDهای زیر root
+pc_pool: Pool
+pc_psize: نوع
+pc_share: سهم از داده (٪)
+pc_rm: حذف pool
+pc_add: pool
+pc_classic: pgcalc کلاسیک
+pc_ideal: ایده‌آل (نسخه‌های PG)
+pc_final: autoscaler
+pc_adjust: تغییر می‌کند؟
+pc_yes: "بله: {a} ← {b}"
+pc_no: "نه"
+pc_pass_first: (بدون autoscale)
+pc_pass_second: (غیر bulk)
+pc_pass_third: (bulk بزرگ)
+pc_pass_fourth: (bulk برابر)
+pc_s_budget: نسخه‌های PG مجاز برای root
+pc_s_per: نسخهٔ PG به ازای هر OSD (پیشنهادی)
+pc_s_now: نسخهٔ PG به ازای هر OSD (فعلی)
+pc_note: "autoscaler برای poolی که مدیریت می‌کند هیچ‌وقت زیر ۳۲ PG (osd_pool_default_pg_num) نمی‌رود و اگر bulk روشن نباشد کوچک شروع می‌کند و با داده بزرگ می‌شود."
+pc_warn: "بیش از {n} نسخهٔ PG به ازای هر OSD: monitor از ساختن یا بزرگ کردن pool خودداری می‌کند (mon_max_pg_per_osd)."
+
+ecprofile_t: Replication یا erasure coding
+ecprofile_d: k، m و plugin را انتخاب کنید و ظرفیت قابل‌استفاده، سربار، خرابی‌های قابل‌تحمل و هزینهٔ بازسازی یک chunk را مقایسه کنید.
+ecprofile_what: "EC روی k+m OSD، k chunk داده و m chunk کد نگه می‌دارد (LRC برای هر گروه l تایی یک chunk محلی هم اضافه می‌کند). monitor مقدار min_size را k + min(1, m − 1) می‌گذارد؛ پس pool EC با از دست رفتن یک chunk همچنان I/O می‌دهد ولی پیش از آن‌که بدون افزونگی کار کند می‌ایستد؛ pool تکراری size − ⌊size/2⌋ می‌گیرد. هزینهٔ بازسازی یعنی چند chunk باید خوانده شود تا یکی ساخته شود: k برای Reed-Solomon (isa و jerasure)، l برای LRC و d/(d−k+1) معادل chunk برای CLAY."
+ecprofile_limit: "ظرفیت، metadata ی BlueStore، پرشدگی min_alloc در شیءهای کوچک و حاشیهٔ ۸۵٪ nearfull را در نظر نمی‌گیرد (این آخری جداگانه با عنوان «عملی» آمده). عدد بازسازی SHEC تقریب کتاب است."
+ec_hosts: تعداد host
+ec_per: OSD در هر host
+ec_tb: اندازهٔ هر OSD (TB)
+ec_rep: مقایسه با تکرار
+ec_raw: ظرفیت خام
+ec_domains: failure domainها
+ec_usable: قابل‌استفاده
+ec_practical: تا nearfull (۸۵٪)
+ec_overhead: بایت خام به ازای هر بایت مفید
+ec_tol: از دست رفتن OSD/host بدون از دست رفتن داده
+ec_io: از دست رفتن با ادامهٔ I/O
+ec_repair: خواندن برای بازسازی یک chunk
+ec_chunks: chunk
+ec_repl: "تکراری، size برابر {n}"
+ec_note: "profile پیش‌فرض در main برابر plugin=isa technique=reed_sol_van k=2 m=2 است؛ profile را پس از آن‌که poolی از آن استفاده کرد نمی‌توان تغییر داد."
+ec_e_lrc1: "LRC: مقدار k + m باید مضربی از l باشد."
+ec_e_lrc2: "LRC: مقدار k باید مضربی از (k + m) / l باشد."
+ec_e_lrc3: "LRC: مقدار m باید مضربی از (k + m) / l باشد."
+ec_e_shec: "SHEC: مقدار c نباید از m بیشتر باشد."
+ec_e_clay: "CLAY به m ≥ 2 نیاز دارد تا d بین k + 1 و k + m − 1 قرار بگیرد."
+ec_e_fd: "{n} chunk ولی فقط {d} failure domain: PGها active نمی‌شوند."
+ec_w_fd: "تعداد chunkها برابر failure domainهاست: پس از خرابی یک domain جایی برای بازیابی نمی‌ماند."
+r_ec_minsize: size و min_size یک pool تازه
+r_ec_def: profile پیش‌فرض و نسبت‌های پرشدگی
+r_ec_lrc: قاعده‌های k، m و l در LRC
+r_ec_clay: بازهٔ d در CLAY
+r_ec_shec: قاعدهٔ c در SHEC
+r_as_passes: چهار گذر روی poolهای یک root
+r_as_knap: گرد کردن گروه‌های pool درون بودجه
+r_as_pow2: توان ۲ و آستانهٔ تغییر
+r_as_raw: فضای خام به ازای هر بایت (size یا (k+m)/k)
+r_as_opt: هدف نسخه‌های PG به ازای هر OSD
+r_as_opt2: سقف و کمینهٔ pg_num
+
+peering_t: گام‌به‌گام peering و recovery
+peering_d: سه داستان از یک PG با سه نسخه را گام‌به‌گام دنبال کنید و ماشین حالت PeeringState، مجموعه‌های up و acting و لاگ‌های PG را ببینید.
+peering_what: "هر گام نقطه‌ای از ماشین حالت PeeringState (در PeeringState.h) است: مسیر برجسته، حالت تودرتویی است که primary در آن قرار دارد. ورودی‌های لاگ PG به شکل epoch'version و شیئی است که به آن دست زده‌اند؛ ورودی تازه سبز، ورودی واگرا قرمز و شیئی که باید بازیابی شود کهربایی است. نام تابع‌ها جایی در کد است که آن گام رخ می‌دهد."
+peering_limit: "سه یا چهار OSD، بدون EC و بدون تغییر هم‌زمان نقشه؛ پیام‌ها و زمان‌بندی ساده شده‌اند. ترتیب حالت‌ها و تصمیم‌ها مطابق کد است."
+ps_sc: سناریو
+sc_l: سناریو
+ps_downup: یک OSD می‌افتد و برمی‌گردد
+ps_backfill: یک OSD خارج (out) می‌شود (backfill)
+ps_divergent: primary با نوشتنی که هیچ‌کس دیگر ندارد از کار می‌افتد
+ps_tree: حالت‌های PeeringState
+ps_hist: آنچه تا این‌جا رخ داد
+ps_empty: لاگ خالی (نسخهٔ تازه)
+ps_gone: "حذف‌شده در ادغام لاگ:"
+ps_l_new: تازه
+ps_l_div: واگرا
+ps_l_miss: برای بازیابی
+ps_r_primary: primary
+ps_r_replica: replica
+ps_r_backfill: هدف backfill
+ps_r_stray: stray
+ps_r_down: down
+ps_downup_0_t: هر سه نسخه هم‌گام‌اند
+ps_downup_0: "pg 1.7 روی osd.0، ۱ و ۲ در حالت active+clean است. همهٔ لاگ‌ها به 5'3 ختم می‌شوند."
+ps_downup_1_t: osd.2 می‌ایستد؛ interval تازه
+ps_downup_1: "monitor در epoch 20، osd.2 را down علامت می‌زند. مجموعه‌های up و acting عوض می‌شوند، پس should_restart_peering پاسخ مثبت می‌دهد و start_peering_interval، PG را به Reset و سپس به Started/Primary/Peering می‌برد."
+ps_downup_2_t: GetInfo اطلاعات replicaها را جمع می‌کند
+ps_downup_2: "build_prior فهرست OSDهایی را می‌سازد که ممکن است در intervalهای گذشته نوشته باشند؛ primary از هر کدام که زنده است pg_info_t اش را می‌پرسد (last_update، last_complete و دنبالهٔ لاگ)."
+ps_downup_3_t: GetLog لاگ معتبر را برمی‌گزیند
+ps_downup_3: "find_best_info اطلاعاتی را برمی‌گزیند که last_update اش از همه تازه‌تر است (با ترجیح لاگ بلندتر و primary فعلی). osd.0 خودش آن را دارد، پس لاگی برای گرفتن نیست؛ choose_acting مجموعهٔ acting را برابر up نگه می‌دارد."
+ps_downup_4_t: active شدن با یک نسخهٔ کم
+ps_downup_4: "دو نسخه برای min_size (۲) کافی است؛ پس activate لاگ و info را برای osd.1 می‌فرستد و PG به active+undersized+degraded می‌رود؛ I/O کلاینت ادامه پیدا می‌کند."
+ps_downup_5_t: نوشتن روی دو نسخه ادامه دارد
+ps_downup_5: "دو نوشتن می‌رسد: 20'4 روی D و 20'5 روی A. هر کدام پیش از تأیید به لاگ PG روی osd.0 و osd.1 اضافه می‌شود؛ osd.2 آن‌ها را نمی‌بیند."
+ps_downup_6_t: osd.2 برمی‌گردد؛ interval تازه
+ps_downup_6: "در epoch 25، osd.2 دوباره up است و به up و acting برمی‌گردد. peering از نو شروع می‌شود؛ osd.2 به GetInfo با last_update برابر 5'3 پاسخ می‌دهد (proc_replica_notify)."
+ps_downup_7_t: GetMissing کمبودهای osd.2 را پیدا می‌کند
+ps_downup_7: "primary در proc_replica_log لاگ osd.2 را با لاگ معتبر مقایسه می‌کند: ورودی‌های پس از 5'3 به D و A دست زده‌اند، پس مجموعهٔ missing آن {D, A} است. لاگش هم‌پوشانی دارد، پس بازیابی بر پایهٔ لاگ کافی است (بدون backfill)."
+ps_downup_8_t: Recovering شیءها را می‌فرستد
+ps_downup_8: "پس از رزرو بازیابی محلی و دوردست، start_recovery_ops تابع recover_replicas را صدا می‌زند که هر شیء گمشده را به osd.2 می‌فرستد (D تمام شده و A در راه است). PG در حالت active+recovering+degraded است و همچنان I/O می‌دهد."
+ps_downup_9_t: Recovered و سپس Clean
+ps_downup_9: "وقتی چیزی کم نباشد PG از Recovered می‌گذرد و در Clean آرام می‌گیرد: دوباره active+clean روی سه نسخه."
+ps_backfill_0_t: هر سه نسخه هم‌گام‌اند
+ps_backfill_0: "pg 1.7 روی osd.0، ۱ و ۲ در حالت active+clean است."
+ps_backfill_1_t: osd.2 خارج می‌شود؛ CRUSH، osd.3 را برمی‌گزیند
+ps_backfill_1: "در epoch 31 مقدار reweight ی osd.2 صفر می‌شود و CRUSH حالا PG را به [0,1,3] می‌نگارد. osd.3 هیچ لاگی ندارد، پس calc_replicated_acting نمی‌تواند آن را در acting بگذارد؛ choose_acting از monitor یک pg_temp برابر [0,1,2] می‌خواهد و در WaitActingChange منتظر می‌ماند."
+ps_backfill_2_t: active با pg_temp
+ps_backfill_2: "در epoch 32، pg_temp در نقشه است: acting همان [0,1,2] می‌ماند و up برابر [0,1,3] است. activate، osd.3 را به‌عنوان هدف backfill ثبت می‌کند؛ PG در حالت remapped است."
+ps_backfill_3_t: انتظار برای نوبت backfill محلی
+ps_backfill_3: "backfill محدود می‌شود: primary اول یکی از نوبت‌های osd_max_backfills خودش را می‌گیرد (backfill_wait)."
+ps_backfill_4_t: انتظار برای نوبت دوردست
+ps_backfill_4: "سپس با MBackfillReserve از osd.3 نوبت می‌خواهد؛ اگر osd.3 بیش از حد پر باشد رد می‌کند (backfill_toofull)."
+ps_backfill_5_t: Backfilling به ترتیب hash
+ps_backfill_5: "recover_backfill شیءها را به ترتیب hash پیمایش می‌کند و روی osd.3 کپی می‌کند؛ last_backfill نشان می‌دهد تا کجا رسیده است. نوشتن روی شیءهای پیش از این نقطه برای osd.3 هم فرستاده می‌شود."
+ps_backfill_6_t: backfill تمام شد
+ps_backfill_6: "last_backfill به MAX می‌رسد؛ دیگر چیزی به backfill یا بازیابی نیاز ندارد، پس PG در Recovered است و حذف pg_temp را درخواست می‌کند."
+ps_backfill_7_t: Clean روی مجموعهٔ تازه
+ps_backfill_7: "در epoch 33 مجموعهٔ acting برابر up یعنی [0,1,3] است و PG در حالت active+clean است. osd.2 حالا برای این PG یک Stray است و نسخهٔ خودش را پاک می‌کند (ToDelete)."
+ps_divergent_0_t: primary نوشتنی را لاگ می‌کند
+ps_divergent_0: "osd.0 نوشتنی روی D را با 40'4 اجرا و لاگ می‌کند، ولی پیش از آن‌که replicaها آن را داشته باشند از کار می‌افتد (issue_repop هیچ‌وقت کامل نمی‌شود). کلاینت هرگز تأییدی نگرفته است."
+ps_divergent_1_t: osd.0 رفته است؛ osd.1 رهبری می‌کند
+ps_divergent_1: "در epoch 41 مجموعهٔ acting برابر [1,2] و osd.1 primary است. find_best_info روی هر دو last_update برابر 5'3 می‌یابد؛ 40'4 برایشان ناشناخته است."
+ps_divergent_2_t: نوشتن‌های تازه در interval تازه
+ps_divergent_2: "PG به active+undersized+degraded می‌رود و دو نوشتن می‌گیرد: 41'4 روی E و 41'5 روی B. حالا نسخه‌های ۴ و ۵ معنایی متفاوت با 40'4 ی osd.0 دارند."
+ps_divergent_3_t: osd.0 به‌عنوان primary برمی‌گردد
+ps_divergent_3: "در epoch 45، osd.0 برمی‌گردد و CRUSH دوباره آن را primary می‌کند. peering شروع می‌شود و GetInfo اطلاعات را جمع می‌کند."
+ps_divergent_4_t: لاگ osd.1 برنده است
+ps_divergent_4: "find_best_info مقدارهای last_update را مقایسه می‌کند: 41'5 از 40'4 تازه‌تر است (اول epoch مقایسه می‌شود)، پس لاگ osd.1 معتبر است. osd.0 آن را می‌گیرد و proc_master_log را اجرا می‌کند؛ 40'4 ی آن واگراست."
+ps_divergent_5_t: merge_log ورودی واگرا را عقب می‌برد
+ps_divergent_5: "merge_log می‌بیند که 40'4 در تاریخچهٔ معتبر نیست: rewind_divergent_log آن را کنار می‌گذارد و _merge_divergent_entries سرنوشت شیء را تعیین می‌کند. D پیش‌تر وجود نداشت، پس حذف می‌شود؛ E و B روی osd.0 در فهرست missing می‌روند."
+ps_divergent_6_t: primary کمبودهایش را می‌کشد
+ps_divergent_6: "چون خود primary شیء کم دارد، recover_primary آن‌ها را از osd.1 می‌کشد (E تمام شده و B در راه است). خواندن B از سوی کلاینت منتظر آن می‌ماند."
+ps_divergent_7_t: Clean، بدون نوشتن گم‌شده
+ps_divergent_7: "هر سه لاگ روی 41'5 هم‌نظرند و PG در حالت active+clean است. نوشتن روی D از بین رفته و این درست است: هرگز تأیید نشده بود."
+r_ps_states: ماشین حالت و تودرتویی آن
+r_ps_interval: peering کی از نو شروع می‌شود و از کدام OSDهای گذشته باید پرسید
+r_ps_choose: لاگ معتبر و مجموعهٔ acting
+r_ps_log: ادغام لاگ‌ها و active کردن replicaها
+r_ps_pglog: ادغام و عقب بردن ورودی‌های واگرا
+r_ps_rec: بازیابی بر پایهٔ لاگ و backfill
+
+bluestore_t: مسیر نوشتن BlueStore
+bluestore_d: دستگاه، offset و طول یک نوشتن را انتخاب کنید و ببینید BlueStore چطور آن را تکه می‌کند و تصمیم می‌گیرد چه چیزی از WAL (deferred) و چه چیزی مستقیم نوشته شود.
+bluestore_what: "این مسیر کلاسیک نوشتن است (bluestore_write_v2 به‌طور پیش‌فرض false است). _do_write_data نوشتن را در مرز min_alloc_size به سرِ ناهم‌تراز، میانهٔ هم‌تراز و دُمِ ناهم‌تراز می‌بُرد. بازنویسی فضایی که از پیش تخصیص یافته، نوشتن deferred می‌شود: در تراکنش RocksDB می‌رود، پس از commit تأیید می‌شود و بعداً سر جایش کپی می‌شود. دادهٔ تازه به فضای تازه‌تخصیص‌یافته می‌رود؛ اگر کل دادهٔ تازهٔ این نوشتن کوچک‌تر از prefer_deferred_size باشد آن هم deferred می‌شود و گرنه پیش از commit با aio نوشته می‌شود."
+bluestore_limit: "بدون فشرده‌سازی، checksum، استفادهٔ دوباره از blob و garbage collection؛ فرض شده هر ناحیه یک blob تغییرپذیر دارد. قاعده‌های تصمیم و حالت‌های تراکنش مطابق BlueStore.cc است."
+bs_dev: دستگاه
+dev_l: دستگاه
+bs_preset: نمونه
+bs_p_s4o: بازنویسی ۴ KiB
+bs_p_s6u: بازنویسی ناهم‌تراز ۶ KiB
+bs_p_n16: ۱۶ KiB دادهٔ تازه
+bs_p_n1m: ۱ MiB دادهٔ تازه
+bs_p_o128: بازنویسی ۱۲۸ KiB
+bs_p_custom: دلخواه
+bs_off: Offset (KiB)
+bs_len: طول (KiB)
+bs_target: این بازه
+over_l: این بازه
+bs_new: تازه است
+bs_over: از پیش نوشته شده
+bs_bar: نوشتن روی شبکهٔ min_alloc_size
+bs_bar_cap: "نوشتن روی واحدهای تخصیص ۴ KiB: سبز مستقیم نوشته می‌شود و کهربایی از WAL می‌گذرد."
+bs_piece: تکه
+bs_range: بازه
+bs_why: مسیر
+bs_how: شیوه
+bs_read: خواندن پیشین
+bs_alloc: تخصیص
+bs_why_new: blob تازه
+bs_why_over: بازنویسی کوچک در جا
+bs_why_bigover: بازنویسی بزرگ در blobهای موجود
+bs_def: deferred (WAL)
+bs_dir: مستقیم (aio)
+bs_st_pieces: تکه
+bs_st_wal: بایت‌هایی که از WAL می‌گذرند
+bs_st_aio: بایت‌هایی که مستقیم نوشته می‌شوند
+bs_lanes: OSD|BlueStore|allocator|block device|RocksDB / WAL
+bs_s_queue_s: queue_transactions
+bs_s_queue: "OSD تراکنشی به BlueStore می‌دهد؛ یک TransContext در حالت PREPARE ساخته می‌شود."
+bs_s_split_s: بُرش در min_alloc
+bs_s_split: "_do_write_data نوشتن را به {n} تکه می‌بُرد و هر تکه را به _do_write_small یا _do_write_big می‌فرستد."
+bs_s_rmw_s: خواندن سر و دُم
+bs_s_rmw: "بازنویسی با block دیسک ۴ KiB هم‌تراز نیست، پس {b} پیرامون آن اول خوانده می‌شود تا بعداً blockهای کامل نوشته شوند."
+bs_s_alloc_s: تخصیص
+bs_s_alloc: "_do_alloc_write از allocator مقدار {b} در واحدهای min_alloc_size می‌خواهد."
+bs_s_aio_s: نوشتن مستقیم
+bs_s_aio: "{b} دادهٔ تازه با aio در فضای تازه نوشته می‌شود؛ تراکنش در AIO_WAIT منتظر می‌ماند. دادهٔ قدیمی دست نخورده است، پس crash چیزی را نیمه‌نوشته باقی نمی‌گذارد."
+bs_s_defop_s: عملیات deferred
+bs_s_defop: "بایت‌هایی که باید در جا نوشته شوند در یک bluestore_deferred_op_t درون همان تراکنش RocksDB قرار می‌گیرند."
+bs_s_kv_s: commit در KV
+bs_s_kv: "_kv_sync_thread تغییرات onode، extent map و تخصیص را با یک sync در RocksDB commit می‌کند."
+bs_s_kv_def_s: commit در KV همراه داده
+bs_s_kv_def: "_kv_sync_thread، metadata و دادهٔ deferred را با یک sync در RocksDB commit می‌کند؛ نوشتن WAL تنها نوشتن هم‌زمان روی دیسک است."
+bs_s_ack_s: تأیید
+bs_s_ack: "پس از commit نوشتن ماندگار است؛ _txc_committed_kv callbackهای OSD را کامل می‌کند و کلاینت می‌تواند تأییدش را بگیرد."
+bs_s_defio_s: نوشتن deferred
+bs_s_defio: "بعداً و دسته‌دسته (bluestore_deferred_batch_ops)، بایت‌های deferred سر جایشان روی block device نوشته می‌شوند."
+bs_s_clean_s: پاک‌سازی
+bs_s_clean: "وقتی آن نوشتن روی دیسک رفت، _deferred_aio_finish رکورد deferred را از RocksDB پاک می‌کند."
+r_bs_split: بریدن نوشتن به سر، میانه و دُم
+r_bs_paths: مسیرهای نوشتن کوچک و بزرگ
+r_bs_alloc: تخصیص و تصمیم deferred یا مستقیم
+r_bs_txc: ماشین حالت تراکنش، commit در KV و صف deferred
+r_bs_states: حالت‌های TransContext
+r_bs_opts: اندازه‌های پیش‌فرضی که این‌جا به کار رفته
+
+rgwput_t: PUT و multipart در RGW
+rgwput_d: یک کلید و اندازه بدهید و یک PUT ی S3 را از radosgw تا bucket index و data pool، همراه با شیءهای RADOS که می‌سازد، دنبال کنید.
+rgwput_what: "stripeهای دُم هم‌زمان با رسیدن بدنه نوشته می‌شوند؛ تنها پس از آن shard ی bucket index آماده می‌شود (cls rgw_bucket_prepare_op)، شیء head همراه manifest و attributeها نوشته می‌شود و ورودی index کامل می‌شود (rgw_bucket_complete_op که bucket index log را هم می‌نویسد). shard برابر ceph_str_hash_linux کلید است که تا خورده و به پیمانهٔ یک عدد اول و تعداد shardها گرفته می‌شود. بارگذاری multipart هر part را در شیءهای خودش می‌نویسد و complete پایانی تنها یک head با manifest ی می‌نویسد که partها را فهرست می‌کند."
+rgwput_limit: "یک zone، بدون versioning، رمزنگاری، فشرده‌سازی و object lock؛ در نام شیءها MARKER جای bucket marker و جای‌نگهدارها جای بخش‌های تصادفی آمده است. شمارهٔ shardها دقیق است."
+rg_key: کلید شیء
+rg_size: اندازه (MiB)
+rg_mode: بارگذاری
+mode_l: بارگذاری
+rg_atomic: PUT یک‌جا
+rg_part: اندازهٔ part (MiB)
+rg_layout: شیءهای RADOS این بارگذاری
+rg_note: "اندازه‌های پیش‌فرض: head تا ۴ MiB (rgw_max_chunk_size)، stripeها ۴ MiB (rgw_obj_stripe_size) و هر part دست‌کم ۵ MiB (rgw_multipart_min_part_size)."
+rg_s_objs: شیء RADOS
+rg_s_shard: shard ی bucket index
+rg_s_size: اندازهٔ شیء
+rg_lanes: client|radosgw|auth|index pool|data pool
+rg_s_put_s: PUT
+rg_s_put: "کلاینت PUT /bucket/{k} را با {b} داده می‌فرستد؛ RGWPutObj::execute آغاز می‌شود."
+rg_s_auth_s: احراز هویت
+rg_s_auth: "امضای AWS (این‌جا v4) بررسی و مجوزهای کاربر روی bucket ارزیابی می‌شود."
+rg_s_tail_s: stripeهای دُم
+rg_s_tail: "هم‌زمان با رسیدن بدنه، processor تعداد {t} شیء دُم ۴ MiB در data pool می‌نویسد."
+rg_s_prep_s: آماده‌سازی index
+rg_s_prep: "rgw_bucket_prepare_op یک ورودی معلق برای {k} روی shard {sh} از {n} می‌گذارد تا اگر همین حالا crash رخ دهد ردی برای پاک‌سازی بماند."
+rg_s_head_s: نوشتن head
+rg_s_head: "شیء head با یک write_full همراه ۴ MiB نخست، manifest و attributeها (ETag، ACL و content type) نوشته می‌شود."
+rg_s_comp_s: تکمیل index
+rg_s_comp: "rgw_bucket_complete_op ورودی معلق را به شیئی فهرست‌شده روی shard {sh} تبدیل می‌کند و برای همگام‌سازی به bucket index log می‌افزاید."
+rg_s_ok_s: 200 OK
+rg_s_ok: "radosgw با 200 و ETag پاسخ می‌دهد؛ شیء حالا در فهرست‌ها دیده می‌شود."
+rg_m_init_s: آغاز
+rg_m_init: "POST ?uploads یک بارگذاری multipart را آغاز می‌کند و upload id برمی‌گرداند."
+rg_m_meta_s: شیء meta
+rg_m_meta: "یک شیء meta در namespace ی multipart ساخته می‌شود که فهرست partها را در omap نگه می‌دارد."
+rg_m_part_s: بارگذاری partها
+rg_m_part: "کلاینت {p} part را با PUT ?partNumber=N&uploadId=… می‌فرستد؛ هر کدام یک RGWPutObj جداست."
+rg_m_pdata_s: دادهٔ part
+rg_m_pdata: "هر part به‌صورت یک شیء __multipart_ (۴ MiB نخست) و stripeهای __shadow_ نوشته می‌شود؛ اندازه و ETag آن به omap ی شیء meta افزوده می‌شود."
+rg_m_comp_s: تکمیل
+rg_m_comp: "POST ?uploadId=… partها را فهرست می‌کند؛ RGWCompleteMultipart مقدارهای ETag و اندازه‌ها را بررسی می‌کند."
+rg_m_head_s: head با manifest
+rg_m_head: "یک شیء head بدون داده نوشته می‌شود که manifest آن به شیءهای همهٔ partها اشاره می‌کند. سپس شیء meta حذف می‌شود."
+rg_m_ok_s: 200 OK
+rg_m_ok: "پاسخ ETag ی به شکل md5-of-part-md5s-{p} دارد."
+r_rg_op: عملیات PUT و تکمیل multipart
+r_rg_proc: نوشتن head، stripeها و partها
+r_rg_meta: نوشتن head و به‌روزرسانی index
+r_rg_cls: دو عملیات index روی OSD
+r_rg_shard: هر کلید به کدام shard ی bucket index می‌رود
+r_rg_man: چیدمان شیء در RADOS
+
+striping_t: نگاشت striping در RBD
+striping_d: "اندازهٔ شیء، stripe_unit و stripe_count یک image و offset و طول یک I/O را تعیین کنید: ببینید به کدام شیءهای rbd_data و کجای آن‌ها دست می‌زند."
+striping_what: "librbd هر I/O را به Striper می‌سپارد. image به stripe unitهایی بریده می‌شود که به نوبت میان stripe_count شیء پخش می‌شوند؛ وقتی آن شیءها پر شدند object set بعدی آغاز می‌شود. نام هر شیء rbd_data.<image id>. و شمارهٔ آن در ۱۶ رقم hex است. با stripe_count برابر ۱ (پیش‌فرض) stripe_unit همان اندازهٔ شیء است و image به سادگی به شیءهای پشت‌سرهم بریده می‌شود."
+striping_limit: "تنها شیءهای داده؛ شیءهای header، id و object-map نشان داده نمی‌شوند. extentها دقیقاً همان چیزی است که Striper::file_to_extents برمی‌گرداند (با بردارهای آزمون خود Ceph بررسی شده)."
+st_size: اندازهٔ image (GiB)
+st_id: شناسهٔ image
+st_off: offset ی I/O (بایت)
+st_len: طول I/O (بایت)
+st_obj: شیء
+st_ooff: offset در شیء
+st_olen: طول
+st_s_objs: شیء در حالت پر
+st_s_set: اندازهٔ object set
+st_s_touched: شیءهایی که این I/O به آن‌ها دست می‌زند
+st_grouped: "{n} stripe در هر ردیف"
+st_more: "{n} شیء دیگر فهرست نشده است."
+r_st_fte: از بازهٔ image تا extentهای شیء
+r_st_misc: شمار شیءها و نگاشت وارون
+r_st_name: نام شیء داده
+r_st_prefix: پیشوند نام
+r_st_test: بردارهایی که آزمون‌ها با آن مقایسه می‌کنند
+
+xp_sim: "آزمایشگاه: {n}"

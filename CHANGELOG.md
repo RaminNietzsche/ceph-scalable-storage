@@ -7,6 +7,15 @@ restructures the book.
 
 ## [Unreleased]
 
+### Interactive lab (web edition)
+
+- Seven in-browser simulators, offline and in vanilla JavaScript, embedded in their chapters with `::: {.sim name="…"}` and collected on `lab.html` «آزمایشگاه تعاملی» (sidebar and home page): CRUSH playground (ch. 8, 28), PG count calculator with the pg_autoscaler's four passes (ch. 7), replication vs erasure coding with EC profile rules (ch. 13), peering/recovery stepper with three scenarios (ch. 35), BlueStore write path (ch. 12), RGW PUT and multipart (ch. 4) and RBD striping mapper (ch. 37). See `docs/SIMULATORS.md`.
+- The arithmetic ports Ceph's code and is tested against it: `tools/simref` compiles Ceph's CRUSH C files and runs the real `pg_autoscaler/module.py` to make `tests/sims/golden.json`; `make check-sims` (part of `make check`) compares 8932 PG mappings, all 65536 `crush_ln` values, hashes, autoscaler results and the Striper vectors of `test_striper.cc`.
+- Each simulator names the Ceph file and function it follows; RTL-aware sequence diagrams, keyboard access, dark mode and reduced motion; print and no-JavaScript readers get a static figure rendered at build time by `tools/sim_fallback.js`; PDF/EPUB/DOCX print a pointer to the lab.
+- Gamification: 5 XP for the first use of each simulator per day (cap 40/day) and a tiered «آزمایشگر» badge.
+- Fix: `templates/pandoc/book.lua` now reads the metadata before the divs (two filter passes), so EPUB/DOCX/single-file HTML callouts get their translated labels («نکته», «هشدار», …) instead of the class name.
+- `tools/shoot_site.py` drives every simulator (desktop, mobile, dark, en, print media, no-JS); `--sims-only` runs just that part.
+
 ### Web edition redesign
 
 - New home page: hero with the cover, a version badge, gradient title, call-to-action buttons and a stats row (chapters, figures, algorithms, parts); a decorative `ceph -s` terminal panel.

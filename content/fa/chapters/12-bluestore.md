@@ -346,6 +346,9 @@ do_deferred = need_size <= released_size && released_size < bstore->prefer_defer
 
 یعنی نوشتن وقتی deferred می‌شود که (۱) بتواند در همان فضایی نوشته شود که با این نوشتن آزاد می‌شود (بازنویسی درجا) و (۲) این فضا کوچک‌تر از `prefer_deferred_size` باشد. پیش‌فرض‌ها در کد جاری: `bluestore_prefer_deferred_size_hdd = 64_K` و `bluestore_prefer_deferred_size_ssd = 0` (روی SSD عملاً deferred استفاده نمی‌شود، چون نوشتن تصادفی ارزان است). کامنت بالای این تابع هم یادآوری می‌کند که اجرای بخشی از یک نوشتن به‌صورت deferred و بخش دیگر مستقیم، در هر حال بهینه نیست؛ پس تصمیم برای کل نوشتن یکجا گرفته می‌شود.
 
+::: {.sim name="bluestore"}
+:::
+
 ## تخصیص‌دهنده‌ی فضای آزاد {#sec-12-7-6}
 
 ![HybridAllocator: بازه‌های آزاد ابتدا در درخت AVL نگه داشته می‌شوند که جست‌وجوی سریع دارد؛ وقتی حافظه‌ی مجاز درخت پر شود، بازه‌های اضافی به BitmapAllocator سرریز می‌شوند که حافظه‌ی ثابت و کمی مصرف می‌کند](figures/ch12/f09_hybrid.png){#fig-12-f09_hybrid}

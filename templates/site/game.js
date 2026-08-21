@@ -49,7 +49,8 @@
     bolt: 'M13 2 4 14h7l-1 8 9-12h-7z',
     globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z',
     snow: 'M12 2v20M4 6.5l16 11M4 17.5l16-11M9 4l3 2 3-2M9 20l3-2 3 2',
-    q: 'M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1.2-1.5 2.4M12 18h.01'
+    q: 'M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1.2-1.5 2.4M12 18h.01',
+    flask: 'M9 3h6M10 3v6l-5.6 9.6A1.6 1.6 0 0 0 5.8 21h12.4a1.6 1.6 0 0 0 1.4-2.4L14 9V3M7.2 15h9.6'
   };
   function svg(name, cls) { return '<svg class="' + (cls || 'gi') + '" viewBox="0 0 24 24" aria-hidden="true"><path d="' + ICON[name] + '"/></svg>'; }
 
@@ -72,7 +73,7 @@
   var GV = 1;
   function defaults() {
     return { v: GV, on: true, sound: false, goal: { t: 'min', n: 10 }, restDays: true, xp: 0, days: {}, fz: 0, fzEarned: 0, frozen: {},
-             settled: null, best: 0, badges: {}, secs: {}, chXP: {}, zoom: {}, algo: {}, srs: {}, glossOn: false,
+             settled: null, best: 0, badges: {}, secs: {}, chXP: {}, zoom: {}, algo: {}, sims: {}, srs: {}, glossOn: false,
              quiz: { ok: 0, n: 0, run: 0, best: 0 }, wk: null, name: '', flags: {}, lv: 1, seen: null };
   }
   function gs() {
@@ -156,7 +157,7 @@
   }
 
   /* ---------------- XP ---------------- */
-  var CAPS = { sec: 300, card: 150, mc: 120, algo: 60 };
+  var CAPS = { sec: 300, card: 150, mc: 120, algo: 60, sim: 40 };
   var badgeLock = false;
   function award(n, kind, quiet) {
     var g = gs(), dd = day();
@@ -284,6 +285,7 @@
     st.sections = Object.keys(g.secs).length;
     st.algo = Object.keys(g.algo).length;
     st.figs = Object.keys(g.zoom).length;
+    st.sims = Object.keys(g.sims).length;
     st.marks = P.marks.length;
     st.qok = g.quiz.ok; st.qn = g.quiz.n; st.qbest = g.quiz.best;
     st.gloss = Object.keys(g.srs).filter(function (k) { return k.charAt(0) === 'g' && g.srs[k].b >= 4; }).length;
@@ -302,6 +304,7 @@
     ['streak', 'flame', [3, 7, 30], function (s) { return s.best; }],
     ['algo', 'sigma', [20, 80, G.nAlgo], function (s) { return s.algo; }],
     ['figs', 'zoom', [5, 25, 100], function (s) { return s.figs; }],
+    ['lab', 'flask', [1, 4, 7], function (s) { return s.sims; }],
     ['cards', 'cards', [20, 200, 1000], function (s) { return s.cards; }],
     ['quiz', 'target', [10, 50, 200], function (s) { return s.qok; }],
     ['gloss', 'lang', [10, 50, Math.max(51, G.gids.length)], function (s) { return s.gloss; }],
@@ -460,6 +463,16 @@
     award(xp, 'ch');
     bump('ch', 1);
   });
+  // the interactive lab (sims.js): a little XP for the first use of each simulator per day, capped per day
+  d.addEventListener('sim:use', function (e) {
+    var n = e.detail && e.detail.sim, g = gs(), dd = day();
+    if (!n) return;
+    dd.sm = dd.sm || {};
+    if (dd.sm[n]) return;
+    dd.sm[n] = 1; g.sims[n] = (g.sims[n] || 0) + 1; save();
+    award(5, 'sim');
+    checkBadges();
+  });
   d.addEventListener('book:zoom', function (e) { var g = gs(); if (!g.zoom[e.detail.id]) { g.zoom[e.detail.id] = 1; save(); checkBadges(); } });
   d.addEventListener('book:mark', function () { checkBadges(); });
   d.addEventListener('book:replaced', function () { gs(); paintChrome(); renderApp(); });
@@ -577,7 +590,7 @@
     html += '<section class="g-sec"><h2>' + esc(S.stats_title) + '</h2><div class="g-stats">' +
       [[fmtTime(sts.sec), S.st_time], [L(sts.chapters) + ' / ' + L(Object.keys(G.chs).length), S.st_chapters], [L(sts.sections), S.st_sections],
        [L(sts.cards), S.st_cards], [sts.qn ? pct(Math.round(sts.qok / sts.qn * 100)) : '—', S.st_acc], [L(sts.algo) + ' / ' + L(G.nAlgo), S.st_algo],
-       [L(sts.figs), S.st_figs], [L(sts.marks), S.st_marks]].map(function (x) { return '<div><b>' + esc(x[0]) + '</b><span>' + esc(x[1]) + '</span></div>'; }).join('') + '</div></section>';
+       [L(sts.figs), S.st_figs], [L(sts.sims), S.st_sims], [L(sts.marks), S.st_marks]].map(function (x) { return '<div><b>' + esc(x[0]) + '</b><span>' + esc(x[1]) + '</span></div>'; }).join('') + '</div></section>';
     html += '<section class="g-sec game" id="gm-quests"><h2>' + esc(S.quests_title) + '</h2><p class="g-sub">' + esc(T('quests_sub', { n: L(QXP) })) + '</p><ul class="quests">' +
       w.q.map(function (q) {
         var c = Math.min(q[1], Math.floor(w.c[q[0]] || 0)), done = !!w.done[q[0]], name = T('q_' + q[0], { n: L(q[1]) });

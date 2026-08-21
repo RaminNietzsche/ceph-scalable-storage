@@ -198,6 +198,9 @@ if log.size > target:
 
 در `PeeringState::activate` برای هر عضو acting یا backfill تصمیم گرفته می‌شود. اگر `pg_log.get_tail() > peer.last_update` باشد، یعنی log ما دیگر ورودی‌های بعد از آخرین نسخه‌ی peer را ندارد، یا اگر `peer.last_backfill` خالی باشد (عضو تازه)، آن عضو **backfill** می‌شود: `last_backfill` او به ابتدا (`hobject_t()`) برمی‌گردد و از اول شیء به شیء پر می‌شود. در غیر این صورت ورودی‌های بعد از `peer.last_update` برایش فرستاده می‌شوند و missing او از روی همین ورودی‌ها ساخته می‌شود.
 
+::: {.sim name="peering"}
+:::
+
 ## ترتیب کار در start_recovery_ops {#sec-35-6-2}
 
 ::: {.algo #alg-35-6 title="ترتیب recovery در یک دور start_recovery_ops" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::start_recovery_ops، recover_primary، recover_replicas، recover_backfill" complexity="هر دور حداکثر max عملیات (بر پایه‌ی osd_recovery_max_active و mClock)"}

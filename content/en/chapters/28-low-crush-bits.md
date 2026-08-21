@@ -248,6 +248,9 @@ return items[n >> 1]
 شبیه‌سازی حذف، bucket را بدون item حذف‌شده از نو می‌سازد. در عمل، با `ceph osd crush reweight` به صفر یا `crush remove`، رفتار به نوع bucket و جای item بستگی دارد. برای straw2، صفر کردن وزن همان اثر حذف را دارد، چون هر item قرعه‌ی مستقل خودش را می‌کشد.
 :::
 
+::: {.sim name="crush"}
+:::
+
 # balancer در حالت upmap: calc_pg_upmaps {#sec-28-9}
 
 balancer مربوط به mgr در حالت upmap (فصل ۱۹) کار اصلی را به `OSDMap::calc_pg_upmaps` در C++ می‌سپارد. این تابع یک کپی از OSDMap می‌سازد، با جفت‌های `pg_upmap_items` آزمایش می‌کند و نتیجه را در یک Incremental برمی‌گرداند.

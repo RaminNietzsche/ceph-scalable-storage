@@ -1,0 +1,350 @@
+# Strings of the interactive simulators, English edition (a translation of strings-fa.yaml).
+lab_title: Interactive lab
+lab_intro: "Seven small simulators that run the book's algorithms in your browser: no network, no installation. The arithmetic is a line-by-line port of Ceph's own code and is checked against it by the tests in tests/sims (make check-sims)."
+lab_tag: Lab
+lab_in: "In the book:"
+lab_open: Open
+follows: "Follows:"
+info: How it works
+reset: Reset
+reset_done: Reset to the starting state.
+open_lab: Full page
+play: Play
+pause: Pause
+prev: Back
+next: Next
+seq_label: Steps
+error: These inputs cannot be computed.
+static_note: "A fixed snapshot of the simulator; the interactive version is in the web edition's lab."
+noscript: The interactive version needs JavaScript; this is a fixed snapshot.
+
+crush_t: CRUSH playground
+crush_d: Build a root, hosts and OSDs, choose a rule, and watch straw2 place every PG; mark an OSD out or down or change a weight and see which PGs move.
+crush_what: "Each PG's seed (pps) is computed as Ceph does, then crush_do_rule runs a jewel-tunables map: a straw2 root of straw2 hosts, the rule that ceph osd pool create makes (chooseleaf firstn for replicated, chooseleaf indep for EC, with host or osd as the failure domain). 'Out' sets the OSD's reweight to 0 (CRUSH skips it); 'down' keeps it in the map but drops it from the up set. The bars are the PG shards per OSD; the thin line is what its weight would give."
+crush_limit: "No pg_temp, upmap, primary affinity or device classes; the weight of each OSD is its size in TiB. For these maps the outputs match Ceph's C code exactly (tests/sims/golden.json)."
+cr_preset: Starting map
+cr_p3: 3 hosts × 3 OSDs
+cr_pmix: 4 uneven hosts
+cr_p6: 6 hosts × 2 OSDs
+cr_type: Pool type
+type_l: Pool type
+cr_rep: replicated
+cr_ec: erasure coded
+cr_fd: Failure domain
+cr_obj: Object name for ceph osd map
+cr_weight: "CRUSH weight of {o} (TiB)"
+cr_tg_out: "Toggle in/out for {o}"
+cr_tg_down: "Toggle up/down for {o}"
+cr_rm: "Remove {o}"
+cr_hist: PG shards per OSD
+cr_hist_cap: "PG shards on each OSD (bars) against the share its weight would give (line). Red: out; amber: down."
+cr_s_pgs: PGs × replicas
+cr_s_moved: data moved by the last change
+cr_s_remap: PGs whose up set changed
+cr_s_degraded: PGs with fewer copies than size
+cr_s_none: empty slots (NONE)
+cr_hint: Change a weight or toggle an OSD; the moved share is measured against the map before the change.
+cr_moved_note: "Last change: {what}. Moved shards are highlighted in the list."
+cr_map: "PG → up set ({n} PGs; primary underlined)"
+cr_ch_w: "{o} weight set to {w}"
+cr_ch_out: "{o} marked out"
+cr_ch_in: "{o} marked in"
+cr_ch_down: "{o} marked down"
+cr_ch_up: "{o} marked up"
+cr_ch_rm: "{o} removed"
+cr_ch_add: "{o} added"
+cr_ch_host: "{h} added with three OSDs"
+r_do_rule: runs the rule steps (take, chooseleaf, emit)
+r_choose: the replicated (firstn) and EC (indep) choice loops with retries
+r_straw2: "straw2: the largest ln(hash)/weight wins"
+r_isout: the reweight check that rejects an out OSD
+r_hash: the Jenkins hash that CRUSH uses
+r_pps: the PG's seed that enters CRUSH
+r_stable: object hash to PG while pg_num is not a power of two
+r_strhash: the object-name hash
+r_up: raw set to up set (down OSDs are dropped or become NONE)
+r_rule: the rule ceph osd pool create makes and the jewel tunables
+
+pgcalc_t: PG count calculator
+pgcalc_d: "Give the OSD count and each pool's share of the data: see the classic pgcalc answer and what the pg_autoscaler would choose, pass by pass."
+pgcalc_what: "The autoscaler part is a port of module.py on Ceph main: the root's budget is mon_target_pg_per_osd × OSDs; pools that are not autoscaled come first, then non-bulk pools, then bulk pools that need more than an even share, then the rest evenly. In each pass a knapsack rounds every group of pools up or down to a power of two within the remaining budget. A change is only proposed when it passes the threshold (3×; 1× near 512 and 1024, 2× near 2048)."
+pgcalc_limit: "One CRUSH root, the share is given as capacity_ratio (target_size_ratio), bias 1, no pg_num_max. The outputs match the real module.py for the test cases."
+pc_osds: OSDs under the root
+pc_pool: Pool
+pc_psize: Kind
+pc_share: Share of data (%)
+pc_rm: Remove pool
+pc_add: pool
+pc_classic: classic pgcalc
+pc_ideal: ideal (PG replicas)
+pc_final: autoscaler
+pc_adjust: would it change?
+pc_yes: "yes: {a} → {b}"
+pc_no: "no"
+pc_pass_first: (not autoscaled)
+pc_pass_second: (non-bulk)
+pc_pass_third: (big bulk)
+pc_pass_fourth: (even bulk)
+pc_s_budget: PG replicas the root may hold
+pc_s_per: PG replicas per OSD (proposed)
+pc_s_now: PG replicas per OSD (current)
+pc_note: "The autoscaler never goes below 32 PGs (osd_pool_default_pg_num) for a pool it manages, and with bulk unset it starts small and grows with the data."
+pc_warn: "More than {n} PG replicas per OSD: the monitor refuses to create or grow pools (mon_max_pg_per_osd)."
+
+ecprofile_t: Replication or erasure coding
+ecprofile_d: Choose k, m and the plugin and compare usable capacity, overhead, the failures each layout survives and the cost of repairing one chunk.
+ecprofile_what: "EC stores k data chunks and m coding chunks on k+m OSDs (LRC adds one local chunk per group of l). The monitor sets min_size to k + min(1, m − 1), so an EC pool keeps serving I/O with one chunk lost but stops before it would run without redundancy; a replicated pool gets size − ⌊size/2⌋. Repair cost is how many chunks must be read to rebuild one: k for Reed-Solomon (isa, jerasure), l for LRC, d/(d−k+1) chunk-equivalents for CLAY."
+ecprofile_limit: "Capacity ignores BlueStore metadata, min_alloc padding of small objects, and the 85% nearfull headroom (shown separately as practical). SHEC's repair figure is the book's approximation."
+ec_hosts: Hosts
+ec_per: OSDs per host
+ec_tb: Size of each OSD (TB)
+ec_rep: Compare with replicas
+ec_raw: raw capacity
+ec_domains: failure domains
+ec_usable: usable
+ec_practical: up to nearfull (85%)
+ec_overhead: raw per usable byte
+ec_tol: OSD/host losses without losing data
+ec_io: losses with I/O still served
+ec_repair: read to rebuild one chunk
+ec_chunks: chunks
+ec_repl: "replicated, size {n}"
+ec_note: "The default profile on main is plugin=isa technique=reed_sol_van k=2 m=2; profiles cannot be changed once a pool uses them."
+ec_e_lrc1: "LRC: k + m must be a multiple of l."
+ec_e_lrc2: "LRC: k must be a multiple of (k + m) / l."
+ec_e_lrc3: "LRC: m must be a multiple of (k + m) / l."
+ec_e_shec: "SHEC: c must not exceed m."
+ec_e_clay: "CLAY needs m ≥ 2 for d to lie between k + 1 and k + m − 1."
+ec_e_fd: "{n} chunks but only {d} failure domains: the PGs cannot become active."
+ec_w_fd: "Chunks equal the failure domains: after one domain fails there is nowhere to recover to."
+r_ec_minsize: size and min_size of a new pool
+r_ec_def: default profile and fullness ratios
+r_ec_lrc: the k, m, l rules of LRC
+r_ec_clay: the d range of CLAY
+r_ec_shec: the c rule of SHEC
+r_as_passes: the four passes over a root's pools
+r_as_knap: rounding groups of pools within the budget
+r_as_pow2: power of two and the change threshold
+r_as_raw: raw space per byte (size, or (k+m)/k)
+r_as_opt: target PG replicas per OSD
+r_as_opt2: the upper limit and the minimum pg_num
+
+peering_t: Peering and recovery stepper
+peering_d: Step through three stories of one PG with three replicas and watch the PeeringState machine, the up and acting sets and the PG logs.
+peering_what: "Each step is one point in the PeeringState state machine (PeeringState.h): the highlighted path is the nested state the primary is in. The PG log entries are epoch'version and the object they touched; a new entry is green, a divergent one red, an object that must be recovered amber. The function names are where each step happens in the code."
+peering_limit: "Three or four OSDs, no EC, no concurrent map changes; messages and timings are simplified. The order of states and the decisions follow the code."
+ps_sc: Scenario
+sc_l: Scenario
+ps_downup: An OSD goes down and comes back
+ps_backfill: An OSD is marked out (backfill)
+ps_divergent: The primary crashes with a write nobody else has
+ps_tree: PeeringState states
+ps_hist: What happened so far
+ps_empty: empty log (a new replica)
+ps_gone: "removed by the log merge:"
+ps_l_new: new
+ps_l_div: divergent
+ps_l_miss: to recover
+ps_r_primary: primary
+ps_r_replica: replica
+ps_r_backfill: backfill target
+ps_r_stray: stray
+ps_r_down: down
+ps_downup_0_t: All three copies are in step
+ps_downup_0: "pg 1.7 is active+clean on osd.0, 1, 2. Every log ends at 5'3."
+ps_downup_1_t: osd.2 stops; a new interval starts
+ps_downup_1: "The monitor marks osd.2 down in epoch 20. The up and acting sets change, so should_restart_peering says yes and start_peering_interval sends the PG back to Reset and then into Started/Primary/Peering."
+ps_downup_2_t: GetInfo collects the replicas' info
+ps_downup_2: "build_prior lists the OSDs that might have written in past intervals; the primary asks each living one for its pg_info_t (last_update, last_complete, log tail)."
+ps_downup_3_t: GetLog picks the authoritative log
+ps_downup_3: "find_best_info picks the info with the newest last_update (preferring longer logs and the current primary). osd.0 already has it, so there is no log to fetch; choose_acting keeps acting = up."
+ps_downup_4_t: Activate with one copy missing
+ps_downup_4: "Two copies satisfy min_size (2), so activate sends the log and info to osd.1 and the PG goes active+undersized+degraded; client I/O resumes."
+ps_downup_5_t: Writes continue on two copies
+ps_downup_5: "Two writes arrive: 20'4 on D and 20'5 on A. Each is appended to the PG log on osd.0 and osd.1 before it is acknowledged; osd.2 does not see them."
+ps_downup_6_t: osd.2 returns; a new interval
+ps_downup_6: "In epoch 25 osd.2 is up again and back in up and acting. Peering starts over; osd.2 answers GetInfo with last_update 5'3 (proc_replica_notify)."
+ps_downup_7_t: GetMissing works out what osd.2 lacks
+ps_downup_7: "The primary compares osd.2's log with the authoritative one in proc_replica_log: the entries after 5'3 touched D and A, so its missing set is {D, A}. Its log overlaps, so log-based recovery is enough (no backfill)."
+ps_downup_8_t: Recovering pushes the objects
+ps_downup_8: "After the local and remote recovery reservations, start_recovery_ops calls recover_replicas, which pushes each missing object to osd.2 (D is done, A is in flight). The PG is active+recovering+degraded and keeps serving I/O."
+ps_downup_9_t: Recovered, then Clean
+ps_downup_9: "When nothing is missing the PG passes Recovered and settles in Clean: active+clean again on three copies."
+ps_backfill_0_t: All three copies are in step
+ps_backfill_0: "pg 1.7 is active+clean on osd.0, 1, 2."
+ps_backfill_1_t: osd.2 is out; CRUSH picks osd.3
+ps_backfill_1: "In epoch 31 osd.2's reweight becomes 0, so CRUSH now maps the PG to [0,1,3]. osd.3 has no log at all, so calc_replicated_acting cannot put it in acting; choose_acting asks the monitor for a pg_temp of [0,1,2] and waits in WaitActingChange."
+ps_backfill_2_t: Active with pg_temp
+ps_backfill_2: "In epoch 32 the pg_temp is in the map: acting stays [0,1,2] while up is [0,1,3]. activate records osd.3 as a backfill target; the PG is remapped."
+ps_backfill_3_t: Waiting for the local backfill slot
+ps_backfill_3: "Backfill is throttled: the primary first takes one of its own osd_max_backfills slots (backfill_wait)."
+ps_backfill_4_t: Waiting for the remote slot
+ps_backfill_4: "Then it asks osd.3 for a slot with MBackfillReserve; if osd.3 is too full it refuses (backfill_toofull)."
+ps_backfill_5_t: Backfilling, in hash order
+ps_backfill_5: "recover_backfill walks the objects in hash order and copies them to osd.3; last_backfill marks how far it has come. Writes to objects below that point are also sent to osd.3."
+ps_backfill_6_t: Backfill done
+ps_backfill_6: "last_backfill reaches MAX; nothing needs backfill or recovery, so the PG is Recovered and asks for the pg_temp to be removed."
+ps_backfill_7_t: Clean on the new set
+ps_backfill_7: "In epoch 33 acting = up = [0,1,3] and the PG is active+clean. osd.2 is now a Stray for this PG and deletes its copy (ToDelete)."
+ps_divergent_0_t: The primary logs a write
+ps_divergent_0: "osd.0 executes a write to D as 40'4 and logs it, but crashes before the replicas have it (issue_repop never completes). The client never got an ack."
+ps_divergent_1_t: osd.0 is gone; osd.1 leads
+ps_divergent_1: "In epoch 41 acting is [1,2] and osd.1 is primary. find_best_info finds last_update 5'3 on both; 40'4 is unknown to them."
+ps_divergent_2_t: New writes in the new interval
+ps_divergent_2: "The PG goes active+undersized+degraded and takes two writes: 41'4 on E and 41'5 on B. Versions 4 and 5 now mean something different from osd.0's 40'4."
+ps_divergent_3_t: osd.0 returns as primary
+ps_divergent_3: "In epoch 45 osd.0 is back and CRUSH makes it primary again. Peering starts; GetInfo collects the infos."
+ps_divergent_4_t: The log of osd.1 wins
+ps_divergent_4: "find_best_info compares last_update: 41'5 is newer than 40'4 (the epoch is compared first), so osd.1's log is authoritative. osd.0 fetches it and runs proc_master_log; its 40'4 is divergent."
+ps_divergent_5_t: merge_log rewinds the divergent entry
+ps_divergent_5: "merge_log sees that 40'4 is not in the authoritative history: rewind_divergent_log drops it and _merge_divergent_entries decides the object's fate. D did not exist before, so it is removed; E and B become missing on osd.0."
+ps_divergent_6_t: The primary pulls what it lacks
+ps_divergent_6: "Because the primary itself is missing objects, recover_primary pulls them from osd.1 (E is done, B is in flight). A client read of B waits for it."
+ps_divergent_7_t: Clean, without the lost write
+ps_divergent_7: "All three logs agree on 41'5 and the PG is active+clean. The write to D is gone, which is correct: it was never acknowledged."
+r_ps_states: the state machine and its nesting
+r_ps_interval: when peering restarts and which past OSDs to ask
+r_ps_choose: the authoritative log and the acting set
+r_ps_log: merging logs and activating the replicas
+r_ps_pglog: merging and rewinding divergent entries
+r_ps_rec: log-based recovery and backfill
+
+bluestore_t: BlueStore write path
+bluestore_d: Choose the device, offset and length of a write and watch BlueStore split it and decide what goes through the WAL (deferred) and what is written directly.
+bluestore_what: "This is the classic write path (bluestore_write_v2 is false by default). _do_write_data cuts the write at min_alloc_size into an unaligned head, an aligned middle and an unaligned tail. An overwrite of space that is already allocated becomes a deferred write: it is put in the RocksDB transaction, acknowledged after the commit, and copied to its place later. New data goes to freshly allocated space; if the whole write's new data is smaller than prefer_deferred_size it is deferred as well, otherwise it is written with aio before the commit."
+bluestore_limit: "No compression, checksums, blob reuse or garbage collection; one mutable blob per region is assumed. The decision rules and the transaction states follow BlueStore.cc."
+bs_dev: Device
+dev_l: Device
+bs_preset: Example
+bs_p_s4o: 4 KiB overwrite
+bs_p_s6u: 6 KiB unaligned overwrite
+bs_p_n16: 16 KiB new data
+bs_p_n1m: 1 MiB new data
+bs_p_o128: 128 KiB overwrite
+bs_p_custom: custom
+bs_off: Offset (KiB)
+bs_len: Length (KiB)
+bs_target: The range is
+over_l: The range is
+bs_new: new
+bs_over: already written
+bs_bar: The write against the min_alloc_size grid
+bs_bar_cap: "The write over 4 KiB allocation units: green is written directly, amber goes through the WAL."
+bs_piece: Piece
+bs_range: Range
+bs_why: Path
+bs_how: How
+bs_read: Read first
+bs_alloc: Allocated
+bs_why_new: new blob
+bs_why_over: small overwrite in place
+bs_why_bigover: big overwrite in existing blobs
+bs_def: deferred (WAL)
+bs_dir: direct (aio)
+bs_st_pieces: pieces
+bs_st_wal: bytes through the WAL
+bs_st_aio: bytes written directly
+bs_lanes: OSD|BlueStore|allocator|block device|RocksDB / WAL
+bs_s_queue_s: queue_transactions
+bs_s_queue: "The OSD hands BlueStore a transaction; a TransContext is created in state PREPARE."
+bs_s_split_s: split at min_alloc
+bs_s_split: "_do_write_data cuts the write into {n} piece(s) and sends each to _do_write_small or _do_write_big."
+bs_s_rmw_s: read head/tail
+bs_s_rmw: "The overwrite is not aligned to the 4 KiB disk block, so {b} around it is read first so whole blocks can be written later."
+bs_s_alloc_s: allocate
+bs_s_alloc: "_do_alloc_write asks the allocator for {b} in min_alloc_size units."
+bs_s_aio_s: direct write
+bs_s_aio: "{b} of new data is written with aio to the new space; the transaction waits in AIO_WAIT. The old data is untouched, so a crash leaves nothing half-written."
+bs_s_defop_s: deferred op
+bs_s_defop: "The bytes to be written in place are put into a bluestore_deferred_op_t inside the same RocksDB transaction."
+bs_s_kv_s: KV commit
+bs_s_kv: "_kv_sync_thread commits the onode, extent map and allocation changes to RocksDB with a sync."
+bs_s_kv_def_s: KV commit with data
+bs_s_kv_def: "_kv_sync_thread commits the metadata and the deferred data to RocksDB with a sync; the WAL write is the only synchronous disk write."
+bs_s_ack_s: ack
+bs_s_ack: "After the commit the write is durable; _txc_committed_kv completes the OSD's callbacks and the client can get its ack."
+bs_s_defio_s: deferred write
+bs_s_defio: "Later, in batches (bluestore_deferred_batch_ops), the deferred bytes are written to their place on the block device."
+bs_s_clean_s: cleanup
+bs_s_clean: "When that write is on disk, _deferred_aio_finish removes the deferred record from RocksDB."
+r_bs_split: splitting a write into head, middle and tail
+r_bs_paths: the small and big write paths
+r_bs_alloc: allocation and the deferred-or-direct decision
+r_bs_txc: the transaction's state machine, the KV commit and the deferred queue
+r_bs_states: the TransContext states
+r_bs_opts: the default sizes used here
+
+rgwput_t: RGW PUT and multipart
+rgwput_d: Give a key and a size and follow an S3 PUT through radosgw to the bucket index and the data pool, with the RADOS objects it creates.
+rgwput_what: "The tail stripes are written while the body streams in; only then is the bucket index shard prepared (cls rgw_bucket_prepare_op), the head object written with its manifest and attributes, and the index entry completed (rgw_bucket_complete_op, which also writes the bucket index log). The shard is ceph_str_hash_linux of the key, folded and taken modulo a prime and the shard count. A multipart upload writes each part as its own objects and the final complete writes only a head with a manifest that lists the parts."
+rgwput_limit: "One zone, no versioning, encryption, compression or object lock; object names use MARKER for the bucket marker and placeholders for random parts. The shard numbers are exact."
+rg_key: Object key
+rg_size: Size (MiB)
+rg_mode: Upload
+mode_l: Upload
+rg_atomic: single PUT
+rg_part: Part size (MiB)
+rg_layout: RADOS objects of this upload
+rg_note: "Default sizes: the head holds up to 4 MiB (rgw_max_chunk_size), stripes are 4 MiB (rgw_obj_stripe_size), a part is at least 5 MiB (rgw_multipart_min_part_size)."
+rg_s_objs: RADOS objects
+rg_s_shard: bucket index shard
+rg_s_size: object size
+rg_lanes: client|radosgw|auth|index pool|data pool
+rg_s_put_s: PUT
+rg_s_put: "The client sends PUT /bucket/{k} with {b} of data; RGWPutObj::execute starts."
+rg_s_auth_s: authenticate
+rg_s_auth: "The AWS signature is checked (v4 here) and the user's permissions on the bucket are evaluated."
+rg_s_tail_s: tail stripes
+rg_s_tail: "As the body streams in, the processor writes {t} tail object(s) of 4 MiB to the data pool."
+rg_s_prep_s: index prepare
+rg_s_prep: "rgw_bucket_prepare_op marks a pending entry for {k} on shard {sh} of {n}, so a crash now leaves a trace that can be cleaned up."
+rg_s_head_s: head write
+rg_s_head: "The head object is written in one write_full with the first 4 MiB, the manifest and the attributes (ETag, ACL, content type)."
+rg_s_comp_s: index complete
+rg_s_comp: "rgw_bucket_complete_op turns the pending entry into a listed object on shard {sh} and appends to the bucket index log for sync."
+rg_s_ok_s: 200 OK
+rg_s_ok: "radosgw answers 200 with the ETag; the object is now visible in listings."
+rg_m_init_s: initiate
+rg_m_init: "POST ?uploads starts a multipart upload and returns an upload id."
+rg_m_meta_s: meta object
+rg_m_meta: "A meta object is created in the multipart namespace; it will hold the parts list in omap."
+rg_m_part_s: upload parts
+rg_m_part: "The client sends {p} part(s) with PUT ?partNumber=N&uploadId=…; each is its own RGWPutObj."
+rg_m_pdata_s: part data
+rg_m_pdata: "Each part is written as a __multipart_ object (first 4 MiB) and __shadow_ stripes; its size and ETag are added to the meta object's omap."
+rg_m_comp_s: complete
+rg_m_comp: "POST ?uploadId=… lists the parts; RGWCompleteMultipart checks their ETags and sizes."
+rg_m_head_s: head with manifest
+rg_m_head: "A head object with no data is written; its manifest points at all the parts' objects. The meta object is then removed."
+rg_m_ok_s: 200 OK
+rg_m_ok: "The answer carries an ETag of the form md5-of-part-md5s-{p}."
+r_rg_op: the PUT and complete-multipart operations
+r_rg_proc: writing the head, stripes and parts
+r_rg_meta: writing the head and updating the index
+r_rg_cls: the two index operations on the OSD
+r_rg_shard: which bucket index shard a key goes to
+r_rg_man: how the object is laid out in RADOS
+
+striping_t: RBD striping mapper
+striping_d: "Set an image's object size, stripe_unit and stripe_count and an I/O's offset and length: see which rbd_data objects it touches and where."
+striping_what: "librbd hands every I/O to the Striper. The image is cut into stripe units that are dealt round-robin to stripe_count objects; when those objects are full the next object set starts. Each object is named rbd_data.<image id>. and its number in 16 hex digits. With stripe_count 1 (the default) stripe_unit is the object size and the image is simply cut into consecutive objects."
+striping_limit: "Only the data objects; the header, id and object-map objects are not shown. The extents are exactly what Striper::file_to_extents returns (checked against Ceph's test vectors)."
+st_size: Image size (GiB)
+st_id: Image id
+st_off: I/O offset (bytes)
+st_len: I/O length (bytes)
+st_obj: Object
+st_ooff: Offset in object
+st_olen: Length
+st_s_objs: objects when full
+st_s_set: object set size
+st_s_touched: objects touched by this I/O
+st_grouped: "{n} stripes per row"
+st_more: "{n} more objects not listed."
+r_st_fte: an image range to object extents
+r_st_misc: object counts and the reverse mapping
+r_st_name: the data object name
+r_st_prefix: the name prefix
+r_st_test: the vectors the tests compare against
+
+xp_sim: "Lab: {n}"

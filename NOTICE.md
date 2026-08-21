@@ -44,6 +44,13 @@ the exact upstream file. The table above is a summary, not legal advice.
 from `src/rgw/driver/rados/rgw_reshard.cc` (Ceph, LGPL). It is used only to plot a
 figure.
 
+`templates/site/sims/crush-ln-table.js` contains the `crush_ln` lookup tables
+(`__RH_LH_tbl`, `__LL_tbl`) of `src/crush/crush_ln_table.h` (Ceph; Copyright (C) 2015
+Intel Corporation; LGPL-2.1), generated from that file by `tools/simref/gen_golden.py`.
+It keeps the LGPL-2.1 licence and is shipped as a separate file of the web edition.
+`tools/simref/crush_ref.c` compiles Ceph's own CRUSH sources from a local checkout at
+test time; no Ceph source file is copied into this repository.
+
 ## Measurements
 
 The numbers in the "measured" figures (chapters 2, 8–10, 15, 17, 19, 22, 24, 33)

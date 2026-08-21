@@ -91,7 +91,9 @@ letter, title, _ = UI['app']['glossary']
 parts += ['', f'# {UI["appendix"]} {letter}: {title} {{.unnumbered}}', '', f'| {UI["glossary_cols"][0]} | {UI["glossary_cols"][1]} |', '|---|---|']
 parts += [f'| {g["term"]} | {(g.get(a.lang) or g.get("fa", "")).replace("|", "/")} |' for g in sorted(G, key=lambda g: g['term'].lower())]
 src = os.path.join(B, f'pandoc-{a.lang}.md')
-labels = {'algorithm': UI['algorithm'], 'algo_src': UI['algo_src'], 'algo_complexity': UI['algo_complexity'], **UI['callouts']}
+SIMSTR = yaml.safe_load(open(os.path.join(ROOT, 'templates', 'site', 'sims', f'strings-{a.lang}.yaml'), encoding='utf-8'))
+labels = {'algorithm': UI['algorithm'], 'algo_src': UI['algo_src'], 'algo_complexity': UI['algo_complexity'], **UI['callouts'],
+          'sim_print': UI['sim_print'], **{k: v for k, v in SIMSTR.items() if k.endswith('_t') and not k.startswith('ps_')}}
 meta = {'title': META['title'], 'subtitle': META['subtitle'], 'author': META['author'], 'lang': a.lang, 'dir': META['dir'],
         'date': META['date_display'], 'ui_labels': labels, 'rights': META.get('license', '')}
 open(src, 'w', encoding='utf-8').write('---\n' + yaml.safe_dump(meta, allow_unicode=True, sort_keys=False) + '---\n\n' + '\n'.join(parts) + '\n')

@@ -314,6 +314,9 @@ ceph osd pool set images bulk true                   # pool بزرگ: از اب�
 در Umbrella پیش‌فرض `mon_target_pg_per_osd` از ۱۰۰ به ۲۰۰ و سقف `mon_max_pg_per_osd` از ۲۵۰ به ۵۰۰ افزایش یافت. پس از ارتقا، autoscaler ممکن است تعداد PG برخی poolها را بالا ببرد و جابه‌جایی داده شروع شود. خروجی `autoscale-status` را پیش و پس از ارتقا مقایسه کنید و اگر لازم است تغییرات را زمان‌بندی کنید.
 :::
 
+::: {.sim name="pgcalc"}
+:::
+
 # از درون کد: MON، Paxos و سرویس‌های نقشه {#sec-07-8}
 
 ## نقش Paxos در Ceph {#sec-07-8-1}

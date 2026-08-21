@@ -4,7 +4,9 @@
 Usage: tools/shoot_site.py [--site build/site] [--out build/site-shots] [--chapter-fa SLUG] [--chapter-en SLUG]
 
 For fa and en, at 1440 px and 390 px: home, a chapter with figures, the figure
-lightbox (zoomed), the mobile menu (390 px), dark mode and search. Pages are
+lightbox (zoomed), the mobile menu (390 px), dark mode and search; then each
+simulator of the interactive lab is driven once (desktop, one mobile, one dark,
+print media and no-JavaScript fallback). Pages are
 opened over file://, so the test also proves the site needs no server and no
 network. Any console error, page error or failed request makes the run fail.
 Needs Python Playwright; Chrome is taken from $CHROME (default google-chrome).
@@ -25,6 +27,7 @@ ap.add_argument('--site', default=os.path.join(ROOT, 'build', 'site'))
 ap.add_argument('--out', default=os.path.join(ROOT, 'build', 'site-shots'))
 ap.add_argument('--chapter-fa', default='12-bluestore')
 ap.add_argument('--chapter-en', default='11-deployment')
+ap.add_argument('--sims-only', action='store_true', help='only the interactive lab section')
 a = ap.parse_args()
 SITE = os.path.abspath(a.site)
 OUT = os.path.abspath(a.out)
@@ -41,7 +44,7 @@ def url(lang, slug, frag=''):
 
 with sync_playwright() as pw:
     browser = pw.chromium.launch(executable_path=chrome, args=['--no-sandbox'])
-    for lang in ('fa', 'en'):
+    for lang in (() if a.sims_only else ('fa', 'en')):
         chap = a.chapter_fa if lang == 'fa' else a.chapter_en
         for w, h, tag in ((1440, 900, 'desktop'), (390, 844, 'mobile')):
             ctx = browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=1 if w > 800 else 2,
@@ -183,150 +186,290 @@ with sync_playwright() as pw:
             if not other.endswith(f'/{chap}.html'):
                 problems.append(f'[{lang}] language switch points to {other}')
             ctx.close()
-    # gamification: seed a believable history, then shoot the dashboard, heatmap, badges,
-    # flashcards, quiz, level-up toast and certificate (fa; dark dashboard too)
-    SEED = r"""([lang, name]) => {
-        const P0 = JSON.parse(document.getElementById('site-data').textContent).pages;
-        const chs = Object.keys(P0).filter(k => P0[k][2] > 0).sort((a, b) => P0[a][2] - P0[b][2]);
-        const pad = n => (n < 10 ? '0' : '') + n;
-        const key = t => t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate());
-        const ago = n => { const t = new Date(); t.setHours(12); t.setDate(t.getDate() - n); return key(t); };
-        const read = {};
-        chs.forEach((k, i) => { const n = P0[k][2]; if (n <= 13 || n === 17 || n === 18 || n === 20) read[k] = Date.now() - (40 - i) * 864e5; });
-        const days = {}, frozen = {};
-        for (let i = 160; i >= 1; i--) {
-            const r = (i * 7919) % 23;
-            let m = i <= 12 ? 12 + (i * 5) % 30 : (r < 9 ? 0 : 6 + (r * 3) % 45);
-            if (i === 6) { m = 0; frozen[ago(i)] = 1; }
-            if (m) days[ago(i)] = { s: m * 60, x: m * 3, sec: Math.ceil(m / 6), c: (i * 3) % 14, m: 0, nw: 0, k: {}, gm: m >= 10 ? 1 : 0 };
-        }
-        days[ago(0)] = { s: 420, x: 25, sec: 2, c: 0, m: 0, nw: 0, k: {} };
-        const srs = {};
-        for (let k = 1; k <= 8; k++) srs['q1-' + k] = { b: 2, d: ago(0), n: 2, l: 0 };
-        for (let k = 1; k <= 10; k++) srs['q2-' + k] = { b: 4, d: ago(-6), n: 4, l: 1 };
-        const algo = {}; for (let i = 1; i <= 64; i++) algo['alg-x-' + i] = 1;
-        const zoom = {}; for (let i = 1; i <= 14; i++) zoom['fig-x-' + i] = 1;
-        const secs = {}; chs.slice(0, 13).forEach(k => { for (let i = 1; i <= 9; i++) secs[k + '#s' + i] = 1; });
-        const chXP = {}; Object.keys(read).forEach(k => chXP[k] = 50);
-        const g = { v: 1, on: true, sound: false, goal: { t: 'min', n: 10 }, restDays: true, xp: 2550, days, fz: 2, fzEarned: 4, frozen,
-            settled: ago(1), best: 19, badges: {}, secs, chXP, zoom, algo, srs, glossOn: true, quiz: { ok: 37, n: 45, run: 3, best: 8 },
-            wk: null, name, flags: { night: 1 }, lv: 7, seen: ago(0) };
-        localStorage.setItem('book-progress:' + lang, JSON.stringify({ v: 2, read, max: {}, last: { s: chs[13], f: 0.3, h: '', t: Date.now() }, marks: [], g }));
-    }"""
-    ctx = browser.new_context(viewport={'width': 1440, 'height': 900}, color_scheme='light', reduced_motion='no-preference')
-    ctx.route('http*://**', lambda r: (problems.append(f'network request {r.request.url}'), r.abort()))
-    page = ctx.new_page()
-    page.on('console', lambda m: m.type == 'error' and problems.append(f'[game] console: {m.text}'))
-    page.on('pageerror', lambda e: problems.append(f'[game] pageerror: {e}'))
+    if not a.sims_only:
+        # gamification: seed a believable history, then shoot the dashboard, heatmap, badges,
+        # flashcards, quiz, level-up toast and certificate (fa; dark dashboard too)
+        SEED = r"""([lang, name]) => {
+            const P0 = JSON.parse(document.getElementById('site-data').textContent).pages;
+            const chs = Object.keys(P0).filter(k => P0[k][2] > 0).sort((a, b) => P0[a][2] - P0[b][2]);
+            const pad = n => (n < 10 ? '0' : '') + n;
+            const key = t => t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate());
+            const ago = n => { const t = new Date(); t.setHours(12); t.setDate(t.getDate() - n); return key(t); };
+            const read = {};
+            chs.forEach((k, i) => { const n = P0[k][2]; if (n <= 13 || n === 17 || n === 18 || n === 20) read[k] = Date.now() - (40 - i) * 864e5; });
+            const days = {}, frozen = {};
+            for (let i = 160; i >= 1; i--) {
+                const r = (i * 7919) % 23;
+                let m = i <= 12 ? 12 + (i * 5) % 30 : (r < 9 ? 0 : 6 + (r * 3) % 45);
+                if (i === 6) { m = 0; frozen[ago(i)] = 1; }
+                if (m) days[ago(i)] = { s: m * 60, x: m * 3, sec: Math.ceil(m / 6), c: (i * 3) % 14, m: 0, nw: 0, k: {}, gm: m >= 10 ? 1 : 0 };
+            }
+            days[ago(0)] = { s: 420, x: 25, sec: 2, c: 0, m: 0, nw: 0, k: {} };
+            const srs = {};
+            for (let k = 1; k <= 8; k++) srs['q1-' + k] = { b: 2, d: ago(0), n: 2, l: 0 };
+            for (let k = 1; k <= 10; k++) srs['q2-' + k] = { b: 4, d: ago(-6), n: 4, l: 1 };
+            const algo = {}; for (let i = 1; i <= 64; i++) algo['alg-x-' + i] = 1;
+            const zoom = {}; for (let i = 1; i <= 14; i++) zoom['fig-x-' + i] = 1;
+            const secs = {}; chs.slice(0, 13).forEach(k => { for (let i = 1; i <= 9; i++) secs[k + '#s' + i] = 1; });
+            const chXP = {}; Object.keys(read).forEach(k => chXP[k] = 50);
+            const g = { v: 1, on: true, sound: false, goal: { t: 'min', n: 10 }, restDays: true, xp: 2550, days, fz: 2, fzEarned: 4, frozen,
+                settled: ago(1), best: 19, badges: {}, secs, chXP, zoom, algo, srs, glossOn: true, quiz: { ok: 37, n: 45, run: 3, best: 8 },
+                wk: null, name, flags: { night: 1 }, lv: 7, seen: ago(0) };
+            localStorage.setItem('book-progress:' + lang, JSON.stringify({ v: 2, read, max: {}, last: { s: chs[13], f: 0.3, h: '', t: Date.now() }, marks: [], g }));
+        }"""
+        ctx = browser.new_context(viewport={'width': 1440, 'height': 900}, color_scheme='light', reduced_motion='no-preference')
+        ctx.route('http*://**', lambda r: (problems.append(f'network request {r.request.url}'), r.abort()))
+        page = ctx.new_page()
+        page.on('console', lambda m: m.type == 'error' and problems.append(f'[game] console: {m.text}'))
+        page.on('pageerror', lambda e: problems.append(f'[game] pageerror: {e}'))
 
-    def gsnap(name, full=False, el=None):
-        p = os.path.join(OUT, f'fa-{name}.png')
-        (page.locator(el).screenshot(path=p, style='.topbar, .g-toasts { visibility: hidden !important; }') if el else page.screenshot(path=p, full_page=full))
+        def gsnap(name, full=False, el=None):
+            p = os.path.join(OUT, f'fa-{name}.png')
+            (page.locator(el).screenshot(path=p, style='.topbar, .g-toasts { visibility: hidden !important; }') if el else page.screenshot(path=p, full_page=full))
+            shots.append(p)
+        page.goto(url('fa', 'index'))
+        page.evaluate(SEED, ['fa', 'خواننده‌ی نمونه'])
+        page.reload()   # first load awards the badges this history has earned
+        page.wait_for_timeout(300)
+        # park XP two points below level 8 so one reviewed card shows the level-up celebration
+        page.evaluate("(() => { const P = JSON.parse(localStorage.getItem('book-progress:fa')); P.g.xp = 2698; const w = P.g.wk; if (w) { w.c = {sec: 9, ch: 1, cards: 12, gd: 3, mc: 7, min: 55, algo: 4}; } localStorage.setItem('book-progress:fa', JSON.stringify(P)); })()")
+        page.goto(url('fa', 'progress'))
+        page.wait_for_timeout(700)
+        gsnap('desktop-progress', full=True)
+        n_badges, n_cells = page.locator('.badge').count(), page.locator('.heat i').count()
+        if n_badges < 25:
+            problems.append(f'[game] badge gallery shows {n_badges} badges')
+        if n_cells < 7 * 17:
+            problems.append(f'[game] heatmap has {n_cells} cells')
+        if page.locator('.badge:not(.t0)').count() < 5:
+            problems.append('[game] seeded history unlocked fewer than 5 badges')
+        if 'نگهبان' in page.inner_text('.g-level') or 'RGW' not in page.inner_text('.g-level'):
+            problems.append('[game] level card does not show level 7 (RGW)')
+        if page.locator('.paths li.done .btn').count() < 1:
+            problems.append('[game] completed path has no certificate button')
+        gsnap('desktop-heatmap', el='.g-sec:has(.heat)')
+        gsnap('desktop-badges', el='#gm-badges')
+        # opt-out hides every game element
+        page.locator('#gs-on').click()
+        if not page.locator('#g-chip').is_hidden() or page.locator('#gm-badges').is_visible():
+            problems.append('[game] switching gamification off left game UI visible')
+        page.locator('#gs-on').click()
+        # flashcards: reveal, rate (crosses into level 8)
+        page.goto(url('fa', 'review'))
+        page.wait_for_selector('.flash')
+        gsnap('desktop-review-card')
+        page.keyboard.press(' ')
+        page.wait_for_timeout(500)
+        if not page.locator('.f-a').is_visible():
+            problems.append('[game] flashcard answer did not reveal')
+        gsnap('desktop-review-answer')
+        page.keyboard.press('3')
+        page.wait_for_timeout(700)
+        if page.locator('.g-toast.level').count() != 1:
+            problems.append('[game] no level-up toast after crossing the threshold')
+        gsnap('desktop-levelup')
+        if page.evaluate("JSON.parse(localStorage.getItem('book-progress:fa')).g.srs['q1-1'].b") != 3:
+            problems.append('[game] rating a card did not move it to the next Leitner box')
+        # glossary quiz
+        page.locator('#tab-quiz').click()
+        page.wait_for_selector('.qz-o')
+        page.locator('.qz-o').first.click()
+        page.wait_for_timeout(300)
+        if page.locator('.qz-o.right').count() != 1:
+            problems.append('[game] quiz did not mark the right answer')
+        gsnap('desktop-quiz')
+        # chapter-end quiz card and certificate
+        page.goto(url('fa', a.chapter_fa))
+        page.locator('.quiz-cta').scroll_into_view_if_needed()
+        page.evaluate('window.scrollBy(0, -200)')
+        page.wait_for_timeout(300)
+        gsnap('desktop-chapter-quiz')
+        page.goto(url('fa', 'certificate') + '?p=2')
+        page.wait_for_timeout(300)
+        if page.locator('#cert').count() != 1 or 'خواننده‌ی نمونه' not in page.inner_text('#cert'):
+            problems.append('[game] certificate for a completed path did not render the stored name')
+        gsnap('desktop-certificate', full=True)
+        page.locator('#theme-btn').click()
+        page.goto(url('fa', 'progress'))
+        page.wait_for_timeout(500)
+        gsnap('desktop-dark-progress')
+        page.evaluate("localStorage.setItem('book-theme','light')")
+        ctx.close()
+        ctx = browser.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2, has_touch=True, color_scheme='light', reduced_motion='reduce')
+        ctx.route('http*://**', lambda r: (problems.append(f'network request {r.request.url}'), r.abort()))
+        page = ctx.new_page()
+        page.on('console', lambda m: m.type == 'error' and problems.append(f'[game mobile] console: {m.text}'))
+        page.on('pageerror', lambda e: problems.append(f'[game mobile] pageerror: {e}'))
+        page.goto(url('fa', 'index'))
+        page.evaluate(SEED, ['fa', 'خواننده‌ی نمونه'])
+        page.reload()
+        page.wait_for_timeout(300)
+        page.goto(url('fa', 'progress'))
+        page.wait_for_timeout(500)
+        gsnap('mobile-progress')
+        page.goto(url('fa', 'review'))
+        page.wait_for_selector('.flash')
+        page.keyboard.press(' ')
+        page.wait_for_timeout(200)
+        gsnap('mobile-review')
+        ctx.close()
+        # full motion once: entrance animations, scroll reveal and hero counters must settle without errors
+        ctx = browser.new_context(viewport={'width': 1440, 'height': 900}, color_scheme='dark', reduced_motion='no-preference')
+        ctx.route('http*://**', lambda r: (problems.append(f'network request {r.request.url}'), r.abort()))
+        page = ctx.new_page()
+        page.on('console', lambda m: m.type == 'error' and problems.append(f'[motion] console: {m.text}'))
+        page.on('pageerror', lambda e: problems.append(f'[motion] pageerror: {e}'))
+        page.goto(url('fa', 'index'))
+        page.wait_for_timeout(1800)
+        got = page.evaluate("[...document.querySelectorAll('.stats b[data-n]')].map(b => b.textContent.replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)) === b.dataset.n)")
+        if not got or not all(got):
+            problems.append('[motion] hero counters did not settle on their final values')
+        p = os.path.join(OUT, 'fa-desktop-motion-home.png')
+        page.screenshot(path=p)
         shots.append(p)
+        page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)')
+        page.wait_for_timeout(900)
+        if page.locator('.rv').count() and not page.locator('.rv.in').count():
+            problems.append('[motion] scroll reveal never revealed anything')
+        ctx.close()
+    # interactive lab: drive every simulator once; desktop fa, one mobile, one dark, en, print media and no-JS fallback
+    SIMS = ['crush', 'pgcalc', 'ecprofile', 'peering', 'bluestore', 'rgwput', 'striping']
+    HIDE = '.topbar, .g-toasts, .totop { visibility: hidden !important; }'
+
+    def sim_ctx(w=1440, h=900, scheme='light', js=True, tag='sim'):
+        c = browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=1 if w > 800 else 2, has_touch=w < 800,
+                                color_scheme=scheme, reduced_motion='reduce', java_script_enabled=js)
+        c.route('http*://**', lambda r: (problems.append(f'network request {r.request.url}'), r.abort()))
+        pg = c.new_page()
+        pg.on('console', lambda m: m.type == 'error' and problems.append(f'[{tag}] console: {m.text}'))
+        pg.on('pageerror', lambda e: problems.append(f'[{tag}] pageerror: {e}'))
+        return c, pg
+
+    def ssnap(pg, name, el='.sim-slot'):
+        p = os.path.join(OUT, f'{name}.png')
+        pg.locator(el).first.screenshot(path=p, style=HIDE)
+        shots.append(p)
+
+    def mounted(pg, name):
+        try:
+            pg.wait_for_selector(f'.sim-slot.sim-on[data-sim="{name}"] > .sim .sim-out > *', timeout=5000)
+            return True
+        except Exception:  # noqa: BLE001
+            problems.append(f'[sim {name}] simulator did not mount')
+            return False
+
+    def drive(pg, name):
+        """One meaningful interaction per simulator, with a check that the output reacted."""
+        box = pg.locator(f'.sim-slot[data-sim="{name}"] > .sim')
+        if name == 'crush':
+            box.locator('.cr-tg[data-act="out"]').nth(4).click()
+            pg.wait_for_timeout(150)
+            if box.locator('.cr-pgs li.chg').count() == 0 or box.locator('.sim-stat.hot').count() == 0:
+                problems.append('[sim crush] marking an OSD out moved no PG')
+        elif name == 'pgcalc':
+            box.locator('input[data-k="osds"]').fill('120')
+            pg.wait_for_timeout(450)
+            if '۲۴۰۰۰' not in box.locator('.sim-out').inner_text() and '24000' not in box.locator('.sim-out').inner_text():
+                problems.append('[sim pgcalc] the PG budget did not follow the OSD count')
+        elif name == 'ecprofile':
+            box.locator('select[data-k="plugin"]').select_option('clay')
+            pg.wait_for_timeout(150)
+            if 'd / (d − k + 1)' not in box.locator('.sim-formula').inner_text():
+                problems.append('[sim ecprofile] choosing CLAY did not change the repair formula')
+        elif name == 'peering':
+            box.locator('select[data-k="sc"]').select_option('divergent')
+            for _ in range(5):
+                box.locator('[data-act="next"]').click()
+            pg.wait_for_timeout(150)
+            if box.locator('.ps-gone').count() != 1 or box.locator('.ps-tree li.cur').inner_text() != 'GetMissing':
+                problems.append('[sim peering] the divergent scenario did not reach merge_log')
+        elif name == 'bluestore':
+            box.locator('select[data-k="preset"]').select_option('s6u')
+            box.locator('[data-act="next"]').click()
+            box.locator('[data-act="next"]').click()
+            pg.wait_for_timeout(150)
+            if box.locator('.sim-seq .st.cur').count() != 1 or 'head_read' not in box.locator('.sim-step').inner_text():
+                problems.append('[sim bluestore] the unaligned overwrite did not show the read of head/tail')
+        elif name == 'rgwput':
+            box.locator('[data-set="mode"][data-v="multipart"]').click()
+            pg.wait_for_timeout(150)
+            if box.locator('.rg-objs li.ns-multipart').count() != 2:
+                problems.append('[sim rgwput] 10 MiB in 5 MiB parts did not give two __multipart_ objects')
+        elif name == 'striping':
+            rows = box.locator('.sim-t tbody tr').count()
+            if rows != 4 or 'rbd_data.10226b8b4567.0000000000000003' not in box.locator('.sim-t').inner_text():
+                problems.append('[sim striping] the book example (4 MiB, 64 KiB × 4, 300000 at 1000000) did not touch objects 0-3')
+        # the information panel opens from the keyboard
+        info = box.locator('[data-act="__info"]')
+        info.focus()
+        pg.keyboard.press('Enter')
+        if info.get_attribute('aria-expanded') != 'true' or not box.locator('.sim-info').is_visible():
+            problems.append(f'[sim {name}] info toggle does not open from the keyboard')
+        pg.keyboard.press('Enter')
+
+    ctx, page = sim_ctx(tag='sim')
     page.goto(url('fa', 'index'))
-    page.evaluate(SEED, ['fa', 'خواننده‌ی نمونه'])
-    page.reload()   # first load awards the badges this history has earned
-    page.wait_for_timeout(300)
-    # park XP two points below level 8 so one reviewed card shows the level-up celebration
-    page.evaluate("(() => { const P = JSON.parse(localStorage.getItem('book-progress:fa')); P.g.xp = 2698; const w = P.g.wk; if (w) { w.c = {sec: 9, ch: 1, cards: 12, gd: 3, mc: 7, min: 55, algo: 4}; } localStorage.setItem('book-progress:fa', JSON.stringify(P)); })()")
-    page.goto(url('fa', 'progress'))
-    page.wait_for_timeout(700)
-    gsnap('desktop-progress', full=True)
-    n_badges, n_cells = page.locator('.badge').count(), page.locator('.heat i').count()
-    if n_badges < 25:
-        problems.append(f'[game] badge gallery shows {n_badges} badges')
-    if n_cells < 7 * 17:
-        problems.append(f'[game] heatmap has {n_cells} cells')
-    if page.locator('.badge:not(.t0)').count() < 5:
-        problems.append('[game] seeded history unlocked fewer than 5 badges')
-    if 'نگهبان' in page.inner_text('.g-level') or 'RGW' not in page.inner_text('.g-level'):
-        problems.append('[game] level card does not show level 7 (RGW)')
-    if page.locator('.paths li.done .btn').count() < 1:
-        problems.append('[game] completed path has no certificate button')
-    gsnap('desktop-heatmap', el='.g-sec:has(.heat)')
-    gsnap('desktop-badges', el='#gm-badges')
-    # opt-out hides every game element
-    page.locator('#gs-on').click()
-    if not page.locator('#g-chip').is_hidden() or page.locator('#gm-badges').is_visible():
-        problems.append('[game] switching gamification off left game UI visible')
-    page.locator('#gs-on').click()
-    # flashcards: reveal, rate (crosses into level 8)
-    page.goto(url('fa', 'review'))
-    page.wait_for_selector('.flash')
-    gsnap('desktop-review-card')
-    page.keyboard.press(' ')
-    page.wait_for_timeout(500)
-    if not page.locator('.f-a').is_visible():
-        problems.append('[game] flashcard answer did not reveal')
-    gsnap('desktop-review-answer')
-    page.keyboard.press('3')
-    page.wait_for_timeout(700)
-    if page.locator('.g-toast.level').count() != 1:
-        problems.append('[game] no level-up toast after crossing the threshold')
-    gsnap('desktop-levelup')
-    if page.evaluate("JSON.parse(localStorage.getItem('book-progress:fa')).g.srs['q1-1'].b") != 3:
-        problems.append('[game] rating a card did not move it to the next Leitner box')
-    # glossary quiz
-    page.locator('#tab-quiz').click()
-    page.wait_for_selector('.qz-o')
-    page.locator('.qz-o').first.click()
-    page.wait_for_timeout(300)
-    if page.locator('.qz-o.right').count() != 1:
-        problems.append('[game] quiz did not mark the right answer')
-    gsnap('desktop-quiz')
-    # chapter-end quiz card and certificate
+    page.evaluate("localStorage.removeItem('book-progress:fa')")
+    page.goto(url('fa', 'lab'))
+    p = os.path.join(OUT, 'fa-desktop-lab.png'); page.screenshot(path=p, full_page=True); shots.append(p)
+    for n in SIMS:
+        page.goto(url('fa', f'lab-{n}'))
+        if not mounted(page, n):
+            continue
+        if page.locator('.sim-tools a.sim-btn').count():
+            problems.append(f'[sim {n}] the lab page links to itself')
+        drive(page, n)
+        page.wait_for_timeout(100)
+        ssnap(page, f'fa-desktop-sim-{n}')
+    got = page.evaluate("(() => { const P = JSON.parse(localStorage.getItem('book-progress:fa') || '{}'); return P.g ? [Object.keys(P.g.sims || {}).length, P.g.xp, (P.g.badges || {}).lab || 0] : [0, 0, 0]; })()")
+    notes.append(f'lab gamification after one visit each: sims={got[0]} xp={got[1]} lab badge tier={got[2]}')
+    if got[0] != len(SIMS) or got[1] < 5 * len(SIMS) or not got[2]:
+        problems.append(f'[sim] using every simulator did not record sims/XP/badge: {got}')
+    # a simulator embedded in a chapter, and the same page as printed
     page.goto(url('fa', a.chapter_fa))
-    page.locator('.quiz-cta').scroll_into_view_if_needed()
-    page.evaluate('window.scrollBy(0, -200)')
-    page.wait_for_timeout(300)
-    gsnap('desktop-chapter-quiz')
-    page.goto(url('fa', 'certificate') + '?p=2')
-    page.wait_for_timeout(300)
-    if page.locator('#cert').count() != 1 or 'خواننده‌ی نمونه' not in page.inner_text('#cert'):
-        problems.append('[game] certificate for a completed path did not render the stored name')
-    gsnap('desktop-certificate', full=True)
-    page.locator('#theme-btn').click()
-    page.goto(url('fa', 'progress'))
-    page.wait_for_timeout(500)
-    gsnap('desktop-dark-progress')
-    page.evaluate("localStorage.setItem('book-theme','light')")
-    ctx.close()
-    ctx = browser.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2, has_touch=True, color_scheme='light', reduced_motion='reduce')
-    ctx.route('http*://**', lambda r: (problems.append(f'network request {r.request.url}'), r.abort()))
-    page = ctx.new_page()
-    page.on('console', lambda m: m.type == 'error' and problems.append(f'[game mobile] console: {m.text}'))
-    page.on('pageerror', lambda e: problems.append(f'[game mobile] pageerror: {e}'))
+    page.locator('.sim-slot').first.scroll_into_view_if_needed()
+    if not mounted(page, 'bluestore'):
+        pass
+    elif page.locator('.sim-slot .sim-fallback').first.is_visible():
+        problems.append('[sim] the static fallback stays visible next to the live simulator')
+    ssnap(page, 'fa-desktop-chapter-sim-bluestore')
+    page.emulate_media(media='print')
+    if not page.locator('.sim-slot .sim-fallback').first.is_visible() or page.locator('.sim-slot > .sim').first.is_visible():
+        problems.append('[sim] print media does not swap the live simulator for the static figure')
+    ssnap(page, 'fa-print-sim-bluestore')
+    page.emulate_media(media='screen')
     page.goto(url('fa', 'index'))
-    page.evaluate(SEED, ['fa', 'خواننده‌ی نمونه'])
-    page.reload()
-    page.wait_for_timeout(300)
-    page.goto(url('fa', 'progress'))
-    page.wait_for_timeout(500)
-    gsnap('mobile-progress')
-    page.goto(url('fa', 'review'))
-    page.wait_for_selector('.flash')
-    page.keyboard.press(' ')
-    page.wait_for_timeout(200)
-    gsnap('mobile-review')
+    ssnap(page, 'fa-desktop-home-lab', el='#lab')
+    page.goto(url('en', 'lab-crush'))
+    if mounted(page, 'crush'):
+        drive(page, 'crush')
+        ssnap(page, 'en-desktop-sim-crush')
     ctx.close()
-    # full motion once: entrance animations, scroll reveal and hero counters must settle without errors
-    ctx = browser.new_context(viewport={'width': 1440, 'height': 900}, color_scheme='dark', reduced_motion='no-preference')
-    ctx.route('http*://**', lambda r: (problems.append(f'network request {r.request.url}'), r.abort()))
-    page = ctx.new_page()
-    page.on('console', lambda m: m.type == 'error' and problems.append(f'[motion] console: {m.text}'))
-    page.on('pageerror', lambda e: problems.append(f'[motion] pageerror: {e}'))
-    page.goto(url('fa', 'index'))
-    page.wait_for_timeout(1800)
-    got = page.evaluate("[...document.querySelectorAll('.stats b[data-n]')].map(b => b.textContent.replace(/[۰-۹]/g, c => '۰۱۲۳۴۵۶۷۸۹'.indexOf(c)) === b.dataset.n)")
-    if not got or not all(got):
-        problems.append('[motion] hero counters did not settle on their final values')
-    p = os.path.join(OUT, 'fa-desktop-motion-home.png')
-    page.screenshot(path=p)
-    shots.append(p)
-    page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)')
-    page.wait_for_timeout(900)
-    if page.locator('.rv').count() and not page.locator('.rv.in').count():
-        problems.append('[motion] scroll reveal never revealed anything')
+    # one mobile, one dark
+    ctx, page = sim_ctx(390, 844, tag='sim mobile')
+    page.goto(url('fa', 'lab-crush'))
+    if mounted(page, 'crush'):
+        if page.evaluate('document.documentElement.scrollWidth') > 392:
+            problems.append('[sim mobile] the CRUSH playground overflows a 390 px screen')
+        drive(page, 'crush')
+        p = os.path.join(OUT, 'fa-mobile-sim-crush.png'); page.screenshot(path=p, full_page=True); shots.append(p)
+    ctx.close()
+    ctx, page = sim_ctx(scheme='dark', tag='sim dark')
+    page.goto(url('fa', 'lab-peering'))
+    if mounted(page, 'peering'):
+        drive(page, 'peering')
+        ssnap(page, 'fa-dark-sim-peering')
+    page.goto(url('fa', 'lab-bluestore'))
+    if mounted(page, 'bluestore'):
+        drive(page, 'bluestore')
+        ssnap(page, 'fa-dark-sim-bluestore')
+    ctx.close()
+    # without JavaScript the static figure is the content
+    ctx, page = sim_ctx(js=False, tag='sim nojs')
+    page.goto(url('fa', 'lab-rgwput'))
+    if not page.locator('.sim-fallback .sim-seq').count():
+        problems.append('[sim nojs] the static RGW figure has no sequence diagram')
+    ssnap(page, 'fa-nojs-sim-rgwput')
     ctx.close()
     browser.close()
 json.dump({'screenshots': shots, 'problems': problems, 'notes': notes}, open(os.path.join(OUT, 'report.json'), 'w'), indent=1, ensure_ascii=False)

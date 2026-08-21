@@ -42,6 +42,7 @@ fa:
     st_acc: "دقت آزمونک"
     st_algo: "کادر الگوریتم دیده‌شده"
     st_figs: "شکل بزرگ‌نمایی‌شده"
+    st_sims: "شبیه‌ساز آزموده‌شده"
     st_marks: "نشانه"
     hm: "{h} ساعت و {m} دقیقه"
     m_only: "{m} دقیقه"
@@ -151,6 +152,7 @@ fa:
     streak: ["پیوسته", "روزهای پیاپی به هدف روزانه برسید."]
     algo: ["شکارچی الگوریتم", "کادرهای الگوریتم را ببینید."]
     figs: ["کاوشگر شکل", "شکل‌ها را بزرگ‌نمایی کنید."]
+    lab: ["آزمایشگر", "با شبیه‌سازهای آزمایشگاه تعاملی کار کنید."]
     cards: ["مرورکننده", "کارت‌های مرور را پاسخ دهید."]
     quiz: ["استاد آزمونک", "به پرسش‌های آزمونک درست جواب دهید."]
     gloss: ["واژه‌دان", "اصطلاح‌ها را در مرور به جعبه‌ی ۴ برسانید."]
@@ -214,6 +216,7 @@ en:
     st_acc: "Quiz accuracy"
     st_algo: "Algorithm boxes seen"
     st_figs: "Figures zoomed"
+    st_sims: "Simulators tried"
     st_marks: "Bookmarks"
     hm: "{h} h {m} min"
     m_only: "{m} min"
@@ -323,6 +326,7 @@ en:
     streak: ["Steady", "Meet your daily goal on consecutive days."]
     algo: ["Algorithm hunter", "See the algorithm boxes."]
     figs: ["Figure explorer", "Zoom into figures."]
+    lab: ["Experimenter", "Work with the simulators of the interactive lab."]
     cards: ["Reviewer", "Answer review cards."]
     quiz: ["Quiz master", "Answer quiz questions correctly."]
     gloss: ["Wordsmith", "Bring glossary terms to box 4 in review."]

@@ -155,6 +155,9 @@ while left > 0:
 
 ![striping با stripe_unit=64K و stripe_count=4. هر سطر یک stripe است و چهار ستون چهار شیء یک object set. بلوک‌های 15 تا 19 که نوشتن مثال را می‌سازند رنگی شده‌اند](figures/ch37/f02_striping.png){#fig-37-f02_striping}
 
+::: {.sim name="striping"}
+:::
+
 # object map {#sec-37-4}
 
 ## حالت‌ها و بسته‌بندی بیت {#sec-37-4-1}

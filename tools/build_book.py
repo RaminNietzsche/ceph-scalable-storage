@@ -35,6 +35,7 @@ OUT = os.path.abspath(args.out or os.path.join(ROOT, 'build', LANG))
 os.makedirs(OUT, exist_ok=True)
 C = os.path.join(ROOT, 'content', LANG)
 UI = yaml.safe_load(open(os.path.join(C, 'ui.yaml'), encoding='utf-8'))
+SIMSTR = yaml.safe_load(open(os.path.join(ROOT, 'templates', 'site', 'sims', f'strings-{LANG}.yaml'), encoding='utf-8'))
 META = yaml.safe_load(open(os.path.join(C, 'metadata.yaml'), encoding='utf-8'))
 RTL = META.get('dir') == 'rtl'
 
@@ -263,6 +264,14 @@ def render(lines, chap=None, md=None):
             aid = ALGOS[-1][1]
             H.append(f'<div class="call algo" id="{aid}"><div class="lab"><span class="ic">∑</span> {UI["algorithm"]}: {inline(nm)}</div><p>{UI["algo_src"]}: <code>{esc(src)}</code></p><p>{UI["algo_complexity"]}: {inline(cx)}</p></div>')
             mdw(f'\n> **{UI["algorithm"]}: {nm}**  \n> {UI["algo_src"]}: `{src}`  \n> {UI["algo_complexity"]}: {cx}\n')
+            i += 1
+            continue
+        if l.startswith('!SIM '):
+            nm = l[5:].strip()
+            t = SIMSTR.get(f'{nm}_t', nm)
+            # the web edition mounts the simulator here; the print edition keeps a one-line pointer to it
+            H.append(f'<div class="sim-slot" data-sim="{esc(nm)}"><p class="sim-print">{inline(UI["sim_print"].format(t=t))}</p></div>')
+            mdw(f'\n> {UI["sim_print"].format(t=t)}\n')
             i += 1
             continue
         key = l.split(' ', 1)[0]
