@@ -758,6 +758,44 @@ body.chooser h1 { font-size: 1.6rem; }
 
 /* ---- print ---- */
 @page { margin: 18mm 16mm; }
+/* ---- UI consistency: one font, one control scale ----
+   Browsers give <button>, <input>, <select> and <textarea> their own system font (13.33px);
+   every control inherits the site font instead (Vazirmatn in fa, Inter in en). */
+:root { --ctl-fs: .875rem; --ctl-fs-sm: .8rem; --ctl-fw: 600; --ctl-lh: 1.4; }
+button, input, select, textarea, optgroup { font: inherit; font-family: var(--font-body); letter-spacing: inherit; line-height: var(--ctl-lh); }
+.btn, .sim-btn, .read-tog, .tb-cta, .g-chip, .hbadge, .pill span, .rv-tabs [role="tab"], .rv-rate .btn, .rv-acts .btn,
+.rp-acts .btn, .my-actions .btn, .g-acts .btn, .paths .btn, .quiz-cta .btn, .file-btn, .icon-btn {
+  font-family: var(--font-body); font-size: var(--ctl-fs); font-weight: var(--ctl-fw); line-height: var(--ctl-lh); }
+.sim-btn.sm, .sim-seg button, .cr-tg, .chip, .p-chips .chip, .b-tier, .lang-btn { font-family: var(--font-body); font-size: var(--ctl-fs-sm); line-height: var(--ctl-lh); }
+.sim-seg button { font-weight: 500; }
+.qz-o { font-family: var(--font-body); font-weight: 400; }
+.sim-seg button[aria-checked="true"], .sim-seg button[aria-pressed="true"] { font-weight: 700; }
+input, select, textarea, .sim input[type=number], .sim input[type=text], .sim select, .rv-pick select, .cert-form input, #search-input {
+  font-family: var(--font-body); font-weight: 400; line-height: var(--ctl-lh); }
+.sim input[type=number], .sim input[type=text], .sim select, .rv-pick select, .cert-form input { font-size: var(--ctl-fs); }
+.sim input[type=number] { font-variant-numeric: tabular-nums; }
+.cr-tg { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* ---- equal cards: badge gallery, learning paths, weekly challenges, part cards ---- */
+.badges { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); grid-auto-rows: 1fr; align-items: stretch; }
+.badge { height: 100%; box-sizing: border-box; justify-content: flex-start; min-width: 0; }
+.content li.badge { text-align: center; }
+.content .paths li, .content .quests li { text-align: start; }
+.badge .g-medal { flex: none; }
+.badge b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+  line-height: 1.45; min-height: calc(2 * 1.45em); width: 100%; overflow-wrap: anywhere; text-align: center; }
+.badge small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; width: 100%; text-align: center; hyphens: none; }
+.badge .b-tier, .badge .g-bar:first-of-type { margin-top: auto; }
+.badge small + .g-bar, .badge small + .b-tier { margin-top: auto; }
+.badge .b-tier + .g-bar { margin-top: 6px; }
+.paths { grid-auto-rows: 1fr; }
+.paths li { height: 100%; box-sizing: border-box; }
+.quests li { min-height: 3.6rem; box-sizing: border-box; }
+.hgrid { align-items: stretch; }
+.hcard, .pcard { height: 100%; box-sizing: border-box; }
+.hcard .hc-go { margin-top: auto; }
+@media (max-width: 600px) { .badges { grid-template-columns: repeat(2, minmax(0, 1fr)); } .badge { padding: 12px 8px; } }
+
 @media print {
   :root, html[data-theme="dark"] { --bg: #fff; --fg: #000; --fg-soft: #222; --fg-mute: #444; --line: #bbb; --code-bg: #f6f6f6; --code-fg: #000; --link: #000; }
   .topbar, .sidebar, .toc, .toc-inline, .pager, .crumbs, .copy, .hanchor, .backdrop, .search-dlg, .lb, .skip, .site-foot, .home .cta, .tb-cta, .term, .glow, .hbadge, .chips, .game, .g-chip, .g-toasts, .g-confetti, .quiz-cta, .rp-game, .g-settings, .cert-form, .rbar, .totop, .my-dlg, .rp, .hbm, .read-tog, .mk-btn, .sb-st { display: none !important; }

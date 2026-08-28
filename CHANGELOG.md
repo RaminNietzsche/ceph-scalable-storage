@@ -7,6 +7,12 @@ restructures the book.
 
 ## [Unreleased]
 
+### UI consistency (web edition)
+
+- Every control (buttons, `.btn`, chips, toggles, simulator controls, quiz and flashcard buttons, header pills, inputs and selects) now uses the site font (Vazirmatn in Persian, Inter in English) with one size, weight and line-height scale, instead of the browser's system font.
+- Badge gallery: a uniform grid with equal-size cards, titles clamped to two lines, descriptions to three, and tier labels and progress bars aligned at the bottom; learning-path and part cards stretch to equal height.
+- `tools/shoot_site.py --ui-only` checks the computed font of every visible control and the badge card sizes (fa desktop and mobile, light and dark).
+
 ### Interactive lab (web edition)
 
 - Seven in-browser simulators, offline and in vanilla JavaScript, embedded in their chapters with `::: {.sim name="…"}` and collected on `lab.html` «آزمایشگاه تعاملی» (sidebar and home page): CRUSH playground (ch. 8, 28), PG count calculator with the pg_autoscaler's four passes (ch. 7), replication vs erasure coding with EC profile rules (ch. 13), peering/recovery stepper with three scenarios (ch. 35), BlueStore write path (ch. 12), RGW PUT and multipart (ch. 4) and RBD striping mapper (ch. 37). See `docs/SIMULATORS.md`.

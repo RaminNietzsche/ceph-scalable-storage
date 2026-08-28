@@ -28,6 +28,7 @@ ap.add_argument('--out', default=os.path.join(ROOT, 'build', 'site-shots'))
 ap.add_argument('--chapter-fa', default='12-bluestore')
 ap.add_argument('--chapter-en', default='11-deployment')
 ap.add_argument('--sims-only', action='store_true', help='only the interactive lab section')
+ap.add_argument('--ui-only', action='store_true', help='only the UI consistency section (fonts, equal cards)')
 a = ap.parse_args()
 SITE = os.path.abspath(a.site)
 OUT = os.path.abspath(a.out)
@@ -42,9 +43,127 @@ def url(lang, slug, frag=''):
     return 'file://' + os.path.join(SITE, lang, slug + '.html') + frag
 
 
+SEED = r"""([lang, name]) => {
+    const P0 = JSON.parse(document.getElementById('site-data').textContent).pages;
+    const chs = Object.keys(P0).filter(k => P0[k][2] > 0).sort((a, b) => P0[a][2] - P0[b][2]);
+    const pad = n => (n < 10 ? '0' : '') + n;
+    const key = t => t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate());
+    const ago = n => { const t = new Date(); t.setHours(12); t.setDate(t.getDate() - n); return key(t); };
+    const read = {};
+    chs.forEach((k, i) => { const n = P0[k][2]; if (n <= 13 || n === 17 || n === 18 || n === 20) read[k] = Date.now() - (40 - i) * 864e5; });
+    const days = {}, frozen = {};
+    for (let i = 160; i >= 1; i--) {
+        const r = (i * 7919) % 23;
+        let m = i <= 12 ? 12 + (i * 5) % 30 : (r < 9 ? 0 : 6 + (r * 3) % 45);
+        if (i === 6) { m = 0; frozen[ago(i)] = 1; }
+        if (m) days[ago(i)] = { s: m * 60, x: m * 3, sec: Math.ceil(m / 6), c: (i * 3) % 14, m: 0, nw: 0, k: {}, gm: m >= 10 ? 1 : 0 };
+    }
+    days[ago(0)] = { s: 420, x: 25, sec: 2, c: 0, m: 0, nw: 0, k: {} };
+    const srs = {};
+    for (let k = 1; k <= 8; k++) srs['q1-' + k] = { b: 2, d: ago(0), n: 2, l: 0 };
+    for (let k = 1; k <= 10; k++) srs['q2-' + k] = { b: 4, d: ago(-6), n: 4, l: 1 };
+    const algo = {}; for (let i = 1; i <= 64; i++) algo['alg-x-' + i] = 1;
+    const zoom = {}; for (let i = 1; i <= 14; i++) zoom['fig-x-' + i] = 1;
+    const secs = {}; chs.slice(0, 13).forEach(k => { for (let i = 1; i <= 9; i++) secs[k + '#s' + i] = 1; });
+    const chXP = {}; Object.keys(read).forEach(k => chXP[k] = 50);
+    const g = { v: 1, on: true, sound: false, goal: { t: 'min', n: 10 }, restDays: true, xp: 2550, days, fz: 2, fzEarned: 4, frozen,
+        settled: ago(1), best: 19, badges: {}, secs, chXP, zoom, algo, srs, glossOn: true, quiz: { ok: 37, n: 45, run: 3, best: 8 },
+        wk: null, name, flags: { night: 1 }, lv: 7, seen: ago(0) };
+    localStorage.setItem('book-progress:' + lang, JSON.stringify({ v: 2, read, max: {}, last: { s: chs[13], f: 0.3, h: '', t: Date.now() }, marks: [], g }));
+}"""
+
+# UI consistency (fonts of every control, equal badge cards): fa desktop and mobile, light and dark
+FONT_CHECK = r"""(want) => {
+    const bad = [];
+    document.querySelectorAll('button, input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]), select, textarea, .btn, .chip, .pill span, .g-chip, .tb-cta, .sim-btn').forEach(el => {
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height || el.closest('.code, .term, .lb, [hidden]')) return;
+        const cs = getComputedStyle(el), fam = cs.fontFamily.split(',')[0].replace(/["']/g, '').trim();
+        if (fam !== want) bad.push((el.className || el.tagName) + ': ' + fam);
+    });
+    return bad;
+}"""
+CARD_CHECK = r"""() => {
+    const b = [...document.querySelectorAll('.badge')].map(e => e.getBoundingClientRect()).filter(r => r.width);
+    const hs = b.map(r => Math.round(r.height));
+    const bars = [...document.querySelectorAll('.badge')].filter(e => e.querySelector('.g-bar')).map(e => {
+        const r = e.getBoundingClientRect(), g = e.querySelector('.g-bar').getBoundingClientRect(); return Math.round(r.bottom - g.bottom); });
+    const ws = b.map(r => Math.round(r.width));
+    return { n: b.length, hmin: Math.min(...hs), hmax: Math.max(...hs), wmin: Math.min(...ws), wmax: Math.max(...ws),
+             barmin: bars.length ? Math.min(...bars) : 0, barmax: bars.length ? Math.max(...bars) : 0 };
+}"""
+
+
+def ui_section(browser):
+    for scheme in ('light', 'dark'):
+        for w, h, tag in ((1440, 900, 'desktop'), (390, 844, 'mobile')):
+            ctx = browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=1 if w > 800 else 2,
+                                      has_touch=w < 800, color_scheme=scheme, reduced_motion='reduce')
+            ctx.route('http*://**', lambda r: (problems.append(f'network request {r.request.url}'), r.abort()))
+            page = ctx.new_page()
+            lab = f'ui {tag} {scheme}'
+            page.on('console', lambda m, l=lab: m.type == 'error' and problems.append(f'[{l}] console: {m.text}'))
+            page.on('pageerror', lambda e, l=lab: problems.append(f'[{l}] pageerror: {e}'))
+
+            def usnap(name, el=None, full=False):
+                p = os.path.join(OUT, f'fa-{tag}-{scheme}-{name}.png')
+                if el:
+                    page.locator(el).first.screenshot(path=p, style='.topbar, .g-toasts, .totop { visibility: hidden !important; }')
+                else:
+                    page.screenshot(path=p, full_page=full)
+                shots.append(p)
+
+            def fonts(where):
+                bad = page.evaluate(FONT_CHECK, 'Vazirmatn')
+                if bad:
+                    problems.append(f'[{lab}] {where}: {len(bad)} control(s) not in Vazirmatn, e.g. {bad[:3]}')
+
+            page.goto(url('fa', 'index'))
+            page.evaluate(SEED, ['fa', 'خواننده‌ی نمونه'])
+            page.evaluate(f"localStorage.setItem('book-theme', '{scheme}')")
+            page.reload()
+            page.wait_for_timeout(300)
+            fonts('home')
+            page.goto(url('fa', 'progress'))
+            page.wait_for_timeout(500)
+            fonts('dashboard')
+            c = page.evaluate(CARD_CHECK)
+            if c['hmax'] - c['hmin'] > 1 or c['wmax'] - c['wmin'] > 1:
+                problems.append(f'[{lab}] badge cards differ in size: {c}')
+            if c['barmax'] - c['barmin'] > 1:
+                problems.append(f'[{lab}] badge progress bars not aligned to the bottom: {c}')
+            notes.append(f'[{lab}] badges {c}')
+            usnap('dashboard', full=True)
+            usnap('badges', el='#gm-badges')
+            page.goto(url('fa', 'review'))
+            page.wait_for_selector('.flash')
+            page.keyboard.press(' ')
+            page.wait_for_timeout(300)
+            fonts('review')
+            usnap('review')
+            page.goto(url('fa', 'lab-crush'))
+            page.wait_for_selector('.sim-slot.sim-on')
+            fonts('sim')
+            usnap('sim', el='.sim-slot')
+            ctx.close()
+
+
+def finish():
+    json.dump({'screenshots': shots, 'problems': problems, 'notes': notes}, open(os.path.join(OUT, 'report.json'), 'w'), indent=1, ensure_ascii=False)
+    for p in problems:
+        print('shoot_site:', p)
+    print(f'shoot_site: {len(shots)} screenshots in {OUT}, {len(problems)} problems')
+    sys.exit(1 if problems else 0)
+
+
+
 with sync_playwright() as pw:
     browser = pw.chromium.launch(executable_path=chrome, args=['--no-sandbox'])
-    for lang in (() if a.sims_only else ('fa', 'en')):
+    if a.ui_only:
+        ui_section(browser)
+        browser.close()
+        finish()
+    for lang in (() if a.sims_only or a.ui_only else ('fa', 'en')):
         chap = a.chapter_fa if lang == 'fa' else a.chapter_en
         for w, h, tag in ((1440, 900, 'desktop'), (390, 844, 'mobile')):
             ctx = browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=1 if w > 800 else 2,
@@ -186,37 +305,9 @@ with sync_playwright() as pw:
             if not other.endswith(f'/{chap}.html'):
                 problems.append(f'[{lang}] language switch points to {other}')
             ctx.close()
-    if not a.sims_only:
+    if not (a.sims_only or a.ui_only):
         # gamification: seed a believable history, then shoot the dashboard, heatmap, badges,
         # flashcards, quiz, level-up toast and certificate (fa; dark dashboard too)
-        SEED = r"""([lang, name]) => {
-            const P0 = JSON.parse(document.getElementById('site-data').textContent).pages;
-            const chs = Object.keys(P0).filter(k => P0[k][2] > 0).sort((a, b) => P0[a][2] - P0[b][2]);
-            const pad = n => (n < 10 ? '0' : '') + n;
-            const key = t => t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate());
-            const ago = n => { const t = new Date(); t.setHours(12); t.setDate(t.getDate() - n); return key(t); };
-            const read = {};
-            chs.forEach((k, i) => { const n = P0[k][2]; if (n <= 13 || n === 17 || n === 18 || n === 20) read[k] = Date.now() - (40 - i) * 864e5; });
-            const days = {}, frozen = {};
-            for (let i = 160; i >= 1; i--) {
-                const r = (i * 7919) % 23;
-                let m = i <= 12 ? 12 + (i * 5) % 30 : (r < 9 ? 0 : 6 + (r * 3) % 45);
-                if (i === 6) { m = 0; frozen[ago(i)] = 1; }
-                if (m) days[ago(i)] = { s: m * 60, x: m * 3, sec: Math.ceil(m / 6), c: (i * 3) % 14, m: 0, nw: 0, k: {}, gm: m >= 10 ? 1 : 0 };
-            }
-            days[ago(0)] = { s: 420, x: 25, sec: 2, c: 0, m: 0, nw: 0, k: {} };
-            const srs = {};
-            for (let k = 1; k <= 8; k++) srs['q1-' + k] = { b: 2, d: ago(0), n: 2, l: 0 };
-            for (let k = 1; k <= 10; k++) srs['q2-' + k] = { b: 4, d: ago(-6), n: 4, l: 1 };
-            const algo = {}; for (let i = 1; i <= 64; i++) algo['alg-x-' + i] = 1;
-            const zoom = {}; for (let i = 1; i <= 14; i++) zoom['fig-x-' + i] = 1;
-            const secs = {}; chs.slice(0, 13).forEach(k => { for (let i = 1; i <= 9; i++) secs[k + '#s' + i] = 1; });
-            const chXP = {}; Object.keys(read).forEach(k => chXP[k] = 50);
-            const g = { v: 1, on: true, sound: false, goal: { t: 'min', n: 10 }, restDays: true, xp: 2550, days, fz: 2, fzEarned: 4, frozen,
-                settled: ago(1), best: 19, badges: {}, secs, chXP, zoom, algo, srs, glossOn: true, quiz: { ok: 37, n: 45, run: 3, best: 8 },
-                wk: null, name, flags: { night: 1 }, lv: 7, seen: ago(0) };
-            localStorage.setItem('book-progress:' + lang, JSON.stringify({ v: 2, read, max: {}, last: { s: chs[13], f: 0.3, h: '', t: Date.now() }, marks: [], g }));
-        }"""
         ctx = browser.new_context(viewport={'width': 1440, 'height': 900}, color_scheme='light', reduced_motion='no-preference')
         ctx.route('http*://**', lambda r: (problems.append(f'network request {r.request.url}'), r.abort()))
         page = ctx.new_page()
@@ -472,8 +563,4 @@ with sync_playwright() as pw:
     ssnap(page, 'fa-nojs-sim-rgwput')
     ctx.close()
     browser.close()
-json.dump({'screenshots': shots, 'problems': problems, 'notes': notes}, open(os.path.join(OUT, 'report.json'), 'w'), indent=1, ensure_ascii=False)
-for p in problems:
-    print('shoot_site:', p)
-print(f'shoot_site: {len(shots)} screenshots in {OUT}, {len(problems)} problems')
-sys.exit(1 if problems else 0)
+finish()
