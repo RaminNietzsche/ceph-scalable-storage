@@ -4,35 +4,34 @@ id: ch08
 title: 'Ceph Under the Hood: CRUSH, Maps, Authentication and PGs'
 part: main
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-08-1}
+# Before you start {#sec-08-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-08-1-1}
+## What questions does this chapter answer? {#sec-08-1-1}
 
-تا اینجا Ceph را از بیرون دیدیم: دستورها، سرویس‌ها و رابط‌ها. این فصل به درون می‌رود. هر تصمیم مهم در طراحی و عیب‌یابی Ceph (چرا داده آنجاست، چرا PG گیر کرده، چرا یک قانون CRUSH جواب نمی‌دهد) به چند سازوکار پایه برمی‌گردد که در این فصل بررسی می‌کنیم:
+So far we have seen Ceph from the outside: commands, services and interfaces. This chapter goes inside. Every important decision in designing and troubleshooting Ceph (why the data is where it is, why a PG is stuck, why a CRUSH rule does not work) comes back to a few basic mechanisms, which we examine in this chapter:
 
-- داده چطور بدون جدول مرکزی جای خودش را پیدا می‌کند؟
-- نقشه‌ی CRUSH چه ساختاری دارد و قانون‌ها را چطور بنویسیم؟
-- tunableها چه هستند و چرا هشدار «non-optimal tunables» می‌آید؟
-- نقشه‌های کلاستر کدام‌اند و MONها چطور دسترس‌پذیر می‌مانند؟
-- cephx چطور کار می‌کند و capabilityها را چطور محدود کنیم؟
-- مسیر یک نوشتن از کلاینت تا دیسک چیست و PGها چه حالت‌هایی دارند؟
-- چطور یک pool را روی OSDهای خاص قرار دهیم؟
+- How does data find its place without a central table?
+- What structure does the CRUSH map have, and how do we write rules?
+- What are tunables, and why does the "non-optimal tunables" warning appear?
+- Which cluster maps are there, and how do the MONs stay available?
+- How does cephx work, and how do we restrict capabilities?
+- What is the path of a write from the client to the disk, and what states do PGs have?
+- How do we place a pool on specific OSDs?
 
-# مقیاس‌پذیری بدون جدول مرکزی {#sec-08-2}
+# Scaling without a central table {#sec-08-2}
 
-## مسئله‌ی جاشناسی {#sec-08-2-1}
+## The placement problem {#sec-08-2-1}
 
-بیشتر سامانه‌های ذخیره‌سازی توزیع‌شده‌ی قدیمی یک سرور فراداده یا جدول جست‌وجو داشتند که می‌گفت هر بلوک کجاست. این جدول در مقیاس بزرگ سه مشکل دارد: گلوگاه کارایی می‌شود، نقطه‌ی شکست واحد است و با هر تغییر سخت‌افزار باید به‌روز شود. Ceph این جدول را حذف کرده است: **هر کلاینت و هر OSD خودش محل داده را محاسبه می‌کند**. ورودی‌های این محاسبه فقط نام شیء، شناسه‌ی pool و نقشه‌ی کلاستر هستند که همه آن را دارند.
+Most older distributed storage systems had a metadata server or lookup table that said where each block was. At large scale this table has three problems: it becomes a performance bottleneck, it is a single point of failure, and it must be updated with every hardware change. Ceph has removed this table: **every client and every OSD computes the location of the data itself**. The inputs to this computation are only the object name, the pool id and the cluster map, which everyone has.
 
-![دو مرحله‌ی جاشناسی: نام شیء با hash به یک PG نگاشت می‌شود و CRUSH آن PG را به مجموعه‌ای از OSDها نگاشت می‌کند](figures/ch08/f01_place.png){#fig-08-f01_place}
+![The two placement stages: the object name is mapped to a PG by a hash, and CRUSH maps that PG to a set of OSDs](figures/ch08/f01_place.png){#fig-08-f01_place}
 
-## دو مرحله‌ی نگاشت {#sec-08-2-2}
+## The two mapping stages {#sec-08-2-2}
 
-1. **شیء به PG**: نام شیء hash می‌شود و باقیمانده‌ی آن بر تعداد PGهای pool (به‌صورت دقیق‌تر با الگوریتم stable mod) شماره‌ی PG را می‌دهد. شناسه‌ی PG ترکیب شماره‌ی pool و شماره‌ی PG است، مثل `3.1f`.
-2. **PG به OSD**: الگوریتم CRUSH با ورودی شناسه‌ی PG، نقشه‌ی CRUSH و قانون pool، فهرست مرتبی از OSDها را برمی‌گرداند. اولین OSD فعال، **primary** است.
+1. **Object to PG**: the object name is hashed, and its remainder modulo the pool's PG count (more precisely, with the stable mod algorithm) gives the PG number. A PG id combines the pool number and the PG number, such as `3.1f`.
+2. **PG to OSD**: the CRUSH algorithm, given the PG id, the CRUSH map and the pool's rule, returns an ordered list of OSDs. The first active OSD is the **primary**.
 
 ```bash
 ceph osd map rbd rbd_data.12ab.0000000000000004
@@ -41,20 +40,20 @@ ceph pg map 3.1f
 ```
 
 ::: {.deep}
-چرا لایه‌ی میانی PG؟ اگر CRUSH را مستقیماً روی هر شیء اجرا می‌کردیم، کلاستر برای هر شیء باید وضعیت تکثیر، بازیابی و scrub را جداگانه پیگیری می‌کرد؛ برای میلیاردها شیء غیرممکن است. PGها اشیا را به چند هزار گروه تقسیم می‌کنند و همه‌ی سازوکارهای حفاظت داده (peering، log، بازیابی، scrub) در سطح PG کار می‌کنند. تعداد PG یک مصالحه است: کم باشد، توزیع ناهموار می‌شود؛ زیاد باشد، حافظه و CPU OSDها و بار peering بالا می‌رود.
+Why the intermediate PG layer? If we ran CRUSH directly on each object, the cluster would have to track replication, recovery and scrub state separately for each object; for billions of objects that is impossible. PGs divide objects into a few thousand groups, and all the data protection mechanisms (peering, log, recovery, scrub) work at the PG level. The PG count is a trade-off: too few and the distribution becomes uneven; too many and OSD memory and CPU and the peering load go up.
 :::
 
-## up و acting {#sec-08-2-3}
+## up and acting {#sec-08-2-3}
 
-`up set` خروجی خالص CRUSH است. `acting set` مجموعه‌ای است که واقعاً به درخواست‌ها پاسخ می‌دهد. این دو معمولاً یکسان‌اند؛ تفاوتشان یعنی Ceph موقتاً از OSDهای دیگری استفاده می‌کند (مثلاً **pg_temp** در حین backfill تا OSD جدید داده را کامل بگیرد) یا یک **upmap** صریح، نتیجه‌ی CRUSH را برای آن PG تغییر داده است.
+The `up set` is CRUSH's pure output. The `acting set` is the set that actually serves requests. The two are usually identical; a difference means Ceph is temporarily using other OSDs (for example **pg_temp** during backfill until the new OSD has all the data) or an explicit **upmap** has changed CRUSH's result for that PG.
 
-# سازوکار CRUSH {#sec-08-3}
+# The CRUSH mechanism {#sec-08-3}
 
-## سلسله‌مراتب {#sec-08-3-1}
+## The hierarchy {#sec-08-3-1}
 
-![یک سلسله‌مراتب CRUSH نمونه: root، datacenter، rack، host و OSDها با کلاس دستگاه](figures/ch08/f02_hier.png){#fig-08-f02_hier}
+![A sample CRUSH hierarchy: root, datacenter, rack, host and OSDs with device classes](figures/ch08/f02_hier.png){#fig-08-f02_hier}
 
-نقشه‌ی CRUSH از دو بخش تشکیل شده است: **سلسله‌مراتب** (درختی از bucketها که مکان فیزیکی هر OSD را نشان می‌دهد) و **قانون‌ها** (rules) که می‌گویند نسخه‌ها را چطور در این درخت پخش کنیم. انواع پیش‌فرض bucket از پایین به بالا عبارت‌اند از osd، host، chassis، rack، row، pdu، pod، room، datacenter، zone، region و root. لازم نیست از همه استفاده کنید؛ فقط سطوحی را تعریف کنید که واقعاً دامنه‌ی خرابی مستقل‌اند.
+The CRUSH map consists of two parts: the **hierarchy** (a tree of buckets showing the physical location of each OSD) and the **rules**, which say how to spread replicas across this tree. The default bucket types, from bottom to top, are osd, host, chassis, rack, row, pdu, pod, room, datacenter, zone, region and root. You do not need to use all of them; define only the levels that really are independent failure domains.
 
 ```bash
 ceph osd crush tree --show-shadow
@@ -66,50 +65,50 @@ ceph osd crush class ls
 ```
 
 ::: {.tip}
-با cephadm می‌توانید مکان CRUSH میزبان را در spec میزبان (`location: {rack: rack1}`) تعیین کنید تا OSDهای تازه مستقیماً زیر rack درست قرار بگیرند. در غیر این صورت هر OSD زیر host و مستقیماً زیر `root=default` می‌رود و پس از جابه‌جایی دستی، داده یک بار دیگر حرکت می‌کند.
+With cephadm you can set the host's CRUSH location in the host spec (`location: {rack: rack1}`) so that new OSDs land directly under the right rack. Otherwise every OSD goes under its host, directly under `root=default`, and after you move it by hand the data moves once more.
 :::
 
-## وزن {#sec-08-3-2}
+## Weight {#sec-08-3-2}
 
-هر OSD یک **وزن CRUSH** دارد (به‌طور پیش‌فرض برابر ظرفیت به ترابایت) و وزن هر bucket مجموع وزن فرزندان آن است. CRUSH داده را به نسبت وزن پخش می‌کند. وزن دیگری به نام **reweight** (بین ۰ و ۱) هم وجود دارد که برای اصلاح موقت توزیع به کار می‌رفت؛ امروز balancer با upmap این کار را دقیق‌تر انجام می‌دهد.
+Each OSD has a **CRUSH weight** (by default equal to its capacity in terabytes), and each bucket's weight is the sum of its children's weights. CRUSH spreads data in proportion to weight. There is also another weight called **reweight** (between 0 and 1) that used to be used to correct the distribution temporarily; today the balancer does this more precisely with upmap.
 
 ```bash
-ceph osd crush reweight osd.20 3.49309     # وزن دائمی CRUSH
-ceph osd reweight 20 0.9                   # اصلاح موقت (ترجیحاً از balancer استفاده کنید)
+ceph osd crush reweight osd.20 3.49309     # permanent CRUSH weight
+ceph osd reweight 20 0.9                   # temporary correction (prefer the balancer)
 ```
 
-## الگوریتم bucket {#sec-08-3-3}
+## The bucket algorithm {#sec-08-3-3}
 
-CRUSH برای انتخاب فرزند در هر bucket الگوریتمی دارد. امروز عملاً فقط **straw2** استفاده می‌شود (از Hammer، پیش‌فرض bucketهای تازه). مزیت کلیدی straw2 این است که تغییر وزن یک آیتم فقط داده را بین آن آیتم و بقیه جابه‌جا می‌کند، نه بین آیتم‌های دیگر؛ یعنی حداقل جابه‌جایی لازم.
+CRUSH has an algorithm for choosing a child in each bucket. Today in practice only **straw2** is used (since Hammer, the default for new buckets). The key advantage of straw2 is that changing one item's weight moves data only between that item and the rest, not among the other items; that is, the minimum necessary movement.
 
-## قانون‌ها {#sec-08-3-4}
+## Rules {#sec-08-3-4}
 
-قانون CRUSH مراحل انتخاب را تعریف می‌کند. بیشتر وقت‌ها لازم نیست قانون را دستی بنویسید؛ دستورهای کمکی کافی‌اند:
+A CRUSH rule defines the selection steps. Most of the time you do not need to write a rule by hand; the helper commands are enough:
 
 ```bash
-# تکثیری: نسخه‌ها در hostهای مختلف، فقط روی SSD
+# Replicated: replicas on different hosts, SSD only
 ceph osd crush rule create-replicated rep-ssd-host default host ssd
-# تکثیری با دامنه‌ی خرابی rack
+# Replicated with a rack failure domain
 ceph osd crush rule create-replicated rep-rack default rack
-# EC از روی پروفایل
+# EC from a profile
 ceph osd erasure-code-profile set ec42-rack k=4 m=2 crush-failure-domain=rack crush-device-class=hdd
 ceph osd crush rule create-erasure ec42-rack ec42-rack
 ceph osd crush rule ls
 ceph osd crush rule dump rep-ssd-host
 ```
 
-برای حالت‌های پیچیده‌تر، نقشه را استخراج، ویرایش و پیش از اعمال آزمایش کنید:
+For more complex cases, extract the map, edit it and test it before applying:
 
 ```bash
 ceph osd getcrushmap -o crush.bin
 crushtool -d crush.bin -o crush.txt
-# ویرایش crush.txt
+# edit crush.txt
 crushtool -c crush.txt -o crush.new
 crushtool -i crush.new --test --rule 1 --num-rep 3 --show-statistics --show-bad-mappings
 ceph osd setcrushmap -i crush.new
 ```
 
-نمونه‌ی یک قانون دستی که دو نسخه را در یک datacenter و نسخه‌ی سوم را در datacenter دیگر می‌گذارد:
+An example of a hand-written rule that puts two replicas in one datacenter and the third in another datacenter:
 
 ```text
 rule rep-2dc {
@@ -123,74 +122,74 @@ rule rep-2dc {
 ```
 
 ::: {.warn}
-قانون بالا با `size=3` دو نسخه در datacenter اول و یک نسخه در دومی می‌گذارد، اما **کدام datacenter دو نسخه می‌گیرد** برای هر PG متفاوت است. اگر می‌خواهید هر دو سایت قطعاً نسخه داشته باشند و نوشتن هنگام قطع یک سایت ادامه یابد، به جای قانون دستی از **stretch mode** (فصل ۱۸) استفاده کنید که منطق quorum و min_size را هم مدیریت می‌کند.
+With `size=3` the rule above puts two replicas in the first datacenter and one in the second, but **which datacenter gets two replicas** differs for each PG. If you want both sites to be certain to hold a replica and writes to continue when one site is cut off, use **stretch mode** (chapter 18) instead of a hand-written rule; it also manages the quorum and min_size logic.
 :::
 
 ::: {.note}
-Squid نوع تازه‌ای از قانون به نام **MSR** (Multi-Step Retry) اضافه کرد که به گفته‌ی یادداشت‌های انتشار، پیکربندی‌های انعطاف‌پذیرتری برای EC ممکن می‌کند؛ کاربرد رایج آن قرار دادن کنترل‌شده‌ی چند shard در یک دامنه‌ی خرابی است وقتی تعداد دامنه‌ها کمتر از `k+m` است. چون این نوع قانون در نقشه‌ی CRUSH ثبت می‌شود، `require_min_compat_client` هم روی آن اثر دارد؛ پیش از استفاده نسخه‌ی کلاینت‌ها را بررسی کنید.
+Squid added a new rule type called **MSR** (Multi-Step Retry) which, according to the release notes, enables more flexible EC configurations; its common use is controlled placement of several shards in one failure domain when the number of domains is less than `k+m`. Because this rule type is recorded in the CRUSH map, `require_min_compat_client` also applies to it; check your clients' versions before using it.
 :::
 
-## کلاس دستگاه و shadow tree {#sec-08-3-5}
+## Device classes and the shadow tree {#sec-08-3-5}
 
-از Luminous هر OSD یک **کلاس دستگاه** (hdd، ssd، nvme یا هر نام دلخواه) دارد. CRUSH برای هر کلاس یک درخت سایه (shadow) می‌سازد، مثلاً `default~ssd`، که فقط OSDهای آن کلاس را دارد. قانونی که کلاس دارد روی همین درخت سایه اجرا می‌شود. این قابلیت جایگزین ترفند قدیمی کتاب ۲۰۱۹ است که برای جدا کردن SSD و HDD دو root جدا می‌ساخت.
+Since Luminous each OSD has a **device class** (hdd, ssd, nvme or any name you like). CRUSH builds a shadow tree for each class, for example `default~ssd`, containing only the OSDs of that class. A rule with a class runs on that shadow tree. This feature replaces the old trick from the 2019 book of building two separate roots to separate SSDs and HDDs.
 
-# tunableها {#sec-08-4}
+# Tunables {#sec-08-4}
 
-## چرا tunable؟ {#sec-08-4-1}
+## Why tunables? {#sec-08-4-1}
 
-CRUSH از ابتدا کامل نبود. در برخی سلسله‌مراتب‌ها (مثلاً درخت‌های کوچک یا وقتی OSDهای زیادی out هستند) نمی‌توانست برای همه‌ی PGها نسخه‌ی کافی پیدا کند، یا با تغییرات کوچک داده‌ی زیادی را جابه‌جا می‌کرد. اصلاح این رفتارها نتیجه‌ی نگاشت را تغییر می‌دهد، پس نمی‌شد آن‌ها را بی‌صدا اعمال کرد: هر کلاینت باید همان نتیجه‌ای را محاسبه کند که OSDها محاسبه می‌کنند. راه‌حل Ceph، **tunable**هاست: پرچم‌هایی در نقشه‌ی CRUSH که رفتار الگوریتم را تعیین می‌کنند و به‌صورت **پروفایل**هایی به نام نسخه‌ها گروه‌بندی شده‌اند.
+CRUSH was not perfect from the start. In some hierarchies (for example small trees, or when many OSDs are out) it could not find enough replicas for every PG, or it moved a lot of data for small changes. Fixing these behaviours changes the mapping result, so they could not be applied silently: every client must compute the same result the OSDs compute. Ceph's solution is **tunables**: flags in the CRUSH map that determine the algorithm's behaviour, grouped into **profiles** named after releases.
 
-| پروفایل | ویژگی اصلی | حداقل هسته‌ی کلاینت (طبق مستندات) |
+| Profile | Main feature | Minimum client kernel (per the documentation) |
 |---|---|---|
-| argonaut (legacy) | رفتار اولیه | همه |
-| bobtail (CRUSH_TUNABLES2) | کاهش شکست در یافتن نگاشت و اصلاح retryها | ۳.۹ |
-| firefly (CRUSH_TUNABLES3) | اصلاح رفتار chooseleaf با پیمایش دوباره | ۳.۱۵ |
-| hammer (CRUSH_V4) | bucket نوع straw2 | ۴.۱ |
-| jewel (CRUSH_TUNABLES5) | chooseleaf_stable: جابه‌جایی کمتر هنگام out شدن OSD | ۴.۵ |
+| argonaut (legacy) | Original behaviour | All |
+| bobtail (CRUSH_TUNABLES2) | Fewer failures to find a mapping and fixed retries | 3.9 |
+| firefly (CRUSH_TUNABLES3) | Fixed chooseleaf behaviour with re-descent | 3.15 |
+| hammer (CRUSH_V4) | straw2 bucket type | 4.1 |
+| jewel (CRUSH_TUNABLES5) | chooseleaf_stable: less movement when an OSD goes out | 4.5 |
 
 ```bash
 ceph osd crush show-tunables
-ceph osd crush tunables optimal       # جابه‌جایی داده دارد!
-ceph features                         # نسخه و قابلیت‌های کلاینت‌های متصل
+ceph osd crush tunables optimal       # causes data movement!
+ceph features                         # version and features of connected clients
 ceph osd get-require-min-compat-client
 ```
 
 ::: {.warn}
-تغییر پروفایل tunable روی کلاستر پرداده، بخش بزرگی از داده را جابه‌جا می‌کند. این کار را در ساعات کم‌بار، با پروفایل mClock مناسب و پس از اطمینان از سازگاری همه‌ی کلاینت‌ها (به‌ویژه کلاینت‌های هسته‌ی قدیمی RBD و CephFS) انجام دهید. کلاسترهایی که با نسخه‌های جدید ساخته شده‌اند از ابتدا tunableهای بهینه دارند و این بخش بیشتر برای کلاسترهای قدیمیِ ارتقایافته اهمیت دارد.
+Changing the tunable profile on a cluster full of data moves a large part of the data. Do it in off-peak hours, with a suitable mClock profile, and after making sure all clients are compatible (especially old kernel RBD and CephFS clients). Clusters built with recent releases have optimal tunables from the start, and this section matters mostly for old upgraded clusters.
 :::
 
-## هشدار non-optimal {#sec-08-4-2}
+## The non-optimal warning {#sec-08-4-2}
 
-اگر tunableهای کلاستر از پروفایل بهینه‌ی نسخه‌ی فعلی عقب باشند، هشدار `OLD_CRUSH_TUNABLES` نمایش داده می‌شود. می‌توانید آن را با به‌روزرسانی tunableها رفع کنید یا، اگر کلاینت قدیمی دارید که نمی‌توانید ارتقا دهید، با `mon_warn_on_legacy_crush_tunables=false` موقتاً خاموش کنید. هشدار مشابه `OLD_CRUSH_STRAW_CALC_VERSION` هم وقتی ظاهر می‌شود که نقشه هنوز از نسخه‌ی قدیمی و معیوب محاسبه‌ی وزن در bucketهای straw استفاده کند.
+If the cluster's tunables lag behind the optimal profile of the current release, the `OLD_CRUSH_TUNABLES` warning is shown. You can fix it by updating the tunables or, if you have old clients you cannot upgrade, silence it temporarily with `mon_warn_on_legacy_crush_tunables=false`. A similar warning, `OLD_CRUSH_STRAW_CALC_VERSION`, appears when the map still uses the old, buggy version of the weight calculation in straw buckets.
 
 ```bash
-# تبدیل bucketهای straw به straw2 با حداقل جابه‌جایی
+# convert straw buckets to straw2 with minimal movement
 ceph osd crush set-all-straw-buckets-to-straw2
 ```
 
-# نقشه‌های کلاستر و MONها {#sec-08-5}
+# Cluster maps and MONs {#sec-08-5}
 
-![نقشه‌های کلاستر در MONها نگهداری و با epoch نسخه‌گذاری می‌شوند؛ کلاینت‌ها و OSDها نقشه‌ی جدید را از MON یا از یکدیگر می‌گیرند](figures/ch08/f03_maps.png){#fig-08-f03_maps}
+![Cluster maps are kept in the MONs and versioned by epoch; clients and OSDs get the new map from the MON or from each other](figures/ch08/f03_maps.png){#fig-08-f03_maps}
 
-## نقشه‌ها {#sec-08-5-1}
+## The maps {#sec-08-5-1}
 
-وضعیت کلاستر در چند نقشه نگهداری می‌شود که همه با یک **epoch** (شماره‌ی نسخه‌ی صعودی) نسخه‌گذاری شده‌اند:
+The cluster state is kept in several maps, all versioned with an **epoch** (an increasing version number):
 
-| نقشه | محتوا | دستور مشاهده |
+| Map | Contents | Command to view |
 |---|---|---|
-| MonMap | fsid، فهرست MONها و آدرس‌هایشان | `ceph mon dump` |
-| OSDMap | poolها، OSDها و وضعیت up/in، pg_temp و upmapها، پرچم‌ها و نقشه‌ی CRUSH | `ceph osd dump` |
-| MgrMap | MGR فعال، آماده‌به‌کارها و ماژول‌ها | `ceph mgr dump` |
-| FSMap | فایل‌سیستم‌ها و MDSها | `ceph fs dump` |
-| PGMap | آمار PGها (در MGR، نه MON) | `ceph pg dump` |
+| MonMap | fsid, the list of MONs and their addresses | `ceph mon dump` |
+| OSDMap | pools, OSDs and their up/in state, pg_temp and upmaps, flags and the CRUSH map | `ceph osd dump` |
+| MgrMap | active MGR, standbys and modules | `ceph mgr dump` |
+| FSMap | file systems and MDSs | `ceph fs dump` |
+| PGMap | PG statistics (in the MGR, not the MON) | `ceph pg dump` |
 
 ::: {.deep}
-OSDها نقشه‌ی جدید را لزوماً از MON نمی‌گیرند: هر پیام بین OSDها و کلاینت‌ها epoch فرستنده را دارد و طرفی که نقشه‌ی جدیدتری دارد، تغییرات (incremental) را برای دیگری می‌فرستد. این «شایعه‌پراکنی» (gossip) بار MONها را کم می‌کند. پیامد عملی: OSDی که مدتی خاموش بوده باید هنگام بالا آمدن همه‌ی epochهای از دست رفته را پردازش کند، و اگر MONها epochهای قدیمی را نگه داشته باشند (مثلاً چون کلاستر مدت‌ها ناسالم بوده) پایگاه داده‌ی MON بزرگ می‌شود.
+OSDs do not necessarily get the new map from the MON: every message between OSDs and clients carries the sender's epoch, and the side with the newer map sends the changes (incrementals) to the other. This "gossip" reduces the load on the MONs. The practical consequence: an OSD that has been off for a while must process all the missed epochs when it comes up, and if the MONs keep old epochs (for example because the cluster has been unhealthy for a long time) the MON database grows.
 :::
 
-## دسترس‌پذیری MONها {#sec-08-5-2}
+## MON availability {#sec-08-5-2}
 
-MONها با الگوریتم **Paxos** اجماع می‌کنند: هر تغییر نقشه فقط وقتی معتبر است که اکثریت MONها (quorum) آن را بپذیرند. یکی از MONها **leader** است و بقیه peon.
+MONs reach consensus with the **Paxos** algorithm: a map change is valid only when a majority of MONs (a quorum) accepts it. One MON is the **leader** and the rest are peons.
 
 ```bash
 ceph mon stat
@@ -199,28 +198,28 @@ ceph mon dump
 ceph tell mon.ceph-node1 mon_status
 ```
 
-| تعداد MON | اکثریت لازم | تحمل خرابی |
+| Number of MONs | Majority needed | Failures tolerated |
 |---|---|---|
-| ۱ | ۱ | ۰ |
-| ۳ | ۲ | ۱ |
-| ۵ | ۳ | ۲ |
-| ۷ | ۴ | ۳ |
+| 1 | 1 | 0 |
+| 3 | 2 | 1 |
+| 5 | 3 | 2 |
+| 7 | 4 | 3 |
 
 ::: {.warn}
-تعداد زوج MON تحمل خرابی را افزایش نمی‌دهد: چهار MON هم فقط یک خرابی را تحمل می‌کنند. MONها به ساعت دقیق حساس‌اند (هشدار `MON_CLOCK_SKEW`)؛ chrony یا NTP را روی همه‌ی گره‌ها پیکربندی و پایش کنید. پایگاه داده‌ی MON (RocksDB) را روی SSD قرار دهید و فضای دیسک آن را پایش کنید؛ وقتی فضای آزاد کم شود، هشدار `MON_DISK_LOW` و در نهایت توقف MON پیش می‌آید.
+An even number of MONs does not increase fault tolerance: four MONs also tolerate only one failure. MONs are sensitive to accurate time (the `MON_CLOCK_SKEW` warning); configure and monitor chrony or NTP on all nodes. Put the MON database (RocksDB) on SSD and monitor its disk space; when free space runs low, the `MON_DISK_LOW` warning and eventually a MON shutdown follow.
 :::
 
 ::: {.note}
-Umbrella سازوکار اختیاری **پشتیبان‌گیری و بازیابی RocksDB MON** را اضافه کرده است (تنظیم `mon_backup_interval`، دستور `ceph tell mon.* backup` و بازیابی آفلاین با `ceph-mon --restore-backup`). پیش از هر عملیات پرخطر روی MONها (حذف، بازسازی یا ارتقای اصلی) از این امکان یا از روش‌های مستند بازسازی پایگاه MON آگاه باشید؛ از دست رفتن همه‌ی MONها بدون پشتیبان، بدترین سناریوی Ceph است.
+Umbrella added an optional **MON RocksDB backup and restore** mechanism (the `mon_backup_interval` setting, the `ceph tell mon.* backup` command and offline restore with `ceph-mon --restore-backup`). Before any risky operation on the MONs (removal, rebuild or a major upgrade), be aware of this option or of the documented methods for rebuilding the MON database; losing all MONs without a backup is Ceph's worst scenario.
 :::
 
-# از درون کد: جای‌گذاری، احراز هویت و پیام‌رسانی {#sec-08-6}
+# Inside the code: placement, authentication and messaging {#sec-08-6}
 
-## از نام شیء تا OSD {#sec-08-6-1}
+## From object name to OSD {#sec-08-6-1}
 
-![سه مرحله‌ی نگاشت شیء به OSD: در کلاینت، نام شیء با ceph_str_hash درهم‌سازی و با ceph_stable_mod به شماره‌ی PG تبدیل می‌شود؛ سپس شماره‌ی PG با شناسه‌ی pool ترکیب و به‌عنوان ورودی x به crush_do_rule داده می‌شود؛ در پایان OSDMap OSDهای ناموجود را حذف و upmap و pg_temp را اعمال می‌کند تا acting set و primary به دست آید](figures/ch08/s01_obj2osd.png){#fig-08-s01_obj2osd}
+![The three stages of mapping an object to an OSD: in the client the object name is hashed with ceph_str_hash and turned into a PG number with ceph_stable_mod; then the PG number is combined with the pool id and given to crush_do_rule as input x; finally the OSDMap removes non-existent OSDs and applies upmap and pg_temp to obtain the acting set and the primary](figures/ch08/s01_obj2osd.png){#fig-08-s01_obj2osd}
 
-مرحله‌ی اول در `pg_pool_t::hash_key()` (`src/osd/osd_types.cc`) انجام می‌شود: نام شیء، و در صورت وجود namespace، با تابع درهم‌سازی pool (پیش‌فرض rjenkins) به یک عدد ۳۲بیتی تبدیل می‌شود. سپس این عدد با `ceph_stable_mod()` به بازه‌ی PGها نگاشت می‌شود. این تابع کوچک یکی از هوشمندانه‌ترین قطعه‌های Ceph است:
+The first stage happens in `pg_pool_t::hash_key()` (`src/osd/osd_types.cc`): the object name, together with the namespace if there is one, is turned into a 32-bit number with the pool's hash function (rjenkins by default). This number is then mapped to the PG range with `ceph_stable_mod()`. This small function is one of the cleverest pieces of Ceph:
 
 ```c
 /* from ceph/ceph, LGPL — src/include/rados.h (excerpt) */
@@ -233,17 +232,17 @@ static inline int ceph_stable_mod(int x, int b, int bmask)
 }
 ```
 
-`b` تعداد PGها و `bmask` کوچک‌ترین توان ۲ منهای یک است که دست‌کم `b` باشد. اگر pg_num توان ۲ نباشد (مثلاً ۱۲ با bmask=15)، مقادیر ۱۲ تا ۱۵ که PG متناظر ندارند به نیمه‌ی پایین (۴ تا ۷) «تا» می‌شوند. نتیجه‌ی مهم: وقتی pg_num از ۱۲ به ۱۳ افزایش می‌یابد، فقط اشیایی که به PG ۵ می‌رفتند و hash آن‌ها در ۱۳ می‌افتد جابه‌جا می‌شوند؛ یعنی تقسیم PG **محلی** است و همه‌ی داده بازچینی نمی‌شود. همین ویژگی است که افزایش تدریجی pg_num (از Nautilus) را ممکن کرده است.
+`b` is the number of PGs and `bmask` is the smallest power of 2 minus one that is at least `b`. If pg_num is not a power of 2 (for example 12 with bmask=15), the values 12 to 15, which have no corresponding PG, are "folded" into the lower half (4 to 7). The important result: when pg_num grows from 12 to 13, only the objects that went to PG 5 and whose hash falls on 13 move; that is, PG splitting is **local** and the data is not all reshuffled. This property is what made gradual pg_num increases (since Nautilus) possible.
 
 ::: {.note}
-به همین دلیل، وقتی pg_num توان ۲ نیست، اندازه‌ی PGها نابرابر است: PGهای «تاشده» تقریباً دو برابر داده دارند. این یکی از دلایل توصیه‌ی توان ۲ و رفتار autoscaler است (فصل ۱۹).
+For this reason, when pg_num is not a power of 2, PG sizes are unequal: the "folded" PGs have roughly twice as much data. This is one of the reasons for the power-of-2 recommendation and for the autoscaler's behaviour (chapter 19).
 :::
 
-## straw2: انتخاب با کشیدن قرعه‌ی نمایی {#sec-08-6-2}
+## straw2: choosing by drawing exponential lots {#sec-08-6-2}
 
-![الگوریتم straw2 در سه مرحله: برای هر آیتم bucket یک عدد شبه‌تصادفی شانزده‌بیتی از hash ورودی، شناسه‌ی آیتم و شماره‌ی تلاش ساخته و لگاریتم طبیعی آن با جدول محاسبه و بر وزن تقسیم می‌شود؛ آیتمی با بیشترین مقدار انتخاب می‌شود که از نظر ریاضی معادل انتخاب کمینه از متغیرهای نمایی با نرخ برابر وزن است و احتمال انتخاب هر آیتم را دقیقاً متناسب با وزن آن می‌کند؛ پیامد آن حداقل جابه‌جایی داده هنگام تغییر وزن است](figures/ch08/s02_straw2.png){#fig-08-s02_straw2}
+![The straw2 algorithm in three stages: for each bucket item a sixteen-bit pseudo-random number is built from the input hash, the item id and the attempt number, and its natural logarithm is computed with a table and divided by the weight; the item with the largest value is chosen, which is mathematically equivalent to picking the minimum of exponential variables with rate equal to the weight and makes each item's selection probability exactly proportional to its weight; the consequence is minimal data movement when weights change](figures/ch08/s02_straw2.png){#fig-08-s02_straw2}
 
-`bucket_straw2_choose()` در `src/crush/mapper.c` برای هر آیتم bucket یک «قرعه» (draw) محاسبه و بزرگ‌ترین را انتخاب می‌کند. هسته‌ی محاسبه:
+`bucket_straw2_choose()` in `src/crush/mapper.c` computes a "draw" for each bucket item and chooses the largest. The core of the computation:
 
 ```c
 /* from ceph/ceph, LGPL — src/crush/mapper.c, generate_exponential_distribution() (excerpt) */
@@ -253,33 +252,33 @@ __s64 ln = crush_ln(u) - 0x1000000000000ll;
 return div64_s64(ln, weight);
 ```
 
-ریاضیات پشت آن (به بیان این کتاب): فرض کنید U یکنواخت در (۰، ۱] باشد. آنگاه `−ln(U) / w` متغیری نمایی با نرخ w است. کمینه‌ی چند متغیر نمایی مستقل با نرخ‌های w₁ تا wₙ، با احتمال `wᵢ / Σw` متعلق به آیتم i است. چون ln(U) منفی است، `ln(U)/w` بزرگ‌ترین مقدار را برای همان آیتمی دارد که `−ln(U)/w` کمینه است. بنابراین:
+The mathematics behind it (in this book's words): suppose U is uniform on (0, 1]. Then `−ln(U) / w` is an exponential variable with rate w. The minimum of several independent exponential variables with rates w₁ to wₙ belongs to item i with probability `wᵢ / Σw`. Because ln(U) is negative, `ln(U)/w` is largest for the same item for which `−ln(U)/w` is smallest. Therefore:
 
 ```text
 draw_i = ln(u_i / 65536) / w_i          (u_i = hash(x, id_i, r) mod 2^16)
 choose argmax_i draw_i   ⇒   P(i) = w_i / Σ_j w_j
 ```
 
-`crush_ln()` لگاریتم را با جدول‌های ممیز ثابت (بدون ممیز شناور، چون همین کد در هسته‌ی لینوکس هم اجرا می‌شود) تقریب می‌زند؛ خروجی آن در بازه‌ی [0, 2⁴⁸) است و تفریق 2⁴⁸ آن را به مقدار منفی معادل ln(u/65536) تبدیل می‌کند. وزن‌ها در قالب 16.16 ممیز ثابت‌اند (۰x10000 یعنی ۱.۰).
+`crush_ln()` approximates the logarithm with fixed-point tables (no floating point, because the same code also runs in the Linux kernel); its output is in the range [0, 2⁴⁸), and subtracting 2⁴⁸ turns it into the negative value equivalent to ln(u/65536). Weights are in 16.16 fixed-point format (0x10000 means 1.0).
 
 ::: {.deep}
-چرا straw2 جابه‌جایی را کمینه می‌کند؟ draw هر آیتم فقط به hash خودش و **وزن خودش** بستگی دارد. اگر وزن آیتم A افزایش یابد، فقط draw آن بزرگ‌تر می‌شود؛ PGهایی که قبلاً A را انتخاب کرده بودند همچنان A را انتخاب می‌کنند و برخی PGهای دیگر به A منتقل می‌شوند، اما هیچ PGی بین دو آیتم دیگر (B و C) جابه‌جا نمی‌شود. در الگوریتم قدیمی straw، طول «نی»ها به وزن همه‌ی آیتم‌ها وابسته بود و این ویژگی برقرار نبود؛ به همین دلیل straw2 از Hammer معرفی و بعدها پیش‌فرض شد.
+Why does straw2 minimise movement? Each item's draw depends only on its own hash and **its own weight**. If item A's weight increases, only its draw grows; PGs that had already chosen A still choose A and some other PGs move to A, but no PG moves between two other items (B and C). In the old straw algorithm the length of the "straws" depended on the weights of all items and this property did not hold; that is why straw2 was introduced in Hammer and later became the default.
 :::
 
 ::: {.sim name="crush"}
 :::
 
-## تلاش دوباره: collision و reject {#sec-08-6-3}
+## Retrying: collision and reject {#sec-08-6-3}
 
-`crush_choose_firstn()` برای هر نسخه (rep) یک bucket را پایین می‌رود تا به نوع مورد نظر برسد. اگر آیتم انتخاب‌شده قبلاً انتخاب شده باشد (**collide**) یا OSD خارج یا بیش‌ازحد پر باشد (**reject**)، شمارنده‌ی `ftotal` افزایش می‌یابد و انتخاب با `r' = r + ftotal` تکرار می‌شود؛ تا سقف `choose_total_tries` (tunable، پیش‌فرض ۵۰ در پروفایل‌های جدید).
+`crush_choose_firstn()` descends through a bucket for each replica (rep) until it reaches the desired type. If the chosen item has already been chosen (**collide**) or the OSD is out or overfull (**reject**), the `ftotal` counter is incremented and the choice is repeated with `r' = r + ftotal`, up to the `choose_total_tries` limit (a tunable, default 50 in the newer profiles).
 
 ```text
-pseudocode: crush_choose_firstn (خلاصه‌ی این کتاب)
+pseudocode: crush_choose_firstn (this book's summary)
   for rep in 0..numrep-1:
       ftotal = 0
       loop:
           r = rep + ftotal
-          item = descend(bucket, x, r) until type matches     # straw2 در هر سطح
+          item = descend(bucket, x, r) until type matches     # straw2 at each level
           collide = item in out[0..rep-1]
           reject  = is_out(item, x) or (chooseleaf and leaf selection failed)
           if not collide and not reject: out[rep] = item; break
@@ -287,134 +286,134 @@ pseudocode: crush_choose_firstn (خلاصه‌ی این کتاب)
           if ftotal >= choose_total_tries: give up on this rep
 ```
 
-تابع `is_out()` جالب است: OSDی با reweight بین ۰ و ۱ به‌صورت **احتمالاتی** رد می‌شود؛ `hash(x, item) & 0xffff` با وزن reweight (16.16) مقایسه می‌شود. پس `ceph osd reweight 12 0.8` یعنی حدود ۲۰٪ از PGهایی که CRUSH به osd.12 می‌داد، با تلاش دوباره به OSD دیگری می‌روند. reweight به همین دلیل با وزن CRUSH (که سهم را در straw2 تغییر می‌دهد) فرق دارد.
+The `is_out()` function is interesting: an OSD with a reweight between 0 and 1 is rejected **probabilistically**; `hash(x, item) & 0xffff` is compared with the reweight value (16.16). So `ceph osd reweight 12 0.8` means that about 20% of the PGs CRUSH gave to osd.12 go to another OSD after a retry. This is why reweight differs from the CRUSH weight (which changes the share in straw2).
 
 ::: {.tip}
-`crushtool --test` همین کد را خارج از کلاستر اجرا می‌کند. برای دیدن اثر یک تغییر پیش از اعمال: `ceph osd getcrushmap -o cm`، ویرایش، سپس `crushtool -i cm --test --show-statistics --rule 0 --num-rep 3 --min-x 0 --max-x 100000` و مقایسه‌ی `--show-mappings` قبل و بعد.
+`crushtool --test` runs the same code outside the cluster. To see the effect of a change before applying it: `ceph osd getcrushmap -o cm`, edit, then `crushtool -i cm --test --show-statistics --rule 0 --num-rep 3 --min-x 0 --max-x 100000`, and compare `--show-mappings` before and after.
 :::
 
-## cephx: بلیت‌ها و کلیدهای چرخشی {#sec-08-6-4}
+## cephx: tickets and rotating keys {#sec-08-6-4}
 
-![جریان احراز هویت cephx: کلاینت با اثبات دانستن کلید مشترک از MON کلید جلسه و بلیت احراز می‌گیرد، سپس برای سرویس OSD بلیت سرویس رمزشده با کلید چرخشی آن سرویس دریافت می‌کند؛ OSD که کلیدهای چرخشی را از MON گرفته است، بلیت را رمزگشایی و انقضا و capها را بررسی می‌کند و پاسخ می‌دهد تا احراز دوطرفه کامل شود](figures/ch08/s03_cephx.png){#fig-08-s03_cephx}
+![The cephx authentication flow: by proving knowledge of the shared key, the client gets a session key and an auth ticket from the MON, then obtains a service ticket for the OSD service encrypted with that service's rotating key; the OSD, which has received the rotating keys from the MON, decrypts the ticket, checks its expiry and caps, and replies so that mutual authentication is complete](figures/ch08/s03_cephx.png){#fig-08-s03_cephx}
 
-ساختارهای اصلی در `src/auth/cephx/CephxProtocol.h` تعریف شده‌اند: `CephXServerChallenge`، `CephXAuthenticate`، `CephXTicketBlob`، `CephXServiceTicket`، `CephXServiceTicketInfo` و `CephXAuthorizer`. سه نوع درخواست اصلی با ثابت‌های `CEPHX_GET_AUTH_SESSION_KEY` (۰x0100)، `CEPHX_GET_PRINCIPAL_SESSION_KEY` (۰x0200) و `CEPHX_GET_ROTATING_KEY` (۰x0400) مشخص می‌شوند.
+The main structures are defined in `src/auth/cephx/CephxProtocol.h`: `CephXServerChallenge`, `CephXAuthenticate`, `CephXTicketBlob`, `CephXServiceTicket`, `CephXServiceTicketInfo` and `CephXAuthorizer`. The three main request types are identified by the constants `CEPHX_GET_AUTH_SESSION_KEY` (0x0100), `CEPHX_GET_PRINCIPAL_SESSION_KEY` (0x0200) and `CEPHX_GET_ROTATING_KEY` (0x0400).
 
-- کلید مشترک کلاینت هرگز روی شبکه منتقل نمی‌شود؛ کلاینت فقط ثابت می‌کند آن را دارد (پاسخ به challenge).
-- بلیت سرویس با **کلید چرخشی** سرویس رمز می‌شود که MON دوره‌ای عوض می‌کند و OSDها می‌گیرند؛ بنابراین OSD برای بررسی بلیت نیازی به تماس با MON ندارد.
-- عمر بلیت‌ها با `auth_mon_ticket_ttl` (پیش‌فرض ۷۲ ساعت) و `auth_service_ticket_ttl` (پیش‌فرض ۱ ساعت) کنترل می‌شود؛ کلاینت پیش از انقضا تمدید می‌کند.
+- The client's shared key is never sent over the network; the client only proves that it has it (by answering a challenge).
+- The service ticket is encrypted with the service's **rotating key**, which the MON changes periodically and the OSDs fetch; so the OSD does not need to contact the MON to check a ticket.
+- Ticket lifetimes are controlled by `auth_mon_ticket_ttl` (default 72 hours) and `auth_service_ticket_ttl` (default 1 hour); the client renews before expiry.
 
 ::: {.warn}
-چون بلیت‌ها زمان انقضا دارند، **اختلاف ساعت** بین کلاینت، MON و OSD می‌تواند احراز را بشکند. پیام‌هایی مانند «could not get service secret» یا خطای احراز پس از راه‌اندازی دوباره‌ی میزبانی با ساعت نادرست، اغلب از همین است. NTP/chrony روی همه‌ی میزبان‌ها و کلاینت‌ها الزامی است.
+Because tickets expire, **clock skew** between the client, MON and OSD can break authentication. Messages such as "could not get service secret", or authentication errors after rebooting a host with a wrong clock, are often caused by this. NTP/chrony on all hosts and clients is mandatory.
 :::
 
-## msgr2: قاب‌ها و حالت امن {#sec-08-6-5}
+## msgr2: frames and secure mode {#sec-08-6-5}
 
-![ساختار قاب در پروتکل msgr2: preamble با اندازه‌ی ثابت شامل برچسب نوع قاب، تعداد segmentها تا چهار و طول و هم‌ترازی هر segment و CRC جداگانه؛ سپس حداکثر چهار segment شامل سرآیند، front، middle و data؛ و در پایان epilogue که در حالت crc شامل CRC هر segment و در حالت secure رمز و احراز صحت AES-GCM کل قاب است](figures/ch08/s04_msgr2.png){#fig-08-s04_msgr2}
+![The frame structure in the msgr2 protocol: a fixed-size preamble containing the frame type tag, the number of segments up to four, the length and alignment of each segment and a separate CRC; then up to four segments containing the header, front, middle and data; and finally the epilogue, which in crc mode holds each segment's CRC and in secure mode the AES-GCM encryption and authentication of the whole frame](figures/ch08/s04_msgr2.png){#fig-08-s04_msgr2}
 
-در `src/msg/async/frames_v2.h`، هر قاب با یک `preamble_block_t` شروع می‌شود که برچسب (`enum class Tag`: HELLO، AUTH_REQUEST، AUTH_REQUEST_MORE، ...، SESSION_RECONNECT، MESSAGE، KEEPALIVE2، COMPRESSION_REQUEST و...)، تعداد segmentها (حداکثر `MAX_NUM_SEGMENTS = 4`) و طول و هم‌ترازی هر segment را دارد. جدا کردن segment داده با هم‌ترازی مشخص اجازه می‌دهد بافر داده بدون کپی (zero-copy) مستقیم به BlueStore برسد.
+In `src/msg/async/frames_v2.h`, each frame starts with a `preamble_block_t` holding the tag (`enum class Tag`: HELLO, AUTH_REQUEST, AUTH_REQUEST_MORE, ..., SESSION_RECONNECT, MESSAGE, KEEPALIVE2, COMPRESSION_REQUEST and so on), the number of segments (at most `MAX_NUM_SEGMENTS = 4`) and the length and alignment of each segment. Separating the data segment with a specific alignment lets the data buffer reach BlueStore directly without copying (zero-copy).
 
 ```bash
-ceph config get mon ms_cluster_mode          # crc یا secure (و ترتیب ترجیح)
+ceph config get mon ms_cluster_mode          # crc or secure (and the order of preference)
 ceph config get mon ms_service_mode
 ceph config get mon ms_client_mode
-ceph config set global ms_cluster_mode "secure"   # رمزنگاری ترافیک بین OSDها
-ceph mon dump | grep -E "v2:|v1:"                 # نشانی‌های دو پروتکل
+ceph config set global ms_cluster_mode "secure"   # encrypt traffic between OSDs
+ceph mon dump | grep -E "v2:|v1:"                 # the addresses of the two protocols
 ```
 
 ::: {.note}
-حالت `secure` هزینه‌ی CPU دارد، اما روی پردازنده‌های دارای AES-NI معمولاً قابل‌تحمل است. پیش از فعال‌سازی روی شبکه‌ی cluster پرترافیک، اثر را در آزمایشگاه بسنجید. پورت پیش‌فرض msgr2 روی MON ۳۳۰۰ و msgr1 ۶۷۸۹ است.
+`secure` mode costs CPU, but on processors with AES-NI it is usually tolerable. Before enabling it on a busy cluster network, measure the effect in a lab. The default msgr2 port on the MON is 3300 and msgr1 is 6789.
 :::
 
-# جابه‌جایی داده با عدد: افزودن میزبان و تغییر وزن {#sec-08-7}
+# Data movement by the numbers: adding a host and changing a weight {#sec-08-7}
 
-این بخش دو پرسش عملی را با نگاشت واقعی CRUSH پاسخ می‌دهد: «با افزودن یک میزبان چه مقدار داده جابه‌جا می‌شود؟» و «با تغییر وزن یک OSD چه چیزی جابه‌جا می‌شود؟». نقشه با `crushtool --build --num_osds 132 … host straw2 12 root straw2 0` ساخته شد. نسخه‌ی ده‌میزبانی همان نقشه با `--remove-item` به دست آمد تا شناسه‌ی همه‌ی bucketها و OSDها ثابت بماند، چون straw2 شناسه‌ی آیتم را در hash به کار می‌برد. pool سه‌نسخه‌ای با 8192 PG در `osdmaptool --createsimple 256 --pg-bits 5 --pgp-bits 5` تعریف شد و نگاشت هر حالت با `--test-map-pgs-dump` گرفته شد. ابزارها از Ceph 18.2.7 بودند و tunableها پیش‌فرض: `chooseleaf_vary_r 1`، `chooseleaf_stable 1` و `choose_total_tries 50`.
+This section answers two practical questions with real CRUSH mappings: "how much data moves when a host is added?" and "what moves when an OSD's weight changes?". The map was built with `crushtool --build --num_osds 132 … host straw2 12 root straw2 0`. The ten-host version of the same map was obtained with `--remove-item` so that the ids of all buckets and OSDs stay fixed, because straw2 uses the item id in the hash. A three-replica pool with 8192 PGs was defined with `osdmaptool --createsimple 256 --pg-bits 5 --pgp-bits 5`, and the mapping of each case was taken with `--test-map-pgs-dump`. The tools were from Ceph 18.2.7 and the tunables were the defaults: `chooseleaf_vary_r 1`, `chooseleaf_stable 1` and `choose_total_tries 50`.
 
 ::: {.note}
-یک دام در osdmaptool: گزینه‌ی `--mark-up-in` به هر OSD با وزن CRUSH صفر وزن 1.0 می‌دهد (src/tools/osdmaptool.cc، بلوک `if (mark_up_in)` با `adjust_item_weightf(…, 1.0)`). پس برای شبیه‌سازی «میزبان هنوز اضافه نشده» نمی‌توان وزن OSDها را صفر کرد و باید آن‌ها را از نقشه حذف کرد. ما اول همین اشتباه را کردیم و هیچ جابه‌جایی‌ای ندیدیم.
+A trap in osdmaptool: the `--mark-up-in` option gives a weight of 1.0 to every OSD with a CRUSH weight of zero (src/tools/osdmaptool.cc, the `if (mark_up_in)` block with `adjust_item_weightf(…, 1.0)`). So to simulate "the host has not been added yet" you cannot set the OSDs' weight to zero; you must remove them from the map. We made exactly this mistake at first and saw no movement at all.
 :::
 
-## افزودن یک میزبان {#sec-08-7-1}
+## Adding a host {#sec-08-7-1}
 
-::: {.algo #alg-08-1 title="شمارش جابه‌جایی با مقایسه‌ی دو نگاشت" src="osdmaptool --test-map-pgs-dump پیش و پس از تغییر؛ bucket_straw2_choose و crush_choose_firstn در src/crush/mapper.c" complexity="O(pg_num × size)"}
+::: {.algo #alg-08-1 title="Counting movement by comparing two mappings" src="osdmaptool --test-map-pgs-dump before and after the change; bucket_straw2_choose and crush_choose_firstn in src/crush/mapper.c" complexity="O(pg_num × size)"}
 :::
 
 ```text
 pseudocode
-A = up(pg) با نقشه‌ی قدیم ؛ B = up(pg) با نقشه‌ی جدید          # برای هر pg در [0, pg_num)
-moved = Σ_pg |set(B[pg]) − set(A[pg])|                         # جای‌گذاری‌های تازه، بی‌توجه به ترتیب
-to_new = Σ_pg |{o ∈ B[pg] − A[pg] : o روی میزبان جدید}|
-ideal = pg_num × size × (وزن میزبان جدید / وزن کل)               # 24576 × 12/132
+A = up(pg) with the old map ; B = up(pg) with the new map          # for each pg in [0, pg_num)
+moved = Σ_pg |set(B[pg]) − set(A[pg])|                         # new placements, ignoring order
+to_new = Σ_pg |{o ∈ B[pg] − A[pg] : o on the new host}|
+ideal = pg_num × size × (new host weight / total weight)               # 24576 × 12/132
 ```
 
-**نتیجه.** از 24576 جای‌گذاری replica، 2184 مورد (8.89٪) به میزبان جدید رفت. حد ایده‌آل 2234 (9.09٪) است. این همان رفتاری است که straw2 تضمین می‌کند: هر آیتم یک «قرعه»ی مستقل `ln(u)/w` دارد (تابع `generate_exponential_distribution`) و افزودن یک آیتم فقط در جاهایی برنده را عوض می‌کند که قرعه‌ی آیتم تازه بالاتر باشد.
+**Result.** Of 24576 replica placements, 2184 (8.89%) went to the new host. The ideal is 2234 (9.09%). This is exactly the behaviour straw2 guarantees: each item has an independent "draw" `ln(u)/w` (the `generate_exponential_distribution` function), and adding an item changes the winner only where the new item's draw is higher.
 
-اما 328 جای‌گذاری دیگر (1.33٪) بین OSDهای قدیمی جابه‌جا شد. نمونه‌ای واقعی از همین نگاشت: PG ‏`1.58` از `[76, 113, 46]` به `[76, 125, 116]` رفت. میزبان جدید در جایگاه دوم نشست و میزبان 9 به جایگاه سوم رانده شد. در `crush_choose_firstn` برگ درون میزبان با `sub_r = r >> (vary_r − 1)` انتخاب می‌شود، یعنی به r جایگاه بستگی دارد. پس در همان میزبان 9 به‌جای osd.113، ‏osd.116 انتخاب شد. نتیجه‌ی عملی این است که افزودن ظرفیت حدود 15٪ بیشتر از حد ایده‌آل جابه‌جایی ایجاد می‌کند (2512 در برابر 2234). این را در برآورد زمان backfill لحاظ کنید.
+But another 328 placements (1.33%) moved between old OSDs. A real example from this mapping: PG `1.58` went from `[76, 113, 46]` to `[76, 125, 116]`. The new host took the second position and host 9 was pushed to the third. In `crush_choose_firstn` the leaf within a host is chosen with `sub_r = r >> (vary_r − 1)`, i.e. it depends on the position's r. So within the same host 9, osd.116 was chosen instead of osd.113. The practical consequence is that adding capacity causes about 15% more movement than the ideal (2512 versus 2234). Take this into account when estimating backfill time.
 
-![افزودن میزبان یازدهم (12 OSD) به کلاستر 10 × 12 با straw2، ‏pool سه‌نسخه‌ای و 8192 PG، اندازه‌گیری‌شده با osdmaptool. خاکستری سهم ایده‌آل است، سبز replicaهایی که به میزبان جدید رفتند و نارنجی جابه‌جایی بین OSDهای قدیمی که از عوض شدن r جایگاه در chooseleaf ناشی می‌شود](figures/ch08/f07_addhost.png){#fig-08-f07_addhost}
+![Adding an eleventh host (12 OSDs) to a 10 × 12 cluster with straw2, a three-replica pool and 8192 PGs, measured with osdmaptool. Grey is the ideal share, green the replicas that went to the new host, and orange the movement between old OSDs caused by the position's r changing in chooseleaf](figures/ch08/f07_addhost.png){#fig-08-f07_addhost}
 
-## تغییر وزن یک OSD {#sec-08-7-2}
+## Changing an OSD's weight {#sec-08-7-2}
 
-::: {.algo #alg-08-2 title="دسته‌بندی جابه‌جایی‌ها پس از reweight" src="crushtool --reweight-item (وزن والدها را هم به‌روز می‌کند)؛ همان مقایسه‌ی A و B" complexity="O(pg_num × size)"}
+::: {.algo #alg-08-2 title="Classifying movements after a reweight" src="crushtool --reweight-item (also updates the parents' weights); the same A and B comparison" complexity="O(pg_num × size)"}
 :::
 
 ```text
 pseudocode
-برای هر جای‌گذاری تازه y ∈ B[pg] − A[pg]:
-    اگر osd.5 در ورودی یا خروجی این PG باشد      → «خود osd.5»
-    وگرنه اگر ورودی یا خروجی روی host0 باشد       → «دیگر OSDهای host0»   (وزن host0 در root عوض شده)
-    وگرنه                                          → «میزبان‌های نامربوط»   (جابه‌جایی جایگاه/r)
+for each new placement y ∈ B[pg] − A[pg]:
+    if osd.5 is the incoming or outgoing OSD of this PG      → "osd.5 itself"
+    else if the incoming or outgoing OSD is on host0       → "other OSDs of host0"   (host0's weight in root changed)
+    else                                          → "unrelated hosts"   (position/r shift)
 ```
 
-**نتیجه.** وقتی وزن osd.5 از 1.0 به 2.0 می‌رسد، 411 جای‌گذاری عوض می‌شود: 214 مورد خود osd.5، ‏169 مورد دیگر OSDهای host0 و 28 مورد میزبان‌های نامربوط. وقتی وزن به 0.8 کم می‌شود، 84 جای‌گذاری عوض می‌شود: 42، 40 و 2.
+**Result.** When osd.5's weight goes from 1.0 to 2.0, 411 placements change: 214 are osd.5 itself, 169 are other OSDs of host0 and 28 are unrelated hosts. When the weight drops to 0.8, 84 placements change: 42, 40 and 2.
 
-بخش بزرگ «دیگر OSDهای host0» اشکال straw2 نیست. `crushtool --reweight-item` وزن host0 را در root هم از 12 به 13 می‌برد و host0 سهم بیشتری از PGها می‌گیرد. straw2 این سهم را درون host0 به نسبت 2/13 برای osd.5 و 1/13 برای هر OSD دیگر پخش می‌کند.
+The large "other OSDs of host0" share is not a flaw of straw2. `crushtool --reweight-item` also raises host0's weight in the root from 12 to 13, and host0 gets a larger share of the PGs. straw2 spreads this share within host0 in the ratio 2/13 for osd.5 and 1/13 for each other OSD.
 
-در این آزمایش الگوریتم قدیمی straw نتیجه‌ی تقریباً یکسانی داد (400 در برابر 411 برای وزن 2.0)، چون همه‌ی آیتم‌ها جز یکی هم‌وزن بودند. ایراد مستند straw قدیمی (جابه‌جایی بین آیتم‌های دیگرِ همان bucket هنگام تغییر وزن یکی) در bucketهای با وزن‌های نابرابر بروز می‌کند. با این حال، straw2 تنها الگوریتمی است که این ویژگی را برای هر توزیع وزنی تضمین می‌کند.
+In this experiment the old straw algorithm gave almost the same result (400 versus 411 for weight 2.0), because all items but one had equal weights. The documented flaw of old straw (movement between the other items of the same bucket when one item's weight changes) shows up in buckets with unequal weights. Even so, straw2 is the only algorithm that guarantees this property for any weight distribution.
 
 ::: {.tip}
-پیش از هر تغییر وزن یا افزودن میزبان روی کلاستر واقعی، همین مقایسه را آفلاین انجام دهید: `ceph osd getmap -o om`، سپس `osdmaptool om --export-crush cm`، تغییر روی cm با crushtool، `osdmaptool om --import-crush cm2` روی یک کپی، و مقایسه‌ی دو خروجی `--test-map-pgs-dump`. در این حالت `--mark-up-in` لازم نیست، چون osdmap واقعی وضعیت up و in را دارد.
+Before any weight change or host addition on a real cluster, do the same comparison offline: `ceph osd getmap -o om`, then `osdmaptool om --export-crush cm`, change cm with crushtool, `osdmaptool om --import-crush cm2` on a copy, and compare the two `--test-map-pgs-dump` outputs. In this case `--mark-up-in` is not needed, because the real osdmap has the up and in state.
 :::
 
-![تغییر وزن CRUSH یک OSD (osd.5 روی host0) از 1.0 به پنج مقدار و دسته‌بندی جای‌گذاری‌های جابه‌جاشده: آبی خود osd.5، زرد دیگر OSDهای host0 که با تغییر وزن میزبان سهم تازه می‌گیرند یا از دست می‌دهند، قرمز میزبان‌های نامربوط. چپ straw2 و راست straw قدیمی، با 8192 PG و اندازه‌گیری osdmaptool](figures/ch08/f08_reweight.png){#fig-08-f08_reweight}
+![Changing the CRUSH weight of one OSD (osd.5 on host0) from 1.0 to five values and classifying the moved placements: blue is osd.5 itself, yellow the other OSDs of host0, which gain or lose share as the host's weight changes, and red unrelated hosts. Left straw2 and right old straw, with 8192 PGs, measured with osdmaptool](figures/ch08/f08_reweight.png){#fig-08-f08_reweight}
 
-# احراز هویت و مجوزها {#sec-08-8}
+# Authentication and authorisation {#sec-08-8}
 
 ## cephx {#sec-08-8-1}
 
-Ceph از پروتکل **cephx** برای احراز هویت دوطرفه بین کلاینت‌ها و daemonها استفاده می‌کند. ایده‌ی آن شبیه Kerberos است: کلید مخفی هرگز روی شبکه ارسال نمی‌شود و MON به‌عنوان مرجع، **ticket**های زمان‌دار صادر می‌کند که کلاینت با آن‌ها مستقیماً با OSDها و MDSها صحبت می‌کند.
+Ceph uses the **cephx** protocol for mutual authentication between clients and daemons. Its idea is similar to Kerberos: the secret key is never sent over the network, and the MON, as the authority, issues time-limited **tickets** with which the client talks directly to OSDs and MDSs.
 
-![جریان cephx: کلاینت هویتش را به MON ثابت می‌کند، ticket می‌گیرد و با آن مستقیماً با OSD کار می‌کند](figures/ch08/f04_cephx.png){#fig-08-f04_cephx}
+![The cephx flow: the client proves its identity to the MON, gets a ticket and uses it to work directly with the OSD](figures/ch08/f04_cephx.png){#fig-08-f04_cephx}
 
 ::: {.deep}
-اگر هر درخواست I/O برای بررسی مجوز به MON می‌رفت، MONها گلوگاه می‌شدند. با ticket، OSD فقط با کلید سرویس خودش (که از MON گرفته و دوره‌ای چرخانده می‌شود) اعتبار ticket را بررسی می‌کند. به همین دلیل اختلاف ساعت بین گره‌ها می‌تواند به خطاهای احراز هویت منجر شود: ticketها زمان انقضا دارند.
+If every I/O request went to the MON for an authorisation check, the MONs would become a bottleneck. With tickets, the OSD checks a ticket's validity using only its own service key (obtained from the MON and rotated periodically). This is also why clock skew between nodes can lead to authentication errors: tickets expire.
 :::
 
-## کاربران و capabilityها {#sec-08-8-2}
+## Users and capabilities {#sec-08-8-2}
 
-هر هویت در Ceph به شکل `type.id` است (مثلاً `client.backup` یا `osd.3`) و یک کلید و مجموعه‌ای capability دارد. capabilityها برای هر نوع daemon جداگانه تعریف می‌شوند:
+Every identity in Ceph has the form `type.id` (for example `client.backup` or `osd.3`) and has a key and a set of capabilities. Capabilities are defined separately for each daemon type:
 
 ```bash
 ceph auth ls
 ceph auth get client.admin
-# کاربر فقط برای RBD در یک pool
+# a user for RBD in one pool only
 ceph auth get-or-create client.vmhost mon 'profile rbd' osd 'profile rbd pool=vms' mgr 'profile rbd pool=vms'
-# کاربر فقط‌خواندنی برای پایش
+# a read-only user for monitoring
 ceph auth get-or-create client.monitor mon 'allow r' mgr 'allow r'
-# کاربر محدود به یک namespace
+# a user restricted to one namespace
 ceph auth get-or-create client.tenant1 mon 'allow r' osd 'allow rw pool=shared namespace=tenant1'
 ceph auth caps client.vmhost mon 'profile rbd' osd 'profile rbd pool=vms, profile rbd-read-only pool=images'
 ceph auth rm client.old-app
 ```
 
 ::: {.tip}
-همیشه از **profile**ها (`profile rbd`، `profile rbd-read-only`، `profile crash`، `profile bootstrap-osd`) به جای نوشتن دستی capabilityهای سطح پایین استفاده کنید. profileها capabilityهای لازم برای عملیاتی مثل blocklist کردن کلاینت قبلی (برای قفل exclusive-lock در RBD) را هم دارند که در capabilityهای دستی معمولاً فراموش می‌شوند.
+Always use **profiles** (`profile rbd`, `profile rbd-read-only`, `profile crash`, `profile bootstrap-osd`) instead of writing low-level capabilities by hand. Profiles also include the capabilities needed for operations such as blocklisting the previous client (for the exclusive-lock in RBD), which are usually forgotten in hand-written capabilities.
 :::
 
-## چرخش کلید و رمزنگاری {#sec-08-8-3}
+## Key rotation and encryption {#sec-08-8-3}
 
-- کلید یک کاربر را می‌توان با `ceph auth rotate` (در نسخه‌های جدید) یا ساختن کلید تازه و جایگزینی تدریجی چرخاند.
-- Umbrella cephx را سخت‌تر کرد: رمز تازه‌ی **AES256KRB5** به جای انواع کلید قدیمی‌تر پیش‌فرض شد و چرخش آنلاین کلیدها اضافه شد. پیش از ارتقا، سازگاری کلاینت‌های قدیمی (به‌ویژه کلاینت‌های هسته) را بررسی کنید.
-- برای رمزنگاری ترافیک شبکه، حالت `secure` در **msgr2** را فعال کنید (`ms_cluster_mode`، `ms_service_mode`، `ms_client_mode`). این حالت سربار CPU دارد؛ آن را روی سخت‌افزار واقعی اندازه بگیرید.
+- A user's key can be rotated with `ceph auth rotate` (in recent releases) or by creating a new key and replacing it gradually.
+- Umbrella hardened cephx: the new **AES256KRB5** cipher became the default in place of older key types, and online key rotation was added. Before upgrading, check the compatibility of old clients (especially kernel clients).
+- To encrypt network traffic, enable `secure` mode in **msgr2** (`ms_cluster_mode`, `ms_service_mode`, `ms_client_mode`). This mode has CPU overhead; measure it on real hardware.
 
 ```bash
 ceph config set global ms_client_mode secure
@@ -422,40 +421,40 @@ ceph config set global ms_service_mode secure
 ceph config get mon ms_cluster_mode
 ```
 
-# مسیر I/O و PGها {#sec-08-9}
+# The I/O path and PGs {#sec-08-9}
 
-## مسیر یک نوشتن {#sec-08-9-1}
+## The path of a write {#sec-08-9-1}
 
-![نوشتن در pool تکثیری: کلاینت فقط با primary صحبت می‌کند؛ primary به‌طور موازی به ثانویه‌ها تکثیر می‌کند و پس از commit همه‌ی نسخه‌ها ack می‌دهد](figures/ch08/f05_write.png){#fig-08-f05_write}
+![A write to a replicated pool: the client talks only to the primary; the primary replicates to the secondaries in parallel and acks after all replicas have committed](figures/ch08/f05_write.png){#fig-08-f05_write}
 
-1. کلاینت (librados) با نقشه‌ای که دارد، PG و primary را محاسبه می‌کند.
-2. درخواست را فقط به **primary** می‌فرستد.
-3. primary عملیات را در log آن PG ثبت و به‌طور موازی به ثانویه‌ها می‌فرستد.
-4. هر OSD تراکنش را در BlueStore commit می‌کند.
-5. primary پس از دریافت تأیید از **همه‌ی** OSDهای acting set به کلاینت ack می‌دهد.
+1. The client (librados) computes the PG and the primary with the map it has.
+2. It sends the request only to the **primary**.
+3. The primary records the operation in that PG's log and sends it to the secondaries in parallel.
+4. Each OSD commits the transaction in BlueStore.
+5. The primary acks the client after receiving confirmation from **all** OSDs in the acting set.
 
-بنابراین تأخیر نوشتن برابر کندترین OSD در acting set به‌علاوه‌ی دو رفت‌وبرگشت شبکه است. همین دلیل است که یک دیسک کند کل کلاستر را کند می‌کند (فصل ۱۷). در pool EC، primary داده را به k قطعه‌ی داده و m قطعه‌ی parity تقسیم و هر قطعه را به یک OSD می‌فرستد (فصل ۱۳).
+So write latency equals the slowest OSD in the acting set plus two network round trips. This is why one slow disk slows down the whole cluster (chapter 17). In an EC pool the primary splits the data into k data chunks and m parity chunks and sends each chunk to one OSD (chapter 13).
 
 ::: {.note}
-خواندن به‌طور پیش‌فرض از primary انجام می‌شود. کلاینت‌های RBD و RGW می‌توانند در شرایط خاص از نزدیک‌ترین نسخه بخوانند (مثلاً گزینه‌ی `rbd_read_from_replica_policy` با مقادیر balance و localize)، که در کلاسترهای گسترده بین سایت‌ها مفید است.
+By default reads are served by the primary. RBD and RGW clients can, under certain conditions, read from the nearest replica (for example the `rbd_read_from_replica_policy` option with the values balance and localize), which is useful in clusters stretched across sites.
 :::
 
-## حالت‌های PG {#sec-08-9-2}
+## PG states {#sec-08-9-2}
 
-![حالت‌های اصلی PG و گذارهای رایج بین آن‌ها](figures/ch08/f06_pgstates.png){#fig-08-f06_pgstates}
+![The main PG states and the common transitions between them](figures/ch08/f06_pgstates.png){#fig-08-f06_pgstates}
 
-| حالت | معنی | نگران‌کننده؟ |
+| State | Meaning | Worrying? |
 |---|---|---|
-| active+clean | همه‌ی نسخه‌ها موجود و همگام | خیر؛ حالت مطلوب |
-| peering | OSDها در حال توافق بر وضعیت PG | فقط اگر طول بکشد |
-| degraded | برخی اشیا نسخه‌ی کافی ندارند | تا بازیابی کامل، ریسک بالاتر |
-| recovering | همگام‌سازی از روی log | طبیعی پس از خرابی کوتاه |
-| backfilling, backfill_wait | کپی کامل PG به OSD جدید | طبیعی پس از تغییر نقشه |
-| remapped | acting set موقتاً با up set فرق دارد | طبیعی در حین backfill |
-| undersized | تعداد OSDها کمتر از size | بررسی شود |
-| inconsistent | scrub ناسازگاری پیدا کرده | بله؛ باید بررسی و repair شود |
-| incomplete, down | نسخه‌ی معتبر کافی برای فعال شدن نیست | بله؛ I/O این PG متوقف است |
-| stale | primary مدتی آمار نفرستاده | بله؛ OSDها را بررسی کنید |
+| active+clean | All replicas present and in sync | No; the desired state |
+| peering | OSDs agreeing on the PG's state | Only if it takes long |
+| degraded | Some objects lack enough replicas | Higher risk until recovery completes |
+| recovering | Synchronising from the log | Normal after a short failure |
+| backfilling, backfill_wait | Full copy of the PG to a new OSD | Normal after a map change |
+| remapped | The acting set temporarily differs from the up set | Normal during backfill |
+| undersized | Fewer OSDs than size | Should be checked |
+| inconsistent | Scrub found an inconsistency | Yes; must be investigated and repaired |
+| incomplete, down | Not enough valid copies to become active | Yes; I/O to this PG is stopped |
+| stale | The primary has not sent stats for a while | Yes; check the OSDs |
 
 ```bash
 ceph pg stat
@@ -466,16 +465,16 @@ ceph pg 3.1f query | jq '.recovery_state'
 ```
 
 ::: {.debug}
-برای PGی که در peering یا incomplete گیر کرده، خروجی `ceph pg <id> query` را از پایین به بالا بخوانید. بخش `recovery_state` معمولاً می‌گوید منتظر کدام OSD است (`blocked_by` یا `down_osds_we_would_probe`). اگر آن OSD برای همیشه از دست رفته است، تصمیم‌هایی مثل `ceph osd lost` یا علامت‌گذاری اشیای گم‌شده ریسک از دست رفتن داده دارند؛ قبل از اجرا فصل ۱۷ را بخوانید.
+For a PG stuck in peering or incomplete, read the output of `ceph pg <id> query` from the bottom up. The `recovery_state` section usually says which OSD it is waiting for (`blocked_by` or `down_osds_we_would_probe`). If that OSD is lost for good, decisions such as `ceph osd lost` or marking objects as lost risk data loss; read chapter 17 before running them.
 :::
 
-## min_size و size {#sec-08-9-3}
+## min_size and size {#sec-08-9-3}
 
-`size` تعداد نسخه‌هاست و `min_size` حداقل نسخه‌ی سالمی که PG برای پذیرش I/O لازم دارد. برای pool تکثیری سه‌تایی، `min_size=2` استاندارد است. کاهش آن به ۱ کلاستر را در حین خرابی «در دسترس» نگه می‌دارد اما ریسک از دست رفتن داده را به‌شدت بالا می‌برد، چون یک نوشتن ممکن است فقط روی یک دیسک وجود داشته باشد.
+`size` is the number of replicas and `min_size` is the minimum number of healthy replicas a PG needs to accept I/O. For a three-way replicated pool, `min_size=2` is standard. Lowering it to 1 keeps the cluster "available" during a failure but sharply raises the risk of data loss, because a write might exist on only one disk.
 
-# pool روی OSDهای مشخص {#sec-08-10}
+# A pool on specific OSDs {#sec-08-10}
 
-راه امروزی قرار دادن یک pool روی گروه خاصی از OSDها، **کلاس دستگاه** است. اگر کلاس‌های پیش‌فرض کافی نیستند (مثلاً می‌خواهید دیسک‌های NVMe یک مدل خاص را برای یک مستأجر کنار بگذارید)، کلاس دلخواه تعریف کنید:
+The modern way to place a pool on a specific group of OSDs is the **device class**. If the default classes are not enough (for example you want to set aside the NVMe disks of a particular model for one tenant), define a custom class:
 
 ```bash
 for id in 30 31 32 33 34 35; do
@@ -489,53 +488,53 @@ ceph pg ls-by-pool tenant-a-db | head
 ```
 
 ::: {.tip}
-در spec OSD در cephadm هم می‌توانید `crush_device_class` را تعیین کنید تا OSDهای تازه از ابتدا کلاس درست را بگیرند و نیازی به اجرای دوباره‌ی دستورهای بالا نباشد.
+In the cephadm OSD spec you can also set `crush_device_class` so that new OSDs get the right class from the start and you do not need to rerun the commands above.
 :::
 
-::: {.summary title="نکات SRE این فصل"}
+::: {.summary title="SRE notes for this chapter"}
 
-- محل داده محاسبه می‌شود، نه جست‌وجو؛ `ceph osd map` ابزار اول شماست.
-- فقط دامنه‌های خرابی واقعی را در CRUSH تعریف کنید و مکان میزبان را در spec بدهید.
-- قبل از اعمال هر نقشه‌ی دستی، `crushtool --test` اجرا کنید.
-- برای SSD/HDD از کلاس دستگاه استفاده کنید، نه rootهای جدا.
-- تغییر tunable یعنی جابه‌جایی بزرگ؛ سازگاری کلاینت‌ها را با `ceph features` بررسی کنید.
-- MON فرد (۳ یا ۵)، روی SSD، با ساعت دقیق.
-- capability با profile و حداقل دسترسی؛ min_size را پایین نیاورید.
+- Data location is computed, not looked up; `ceph osd map` is your first tool.
+- Define only real failure domains in CRUSH, and give the host location in the spec.
+- Run `crushtool --test` before applying any hand-edited map.
+- Use device classes for SSD/HDD, not separate roots.
+- A tunable change means a large movement; check client compatibility with `ceph features`.
+- An odd number of MONs (3 or 5), on SSD, with accurate clocks.
+- Capabilities with profiles and least privilege; do not lower min_size.
 
 :::
 
-# تکمیلی و به‌روز {#sec-08-11}
+# Supplementary and up to date {#sec-08-11}
 
-- **کلاس دستگاه و shadow tree** (Luminous) جایگزین rootهای جداگانه‌ی SSD/HDD شد که در منابع قدیمی دیده می‌شود.
-- **upmap و balancer**: جای reweight دستی را گرفته‌اند (فصل ۷).
-- **قانون MSR** (Squid) برای EC انعطاف بیشتری می‌دهد.
-- **cephx در Umbrella**: رمز AES256KRB5 به‌عنوان پیش‌فرض و چرخش آنلاین کلید.
-- **پشتیبان RocksDB MON** (Umbrella).
-- **read balancer** (Reef) برای توزیع primaryها.
+- **Device classes and the shadow tree** (Luminous) replaced the separate SSD/HDD roots seen in older sources.
+- **upmap and the balancer** have replaced manual reweighting (chapter 7).
+- **The MSR rule** (Squid) gives more flexibility for EC.
+- **cephx in Umbrella**: the AES256KRB5 cipher as the default and online key rotation.
+- **MON RocksDB backup** (Umbrella).
+- **The read balancer** (Reef) for distributing primaries.
 
-# تمرین عملی {#sec-08-12}
+# Hands-on exercise {#sec-08-12}
 
-1. برای سه شیء مختلف `ceph osd map` بگیرید و مسیر PG و OSDها را با `ceph pg map` مقایسه کنید.
-2. یک سلسله‌مراتب دو rackی بسازید، میزبان‌ها را جابه‌جا کنید و قانون `rep-rack` را روی یک pool آزمایشی اعمال کنید. حجم جابه‌جایی را مشاهده کنید.
-3. نقشه‌ی CRUSH را استخراج کنید، قانون دو datacenterی را اضافه کنید و پیش از اعمال، با `crushtool --test` توزیع را بررسی کنید.
-4. کاربری با `profile rbd` فقط برای یک pool بسازید و ثابت کنید به pool دیگر دسترسی ندارد.
-5. یک OSD را متوقف کنید و حالت‌های PG را در طول زمان با `ceph pg stat` ثبت کنید.
-6. با کلاس دستگاه دلخواه یک pool روی سه OSD خاص بسازید و توزیع PGها را بررسی کنید.
+1. Run `ceph osd map` for three different objects and compare the PG and OSD paths with `ceph pg map`.
+2. Build a two-rack hierarchy, move the hosts, and apply the `rep-rack` rule to a test pool. Observe the amount of movement.
+3. Extract the CRUSH map, add the two-datacenter rule, and check the distribution with `crushtool --test` before applying it.
+4. Create a user with `profile rbd` for one pool only and prove that it has no access to another pool.
+5. Stop an OSD and record the PG states over time with `ceph pg stat`.
+6. Using a custom device class, create a pool on three specific OSDs and check the PG distribution.
 
-# پرسش‌های مرور {#sec-08-13}
+# Review questions {#sec-08-13}
 
-1. دو مرحله‌ی نگاشت شیء به OSD کدام‌اند و چرا PG لازم است؟
-2. تفاوت up set و acting set چیست؟
-3. مزیت straw2 نسبت به الگوریتم‌های قبلی چیست؟
-4. چرا تغییر tunableها باعث جابه‌جایی داده می‌شود و پیش از آن چه چیزی را باید بررسی کرد؟
-5. چرا چهار MON از سه MON تحمل خرابی بیشتری ندارد؟
-6. OSDها نقشه‌ی جدید را از کجا دریافت می‌کنند؟
-7. چرا cephx از ticket استفاده می‌کند؟
-8. چرا تأخیر نوشتن به کندترین OSD acting set بستگی دارد؟
-9. حالت‌های incomplete و inconsistent چه تفاوتی دارند؟
-10. راه توصیه‌شده برای قرار دادن یک pool روی OSDهای خاص چیست؟
+1. What are the two stages of mapping an object to an OSD, and why is the PG needed?
+2. What is the difference between the up set and the acting set?
+3. What is the advantage of straw2 over the earlier algorithms?
+4. Why does changing tunables cause data movement, and what must be checked beforehand?
+5. Why do four MONs not tolerate more failures than three?
+6. Where do OSDs receive the new map from?
+7. Why does cephx use tickets?
+8. Why does write latency depend on the slowest OSD in the acting set?
+9. How do the incomplete and inconsistent states differ?
+10. What is the recommended way to place a pool on specific OSDs?
 
-# منابع این فصل {#sec-08-14}
+# Sources for this chapter {#sec-08-14}
 
 - CRUSH maps: https://docs.ceph.com/en/latest/rados/operations/crush-map/
 - CRUSH map edits: https://docs.ceph.com/en/latest/rados/operations/crush-map-edits/
