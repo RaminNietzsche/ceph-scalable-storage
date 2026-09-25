@@ -4,99 +4,98 @@ id: ch15
 title: 'RADOS Classes: Computing Next to the Data'
 part: main
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-15-1}
+# Before you start {#sec-15-1}
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-15-1-1}
+## What questions does this chapter answer? {#sec-15-1-1}
 
-در معماری‌های معمول، داده از ذخیره‌ساز به سرور برنامه منتقل می‌شود، آنجا پردازش می‌شود و نتیجه برمی‌گردد. Ceph راه دیگری هم دارد: **کلاس‌های شیء** (Object Classes یا cls) که کتابخانه‌های مشترکی هستند و درون خود OSD، کنار داده، اجرا می‌شوند. librbd، RGW و CephFS همه بر این سازوکار تکیه دارند. در این فصل یاد می‌گیریم:
+In typical architectures, data moves from storage to the application server, is processed there, and the result comes back. Ceph has another way too: **object classes** (Object Classes, or cls), shared libraries that run inside the OSD itself, next to the data. librbd, RGW and CephFS all rely on this mechanism. In this chapter we learn:
 
-- کلاس RADOS چیست و چرا محاسبه در کنار داده سودمند است؟
-- OSD یک متد کلاس را چگونه بارگذاری، اجرا و کنترل می‌کند؟
-- چگونه کلاس خودمان را بنویسیم، بسازیم و مستقر کنیم؟
-- چه کلاس‌هایی در Ceph وجود دارد و کدام برای ما مفیدند؟
-- cls_lua چیست و چرا به‌صورت پیش‌فرض بارگذاری نمی‌شود؟
-- مرزهای امنیتی و عملیاتی این قدرت کجاست؟
+- What is a RADOS class, and why is computing next to the data beneficial?
+- How does an OSD load, execute and control a class method?
+- How do we write, build and deploy our own class?
+- Which classes exist in Ceph, and which are useful to us?
+- What is cls_lua, and why is it not loaded by default?
+- Where are the security and operational boundaries of this power?
 
-# مفهوم: محاسبه در کنار داده {#sec-15-2}
+# Concept: computing next to the data {#sec-15-2}
 
-## چرا کلاس؟ {#sec-15-2-1}
+## Why classes? {#sec-15-2-1}
 
-فرض کنید شمارنده‌ای در omap یک شیء دارید که چندین کلاینت هم‌زمان آن را افزایش می‌دهند. بدون کلاس، هر کلاینت باید مقدار را بخواند، یکی اضافه کند و بنویسد؛ دو رفت‌وبرگشت شبکه و خطر رقابت که باید با assert_version (فصل ۱۴) مدیریت شود. با کلاس، کلاینت فقط می‌گوید «به کلید X یک واحد اضافه کن» و OSD عملیات خواندن-تغییر-نوشتن را **زیر قفل PG و درون یک تراکنش** انجام می‌دهد.
+Suppose you have a counter in an object's omap that several clients increment concurrently. Without a class, each client must read the value, add one and write it back; two network round trips and a race risk that must be handled with assert_version (chapter 14). With a class, the client just says "add one to key X", and the OSD performs the read-modify-write **under the PG lock and inside a single transaction**.
 
-![مقایسه‌ی دو روش افزایش شمارنده: در روش سمت کلاینت، دو کلاینت مقدار ۱۰ را می‌خوانند و هر دو ۱۱ می‌نویسند و یک به‌روزرسانی گم می‌شود؛ در روش کلاس numops.add، OSD درخواست‌ها را به‌صورت سریال درون PG اجرا می‌کند و مقدار نهایی ۱۳ است](figures/ch15/f03_rmw.png){#fig-15-f03_rmw}
+![Comparing two ways of incrementing a counter: in the client-side method, two clients read the value 10 and both write 11, and one update is lost; with the class method numops.add, the OSD runs the requests serially inside the PG and the final value is 13](figures/ch15/f03_rmw.png){#fig-15-f03_rmw}
 
-مزایای کلاس‌ها:
+Benefits of classes:
 
-- **کاهش رفت‌وبرگشت**: یک درخواست به جای چند درخواست.
-- **اتمی بودن**: همه‌ی تغییرات متد در تراکنش همان شیء ثبت و به replicaها تکثیر می‌شود.
-- **کاهش انتقال داده**: فیلتر یا خلاصه‌سازی کنار داده انجام می‌شود و فقط نتیجه برمی‌گردد.
-- **منطق سازگار**: قواعد ساختار داده (مثل سرآیند تصویر RBD) در یک جا پیاده می‌شود و همه‌ی کلاینت‌ها از آن پیروی می‌کنند.
+- **Fewer round trips**: one request instead of several.
+- **Atomicity**: all of a method's changes are recorded in that object's transaction and replicated to the replicas.
+- **Less data transfer**: filtering or summarizing happens next to the data, and only the result comes back.
+- **Consistent logic**: the rules of a data structure (such as the RBD image header) are implemented in one place, and every client follows them.
 
 ::: {.warn}
-متد کلاس فقط به **همان یک شیء** دسترسی دارد. نمی‌توان از درون متد شیء دیگری را خواند یا نوشت (چون آن شیء ممکن است در PG و OSD دیگری باشد). هر منطق چندشیئی باید سمت کلاینت هماهنگ شود.
+A class method has access only to **that one object**. From inside a method you cannot read or write another object (because that object may be in a different PG and OSD). Any multi-object logic must be coordinated on the client side.
 :::
 
-## کلاس‌های موجود {#sec-15-2-2}
+## Existing classes {#sec-15-2-2}
 
-![نقشه‌ی مصرف‌کنندگان کلاس‌های داخلی: librbd برای سرآیند تصویر و object map به cls_rbd، RGW برای شاخص bucket به cls_rgw و برای GC و صف به cls_rgw_gc و cls_2pc_queue و cls_fifo تکیه دارد؛ cls_lock و cls_version و cls_refcount عمومی‌اند](figures/ch15/f04_users.png){#fig-15-f04_users}
+![Map of the consumers of the built-in classes: librbd relies on cls_rbd for the image header and object map, RGW on cls_rgw for the bucket index and on cls_rgw_gc, cls_2pc_queue and cls_fifo for GC and queues; cls_lock, cls_version and cls_refcount are general purpose](figures/ch15/f04_users.png){#fig-15-f04_users}
 
-| کلاس | کاربرد |
+| Class | Use |
 |---|---|
-| cls_rbd | سرآیند و فراداده‌ی تصویرهای RBD، snapshotها، object map |
-| cls_rgw | شاخص bucket و log شاخص (bilog) |
-| cls_rgw_gc، cls_2pc_queue، cls_fifo، cls_queue | جمع‌آوری زباله، صف اعلان‌ها و logهای FIFO در RGW |
-| cls_lock | قفل مشترک و انحصاری مشورتی روی اشیا |
-| cls_version، cls_refcount | نسخه‌گذاری و شمارش ارجاع |
-| cls_log، cls_timeindex | logهای زمان‌دار در omap |
-| cls_numops | عملیات عددی add و mul روی مقادیر omap |
-| cls_hello | کلاس نمونه برای آموزش و آزمون |
-| cls_lua | اجرای اسکریپت Lua درون OSD |
+| cls_rbd | Header and metadata of RBD images, snapshots, object map |
+| cls_rgw | Bucket index and the index log (bilog) |
+| cls_rgw_gc, cls_2pc_queue, cls_fifo, cls_queue | Garbage collection, notification queues and FIFO logs in RGW |
+| cls_lock | Advisory shared and exclusive locks on objects |
+| cls_version, cls_refcount | Versioning and reference counting |
+| cls_log, cls_timeindex | Timestamped logs in the omap |
+| cls_numops | Numeric add and mul operations on omap values |
+| cls_hello | A sample class for teaching and testing |
+| cls_lua | Running Lua scripts inside the OSD |
 
 ::: {.note}
-در کد جاری، مقدار پیش‌فرض `osd_class_load_list` و `osd_class_default_list` هر دو برابر «cephfs hello journal lock log numops otp rbd refcount rgw rgw_gc timeindex» است. پس **lua** به‌صورت پیش‌فرض بارگذاری نمی‌شود و باید صریحاً به فهرست اضافه شود.
+In current code, the default values of `osd_class_load_list` and `osd_class_default_list` are both "cephfs hello journal lock log numops otp rbd refcount rgw rgw_gc timeindex". So **lua** is not loaded by default and must be added to the list explicitly.
 :::
 
-# فراخوانی کلاس از کلاینت {#sec-15-3}
+# Calling a class from the client {#sec-15-3}
 
-## پایتون {#sec-15-3-1}
+## Python {#sec-15-3-1}
 
 ```python
 import rados, json
 with rados.Rados(conffile='/etc/ceph/ceph.conf', name='client.devapp') as c:
     with c.open_ioctx('devpool') as io:
         io.write_full('stats', b'')
-        # cls_numops ورودی را به‌صورت دو رشته‌ی encode‌شده‌ی Ceph می‌خواهد؛
-        # ساده‌ترین راه آزمایش در پایتون، کلاس hello است:
+        # cls_numops wants its input as two Ceph-encoded strings;
+        # the simplest thing to try in Python is the hello class:
         ret, out = io.execute('greeting', 'hello', 'say_hello', b'Ramin')
-        print(ret, out)          # خروجی: b'Hello, Ramin!' (ورودی بیش از ۱۰۰ بایت: -EINVAL)
+        print(ret, out)          # output: b'Hello, Ramin!' (input over 100 bytes: -EINVAL)
 ```
 
-امضای `Ioctx.execute(key, cls, method, data, length=8192)` در binding پایتون یک تاپل (کد برگشتی، خروجی) برمی‌گرداند. `length` سقف اندازه‌ی خروجی است.
+The signature `Ioctx.execute(key, cls, method, data, length=8192)` in the Python binding returns a tuple (return code, output). `length` is the cap on the output size.
 
-## C++ و عملیات مرکب {#sec-15-3-2}
+## C++ and compound operations {#sec-15-3-2}
 
 ```cpp
 librados::ObjectWriteOperation op;
 op.create(false);
 bufferlist in;
-encode(std::string("hits"), in);   // کلید
-encode(std::string("1"), in);      // مقدار افزایش
-op.exec("numops", "add", in);      // فراخوانی کلاس درون عملیات مرکب
+encode(std::string("hits"), in);   // key
+encode(std::string("1"), in);      // increment value
+op.exec("numops", "add", in);      // class call inside a compound operation
 int r = io.operate("stats", &op);
 ```
 
-این نمونه‌ی خودمان است و الگوی ورودی همان است که `cls_numops.cc` انتظار دارد: دو رشته‌ی encode‌شده (کلید و مقدار). کتابخانه‌ی کمکی `cls_numops_client.h` هم تابع‌های `add` و `mul` را مستقیماً فراهم می‌کند.
+This is our own example, and the input pattern is the one `cls_numops.cc` expects: two encoded strings (key and value). The helper library `cls_numops_client.h` also provides the `add` and `mul` functions directly.
 
 ::: {.tip}
-متد کلاس را می‌توان با عملیات دیگر در یک `ObjectWriteOperation` ترکیب کرد؛ مثلاً `assert_exists` + `exec` + `setxattr` که همگی اتمی اجرا می‌شوند.
+A class method can be combined with other operations in one `ObjectWriteOperation`; for example `assert_exists` + `exec` + `setxattr`, all executed atomically.
 :::
 
-## دسترسی cephx {#sec-15-3-3}
+## cephx access {#sec-15-3-3}
 
-اجرای متد کلاس به cap مناسب نیاز دارد. `allow rwx` همه‌ی کلاس‌ها را مجاز می‌کند؛ برای محدودسازی:
+Executing a class method needs a suitable cap. `allow rwx` permits all classes; to restrict:
 
 ```bash
 ceph auth caps client.devapp mon 'allow r' \
@@ -106,17 +105,17 @@ ceph auth caps client.counter mon 'allow r' \
 ```
 
 ::: {.note}
-`class-read` و `class-write` اجازه‌ی متدهایی را می‌دهند که پرچم RD یا WR دارند، اما فقط برای کلاس‌های «allowed» (یعنی موجود در `osd_class_default_list`). کلاس خارج از این فهرست cap صریح `class <name> [<method>]` لازم دارد (طبق دستور زبان capspec در `src/osd/OSDCap.cc`: `class <name> [<method name>]`؛ در نمونه‌ی دوم فقط متد add از numops مجاز است).
+`class-read` and `class-write` permit methods that have the RD or WR flag, but only for "allowed" classes (that is, those in `osd_class_default_list`). A class outside this list needs an explicit cap `class <name> [<method>]` (according to the capspec grammar in `src/osd/OSDCap.cc`: `class <name> [<method name>]`; in the second example only the add method of numops is permitted).
 :::
 
-# نوشتن کلاس خودمان {#sec-15-4}
+# Writing our own class {#sec-15-4}
 
-## طراحی: cls_tally {#sec-15-4-1}
+## Design: cls_tally {#sec-15-4-1}
 
-برای تمرین، کلاسی به نام **tally** می‌سازیم که دو متد دارد: `bump` (افزایش اتمی یک شمارنده در omap و برگرداندن مقدار جدید) و `top` (خواندن شمارنده‌ها و برگرداندن بیشترین n مورد، تا لازم نباشد همه‌ی کلیدها به کلاینت منتقل شوند). این کد را خودمان نوشته‌ایم و فقط از رابط عمومی `objclass.h` استفاده می‌کند.
+For practice, we build a class called **tally** with two methods: `bump` (atomically increment a counter in the omap and return the new value) and `top` (read the counters and return the top n, so that not all keys have to be transferred to the client). We wrote this code ourselves, and it uses only the public `objclass.h` interface.
 
 ```cpp
-// cls_tally.cc — نمونه‌ی آموزشی این کتاب (نه بخشی از Ceph)
+// cls_tally.cc — teaching example for this book (not part of Ceph)
 #include "objclass/objclass.h"
 #include <string>
 #include <map>
@@ -126,7 +125,7 @@ ceph auth caps client.counter mon 'allow r' \
 CLS_VER(1, 0)
 CLS_NAME(tally)
 
-// ورودی: نام کلید؛ خروجی: مقدار جدید به صورت رشته
+// input: key name; output: the new value as a string
 static int bump(cls_method_context_t hctx, ceph::bufferlist *in, ceph::bufferlist *out)
 {
   std::string key(in->c_str(), in->length());
@@ -149,7 +148,7 @@ static int bump(cls_method_context_t hctx, ceph::bufferlist *in, ceph::bufferlis
   return 0;
 }
 
-// ورودی: n؛ خروجی: n کلید پرتکرار به صورت "key=value\n"
+// input: n; output: the n most frequent keys as "key=value\n"
 static int top(cls_method_context_t hctx, ceph::bufferlist *in, ceph::bufferlist *out)
 {
   int n = in->length() ? std::stoi(std::string(in->c_str(), in->length())) : 10;
@@ -185,15 +184,15 @@ CLS_INIT(tally)
 ```
 
 ::: {.warn}
-`std::stoull` روی داده‌ی خراب استثنا پرتاب می‌کند. استثنای مدیریت‌نشده در متد کلاس **فرایند OSD را از کار می‌اندازد**. در کد تولیدی، همه‌ی تبدیل‌ها را در try/catch بگذارید و `-EBADMSG` برگردانید. این دقیقاً دلیل احتیاط Ceph در بارگذاری کلاس‌هاست: کلاس با همان امتیازات OSD اجرا می‌شود.
+`std::stoull` throws an exception on corrupt data. An unhandled exception in a class method **crashes the OSD process**. In production code, wrap all conversions in try/catch and return `-EBADMSG`. This is exactly why Ceph is cautious about loading classes: a class runs with the OSD's own privileges.
 :::
 
 ::: {.note}
-**وابسته به نسخه.** شکل ثبت بالا (`cls_register_cxx_method` با پرچم صریح) رابط Tentacle (20.2.x) و نسخه‌های پیش از آن است؛ این تابع در `src/include/rados/objclass.h` برچسب v20.2.0 وجود دارد. در Umbrella (21.2.0) و شاخه‌ی main، این تابع به `detail::cls_register_cxx_method_impl` منتقل شده و ثبت از راه قالب نوع‌دار `ClassRegistrar<ClassDef>` انجام می‌شود؛ پرچم‌های RD/WR/PROMOTE در نوع متد (`RdTag`، `RdWrTag` و...، تعریف‌شده در `src/include/rados/cls_traits.hpp`) رمزگذاری می‌شوند تا کلاینت و سرور نتوانند درباره‌ی پرچم‌ها ناسازگار باشند. نسخه‌ی Umbrella همان کلاس ما:
+**Version-dependent.** The registration form above (`cls_register_cxx_method` with explicit flags) is the interface of Tentacle (20.2.x) and earlier releases; this function exists in `src/include/rados/objclass.h` at tag v20.2.0. In Umbrella (21.2.0) and the main branch, this function has moved to `detail::cls_register_cxx_method_impl`, and registration happens through the typed template `ClassRegistrar<ClassDef>`; the RD/WR/PROMOTE flags are encoded in the method type (`RdTag`, `RdWrTag` and so on, defined in `src/include/rados/cls_traits.hpp`) so that client and server cannot disagree about the flags. The Umbrella version of the same class of ours:
 :::
 
 ```cpp
-// cls_tally_ops.h — نمونه‌ی آموزشی این کتاب، سبک Umbrella
+// cls_tally_ops.h — teaching example for this book, Umbrella style
 #include "include/rados/cls_traits.hpp"
 namespace cls::tally {
 struct ClassId { static constexpr auto name = "tally"; };
@@ -201,7 +200,7 @@ namespace method {
 constexpr auto bump = ClsMethod<RdWrTag, ClassId>("bump");
 constexpr auto top  = ClsMethod<RdTag,   ClassId>("top");
 }}
-// cls_tally.cc (بخش ثبت)
+// cls_tally.cc (registration part)
 CLS_INIT(tally)
 {
   using namespace cls::tally;
@@ -214,33 +213,33 @@ CLS_INIT(tally)
 }
 ```
 
-## ساخت و استقرار {#sec-15-4-2}
+## Building and deploying {#sec-15-4-2}
 
-دو راه برای ساخت هست: درون درخت منبع Ceph (افزودن پوشه به `src/cls` و `CMakeLists.txt`) یا با **SDK کلاس‌های شیء** که مستندات رسمی آن را برای ساخت خارج از درخت معرفی می‌کند (نمونه‌ی مرجع: `src/cls/sdk/cls_sdk.cc`).
+There are two ways to build: inside the Ceph source tree (adding a directory to `src/cls` and `CMakeLists.txt`) or with the **object class SDK**, which the official documentation introduces for out-of-tree builds (reference example: `src/cls/sdk/cls_sdk.cc`).
 
 ```bash
-# روی ماشین ساخت با سرآیندهای توسعه‌ی Ceph هم‌نسخه با کلاستر
+# on a build machine with Ceph development headers of the same version as the cluster
 g++ -std=c++17 -fPIC -shared -O2 -o libcls_tally.so cls_tally.cc \
     $(pkg-config --cflags librados) -lrados
-# مسیر کلاس‌ها روی OSD
+# the class path on the OSD
 ceph config get osd osd_class_dir
 ```
 
 ::: {.warn}
-کلاس باید با **همان نسخه‌ی Ceph و همان کامپایلر/ABI** ساخته شود که روی OSDها اجرا می‌شود. در استقرار cephadm، OSD درون کانتینر اجرا می‌شود و `osd_class_dir` به مسیری درون image اشاره دارد؛ کپی فایل روی میزبان کافی نیست. راه پایدار ساختن یک **image سفارشی** بر پایه‌ی image رسمی هم‌نسخه و افزودن `libcls_tally.so` به همان پوشه، سپس `ceph orch upgrade start --image <image>` یا تنظیم `container_image` است.
+The class must be built with **the same Ceph version and the same compiler/ABI** that runs on the OSDs. In a cephadm deployment, the OSD runs inside a container and `osd_class_dir` points to a path inside the image; copying the file onto the host is not enough. The durable way is to build a **custom image** on top of the official image of the same version, adding `libcls_tally.so` to that directory, then `ceph orch upgrade start --image <image>` or setting `container_image`.
 :::
 
 ```bash
 ceph config set osd osd_class_load_list "cephfs hello journal lock log numops otp rbd refcount rgw rgw_gc timeindex tally"
 ceph config set osd osd_class_default_list "cephfs hello journal lock log numops otp rbd refcount rgw rgw_gc timeindex tally"
-ceph orch restart osd.<service>     # بارگذاری کلاس در نخستین فراخوانی پس از راه‌اندازی
+ceph orch restart osd.<service>     # the class is loaded on first call after startup
 ```
 
 ::: {.tip}
-هنگام تغییر این دو فهرست، **مقادیر پیش‌فرض را حفظ کنید**. اگر فقط `tally` بنویسید، OSD دیگر cls_rbd یا cls_rgw را بارگذاری نمی‌کند و RBD و RGW از کار می‌افتند. پیش از تغییر، مقدار فعلی را با `ceph config get osd osd_class_load_list` بخوانید.
+When changing these two lists, **keep the default values**. If you write only `tally`, the OSD no longer loads cls_rbd or cls_rgw, and RBD and RGW stop working. Before changing, read the current value with `ceph config get osd osd_class_load_list`.
 :::
 
-## فراخوانی و آزمون {#sec-15-4-3}
+## Calling and testing {#sec-15-4-3}
 
 ```python
 with rados.Rados(conffile='/etc/ceph/ceph.conf', name='client.devapp') as c:
@@ -248,19 +247,19 @@ with rados.Rados(conffile='/etc/ceph/ceph.conf', name='client.devapp') as c:
         for w in ['ceph', 'rados', 'ceph', 'osd', 'ceph']:
             ret, out = io.execute('words', 'tally', 'bump', w.encode())
         ret, out = io.execute('words', 'tally', 'top', b'2')
-        print(out.decode())       # ceph=3 و پس از آن یکی از دیگران
+        print(out.decode())       # ceph=3 and then one of the others
 ```
 
 ::: {.debug}
-اگر فراخوانی `-EOPNOTSUPP` (Operation not supported) برگرداند، یا کلاس بارگذاری نشده یا متد وجود ندارد؛ در log OSD primary پیام «not permitted to load» یا «does not exist» را جست‌وجو کنید. `-EPERM` معمولاً مشکل cap است.
+If the call returns `-EOPNOTSUPP` (Operation not supported), either the class was not loaded or the method does not exist; search the primary OSD's log for the message "not permitted to load" or "does not exist". `-EPERM` is usually a cap problem.
 :::
 
-# cls_lua: اسکریپت درون OSD {#sec-15-5}
+# cls_lua: scripts inside the OSD {#sec-15-5}
 
-کلاس `lua` یک مفسر Lua درون OSD اجرا می‌کند. کلاینت متد `eval_json` (یا `eval_bufferlist`) را با یک ورودی شامل `script`، `handler` و `input` (اختیاری) صدا می‌زند. اسکریپت ابتدا اجرا می‌شود و تابع handler باید با `cls.register` ثبت شده باشد؛ سپس OSD آن را با دو آرگومان input و output (هر دو bufferlist) فراخوانی می‌کند. توابعی مثل `read`، `write_full`، `map_get_val`، `map_set_val`، `setxattr`، `stat` و `log` در دسترس‌اند (جدول `clslua_lib` در `src/cls/lua/cls_lua.cc`). این توابع در جدول سراسری **`objclass`** قرار دارند، نه `cls`: تابع `clslua_setup_env` آن‌ها را با `luaL_requiref(L, "objclass", luaopen_objclass, 1)` ثبت می‌کند. برای همین در اسکریپت باید `objclass.read(…)` و `objclass.register(…)` نوشت. ما این را روی Ceph 18.2.7 آزمودیم. با `cls.register` خطای `attempt to index a nil value (global 'cls')` گرفتیم، و همین نمونه با `objclass` درست کار کرد.
+The `lua` class runs a Lua interpreter inside the OSD. The client calls the `eval_json` (or `eval_bufferlist`) method with an input containing `script`, `handler` and (optionally) `input`. The script runs first, and the handler function must have been registered with `cls.register`; the OSD then calls it with two arguments, input and output (both bufferlists). Functions such as `read`, `write_full`, `map_get_val`, `map_set_val`, `setxattr`, `stat` and `log` are available (the `clslua_lib` table in `src/cls/lua/cls_lua.cc`). These functions live in the global table **`objclass`**, not `cls`: the function `clslua_setup_env` registers them with `luaL_requiref(L, "objclass", luaopen_objclass, 1)`. That is why the script must say `objclass.read(…)` and `objclass.register(…)`. We tested this on Ceph 18.2.7. With `cls.register` we got the error `attempt to index a nil value (global 'cls')`, and the same example worked correctly with `objclass`.
 
 ```lua
--- نمونه‌ی خودمان: شمارش خطوط شیء کنار داده
+-- our own example: count an object's lines next to the data
 function count_lines(input, output)
   local size = objclass.stat()
   local data = objclass.read(0, size)
@@ -272,154 +271,154 @@ objclass.register(count_lines)
 ```
 
 ::: {.warn}
-cls_lua در فهرست پیش‌فرض کلاس‌ها **نیست**. فعال کردن آن یعنی هر کلاینت دارای cap مناسب می‌تواند کد دلخواه درون OSD اجرا کند؛ یک حلقه‌ی بی‌پایان یا خواندن شیء چندصدمگابایتی، thread OSD و PG را مسدود می‌کند و slow ops می‌سازد. فقط در محیط کنترل‌شده و با cap محدود (`allow class lua eval_json pool=...`) فعال کنید.
+cls_lua is **not** in the default class list. Enabling it means that any client with a suitable cap can run arbitrary code inside the OSD; an infinite loop or reading a multi-hundred-megabyte object blocks the OSD thread and the PG and creates slow ops. Enable it only in a controlled environment and with a restricted cap (`allow class lua eval_json pool=...`).
 :::
 
-# سه الگوریتم از مسیر کلاس‌ها {#sec-15-6}
+# Three algorithms from the class path {#sec-15-6}
 
-## اعتبارسنجی یک فراخوانی CALL {#sec-15-6-1}
+## Validating a CALL {#sec-15-6-1}
 
-::: {.algo #alg-15-1 title="بررسی پرچم RD/WR پیش و پس از اجرای متد کلاس" src="src/osd/osd_op_util.cc :: OpInfo::set_from_op (شاخه‌ی CEPH_OSD_OP_CALL)؛ src/osd/ClassHandler.cc :: ClassHandler::open_class، _get_class، in_class_list؛ src/osd/PrimaryLogPG.cc :: PrimaryLogPG::do_osd_ops" complexity="O(طول فهرست کلاس‌ها) فقط در نخستین بارگذاری؛ سپس O(log M) برای یافتن متد در map"}
+::: {.algo #alg-15-1 title="Checking the RD/WR flags before and after running a class method" src="src/osd/osd_op_util.cc :: OpInfo::set_from_op (the CEPH_OSD_OP_CALL branch); src/osd/ClassHandler.cc :: ClassHandler::open_class, _get_class, in_class_list; src/osd/PrimaryLogPG.cc :: PrimaryLogPG::do_osd_ops" complexity="O(length of the class list) only on first load; then O(log M) to find the method in the map"}
 :::
 
 ```text
 pseudocode
 set_from_op:
-    cls = open_class(cname)            # در load_list نیست ⇒ EPERM ، فایل نیست ⇒ EOPNOTSUPP
-    flags = cls.get_method_flags(mname)   # نیست ⇒ EOPNOTSUPP
-    RD ⇒ CLASS_READ (+ CLASS_READ_DATA در EC) ؛ WR ⇒ CLASS_WRITE ؛ PROMOTE ⇒ promote
-    add_class(cname, mname, rd, wr, cls.allowed)  # برای OSDCap::is_capable
+    cls = open_class(cname)            # not in load_list ⇒ EPERM , no file ⇒ EOPNOTSUPP
+    flags = cls.get_method_flags(mname)   # missing ⇒ EOPNOTSUPP
+    RD ⇒ CLASS_READ (+ CLASS_READ_DATA in EC) ; WR ⇒ CLASS_WRITE ; PROMOTE ⇒ promote
+    add_class(cname, mname, rd, wr, cls.allowed)  # for OSDCap::is_capable
 do_osd_ops:
     if WR: user_modify = true
     r0, w0 = num_read, num_write ; r = exec(ctx, in, out)
     if num_read > r0 and !RD: EIO ; if num_write > w0 and !WR: EIO
 ```
 
-**مثال عددی.** کلاسی به نام `tally` (کلاس نمونه‌ی این فصل) متد `inc` را با پرچم فقط `CLS_METHOD_WR` ثبت کرده است، اما درون متد `cls_cxx_map_get_val` را صدا می‌زند تا مقدار قبلی را بخواند.
+**Numerical example.** A class called `tally` (this chapter's sample class) has registered the method `inc` with only the `CLS_METHOD_WR` flag, but inside the method it calls `cls_cxx_map_get_val` to read the previous value.
 
-1. **پیش از اجرا:** op به‌عنوان فقط-نوشتن برچسب می‌خورد و cap `allow class-write` کافی است.
-2. **حین اجرا:** هر فراخوانی خواندن درون کلاس num_read را از 0 به 1 می‌برد.
-3. **پس از exec:** بررسی num_read > r0 بدون RD برقرار است و OSD خطای EIO برمی‌گرداند. در لاگ هم پیام «tried to read object but is not marked RD» دیده می‌شود.
+1. **Before execution:** the op is labelled write-only, and the cap `allow class-write` is enough.
+2. **During execution:** every read call inside the class takes num_read from 0 to 1.
+3. **After exec:** the check num_read > r0 without RD holds, and the OSD returns EIO. The log also shows the message "tried to read object but is not marked RD".
 
-راه‌حل ثبت متد با `CLS_METHOD_RD | CLS_METHOD_WR` است. در آن صورت cap کاربر هم باید `class-read` داشته باشد. اگر `tally` در `osd_class_load_list` نباشد، پیش از همه‌ی این مراحل خطای EPERM برمی‌گردد. فهرست پیش‌فرض در v20.2.0 و main، 20 کلاس داخلی را شامل می‌شود: cephfs، hello، journal، lock، log، numops، otp، rbd، refcount، rgw، rgw_gc، timeindex، user، version، cas، cmpomap، queue، 2pc_queue، fifo و sem_set. lua و sdk در این فهرست نیستند.
+The fix is to register the method with `CLS_METHOD_RD | CLS_METHOD_WR`. In that case the user's cap must also include `class-read`. If `tally` is not in `osd_class_load_list`, EPERM is returned before all of these steps. The default list in v20.2.0 and main includes 20 built-in classes: cephfs, hello, journal, lock, log, numops, otp, rbd, refcount, rgw, rgw_gc, timeindex, user, version, cas, cmpomap, queue, 2pc_queue, fifo and sem_set. lua and sdk are not in this list.
 
-![سه مرحله‌ی اعتبارسنجی یک CALL. ردیف اول هنگام رسیدن پیام اجرا می‌شود و کلاس و متد را می‌یابد. ردیف دوم پرچم‌های ثبت‌شده‌ی متد را به پرچم‌های op تبدیل می‌کند تا OSDCap بتواند مجوز را بسنجد و PG بداند op خواندنی است یا نوشتنی. ردیف سوم پس از اجرای متد شمارنده‌های خواندن و نوشتن را مقایسه می‌کند. متدی که برخلاف پرچمش رفتار کند، با EIO رد می‌شود](figures/ch15/f05_callcheck.png){#fig-15-f05_callcheck}
+![The three stages of validating a CALL. The first row runs when the message arrives and finds the class and method. The second row converts the method's registered flags into op flags so that OSDCap can check permission and the PG knows whether the op reads or writes. The third row compares the read and write counters after the method runs. A method that behaves contrary to its flags is rejected with EIO](figures/ch15/f05_callcheck.png){#fig-15-f05_callcheck}
 
-## قفل مشورتی cls_lock {#sec-15-6-2}
+## The cls_lock advisory lock {#sec-15-6-2}
 
-::: {.algo #alg-15-2 title="گرفتن، تمدید و انقضای قفل در cls_lock" src="src/cls/lock/cls_lock.cc :: lock_obj، read_lock؛ src/cls/lock/cls_lock_types.h :: LOCK_FLAG_MAY_RENEW، LOCK_FLAG_MUST_RENEW" complexity="O(L log L) برای L دارنده‌ی قفل (decode و پیمایش map)؛ یک xattr برای هر نام قفل"}
+::: {.algo #alg-15-2 title="Acquiring, renewing and expiring a lock in cls_lock" src="src/cls/lock/cls_lock.cc :: lock_obj, read_lock; src/cls/lock/cls_lock_types.h :: LOCK_FLAG_MAY_RENEW, LOCK_FLAG_MUST_RENEW" complexity="O(L log L) for L lock holders (decoding and walking the map); one xattr per lock name"}
 :::
 
 ```text
 pseudocode
-linfo = decode(xattr "lock." + name) ; حذف دارندگانی که expiration < now   # انقضای تنبل
-if MAY_RENEW و MUST_RENEW هر دو: EINVAL
+linfo = decode(xattr "lock." + name) ; drop holders whose expiration < now   # lazy expiry
+if both MAY_RENEW and MUST_RENEW: EINVAL
 if lockers ≠ ∅ and tag ≠ linfo.tag: EBUSY
-id = (entity_name مبدأ، cookie)
-if id ∈ lockers: اگر MAY_RENEW نیست ⇒ EEXIST ، وگرنه حذف ورودی قدیمی
+id = (source entity_name, cookie)
+if id ∈ lockers: if not MAY_RENEW ⇒ EEXIST , otherwise remove the old entry
 elif MUST_RENEW: ENOENT
-if lockers ≠ ∅: exclusive ⇒ EBUSY ؛ نوع متفاوت ⇒ EBUSY
-lockers[id] = (now + duration یا 0 = بی‌انقضا، addr، description) ; write xattr
+if lockers ≠ ∅: exclusive ⇒ EBUSY ; different type ⇒ EBUSY
+lockers[id] = (now + duration, or 0 = no expiry, addr, description) ; write xattr
 ```
 
-**مثال عددی.** قفلی انحصاری با duration = 30 s:
+**Numerical example.** An exclusive lock with duration = 30 s:
 
-- **t = 0:** کلاینت A با cookie c1 قفل را می‌گیرد (انقضا 30).
-- **t = 10:** B تلاش می‌کند و EBUSY می‌گیرد.
-- **t = 20:** A بدون پرچم دوباره تلاش می‌کند و EEXIST می‌گیرد.
-- **t = 25:** A با MAY_RENEW تمدید می‌کند (انقضا 55).
-- **t = 60:** B دوباره تلاش می‌کند. read_lock ورودی A را حذف می‌کند، چون 55 < 60، و B قفل را می‌گیرد (انقضا 90).
-- **t = 70:** A با MUST_RENEW تمدید می‌خواهد و ENOENT می‌گیرد، چون دیگر دارنده نیست.
+- **t = 0:** client A takes the lock with cookie c1 (expires at 30).
+- **t = 10:** B tries and gets EBUSY.
+- **t = 20:** A tries again without a flag and gets EEXIST.
+- **t = 25:** A renews with MAY_RENEW (expires at 55).
+- **t = 60:** B tries again. read_lock removes A's entry, because 55 < 60, and B gets the lock (expires at 90).
+- **t = 70:** A asks to renew with MUST_RENEW and gets ENOENT, because it is no longer a holder.
 
-انقضا فقط هنگام دسترسی بعدی اعمال می‌شود. یعنی هیچ تایمری در OSD نیست. ساعت مقایسه هم ساعت OSD primary است، نه ساعت کلاینت. هر کسی می‌تواند با `rados lock break` یا `rbd lock remove` قفل دیگری را بشکند. قفل cls_lock مشورتی است. RBD برای جلوگیری از نوشتن کلاینت قدیمی، شکستن قفل را با blocklist همراه می‌کند (فصل ۲۹).
+Expiry is applied only on the next access; that is, there is no timer in the OSD. The comparison clock is also the primary OSD's clock, not the client's. Anyone can break another's lock with `rados lock break` or `rbd lock remove`. The cls_lock lock is advisory. To stop an old client from writing, RBD pairs breaking the lock with blocklisting (chapter 29).
 
-![خط زمانی شش درخواست قفل از دو کلاینت روی یک شیء. نقطه‌های سبز موفق و قرمز ناموفق‌اند. نوارهای سایه‌دار بازه‌ی نگه‌داشتن قفل هستند. تمدید A در ثانیه‌ی 25 انقضا را به 55 می‌برد. چون هیچ‌کس پیش از ثانیه‌ی 60 به قفل دست نمی‌زند، ورودی A تا آن لحظه در xattr می‌ماند و تنها در درخواست B پاک می‌شود](figures/ch15/f06_lock.png){#fig-15-f06_lock}
+![Timeline of six lock requests from two clients on one object. Green points succeed and red ones fail. Shaded bars are the lock holding intervals. A's renewal at second 25 moves the expiry to 55. Because nobody touches the lock before second 60, A's entry stays in the xattr until then and is only cleared by B's request](figures/ch15/f06_lock.png){#fig-15-f06_lock}
 
-## خواندن صفحه‌ای omap درون کلاس {#sec-15-6-3}
+## Paged omap reads inside a class {#sec-15-6-3}
 
-::: {.algo #alg-15-3 title="صفحه‌بندی cls_cxx_map_get_vals" src="src/osd/objclass.cc :: cls_cxx_map_get_vals؛ src/osd/PrimaryLogPG.cc :: do_osd_ops (CEPH_OSD_OP_OMAPGETVALS)" complexity="O(log K + n) برای K کلید omap و n کلید برگشتی (یک seek و پیمایش)"}
+::: {.algo #alg-15-3 title="Paging in cls_cxx_map_get_vals" src="src/osd/objclass.cc :: cls_cxx_map_get_vals; src/osd/PrimaryLogPG.cc :: do_osd_ops (CEPH_OSD_OP_OMAPGETVALS)" complexity="O(log K + n) for K omap keys and n returned keys (one seek and a scan)"}
 :::
 
 ```text
 pseudocode
 max_return = min(max_to_get, osd_max_omap_entries_per_request = 1024)
-seek = max(start_after, filter_prefix) ; نوع = (prefix > start_after) ? LOWER_BOUND : UPPER_BOUND
+seek = max(start_after, filter_prefix) ; kind = (prefix > start_after) ? LOWER_BOUND : UPPER_BOUND
 iterate (key, value):
-    if key پیشوند filter_prefix را ندارد: STOP
+    if key does not have the filter_prefix: STOP
     if num ≥ max_return or bytes ≥ osd_max_omap_bytes_per_request (1 GiB): truncated = true ; STOP
     encode(key, value) ; num++
 return (vals, more = truncated)
 ```
 
-**مثال عددی.** شیئی 2500 کلید `u_0000` تا `u_2499` و چند کلید با پیشوند دیگر دارد. کلاس با filter_prefix = "u_" و max_to_get = 1000 در حلقه می‌خواند.
+**Numerical example.** An object has 2500 keys `u_0000` to `u_2499` and a few keys with a different prefix. The class reads in a loop with filter_prefix = "u_" and max_to_get = 1000.
 
-- **فراخوانی 1:** start_after خالی، 1000 کلید، more = true.
-- **فراخوانی 2:** start_after = "u_0999"، 1000 کلید، more = true.
-- **فراخوانی 3:** start_after = "u_1999"، 500 کلید. کلید بعدی پیشوند دیگری دارد، پس STOP بدون truncated و more = false.
+- **Call 1:** empty start_after, 1000 keys, more = true.
+- **Call 2:** start_after = "u_0999", 1000 keys, more = true.
+- **Call 3:** start_after = "u_1999", 500 keys. The next key has a different prefix, so STOP without truncated, and more = false.
 
-more فقط وقتی true است که یک کلید مطابق دیگر واقعاً دیده شده باشد. پس اگر دقیقاً 1000 کلید وجود داشت، فراخوانی اول more = false برمی‌گرداند. اگر کلاس max_to_get = 5000 بخواهد، OSD آن را بی‌صدا به 1024 می‌برد. کدی که فرض کند «کمتر از درخواستم گرفتم، پس تمام شد» اشتباه است. فقط به more تکیه کنید.
+more is true only if another matching key was actually seen. So if there were exactly 1000 keys, the first call returns more = false. If the class asks for max_to_get = 5000, the OSD silently lowers it to 1024. Code that assumes "I got fewer than I asked for, so it is finished" is wrong. Rely only on more.
 
-![سه فراخوانی پیاپی cls_cxx_map_get_vals روی 2500 کلید با پیشوند u_. هر فراخوانی از آخرین کلید فراخوانی قبلی ادامه می‌دهد (UPPER_BOUND، یعنی کلید بعد از start_after). خط قرمز سقف 1024 کلید در هر درخواست است که روی max_to_get اعمال می‌شود. پرچم more فقط در صفحه‌ی آخر false است](figures/ch15/f07_omap.png){#fig-15-f07_omap}
+![Three consecutive cls_cxx_map_get_vals calls over 2500 keys with the prefix u_. Each call continues from the last key of the previous call (UPPER_BOUND, that is, the key after start_after). The red line is the cap of 1024 keys per request, applied to max_to_get. The more flag is false only on the last page](figures/ch15/f07_omap.png){#fig-15-f07_omap}
 
 ::: {.debug}
-اگر متد کلاس شما EIO برمی‌گرداند، اول `debug_osd = 10` را روی OSD primary فعال کنید و دنبال «tried to read object but is not marked RD» یا «tried to update object but is not marked WR» بگردید. اگر EPERM می‌گیرید، `ceph config get osd osd_class_load_list` را بررسی کنید.
+If your class method returns EIO, first enable `debug_osd = 10` on the primary OSD and look for "tried to read object but is not marked RD" or "tried to update object but is not marked WR". If you get EPERM, check `ceph config get osd osd_class_load_list`.
 :::
 
-# کلاس‌ها روی کلاستر واقعی: درستی و هزینه {#sec-15-7}
+# Classes on a real cluster: correctness and cost {#sec-15-7}
 
-دو آزمایش این بخش روی کلاستر آزمایشی سه‌OSDی BlueStore با Ceph 18.2.7 اجرا شدند. کلاینت python-rados بود و از `Ioctx.execute` استفاده کرد.
+The two experiments in this section ran on a three-OSD BlueStore test cluster with Ceph 18.2.7. The client was python-rados and used `Ioctx.execute`.
 
-## شمارنده: cls_numops در برابر خواندن و نوشتن از کلاینت {#sec-15-7-1}
+## A counter: cls_numops versus client-side read and write {#sec-15-7-1}
 
-::: {.algo #alg-15-4 title="افزایش اتمی با یک متد کلاس" src="src/cls/numops/cls_numops.cc :: add (cls_cxx_map_get_val، سپس cls_cxx_map_set_val)؛ سریال‌سازی با قفل PG در PrimaryLogPG" complexity="O(1) برای هر افزایش"}
-:::
-
-```text
-pseudocode
-ورودی: encode(string key) ‖ encode(string diff)           # هر string = u32 طول + بایت‌ها
-cls: v = map_get_val(key) یا 0 ؛ v += diff ؛ map_set_val(key, str(v))   # یک op، زیر قفل PG
-کلاینت (روش ناامن): v = read omap(key) ؛ write omap(key, v+1)          # دو op جدا، بدون قفل
-N رشته × K افزایش روی یک شیء ← مقدار نهایی را با N×K مقایسه کن
-```
-
-**نتیجه (هر رشته 300 افزایش).** با cls_numops مقدار نهایی در هر پنج حالت (1، 2، 4، 8 و 16 رشته) دقیقاً N × 300 شد. روش خواندن و نوشتن از سمت کلاینت با یک رشته درست بود، ولی با 2 رشته 297 افزایش از 600 گم شد (50٪)، با 4 رشته 64٪، با 8 رشته 79٪ و با 16 رشته 89٪.
-
-دلیل این است که OSD هر op روی یک شیء را زیر قفل PG اجرا می‌کند، پس `add` بین خواندن و نوشتن قطع نمی‌شود. دو op جدای کلاینت چنین ضمانتی ندارند. هزینه‌ی زمانی در این ماشین مجازی مشترک پرنوسان بود: میانه‌ی 0.25 تا 6 میلی‌ثانیه و جهش‌هایی حدود 0.2 ثانیه در صدک 99 که علتشان را بررسی نکردیم. پس از عدد latency نتیجه نگیرید.
-
-اگر کلاس مناسبی ندارید، راه درستِ سمت کلاینت، تراکنش شرطی است: `cmpxattr` یا `assert_version` را در همان op نوشتن بگذارید و اگر شرط برقرار نبود، دوباره تلاش کنید. اگر مقایسه‌ی `cmpxattr` شکست بخورد، خطا `ECANCELED` است. اگر نسخه‌ی `assert_version` کوچک‌تر یا بزرگ‌تر از نسخه‌ی فعلی شیء باشد، خطا به ترتیب `ERANGE` یا `EOVERFLOW` است (`PrimaryLogPG::do_osd_ops`).
-
-![چپ: مقدار نهایی شمارنده پس از 300 افزایش در هر رشته، با cls_numops (سبز) و با خواندن omap، افزودن یک و نوشتن از سمت کلاینت (قرمز). خط سیاه مقدار مورد انتظار است. راست: میانه‌ی زمان هر افزایش روی کلاستر آزمایشی Ceph 18.2.7](figures/ch15/f08_numops.png){#fig-15-f08_numops}
-
-## فیلتر کنار داده با cls_lua: کی می‌ارزد؟ {#sec-15-7-2}
-
-در Ceph 18.2.7 کلاس lua در فهرست پیش‌فرض `osd_class_load_list` نیست. برای این آزمایش، `lua` را به هر دو فهرست افزودیم و OSDها را دوباره راه‌اندازی کردیم. سپس همان اسکریپت `count_lines` بخش قبل را روی شیءهایی از 64 KiB تا 16 MiB اجرا کردیم و با «خواندن کل شیء و شمردن در کلاینت» مقایسه کردیم. هر نقطه میانه‌ی 15 اجرا بود.
-
-::: {.algo #alg-15-5 title="نقطه‌ی سربه‌سر پردازش کنار داده" src="اندازه‌گیری؛ clslua_read، clslua_stat و eval_json در src/cls/lua/cls_lua.cc" complexity="O(اندازه‌ی شیء) در هر دو روش"}
+::: {.algo #alg-15-4 title="Atomic increment with a class method" src="src/cls/numops/cls_numops.cc :: add (cls_cxx_map_get_val, then cls_cxx_map_set_val); serialization by the PG lock in PrimaryLogPG" complexity="O(1) per increment"}
 :::
 
 ```text
 pseudocode
-t_lua(S)    = زمان eval_json روی شیء S بایتی          # پاسخ چند بایت
-t_client(S) = زمان read(S) روی loopback + شمردن        # بدون هزینه‌ی شبکه
-روی شبکه‌ی واقعی: t_client(S, B) ≈ t_client(S) + S / B
-سربه‌سر: B* = S / (t_lua(S) − t_client(S))      ← اگر پهنای باند مؤثر کمتر از B* است، Lua زودتر تمام می‌کند
+input: encode(string key) ‖ encode(string diff)           # each string = u32 length + bytes
+cls: v = map_get_val(key) or 0 ; v += diff ; map_set_val(key, str(v))   # one op, under the PG lock
+client (unsafe method): v = read omap(key) ; write omap(key, v+1)          # two separate ops, no lock
+N threads × K increments on one object ← compare the final value with N×K
 ```
 
-**نتیجه.** روی loopback، Lua چهار تا پنج برابر کندتر بود. برای 16 MiB، زمان Lua برابر 111.6 میلی‌ثانیه بود و زمان کلاینت 29.4 میلی‌ثانیه. دلیلش این است که هر درخواست یک وضعیت تازه‌ی Lua می‌سازد، اسکریپت را ترجمه می‌کند و `gsub` را در مفسر اجرا می‌کند. پاسخ Lua فقط 4 تا 6 بایت بود، در برابر کل شیء.
+**Result (300 increments per thread).** With cls_numops the final value was exactly N × 300 in all five cases (1, 2, 4, 8 and 16 threads). The client-side read-and-write method was correct with one thread, but with 2 threads 297 of 600 increments were lost (50%), with 4 threads 64%, with 8 threads 79% and with 16 threads 89%.
 
-پهنای باند سربه‌سر از این اندازه‌گیری‌ها برای 64 KiB حدود 0.58 Gb/s و برای 16 MiB حدود 1.63 Gb/s است. پس روی شبکه‌ی 10 گیگابیتی، خواندن به کلاینت سریع‌تر است. Lua فقط وقتی می‌ارزد که لینک کند یا پرترافیک است، یا وقتی فیلتر تعداد زیادی شیء را رد می‌کند و داده‌ی کمی برمی‌گرداند.
+The reason is that the OSD executes each op on an object under the PG lock, so `add` is not interrupted between the read and the write. Two separate client ops have no such guarantee. The time cost on this shared virtual machine fluctuated widely: medians of 0.25 to 6 milliseconds and spikes of about 0.2 seconds at the 99th percentile, whose cause we did not investigate. So draw no conclusions from the latency numbers.
 
-هزینه‌ی پنهان مهم‌تر این است که اجرای 111 میلی‌ثانیه‌ای Lua تمام آن مدت قفل PG را نگه می‌دارد. همه‌ی opهای دیگرِ آن PG پشت آن صف می‌کشند.
+If you have no suitable class, the right client-side approach is a conditional transaction: put `cmpxattr` or `assert_version` in the same write op, and retry if the condition does not hold. If the `cmpxattr` comparison fails, the error is `ECANCELED`. If the `assert_version` version is lower or higher than the object's current version, the error is `ERANGE` or `EOVERFLOW` respectively (`PrimaryLogPG::do_osd_ops`).
 
-![چپ: میانه‌ی زمان شمردن خط‌ها در شیءهای 64 KiB تا 16 MiB، با cls_lua درون OSD (بنفش) و با خواندن کل شیء در کلاینت (آبی) روی loopback. خط‌چین‌ها همان زمان کلاینت را به‌علاوه‌ی زمان انتقال روی 10 و 1 گیگابیت نشان می‌دهند (محاسبه‌شده). راست: پهنای باند سربه‌سر که زیر آن اجرای Lua زودتر تمام می‌شود](figures/ch15/f09_lua.png){#fig-15-f09_lua}
+![Left: the counter's final value after 300 increments per thread, with cls_numops (green) and with reading the omap, adding one and writing from the client side (red). The black line is the expected value. Right: the median time per increment on the Ceph 18.2.7 test cluster](figures/ch15/f08_numops.png){#fig-15-f08_numops}
 
-# از درون کد: مسیر یک فراخوانی کلاس {#sec-15-8}
+## Filtering next to the data with cls_lua: when is it worth it? {#sec-15-7-2}
 
-## از MOSDOp تا method->exec {#sec-15-8-1}
+In Ceph 18.2.7 the lua class is not in the default `osd_class_load_list`. For this experiment we added `lua` to both lists and restarted the OSDs. We then ran the same `count_lines` script from the previous section on objects from 64 KiB to 16 MiB and compared it with "read the whole object and count on the client". Each point was the median of 15 runs.
 
-![مسیر کامل یک فراخوانی کلاس در سه ردیف: کلاینت با Objecter درخواست CEPH_OSD_OP_CALL را به primary می‌فرستد؛ PrimaryLogPG::do_osd_ops نام کلاس و متد را decode و با ClassHandler کلاس را باز می‌کند؛ سپس متد اجرا و تعداد خواندن و نوشتن با پرچم‌های اعلام‌شده مقایسه می‌شود و تغییرات در تراکنش PG ثبت می‌شود](figures/ch15/f01_flow.png){#fig-15-f01_flow}
+::: {.algo #alg-15-5 title="The break-even point of processing next to the data" src="measurement; clslua_read, clslua_stat and eval_json in src/cls/lua/cls_lua.cc" complexity="O(object size) in both methods"}
+:::
 
-در سمت کلاینت، `exec` یک زیرعملیات `CEPH_OSD_OP_CALL` به عملیات مرکب اضافه می‌کند که شامل طول نام کلاس، طول نام متد و داده‌ی ورودی است. در OSD، `PrimaryLogPG::do_osd_ops()` در شاخه‌ی `case CEPH_OSD_OP_CALL` این سه را از payload جدا می‌کند. بخش کلیدی این شاخه، کنترل صداقت متد است:
+```text
+pseudocode
+t_lua(S)    = eval_json time on an object of S bytes          # a reply of a few bytes
+t_client(S) = read(S) time over loopback + counting        # no network cost
+on a real network: t_client(S, B) ≈ t_client(S) + S / B
+break-even: B* = S / (t_lua(S) − t_client(S))      ← if the effective bandwidth is below B*, Lua finishes first
+```
+
+**Result.** Over loopback, Lua was four to five times slower. For 16 MiB, the Lua time was 111.6 milliseconds and the client time 29.4 milliseconds. The reason is that each request creates a fresh Lua state, compiles the script and runs `gsub` in the interpreter. The Lua reply was only 4 to 6 bytes, against the whole object.
+
+The break-even bandwidth from these measurements is about 0.58 Gb/s for 64 KiB and about 1.63 Gb/s for 16 MiB. So on a 10-gigabit network, reading to the client is faster. Lua is only worth it when the link is slow or congested, or when the filter rejects many objects and returns little data.
+
+The more important hidden cost is that a 111-millisecond Lua run holds the PG lock the whole time. Every other op on that PG queues behind it.
+
+![Left: median time to count lines in objects of 64 KiB to 16 MiB, with cls_lua inside the OSD (purple) and with reading the whole object on the client (blue) over loopback. The dashed lines show the same client time plus the transfer time over 10 and 1 gigabit (computed). Right: the break-even bandwidth below which the Lua run finishes first](figures/ch15/f09_lua.png){#fig-15-f09_lua}
+
+# Inside the code: the path of a class call {#sec-15-8}
+
+## From MOSDOp to method->exec {#sec-15-8-1}
+
+![The full path of a class call in three rows: the client sends a CEPH_OSD_OP_CALL request to the primary through the Objecter; PrimaryLogPG::do_osd_ops decodes the class and method names and opens the class with ClassHandler; then the method runs, the read and write counts are compared with the declared flags, and the changes are recorded in the PG transaction](figures/ch15/f01_flow.png){#fig-15-f01_flow}
+
+On the client side, `exec` adds a `CEPH_OSD_OP_CALL` sub-operation to the compound operation, containing the length of the class name, the length of the method name and the input data. In the OSD, `PrimaryLogPG::do_osd_ops()` separates these three from the payload in the `case CEPH_OSD_OP_CALL` branch. The key part of this branch is the check of the method's honesty:
 
 ```cpp
 // from ceph/ceph, LGPL — src/osd/PrimaryLogPG.cc, do_osd_ops(), case CEPH_OSD_OP_CALL (excerpt)
@@ -439,96 +438,96 @@ if (ctx->num_write > prev_wr && !(flags & CLS_METHOD_WR)) {
 }
 ```
 
-چرا این کنترل مهم است؟ پرچم‌ها پیش از اجرا در `init_op_flags()` برای تعیین نوع عملیات (خواندنی یا نوشتنی) به کار می‌روند: عملیات نوشتنی باید به primary برود، در log PG ثبت و به replicaها تکثیر شود، و در pool با snapshot، cloning را فعال کند. اگر متدی بدون پرچم WR بنویسد، OSD ممکن است آن را مانند خواندن پردازش کند و تغییر بدون تکثیر بماند. بنابراین Ceph پس از اجرا بررسی می‌کند و در صورت نقض، `-EIO` برمی‌گرداند. پرچم سوم، `CLS_METHOD_PROMOTE`، برای تیرینگ کش (فصل ۱۶) بود و به OSD می‌گفت شیء پیش از اجرا باید به لایه‌ی کش آورده شود.
+Why does this check matter? Before execution, the flags are used in `init_op_flags()` to determine the type of operation (read or write): a write operation must go to the primary, be recorded in the PG log and replicated to the replicas, and, in a pool with snapshots, trigger cloning. If a method writes without the WR flag, the OSD might process it like a read, and the change would stay unreplicated. So Ceph checks after execution and returns `-EIO` on a violation. The third flag, `CLS_METHOD_PROMOTE`, was for cache tiering (chapter 16) and told the OSD that the object had to be brought into the cache tier before execution.
 
 ```text
-pseudocode: CALL در do_osd_ops (خلاصه‌ی این کتاب)
+pseudocode: CALL in do_osd_ops (this book's summary)
   decode(class_name, method_name, indata)  else -EINVAL
-  cls    = ClassHandler.open_class(class_name)      # در init_op_flags تأیید شده
+  cls    = ClassHandler.open_class(class_name)      # confirmed in init_op_flags
   method = cls.get_method(method_name)               else -EOPNOTSUPP
   if method.flags & WR: ctx.user_modify = true
   snapshot(num_read, num_write)
-  r = method.exec(ctx, indata, &outdata)             # cls_cxx_* داخل ctx.ops کار می‌کنند
+  r = method.exec(ctx, indata, &outdata)             # cls_cxx_* work inside ctx.ops
   verify RD/WR honesty                               else -EIO
-  if r >= 0: append outdata to reply                 # تغییرات در ctx->op_t
+  if r >= 0: append outdata to reply                 # changes in ctx->op_t
 ```
 
-## بارگذاری کلاس: ClassHandler {#sec-15-8-2}
+## Loading a class: ClassHandler {#sec-15-8-2}
 
-![دو مرحله‌ی بارگذاری کلاس در ClassHandler: بالا، نخستین فراخوانی با بررسی osd_class_load_list و dlopen فایل libcls_X.so از osd_class_dir و اجرای __cls_init؛ پایین، ثبت متدها با نام و پرچم و تعیین وضعیت allowed بر اساس osd_class_default_list که روی تفسیر capهای class-read و class-write اثر دارد](figures/ch15/f02_load.png){#fig-15-f02_load}
+![The two stages of loading a class in ClassHandler: top, the first call, with the osd_class_load_list check, dlopen of libcls_X.so from osd_class_dir and running __cls_init; bottom, registering methods with names and flags and setting the allowed state from osd_class_default_list, which affects how the class-read and class-write caps are interpreted](figures/ch15/f02_load.png){#fig-15-f02_load}
 
-`ClassHandler::_get_class()` در `src/osd/ClassHandler.cc` اگر کلاس در `osd_class_load_list` نباشد، پیام «not permitted to load» در log می‌نویسد و NULL برمی‌گرداند. سپس `allowed` را بر اساس `osd_class_default_list` تعیین می‌کند. `_load_class()` فایل `libcls_<name>.so` را از `osd_class_dir` با `dlopen` باز و تابع `__cls_init` (که ماکروی `CLS_INIT(name)` تعریف می‌کند) را اجرا می‌کند؛ این تابع با `cls_register` و ثبت متدها، جدول متدهای کلاس را پر می‌کند. کلاس می‌تواند با نماد اختیاری `class_deps` وابستگی‌هایش را اعلام کند تا پیش از آن بارگذاری شوند (`dlsym(cls->handle, "class_deps")`).
+`ClassHandler::_get_class()` in `src/osd/ClassHandler.cc` writes "not permitted to load" to the log and returns NULL if the class is not in `osd_class_load_list`. It then sets `allowed` from `osd_class_default_list`. `_load_class()` opens the file `libcls_<name>.so` from `osd_class_dir` with `dlopen` and runs the function `__cls_init` (which the `CLS_INIT(name)` macro defines); that function fills the class's method table with `cls_register` and method registrations. A class can declare its dependencies with the optional symbol `class_deps` so that they are loaded first (`dlsym(cls->handle, "class_deps")`).
 
-| پیکربندی | نقش | پیش‌فرض در کد جاری |
+| Setting | Role | Default in current code |
 |---|---|---|
-| osd_class_dir | مسیر فایل‌های libcls_*.so | مسیر rados-classes زیر libdir نصب |
-| osd_class_load_list | کلاس‌های مجاز به بارگذاری | cephfs hello journal lock log numops otp rbd refcount rgw rgw_gc timeindex |
-| osd_class_default_list | کلاس‌های مجاز برای capهای عمومی | همان فهرست |
-| osd_open_classes_on_start | باز کردن کلاس‌ها هنگام شروع OSD | true |
+| osd_class_dir | Path of the libcls_*.so files | The rados-classes path under the install libdir |
+| osd_class_load_list | Classes allowed to load | cephfs hello journal lock log numops otp rbd refcount rgw rgw_gc timeindex |
+| osd_class_default_list | Classes allowed for generic caps | The same list |
+| osd_open_classes_on_start | Open classes when the OSD starts | true |
 
 ::: {.deep}
-مدل خطا: کلاس در فضای آدرس OSD اجرا می‌شود. هیچ sandbox، محدودیت حافظه یا timeout مستقلی برای متد وجود ندارد؛ متد درون همان thread پردازش PG اجرا می‌شود که قفل PG را در دست دارد. بنابراین متد کند، **همه‌ی عملیات دیگر روی آن PG** را پشت سر خود نگه می‌دارد و در `ceph health detail` به شکل slow ops ظاهر می‌شود. این همان دلیلی است که کلاس‌های خوب (مثل cls_rgw) حجم کار هر فراخوانی را محدود می‌کنند (مثلاً خواندن omap در دسته‌های محدود با `max_return`) و ادامه‌ی کار را به فراخوانی بعدی کلاینت می‌سپارند.
+The failure model: a class runs in the OSD's address space. There is no sandbox, memory limit or independent timeout for a method; the method runs in the same PG processing thread that holds the PG lock. So a slow method holds **every other operation on that PG** behind it, and shows up in `ceph health detail` as slow ops. This is why good classes (like cls_rgw) limit the amount of work per call (for example reading the omap in bounded batches with `max_return`) and leave the rest of the work to the client's next call.
 :::
 
-## بافت اجرا: cls_method_context_t {#sec-15-8-3}
+## The execution context: cls_method_context_t {#sec-15-8-3}
 
-`cls_method_context_t` در واقع اشاره‌گری به `OpContext` همان عملیات است. توابع `cls_cxx_read`، `cls_cxx_write_full`، `cls_cxx_map_get_val` و `cls_cxx_map_set_val` (در `src/osd/objclass.cc`) هرکدام یک زیرعملیات OSD می‌سازند و از همان مسیر `do_osd_ops` اجرا می‌کنند؛ یعنی کلاس در واقع **عملیات مرکب پویا** می‌سازد که درون تراکنش جاری اعمال می‌شود. به همین دلیل شمارنده‌های `num_read` و `num_write` با هر فراخوانی این توابع بالا می‌روند و بررسی صداقت پرچم ممکن است.
+`cls_method_context_t` is really a pointer to that operation's `OpContext`. The functions `cls_cxx_read`, `cls_cxx_write_full`, `cls_cxx_map_get_val` and `cls_cxx_map_set_val` (in `src/osd/objclass.cc`) each build an OSD sub-operation and run it through the same `do_osd_ops` path; that is, a class actually builds a **dynamic compound operation** that is applied inside the current transaction. That is why the `num_read` and `num_write` counters go up with each call of these functions, and why checking flag honesty is possible.
 
 ```text
 cls_cxx_map_set_val(hctx, key, bl):
     op = OSDOp(CEPH_OSD_OP_OMAPSETVALS, encode({key: bl}))
-    return do_osd_ops(ctx, [op])     # نوشتن به ctx->op_t اضافه می‌شود؛ num_write++
+    return do_osd_ops(ctx, [op])     # the write is added to ctx->op_t; num_write++
 ```
 
-# دام‌ها و الگوهای طراحی {#sec-15-9}
+# Pitfalls and design patterns {#sec-15-9}
 
-| دام | پیامد | راه درست |
+| Pitfall | Consequence | The right way |
 |---|---|---|
-| تغییر osd_class_load_list بدون حفظ پیش‌فرض‌ها | از کار افتادن RBD، RGW، CephFS | همیشه مقدار فعلی را بخوانید و الحاق کنید |
-| متد بدون محدودیت کار | slow ops، مسدود شدن PG | صفحه‌بندی با max_return و ادامه از سمت کلاینت |
-| استثنای مدیریت‌نشده در C++ | crash OSD در همه‌ی replicaها | try/catch و برگرداندن کد خطا |
-| ناهماهنگی نسخه‌ی کلاس و OSD | خطای dlopen یا رفتار نامعین | ساخت در image هم‌نسخه، آزمون در staging |
-| پرچم غلط RD/WR | خطای -EIO | پرچم دقیق؛ در Umbrella از Tagها استفاده کنید |
+| Changing osd_class_load_list without keeping the defaults | RBD, RGW and CephFS stop working | Always read the current value and append to it |
+| A method with unbounded work | Slow ops, a blocked PG | Paging with max_return and continuing from the client side |
+| An unhandled C++ exception | OSD crash on all replicas | try/catch and returning an error code |
+| Mismatched class and OSD versions | dlopen errors or undefined behaviour | Build in a same-version image, test in staging |
+| Wrong RD/WR flags | -EIO errors | Exact flags; in Umbrella use the Tags |
 
-::: {.summary title="نکات SRE این فصل"}
+::: {.summary title="SRE notes for this chapter"}
 
-- کلاس با امتیاز کامل OSD اجرا می‌شود؛ کد آن را مانند کد هسته بازبینی کنید.
-- هر تغییر در فهرست کلاس‌ها را با مقدار پیش‌فرض مقایسه کنید.
-- کار هر فراخوانی را محدود نگه دارید.
-- cls_lua را فقط آگاهانه و با cap محدود فعال کنید.
-- در cephadm، کلاس سفارشی یعنی image سفارشی؛ ارتقا را با آن برنامه‌ریزی کنید.
+- A class runs with full OSD privileges; review its code like kernel code.
+- Compare every change to the class lists with the default value.
+- Keep the work per call bounded.
+- Enable cls_lua only deliberately and with a restricted cap.
+- In cephadm, a custom class means a custom image; plan upgrades around it.
 
 :::
 
-# تکمیلی و به‌روز {#sec-15-10}
+# Supplementary and up to date {#sec-15-10}
 
-- در Umbrella (21.2.0) ثبت متدها نوع‌دار شده است (`ClassRegistrar` و `ClsMethod<Tag, ClassDef>`)؛ کلاس‌های خارج از درخت که با Tentacle ساخته شده‌اند هنگام ارتقا به بازنویسی بخش ثبت نیاز دارند.
-- کلاس‌های تازه‌تر درخت، مانند `cls_fifo`، `cls_2pc_queue` و `cls_cmpomap`، الگوهای صف و مقایسه‌ی اتمی omap را برای RGW فراهم می‌کنند.
-- تیرینگ کش که پرچم PROMOTE برای آن بود، در Reef منسوخ اعلام شد (فصل ۱۶).
+- In Umbrella (21.2.0), method registration has become typed (`ClassRegistrar` and `ClsMethod<Tag, ClassDef>`); out-of-tree classes built for Tentacle need their registration part rewritten when upgrading.
+- Newer classes in the tree, such as `cls_fifo`, `cls_2pc_queue` and `cls_cmpomap`, provide queue patterns and atomic omap comparison for RGW.
+- Cache tiering, which the PROMOTE flag was for, was declared deprecated in Reef (chapter 16).
 
-# تمرین عملی {#sec-15-11}
+# Hands-on exercise {#sec-15-11}
 
-1. با `io.execute(..., 'hello', 'say_hello', ...)` ورودی‌های خالی، کوتاه و بیش از ۱۰۰ بایت را آزمایش کنید.
-2. cap کاربر را به `allow class hello say_hello` محدود کنید و ببینید `record_hello` چه خطایی می‌دهد.
-3. شمارنده را یک بار با read-modify-write سمت کلاینت و یک بار با numops.add از ده فرایند هم‌زمان افزایش دهید و مقایسه کنید.
-4. کلاس tally را بسازید، در یک کلاستر آزمایشی مستقر کنید و top را روی ده هزار کلید بسنجید.
-5. در `src/osd/ClassHandler.cc` مسیر بارگذاری وابستگی‌ها را دنبال کنید.
-6. کلاس lua را در کلاستر آزمایشی فعال کنید و اسکریپت شمارش خطوط را اجرا کنید؛ سپس یک حلقه‌ی طولانی بنویسید و اثرش را روی slow ops ببینید.
+1. With `io.execute(..., 'hello', 'say_hello', ...)`, try empty inputs, short inputs and inputs over 100 bytes.
+2. Restrict the user's cap to `allow class hello say_hello` and see what error `record_hello` gives.
+3. Increment a counter from ten concurrent processes, once with client-side read-modify-write and once with numops.add, and compare.
+4. Build the tally class, deploy it in a test cluster and measure top on ten thousand keys.
+5. In `src/osd/ClassHandler.cc`, follow the dependency loading path.
+6. Enable the lua class in a test cluster and run the line-counting script; then write a long loop and see its effect on slow ops.
 
-# پرسش‌های مرور {#sec-15-12}
+# Review questions {#sec-15-12}
 
-1. سه مزیت اصلی اجرای منطق در کلاس به جای کلاینت چیست؟
-2. چرا متد کلاس نمی‌تواند شیء دیگری را تغییر دهد؟
-3. تفاوت osd_class_load_list و osd_class_default_list چیست؟
-4. اگر متدی بدون پرچم WR بنویسد چه رخ می‌دهد و چرا؟
-5. cap «allow class numops add» دقیقاً چه چیزی را مجاز می‌کند؟
-6. چرا cls_lua به‌صورت پیش‌فرض بارگذاری نمی‌شود؟
-7. در cephadm چگونه کلاس سفارشی را مستقر می‌کنید؟
-8. چه تغییری در رابط ثبت متدها در Umbrella رخ داد؟
-9. متد کند چه اثری بر سایر عملیات PG دارد؟
-10. librbd و RGW از کدام کلاس‌ها استفاده می‌کنند؟
+1. What are the three main benefits of running logic in a class instead of the client?
+2. Why can a class method not modify another object?
+3. What is the difference between osd_class_load_list and osd_class_default_list?
+4. What happens if a method writes without the WR flag, and why?
+5. What exactly does the cap "allow class numops add" permit?
+6. Why is cls_lua not loaded by default?
+7. How do you deploy a custom class in cephadm?
+8. What changed in the method registration interface in Umbrella?
+9. What effect does a slow method have on the PG's other operations?
+10. Which classes do librbd and RGW use?
 
-# منابع این فصل {#sec-15-13}
+# Sources for this chapter {#sec-15-13}
 
 - SDK for Ceph Object Classes: https://docs.ceph.com/en/latest/rados/api/objclass-sdk/
 - OSD config reference (classes): https://docs.ceph.com/en/latest/rados/configuration/osd-config-ref/
