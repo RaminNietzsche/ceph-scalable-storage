@@ -4,64 +4,63 @@ id: ch24
 title: 'Lower Layers (2): BlueStore and BlueFS On-Disk Format'
 part: lower
 lang: en
-translation: pending
 ---
 
-# مقدمه: BlueStore روی دیسک چه می‌نویسد؟ {#sec-24-1}
+# Introduction: what does BlueStore write on disk? {#sec-24-1}
 
-در فصل ۲۳ دیدیم بایت‌ها چگونه از bufferlist به `io_submit` می‌رسند. این فصل نشان می‌دهد آن بایت‌ها روی دیسک **کجا** و **با چه قالبی** قرار می‌گیرند: از نخستین ۴ کیلوبایت دستگاه (label) تا superblock و لاگ BlueFS، و از کلیدهای RocksDB که onode و extent map را نگه می‌دارند تا بیت‌های freelist و ساختار کش در حافظه. همه‌ی ساختارها از شاخه‌ی main کد Ceph (`src/os/bluestore/`) استخراج شده‌اند. هرجا رفتار به نسخه بستگی دارد، علامت‌گذاری شده است.
+In chapter 23 we saw how bytes get from a bufferlist to `io_submit`. This chapter shows **where** and **in what format** those bytes land on disk: from the device's first 4 kilobytes (the label) to the superblock and the BlueFS log, and from the RocksDB keys that hold the onode and extent map to the freelist bits and the in-memory cache structure. All structures were extracted from the main branch of the Ceph code (`src/os/bluestore/`). Wherever behaviour depends on the version, it is marked.
 
 ::: {.summary}
 
-- ۴K اول هر دستگاه BlueStore یک label است و ۴K دوم superblock مربوط به BlueFS. نسخه‌های جدید label را در 1G، 10G، 100G و 1000G هم کپی می‌کنند.
-- BlueFS یک فایل‌سیستم کوچک فقط-افزودنی برای RocksDB است. فراداده‌اش در یک فایل لاگ (ino 1) با تراکنش‌هایی از نوع `bluefs_transaction_t` قرار دارد.
-- کدگذاری فشرده با `denc_varint_lowz` و `denc_lba` باعث می‌شود یک extent هم‌تراز ۴K معمولاً در ۵ بایت جا شود.
-- onode در کلید `O` است و extent mapهای بزرگ به shardهایی با پسوند `x` شکسته می‌شوند.
-- allocator پیش‌فرض hybrid است (AVL با سرریز به Bitmap). freelist در RocksDB فقط وقتی استفاده می‌شود که حالت «allocation from file» خاموش باشد.
+- The first 4K of every BlueStore device is a label, and the second 4K is the BlueFS superblock. New versions also copy the label at 1G, 10G, 100G and 1000G.
+- BlueFS is a small append-only file system for RocksDB. Its metadata lives in a log file (ino 1) as transactions of type `bluefs_transaction_t`.
+- Compact encoding with `denc_varint_lowz` and `denc_lba` means a 4K-aligned extent usually fits in 5 bytes.
+- The onode is under key `O`, and large extent maps are broken into shards with an `x` suffix.
+- The default allocator is hybrid (AVL with overflow to Bitmap). The freelist in RocksDB is only used when "allocation from file" mode is off.
 
 :::
 
-# label دستگاه: bluestore_bdev_label_t {#sec-24-2}
+# The device label: bluestore_bdev_label_t {#sec-24-2}
 
-![چیدمان ابتدای دستگاه‌های BlueStore. در دستگاه block با DB هم‌دستگاه، بلوک ۰ label، بلوک ۱ superblock مربوط به BlueFS و بقیه فضای مشترک داده و BlueFS است. label در موقعیت‌های 1، 10، 100 و 1000 گیگابایت هم تکرار می‌شود (فقط اگر دستگاه به آن اندازه برسد). در دستگاه block.db جدا، extentهای BlueFS از 8K (SUPER_RESERVED) شروع می‌شوند](figures/ch24/f01_layout.png){#fig-24-f01_layout}
+![The layout of the start of BlueStore devices. On a block device with a co-located DB, block 0 is the label, block 1 the BlueFS superblock, and the rest shared space for data and BlueFS. The label is also repeated at the 1, 10, 100 and 1000 gigabyte positions (only if the device is that large). On a separate block.db device, BlueFS extents start at 8K (SUPER_RESERVED)](figures/ch24/f01_layout.png){#fig-24-f01_layout}
 
-ثابت‌ها در `bluestore_common.h` تعریف شده‌اند: `BDEV_FIRST_LABEL_POSITION = 0`، `BDEV_LABEL_BLOCK_SIZE = 4096`، `BLUEFS_SUPER_POSITION = 4096` و `SUPER_RESERVED = 8192`. محتوای label به این ترتیب است:
+The constants are defined in `bluestore_common.h`: `BDEV_FIRST_LABEL_POSITION = 0`, `BDEV_LABEL_BLOCK_SIZE = 4096`, `BLUEFS_SUPER_POSITION = 4096` and `SUPER_RESERVED = 8192`. The label's content, in order:
 
-| بایت | محتوا | توضیح |
+| Bytes | Content | Description |
 |---|---|---|
-| 0–22 | `bluestore block device\n` | ۲۳ بایت ASCII، برای کسی که با `hexdump` دستگاه را نگاه می‌کند |
-| 23–58 | uuid مربوط به OSD به شکل متن | ۳۶ کاراکتر |
-| 59 | `\n` | در مجموع ۶۰ بایت؛ decoder با `p += 60` از این بخش می‌گذرد |
-| 60… | `ENCODE_START(2,1)` | struct_v=2، compat=1، طول (u32) |
-| … | osd_uuid (۱۶ بایت)، size (u64)، btime (utime_t)، description (string) | description مثلاً `main` یا `bluefs db` |
-| … | meta: `map<string,string>` | کلیدهایی مثل `ceph_fsid`، `whoami`، `osd_key`، `ready`، `kv_backend`، `type=bluestore` |
-| انتها | crc32c (u32) روی همه‌ی موارد بالا با seed −1 | سپس تا ۴۰۹۶ بایت صفر می‌شود |
+| 0–22 | `bluestore block device\n` | 23 ASCII bytes, for anyone looking at the device with `hexdump` |
+| 23–58 | the OSD's uuid as text | 36 characters |
+| 59 | `\n` | 60 bytes in total; the decoder skips this part with `p += 60` |
+| 60… | `ENCODE_START(2,1)` | struct_v=2, compat=1, length (u32) |
+| … | osd_uuid (16 bytes), size (u64), btime (utime_t), description (string) | description is for example `main` or `bluefs db` |
+| … | meta: `map<string,string>` | keys such as `ceph_fsid`, `whoami`, `osd_key`, `ready`, `kv_backend`, `type=bluestore` |
+| end | crc32c (u32) over everything above with seed −1 | then zeros up to 4096 bytes |
 
 ```bash
-# خواندن label (فقط خواندنی؛ OSD می‌تواند در حال اجرا باشد)
+# reading the label (read-only; the OSD can be running)
 ceph-bluestore-tool show-label --dev /dev/ceph-xxx/osd-block-yyy
 dd if=/dev/ceph-xxx/osd-block-yyy bs=4096 count=1 2>/dev/null | hexdump -C | head -5
 ```
 
 ::: {.warn}
-مقدار `osd_key` در meta یک کلید cephx است. خروجی `show-label` را هرگز بدون پاک کردن این فیلد در تیکت یا چت قرار ندهید.
+The `osd_key` value in meta is a cephx key. Never put the output of `show-label` in a ticket or chat without removing this field.
 :::
 
 ::: {.deep}
-چرا کپی‌های چندگانه؟ در نسخه‌های قدیمی خراب شدن ۴K اول (مثلاً با `wipefs` یا نوشتن اشتباه یک ابزار پارتیشن‌بندی) OSD را غیرقابل‌بازیابی می‌کرد. شاخه‌ی main آرایه‌ی `bdev_label_positions = {0, 1G, 10G, 100G, 1000G}` را دارد. BlueStore هنگام mount، label معتبر را از هر موقعیت سالم می‌خواند (`_read_multi_bdev_label`) و موقعیت‌های معتبر را در `bdev_label_valid_locations` نگه می‌دارد. چون ممکن است نسخه‌های قدیمی آن نواحی را برای داده استفاده کرده باشند، کپی فقط جایی نوشته می‌شود که allocator آن را رزرو کرده باشد. سازوکار رزرو و محدوده‌ی دقیق نسخه‌ها را پیش از تکیه بر آن در یادداشت‌های انتشار نسخه‌ی خود بررسی کنید.
+Why multiple copies? In old versions, corruption of the first 4K (for example by `wipefs` or a partitioning tool writing by mistake) made the OSD unrecoverable. The main branch has the array `bdev_label_positions = {0, 1G, 10G, 100G, 1000G}`. At mount, BlueStore reads a valid label from any healthy position (`_read_multi_bdev_label`) and keeps the valid positions in `bdev_label_valid_locations`. Because old versions may have used those regions for data, a copy is only written where the allocator has reserved it. Check the reservation mechanism and the exact range of versions in your version's release notes before relying on it.
 :::
 
-# کدگذاری‌های فشرده: varint، lowz و lba {#sec-24-3}
+# Compact encodings: varint, lowz and lba {#sec-24-3}
 
-پیش از رفتن سراغ ساختارها باید سه کدگذاری را شناخت که در `include/denc.h` تعریف شده‌اند و همه‌جا در فراداده‌ی BlueStore به کار می‌روند:
+Before going to the structures, you need to know three encodings defined in `include/denc.h` and used everywhere in BlueStore metadata:
 
-| تابع | قالب | کاربرد |
+| Function | Format | Use |
 |---|---|---|
-| `denc_varint` | ۷ بیت داده در هر بایت؛ بیت بالا یعنی «بایت دیگری می‌آید» (little-endian) | شمارنده‌ها، blobid |
-| `denc_varint_lowz` | ۲ بیت پایین = تعداد nibbleهای صفر انتهایی حذف‌شده (۰ تا ۳)، سپس varint | طول‌ها (معمولاً مضرب 4K) |
-| `denc_lba` | یک کلمه‌ی ۳۲ بیتی: ۱ تا ۳ بیت اول نوع حذف صفرهای انتهایی (`0`=۱۲ بیت، `01`=۱۶، `011`=۲۰، `111`=هیچ)، سپس ۲۸ تا ۳۰ بیت داده، بیت ۳۱ = ادامه | offsetهای فیزیکی روی دیسک |
+| `denc_varint` | 7 data bits per byte; the high bit means "another byte follows" (little-endian) | counters, blobid |
+| `denc_varint_lowz` | the low 2 bits = number of trailing zero nibbles removed (0 to 3), then a varint | lengths (usually multiples of 4K) |
+| `denc_lba` | a 32-bit word: the first 1 to 3 bits are the kind of trailing-zero removal (`0`=12 bits, `01`=16, `011`=20, `111`=none), then 28 to 30 data bits, bit 31 = continuation | physical offsets on disk |
 
-| مقدار | denc_varint | denc_varint_lowz | denc_lba |
+| Value | denc_varint | denc_varint_lowz | denc_lba |
 |---|---|---|---|
 | 0x1000 (4K) | `80 20` | `07` | `02 00 00 00` |
 | 0x3000 (12K) | `80 60` | `0f` | — |
@@ -69,31 +68,31 @@ dd if=/dev/ceph-xxx/osd-block-yyy bs=4096 count=1 2>/dev/null | hexdump -C | hea
 | 0x12340000 | — | — | `d1 48 00 00` |
 | 0x3a8f05000 | — | — | `0a 1e 75 00` |
 
-**مثال گام‌به‌گام lowz برای 0x10000:** این عدد ۱۶ بیت صفر انتهایی، یعنی ۴ nibble، دارد ولی سقف ۳ است. پس 0x10000 >> 12 = 0x10 و (0x10 << 2) | 3 = 0x43 که در یک بایت جا می‌شود.
+**Step-by-step lowz example for 0x10000:** this number has 16 trailing zero bits, that is 4 nibbles, but the cap is 3. So 0x10000 >> 12 = 0x10 and (0x10 << 2) | 3 = 0x43, which fits in one byte.
 
-**مثال lba برای 0x12340000:** این عدد ۱۸ بیت صفر انتهایی، یعنی ۴ nibble کامل، دارد. پس t = 4 − 3 = 1، حالت «۱۶ بیت حذف» با پیشوند `01` انتخاب می‌شود: 0x12340000 >> 16 = 0x1234 و word = 0b01 | (0x1234 << 2) = 0x48D1. خروجی چهار بایت little-endian است: `d1 48 00 00`. این مقادیر را با یک پیاده‌سازی پایتونی مستقل از روی منطق `denc.h` محاسبه کرده‌ایم.
+**lba example for 0x12340000:** this number has 18 trailing zero bits, that is 4 full nibbles. So t = 4 − 3 = 1, and the "remove 16 bits" mode with prefix `01` is chosen: 0x12340000 >> 16 = 0x1234 and word = 0b01 | (0x1234 << 2) = 0x48D1. The output is four little-endian bytes: `d1 48 00 00`. We computed these values with an independent Python implementation based on the logic of `denc.h`.
 
 ::: {.note}
-نتیجه‌ی عملی: یک `bluestore_pextent_t` (offset با `denc_lba` و length با `denc_varint_lowz`) برای یک extent معمولی ۶۴K هم‌تراز با ۴K فقط ۵ بایت است، در حالی که شکل خام آن ۱۲ بایت (u64 + u32) می‌شد. وقتی میلیاردها extent در RocksDB دارید، این تفاوت در اندازه‌ی DB و نرخ برخورد کش بسیار اثر دارد.
+The practical result: a `bluestore_pextent_t` (offset with `denc_lba` and length with `denc_varint_lowz`) for a typical 4K-aligned 64K extent is only 5 bytes, while its raw form would be 12 bytes (u64 + u32). When you have billions of extents in RocksDB, this difference has a big effect on DB size and cache hit rate.
 :::
 
-# BlueFS: فایل‌سیستمی برای RocksDB {#sec-24-4}
+# BlueFS: a file system for RocksDB {#sec-24-4}
 
-RocksDB به یک فایل‌سیستم نیاز دارد (فایل‌های SST، WAL، MANIFEST، CURRENT). BlueStore به‌جای ext4 یا XFS، فایل‌سیستم کوچک خودش یعنی BlueFS را دارد که از طریق `BlueRocksEnv` به RocksDB وصل می‌شود. BlueFS فقط چیزهایی را پیاده می‌کند که RocksDB لازم دارد: چند دایرکتوری تخت، فایل‌های فقط-افزودنی، rename و unlink و fsync.
+RocksDB needs a file system (SST, WAL, MANIFEST and CURRENT files). Instead of ext4 or XFS, BlueStore has its own small file system, BlueFS, connected to RocksDB through `BlueRocksEnv`. BlueFS implements only what RocksDB needs: a few flat directories, append-only files, rename, unlink and fsync.
 
-![ساختار BlueFS. superblock در بلوک ۱ قرار دارد و به fnode فایل لاگ (ino 1) اشاره می‌کند. لاگ دنباله‌ای از تراکنش‌هاست که opهایشان (ساخت دایرکتوری، link، به‌روزرسانی کامل یا افزایشی fnode، حذف، پرش seq) کل فراداده را می‌سازند. هر fnode فهرستی از extentها {bdev، offset، length} دارد. وقتی لاگ بیش از ۱۶ مگابایت و ۵ برابر اندازه‌ی تخمینی شود، فشرده‌سازی آغاز می‌شود](figures/ch24/f02_bluefs.png){#fig-24-f02_bluefs}
+![The structure of BlueFS. The superblock is in block 1 and points to the fnode of the log file (ino 1). The log is a sequence of transactions whose ops (directory creation, link, full or incremental fnode update, removal, seq jump) build the entire metadata. Each fnode has a list of extents {bdev, offset, length}. When the log exceeds 16 megabytes and 5 times the estimated size, compaction starts](figures/ch24/f02_bluefs.png){#fig-24-f02_bluefs}
 
-## ساختارها {#sec-24-4-1}
+## Structures {#sec-24-4-1}
 
-| struct | فیلدها | نکته |
+| struct | Fields | Note |
 |---|---|---|
-| `bluefs_super_t` | `_version`، `uuid`، `osd_uuid`، `seq`، `block_size`، `log_fnode`، `memorized_layout` | `_version` برابر BASELINE=2 یا ENVELOPE_MODE_ENABLED=3 است |
-| `bluefs_fnode_t` | `ino`، `size`، `mtime`، `extents`، `allocated`، `encoding`، `content_size` | `extents_index` فقط در حافظه است، برای یافتن extent با `upper_bound` |
-| `bluefs_extent_t` | `offset` (lba)، `length` (lowz)، `bdev` (u8) | bdev: WAL=0، DB=1، SLOW=2، NEWWAL=3، NEWDB=4 (MAX_BDEV=5) |
-| `bluefs_transaction_t` | `uuid`، `seq`، `op_bl` | op_t از OP_NONE تا OP_FILE_UPDATE_INC؛ opهای ALLOC_ADD/RM منسوخ‌اند |
+| `bluefs_super_t` | `_version`, `uuid`, `osd_uuid`, `seq`, `block_size`, `log_fnode`, `memorized_layout` | `_version` is BASELINE=2 or ENVELOPE_MODE_ENABLED=3 |
+| `bluefs_fnode_t` | `ino`, `size`, `mtime`, `extents`, `allocated`, `encoding`, `content_size` | `extents_index` is in memory only, for finding an extent with `upper_bound` |
+| `bluefs_extent_t` | `offset` (lba), `length` (lowz), `bdev` (u8) | bdev: WAL=0, DB=1, SLOW=2, NEWWAL=3, NEWDB=4 (MAX_BDEV=5) |
+| `bluefs_transaction_t` | `uuid`, `seq`, `op_bl` | op_t from OP_NONE to OP_FILE_UPDATE_INC; the ALLOC_ADD/RM ops are obsolete |
 
 ```text
-pseudocode: mount مربوط به BlueFS (خلاصه‌ی این کتاب)
+pseudocode: BlueFS mount (this book's summary)
   super = decode(read(bdev[DB or SLOW], 0x1000, 4096)); verify crc
   log_reader = open(super.log_fnode)
   pos = 0
@@ -109,378 +108,378 @@ pseudocode: mount مربوط به BlueFS (خلاصه‌ی این کتاب)
           FILE_REMOVE → release extents (unless shared)
           JUMP/JUMP_SEQ → pos/seq = ...
       pos = next block-aligned boundary
-  # در پایان، allocator هر bdev از روی extentهای همه‌ی fnodeها ساخته می‌شود
+  # at the end, each bdev's allocator is built from the extents of all fnodes
 ```
 
-| گزینه | پیش‌فرض (main) | اثر |
+| Option | Default (main) | Effect |
 |---|---|---|
-| `bluefs_alloc_size` | 1_M | واحد تخصیص روی دستگاه‌های اختصاصی DB و WAL |
-| `bluefs_shared_alloc_size` | 64_K | واحد تخصیص روی دستگاه مشترک با داده |
-| `bluefs_min_log_runway` / `bluefs_max_log_runway` | 1_M / 4_M | فضای از پیش تخصیص‌یافته برای ادامه‌ی لاگ |
-| `bluefs_log_compact_min_size` | 16_M | لاگ کوچک‌تر از این هرگز فشرده نمی‌شود |
-| `bluefs_log_compact_min_ratio` | 5 | نسبت اندازه‌ی واقعی به تخمینی برای آغاز فشرده‌سازی |
-| `bluefs_buffered_io` | true | خواندن‌های BlueFS از page cache هسته استفاده می‌کنند |
+| `bluefs_alloc_size` | 1_M | allocation unit on dedicated DB and WAL devices |
+| `bluefs_shared_alloc_size` | 64_K | allocation unit on a device shared with data |
+| `bluefs_min_log_runway` / `bluefs_max_log_runway` | 1_M / 4_M | pre-allocated space for the log to continue |
+| `bluefs_log_compact_min_size` | 16_M | a log smaller than this is never compacted |
+| `bluefs_log_compact_min_ratio` | 5 | ratio of actual to estimated size to start compaction |
+| `bluefs_buffered_io` | true | BlueFS reads use the kernel page cache |
 
-## فشرده‌سازی لاگ و حالت envelope {#sec-24-4-2}
+## Log compaction and envelope mode {#sec-24-4-2}
 
-`_should_start_compact_log_L_N()` اندازه‌ی فعلی لاگ را با `_estimate_log_size_N()` مقایسه می‌کند. اگر هر دو شرط جدول بالا برقرار باشد، `_compact_log_async_LD_LNF_D()` اجرا می‌شود: تصویر کامل فراداده (همه‌ی دایرکتوری‌ها و fnodeها) در یک لاگ تازه نوشته می‌شود، superblock با `log_fnode` جدید و `seq` بالاتر به‌روزرسانی می‌شود و extentهای لاگ قدیمی آزاد می‌شوند. ترتیب این مراحل طوری است که crash در هر لحظه یا لاگ قدیمی سالم یا لاگ جدید کامل را باقی بگذارد.
+`_should_start_compact_log_L_N()` compares the current log size with `_estimate_log_size_N()`. If both conditions in the table above hold, `_compact_log_async_LD_LNF_D()` runs: a complete image of the metadata (all directories and fnodes) is written into a new log, the superblock is updated with the new `log_fnode` and a higher `seq`, and the old log's extents are freed. The order of these steps is such that a crash at any moment leaves either the old log intact or the new log complete.
 
 ::: {.note}
-**وابسته به نسخه:** `bluefs_node_encoding` (PLAIN، ENVELOPE، ENVELOPE_FIN) در Tentacle و main وجود دارد ولی در Squid نیست. در حالت envelope، داده‌ای که به فایل (مثلاً WAL مربوط به RocksDB) افزوده می‌شود در یک پوشش خودتوصیف قرار می‌گیرد. بنابراین برای هر fsync لازم نیست اندازه‌ی فایل در لاگ BlueFS به‌روز شود و یک نوشتن هم‌گام اضافه حذف می‌شود. پس از crash، ناحیه‌ی بین `size` و `allocated` برای یافتن envelopeها پویش می‌شود.
+**Version-dependent:** `bluefs_node_encoding` (PLAIN, ENVELOPE, ENVELOPE_FIN) exists in Tentacle and main but not in Squid. In envelope mode, data appended to a file (for example RocksDB's WAL) is placed in a self-describing envelope. So for each fsync the file size does not need to be updated in the BlueFS log, and an extra synchronous write is eliminated. After a crash, the region between `size` and `allocated` is scanned to find the envelopes.
 :::
 
 ```bash
-ceph-bluestore-tool bluefs-bdev-sizes --path /var/lib/ceph/osd/ceph-4      # OSD متوقف
+ceph-bluestore-tool bluefs-bdev-sizes --path /var/lib/ceph/osd/ceph-4      # OSD stopped
 ceph-bluestore-tool bluefs-log-dump --path /var/lib/ceph/osd/ceph-4
-ceph daemon osd.4 bluefs stats                         # admin socket روی میزبان OSD
-ceph-bluestore-tool bluefs-export --path ... --out-dir /tmp/bluefs   # فایل‌های RocksDB برای ldb
+ceph daemon osd.4 bluefs stats                         # admin socket on the OSD host
+ceph-bluestore-tool bluefs-export --path ... --out-dir /tmp/bluefs   # RocksDB files for ldb
 ```
 
-# نقشه‌ی کامل پیشوندهای KV {#sec-24-5}
+# The full map of KV prefixes {#sec-24-5}
 
-تمام فراداده‌ی BlueStore در RocksDB قرار دارد. نخستین کاراکتر هر کلید «پیشوند» آن است و در `BlueStore.cc` تعریف شده است:
+All of BlueStore's metadata lives in RocksDB. The first character of each key is its "prefix", defined in `BlueStore.cc`:
 
-| پیشوند | نام ثابت | کلید → مقدار |
+| Prefix | Constant name | Key → value |
 |---|---|---|
-| `S` | PREFIX_SUPER | نام فیلد → مقدار (nid_max، blobid_max، min_alloc_size، per_pool_omap، ...) |
-| `T` | PREFIX_STAT | آمار pool یا کل store (آرایه‌ی int64 با merge operator از نوع `int64_array`) |
-| `C` | PREFIX_COLL | نام collection (PG) → `bluestore_cnode_t` (فقط فیلد `bits`) |
-| `O` | PREFIX_OBJ | کلید شیء → `bluestore_onode_t`؛ shardهای extent map با پسوند `x` |
-| `M` | PREFIX_OMAP | u64 (nid) + نام کلید → مقدار (omap قدیمی، سراسری) |
-| `P` | PREFIX_PGMETA_OMAP | omap مربوط به شیء pgmeta (pg log و pg info) |
-| `m` | PREFIX_PERPOOL_OMAP | s64 (pool) + u64 (nid) + نام کلید → مقدار |
-| `p` | PREFIX_PERPG_OMAP | u64 (pool) + u32 (hash) + u64 (nid) + نام کلید → مقدار (پیش‌فرض نسخه‌های جدید) |
+| `S` | PREFIX_SUPER | field name → value (nid_max, blobid_max, min_alloc_size, per_pool_omap, ...) |
+| `T` | PREFIX_STAT | pool or whole-store statistics (an int64 array with an `int64_array` merge operator) |
+| `C` | PREFIX_COLL | collection (PG) name → `bluestore_cnode_t` (only the `bits` field) |
+| `O` | PREFIX_OBJ | object key → `bluestore_onode_t`; extent map shards with an `x` suffix |
+| `M` | PREFIX_OMAP | u64 (nid) + key name → value (old, global omap) |
+| `P` | PREFIX_PGMETA_OMAP | omap of the pgmeta object (pg log and pg info) |
+| `m` | PREFIX_PERPOOL_OMAP | s64 (pool) + u64 (nid) + key name → value |
+| `p` | PREFIX_PERPG_OMAP | u64 (pool) + u32 (hash) + u64 (nid) + key name → value (the default in new versions) |
 | `L` | PREFIX_DEFERRED | seq → `bluestore_deferred_transaction_t` |
-| `B` | PREFIX_ALLOC | فراداده‌ی freelist (اندازه، blocks_per_key، ...) |
-| `b` | PREFIX_ALLOC_BITMAP | offset → bitmap (از طریق BitmapFreelistManager) |
+| `B` | PREFIX_ALLOC | freelist metadata (size, blocks_per_key, ...) |
+| `b` | PREFIX_ALLOC_BITMAP | offset → bitmap (through BitmapFreelistManager) |
 | `X` | PREFIX_SHARED_BLOB | sbid → `bluestore_shared_blob_t` |
 
 ::: {.tip}
-برای دیدن حجم هر پیشوند روی یک OSD متوقف از `ceph-kvstore-tool bluestore-kv /var/lib/ceph/osd/ceph-4 stats` استفاده کنید، یا با `list O | wc -l` تعداد کلیدهای onode را بشمارید. در یک OSD سالم RBD معمولاً `O` و `p` بیشترین حجم را دارند. اگر `L` بزرگ باشد، یعنی deferred writeها انباشته شده‌اند.
+To see the volume of each prefix on a stopped OSD, use `ceph-kvstore-tool bluestore-kv /var/lib/ceph/osd/ceph-4 stats`, or count the onode keys with `list O | wc -l`. On a healthy RBD OSD, `O` and `p` usually have the most volume. If `L` is large, deferred writes are piling up.
 :::
 
-# onode: از کلید تا extent {#sec-24-6}
+# The onode: from key to extent {#sec-24-6}
 
-![ساختار onode. کلید onode به ترتیبی کدگذاری می‌شود که مرتب‌سازی lexicographic آن با ترتیب ghobject_t یکسان باشد: shard + 0x80، سپس pool + 2^63، hash بیت‌معکوس، namespace و نام escapeشده، snap، generation و در پایان کاراکتر 'o'. مقدار، bluestore_onode_t است. lextentها به blobها و blobها به pextentهای فیزیکی اشاره می‌کنند. extent mapهای بزرگ به shardهایی جدا با کلید «onode + u32 offset + x» شکسته می‌شوند](figures/ch24/f03_onode.png){#fig-24-f03_onode}
+![The structure of an onode. The onode key is encoded in an order such that its lexicographic sort matches the ghobject_t order: shard + 0x80, then pool + 2^63, the bit-reversed hash, the namespace and escaped name, snap, generation, and finally the character 'o'. The value is bluestore_onode_t. lextents point to blobs, and blobs to physical pextents. Large extent maps are broken into separate shards with the key "onode + u32 offset + x"](figures/ch24/f03_onode.png){#fig-24-f03_onode}
 
-## کلید شیء {#sec-24-6-1}
+## The object key {#sec-24-6-1}
 
-کلید طوری ساخته می‌شود که پیمایش ترتیبی RocksDB دقیقاً همان ترتیب اشیای یک PG را بدهد. بنابراین `collection_list` (که در scrub و backfill استفاده می‌شود) به یک range scan ساده تبدیل می‌شود:
+The key is built so that a sequential RocksDB scan gives exactly the order of a PG's objects. So `collection_list` (used in scrub and backfill) becomes a simple range scan:
 
-| جزء | کدگذاری | دلیل |
+| Component | Encoding | Reason |
 |---|---|---|
-| shard | `u8(shard.id + 0x80)` | shard = −1 (NO_SHARD) به 0x7F تبدیل می‌شود و پیش از shardهای EC (0x80 به بعد) قرار می‌گیرد |
-| pool | `u64(pool + 2^63)` به‌صورت big-endian | poolهای منفی (temp) پیش از مثبت‌ها مرتب می‌شوند |
-| hash | `u32` بیت‌معکوس، big-endian | PGها بازه‌های پیوسته‌ای از hash بیت‌معکوس‌اند، پس اشیای یک PG کنار هم می‌افتند |
-| namespace و key | رشته‌ی escapeشده + `!` | نویسه‌های ≤ `#` به `#xx` و ≥ `~` به `~xx` تبدیل می‌شوند |
-| `<` یا `=` یا `>` | یک نویسه | `=` یعنی key با نام یکی است و نام دوباره نوشته نمی‌شود |
-| snap، generation | u64 big-endian | snapها و نسل‌های EC پشت سر هم |
-| `o` | پسوند | تمایز onode از shardهای extent (`x`) |
+| shard | `u8(shard.id + 0x80)` | shard = −1 (NO_SHARD) becomes 0x7F and sorts before the EC shards (0x80 and up) |
+| pool | `u64(pool + 2^63)` big-endian | negative (temp) pools sort before positive ones |
+| hash | bit-reversed `u32`, big-endian | PGs are contiguous ranges of the bit-reversed hash, so a PG's objects fall next to each other |
+| namespace and key | escaped string + `!` | characters ≤ `#` become `#xx` and ≥ `~` become `~xx` |
+| `<` or `=` or `>` | one character | `=` means the key equals the name and the name is not written again |
+| snap, generation | u64 big-endian | snaps and EC generations one after another |
+| `o` | suffix | distinguishes the onode from extent shards (`x`) |
 
 ## bluestore_onode_t {#sec-24-6-2}
 
-فیلدهای اصلی: `nid` (شناسه‌ی عددی محلی برای کلیدهای omap)، `size`، `attrs` (xattrها مثل `_` برای object_info_t و `snapset`)، `extent_map_shards` (فهرست `{offset, bytes}`)، `expected_object_size`، `expected_write_size`، `alloc_hint_flags`، `segment_size` و `flags` (`FLAG_OMAP=1`، `FLAG_PGMETA_OMAP=2`، `FLAG_PERPOOL_OMAP=4`، `FLAG_PERPG_OMAP=8`). اگر `extent_map_shards` خالی باشد، کل extent map به‌صورت inline پس از onode در همان مقدار ذخیره می‌شود.
+The main fields: `nid` (a local numeric ID for omap keys), `size`, `attrs` (xattrs such as `_` for object_info_t and `snapset`), `extent_map_shards` (a list of `{offset, bytes}`), `expected_object_size`, `expected_write_size`, `alloc_hint_flags`, `segment_size` and `flags` (`FLAG_OMAP=1`, `FLAG_PGMETA_OMAP=2`, `FLAG_PERPOOL_OMAP=4`, `FLAG_PERPG_OMAP=8`). If `extent_map_shards` is empty, the whole extent map is stored inline after the onode in the same value.
 
-## extent map و کدگذاری فشرده‌ی آن {#sec-24-6-3}
+## The extent map and its compact encoding {#sec-24-6-3}
 
-هر lextent چهار عدد دارد: `logical_offset`، `length`، `blob_offset` و یک ارجاع به blob. `ExtentMap::encode_some` با چهار پرچم در بیت‌های پایین blobid از تکرار اطلاعات پرهیز می‌کند:
+Each lextent has four numbers: `logical_offset`, `length`, `blob_offset` and a reference to a blob. `ExtentMap::encode_some` avoids repeating information with four flags in the low bits of the blobid:
 
-| پرچم | مقدار | معنی |
+| Flag | Value | Meaning |
 |---|---|---|
-| `BLOBID_FLAG_CONTIGUOUS` | 0x1 | این extent دقیقاً پس از قبلی شروع می‌شود، پس logical_offset نوشته نمی‌شود |
-| `BLOBID_FLAG_ZEROOFFSET` | 0x2 | blob_offset صفر است |
-| `BLOBID_FLAG_SAMELENGTH` | 0x4 | طول با extent قبلی برابر است |
-| `BLOBID_FLAG_SPANNING` | 0x8 | blob از نوع spanning است (میان چند shard مشترک) و شناسه‌اش نوشته می‌شود |
+| `BLOBID_FLAG_CONTIGUOUS` | 0x1 | this extent starts exactly after the previous one, so logical_offset is not written |
+| `BLOBID_FLAG_ZEROOFFSET` | 0x2 | blob_offset is zero |
+| `BLOBID_FLAG_SAMELENGTH` | 0x4 | the length equals the previous extent's |
+| `BLOBID_FLAG_SPANNING` | 0x8 | the blob is a spanning blob (shared across several shards) and its ID is written |
 
-بقیه‌ی بیت‌ها (پس از `BLOBID_SHIFT_BITS = 4`) شناسه‌ی blob است. اگر blob محلی باشد و برای نخستین بار در این shard ظاهر شود، شناسه صفر نوشته می‌شود و decoder آن را از شمارنده‌ی خودش استنتاج می‌کند.
+The remaining bits (after `BLOBID_SHIFT_BITS = 4`) are the blob ID. If the blob is local and appears for the first time in this shard, zero is written as the ID and the decoder infers it from its own counter.
 
-**مثال عددی:** یک تصویر RBD با شیء ۴M که دو نوشتن ۶۴K پشت‌سرهم در offsetهای 0 و 0x10000، هرکدام در blob تازه، دریافت کرده است:
+**Numerical example:** an RBD image with a 4M object that has received two consecutive 64K writes at offsets 0 and 0x10000, each in a new blob:
 
-| extent | blobid پیش از varint | بایت‌های lextent |
+| extent | blobid before varint | lextent bytes |
 |---|---|---|
-| ۱: lo=0، len=0x10000، boff=0 | CONTIGUOUS + ZEROOFFSET = 0x3 | `03` + lowz(0x10000)=`43` → ۲ بایت |
-| ۲: lo=0x10000، len=0x10000، boff=0 | CONTIGUOUS + ZEROOFFSET + SAMELENGTH = 0x7 | `07` → ۱ بایت |
+| 1: lo=0, len=0x10000, boff=0 | CONTIGUOUS + ZEROOFFSET = 0x3 | `03` + lowz(0x10000)=`43` → 2 bytes |
+| 2: lo=0x10000, len=0x10000, boff=0 | CONTIGUOUS + ZEROOFFSET + SAMELENGTH = 0x7 | `07` → 1 byte |
 
-پس از هر lextent، اگر blob تازه باشد، خود blob هم کدگذاری می‌شود: پرچم‌ها، pextentها (حدود ۵ بایت برای هرکدام) و آرایه‌ی checksum. برای blob ۶۴K با crc32c و chunk ۴K، آرایه‌ی checksum برابر 16 × 4 = 64 بایت است. پس **checksum غالب‌ترین بخش حجم onode است**، نه آدرس‌ها. با `bluestore_csum_type=crc32c_16` این حجم نصف می‌شود.
+After each lextent, if the blob is new, the blob itself is also encoded: flags, pextents (about 5 bytes each) and the checksum array. For a 64K blob with crc32c and a 4K chunk, the checksum array is 16 × 4 = 64 bytes. So **checksums are the dominant part of an onode's size**, not the addresses. With `bluestore_csum_type=crc32c_16` this volume is halved.
 
-| گزینه | پیش‌فرض | نقش |
+| Option | Default | Role |
 |---|---|---|
-| `bluestore_extent_map_shard_max_size` | 1200 | اگر shard از این اندازه (بایت کدگذاری‌شده) بزرگ‌تر شود، دوباره shardبندی می‌شود |
-| `bluestore_extent_map_shard_target_size` | 500 | اندازه‌ی هدف هنگام shardبندی دوباره |
-| `bluestore_extent_map_shard_min_size` | 150 | shardهای کوچک‌تر از این با همسایه ادغام می‌شوند |
-| `bluestore_extent_map_inline_shard_prealloc_size` | 256 | پیش‌تخصیص بافر برای shard درون onode |
+| `bluestore_extent_map_shard_max_size` | 1200 | if a shard grows beyond this size (encoded bytes), it is resharded |
+| `bluestore_extent_map_shard_target_size` | 500 | target size when resharding |
+| `bluestore_extent_map_shard_min_size` | 150 | shards smaller than this are merged with a neighbour |
+| `bluestore_extent_map_inline_shard_prealloc_size` | 256 | buffer pre-allocation for the shard inside the onode |
 
 ::: {.deep}
-چرا shardبندی؟ RocksDB هر به‌روزرسانی را به‌صورت کامل بازنویسی می‌کند (LSM خاصیت read-modify-write در سطح مقدار ندارد). اگر یک تصویر RBD نوشتن‌های تصادفی ۴K زیادی روی یک شیء ۴M داشته باشد، extent map آن صدها lextent پیدا می‌کند. بدون shard، هر نوشتن ۴K باید چند کیلوبایت onode را دوباره در WAL و memtable بنویسد و write amplification فراداده به‌شدت بالا می‌رود. با shard، فقط shardی که بازه‌ی نوشته‌شده در آن است (حدود ۵۰۰ بایت) dirty می‌شود.
+Why sharding? RocksDB rewrites each update in full (an LSM has no read-modify-write at the value level). If an RBD image has many random 4K writes on one 4M object, its extent map gets hundreds of lextents. Without shards, every 4K write would have to rewrite several kilobytes of onode into the WAL and memtable, and metadata write amplification would rise sharply. With shards, only the shard containing the written range (about 500 bytes) becomes dirty.
 :::
 
-## shared blob و clone {#sec-24-6-4}
+## Shared blobs and clones {#sec-24-6-4}
 
-وقتی `rbd snap` یا `clone_range` یک blob را بین دو onode مشترک می‌کند، پرچم `FLAG_SHARED` روی blob گذاشته می‌شود و یک `sbid` می‌گیرد. شمارش ارجاع extentهای فیزیکی آن (`bluestore_extent_ref_map_t`: offset → {length، refs}) در کلید `X` + sbid ذخیره می‌شود. حذف یکی از clone‌ها فقط refs را کم می‌کند. فضای فیزیکی وقتی آزاد می‌شود که refs به صفر برسد.
+When `rbd snap` or `clone_range` shares a blob between two onodes, the `FLAG_SHARED` flag is set on the blob and it gets an `sbid`. The reference counts of its physical extents (`bluestore_extent_ref_map_t`: offset → {length, refs}) are stored under key `X` + sbid. Deleting one of the clones only decrements refs. The physical space is freed when refs reaches zero.
 
-# deferred write روی دیسک {#sec-24-7}
+# Deferred writes on disk {#sec-24-7}
 
-برای نوشتن‌های کوچک‌تر از `bluestore_prefer_deferred_size` (در HDD برابر 64K)، BlueStore داده را ابتدا همراه تراکنش فراداده در RocksDB می‌نویسد. ساختار آن:
+For writes smaller than `bluestore_prefer_deferred_size` (64K on HDD), BlueStore first writes the data into RocksDB together with the metadata transaction. Its structure:
 
-| struct | فیلدها |
+| struct | Fields |
 |---|---|
-| `bluestore_deferred_op_t` | `op` (فقط OP_WRITE=1)، `extents` (PExtentVector مقصد)، `data` (bufferlist) |
-| `bluestore_deferred_transaction_t` | `seq`، `ops` (لیست)، `released` (interval_set فضاهایی که پس از اعمال آزاد می‌شوند) |
+| `bluestore_deferred_op_t` | `op` (only OP_WRITE=1), `extents` (the destination PExtentVector), `data` (bufferlist) |
+| `bluestore_deferred_transaction_t` | `seq`, `ops` (a list), `released` (an interval_set of space freed after applying) |
 
 ```text
-pseudocode: چرخه‌ی deferred (خلاصه‌ی این کتاب)
-  txc: kv.set("L" + seq, encode(deferred_txn)); kv.submit_sync()     # WAL مربوط به RocksDB = پایداری
+pseudocode: the deferred cycle (this book's summary)
+  txc: kv.set("L" + seq, encode(deferred_txn)); kv.submit_sync()     # RocksDB's WAL = durability
   ack → client
-  deferred_queue: جمع‌آوری تا bluestore_deferred_batch_ops یا فشار throttle (128M)
-  _deferred_submit: aio_write(extents, data) روی دستگاه اصلی (بدون fsync جداگانه)
-  _deferred_aio_finish → در txc بعدی: kv.rmkey("L" + seq)     # پس از flush دستگاه
-  mount پس از crash: _deferred_replay() همه‌ی L* را دوباره روی دیسک می‌نویسد (idempotent)
+  deferred_queue: gather until bluestore_deferred_batch_ops or throttle pressure (128M)
+  _deferred_submit: aio_write(extents, data) on the main device (no separate fsync)
+  _deferred_aio_finish → in the next txc: kv.rmkey("L" + seq)     # after the device flush
+  mount after a crash: _deferred_replay() rewrites all L* to disk (idempotent)
 ```
 
-# allocator: چه کسی فضای خالی را می‌شناسد؟ {#sec-24-8}
+# The allocator: who knows the free space? {#sec-24-8}
 
-![allocatorها و freelist. allocator پیش‌فرض hybrid است: فضای خالی در یک AVL (درخت offset و درخت size) نگه داشته می‌شود و اگر حافظه‌ی آن از bluestore_hybrid_alloc_mem_cap (64M) بیشتر شود، قطعه‌های کوچک به یک Bitmap سرریز می‌کنند. freelist پایدار، در صورت استفاده، در پیشوند b قرار دارد: هر کلید ۱۲۸ واحد تخصیص را با ۱۲۸ بیت پوشش می‌دهد و تغییرات با merge operator از نوع bitwise_xor اعمال می‌شوند. در حالت allocation from file (پیش‌فرض)، allocator هنگام shutdown تمیز در یک فایل BlueFS ذخیره و پس از crash از روی onodeها بازسازی می‌شود](figures/ch24/f04_alloc.png){#fig-24-f04_alloc}
+![Allocators and the freelist. The default allocator is hybrid: free space is kept in an AVL (an offset tree and a size tree), and if its memory exceeds bluestore_hybrid_alloc_mem_cap (64M), small pieces overflow into a Bitmap. The persistent freelist, if used, is under prefix b: each key covers 128 allocation units with 128 bits, and changes are applied with a bitwise_xor merge operator. In allocation-from-file mode (the default), the allocator is saved to a BlueFS file on a clean shutdown and rebuilt from the onodes after a crash](figures/ch24/f04_alloc.png){#fig-24-f04_alloc}
 
-| allocator | ساختار | ویژگی |
+| Allocator | Structure | Property |
 |---|---|---|
-| `bitmap` | درخت سه‌سطحی بیت (`fastbmap_allocator_impl`) | حافظه‌ی ثابت و قابل پیش‌بینی (۱ بیت برای هر واحد)، ولی جستجوی تکه‌های بزرگ کندتر است |
-| `avl` | دو درخت AVL: بر اساس offset و بر اساس size | first-fit تا `bluestore_avl_alloc_bf_threshold=128K` یا تا وقتی آزاد بیش از `bf_free_pct=4%` باشد، سپس best-fit |
-| `btree` / `hybrid_btree2` | B-tree به‌جای AVL | مصرف حافظه‌ی کمتر برای هر بازه |
-| `hybrid` (پیش‌فرض) | AVL + Bitmap برای سرریز | سقف حافظه با `bluestore_hybrid_alloc_mem_cap=64M` |
-| `stupid` | درخت‌های bin | فقط برای آزمایش |
+| `bitmap` | a three-level bit tree (`fastbmap_allocator_impl`) | fixed, predictable memory (1 bit per unit), but searching for large pieces is slower |
+| `avl` | two AVL trees: by offset and by size | first-fit up to `bluestore_avl_alloc_bf_threshold=128K` or while free space is above `bf_free_pct=4%`, then best-fit |
+| `btree` / `hybrid_btree2` | a B-tree instead of AVL | lower memory use per range |
+| `hybrid` (default) | AVL + Bitmap for overflow | memory cap with `bluestore_hybrid_alloc_mem_cap=64M` |
+| `stupid` | bin trees | testing only |
 
 ::: {.note}
-`bluestore_allocator_lookup_policy` (در Squid، Tentacle و main موجود است) مشخص می‌کند جستجو از آخرین موقعیت یافته‌شده ادامه یابد (`hdd_optimized`، برای نوشتن پیوسته روی HDD و QLC) یا از ابتدای دستگاه آغاز شود (`ssd_optimized`)، یا بر اساس نوع دستگاه به‌طور خودکار (`auto`) تعیین شود.
+`bluestore_allocator_lookup_policy` (present in Squid, Tentacle and main) determines whether the search continues from the last found position (`hdd_optimized`, for sequential writes on HDD and QLC) or starts from the beginning of the device (`ssd_optimized`), or is chosen automatically by device type (`auto`).
 :::
 
-## امتیاز تکه‌تکه شدن {#sec-24-8-1}
+## The fragmentation score {#sec-24-8-1}
 
-`Allocator::get_fragmentation_score()` عددی بین ۰ (یک تکه‌ی پیوسته) و ۱ (همه‌ی فضای آزاد در تکه‌های تک‌بلوکی) برمی‌گرداند. ایده‌ی آن این است که یک تکه‌ی 2X بایتی ارزشمندتر از دو تکه‌ی X بایتی است. برای تکه‌های کوچک‌تر از 1M هر دو برابر شدن طول ۱٫۲ برابر وزن می‌گیرد، این ضریب تا 128M به‌طور خطی به ۱ می‌رسد و بالاتر از آن ثابت است. امتیاز به این شکل حساب می‌شود:
+`Allocator::get_fragmentation_score()` returns a number between 0 (one contiguous piece) and 1 (all free space in single-block pieces). The idea is that a 2X-byte piece is more valuable than two X-byte pieces. For pieces smaller than 1M, each doubling of length gets 1.2 times the weight; this factor falls linearly to 1 by 128M and stays constant above that. The score is computed like this:
 
 ```text
-score(len) ≈ تابع افزایشی محدب (درون‌یابی خطی بین 2^k و 2^(k+1) با ضرایب بالا)
-ideal    = score(sum)                          # همه‌ی آزاد در یک تکه
+score(len) ≈ an increasing convex function (linear interpolation between 2^k and 2^(k+1) with the factors above)
+ideal    = score(sum)                          # all free space in one piece
 terrible = (sum / block_size) × score(block_size)
 actual   = Σ score(len_i)
 fragmentation = (ideal − actual) / (ideal − terrible)
 ```
 
-| وضعیت فضای آزاد (مثال مفهومی) | امتیاز |
+| Free space state (conceptual example) | Score |
 |---|---|
-| یک تکه‌ی پیوسته‌ی 100G | 0 |
-| هزاران تکه‌ی 4M | میانه |
-| میلیون‌ها تکه‌ی 4K پراکنده | نزدیک 1 |
+| one contiguous 100G piece | 0 |
+| thousands of 4M pieces | middling |
+| millions of scattered 4K pieces | close to 1 |
 
 ```bash
 ceph daemon osd.4 bluestore allocator score block       # {"fragmentation_rating": 0.27...}
 ceph daemon osd.4 bluestore allocator fragmentation histogram block
-ceph-bluestore-tool free-score --path /var/lib/ceph/osd/ceph-4    # OSD متوقف
+ceph-bluestore-tool free-score --path /var/lib/ceph/osd/ceph-4    # OSD stopped
 ```
 
 ::: {.warn}
-امتیاز بالای ۰٫۸ روی HDD معمولاً یعنی blobهای جدید به چند تکه شکسته می‌شوند و نوشتن ترتیبی به تصادفی تبدیل می‌شود. راه حل معمول افزودن ظرفیت یا کاهش پرشدگی است. ابزار جادویی defrag برای BlueStore وجود ندارد. بازسازی OSD (حذف و backfill) آخرین راه است.
+A score above 0.8 on HDD usually means new blobs are broken into several pieces and sequential writes turn into random ones. The usual solution is adding capacity or reducing fullness. There is no magic defrag tool for BlueStore. Rebuilding the OSD (removal and backfill) is the last resort.
 :::
 
-## freelist و حالت بدون freelist {#sec-24-8-2}
+## The freelist and freelist-less mode {#sec-24-8-2}
 
-در `BitmapFreelistManager`، `bytes_per_block` برابر واحد تخصیص (`min_alloc_size`) و `blocks_per_key = bluestore_freelist_blocks_per_key = 128` است. پس هر کلید `b` با ۱۶ بایت مقدار، ۱۲۸ واحد (با واحد ۴K، یعنی ۵۱۲K دیسک) را پوشش می‌دهد. تخصیص و آزادسازی هر دو XOR با یک ماسک‌اند (`XorMergeOperator` با نام `bitwise_xor`). بنابراین بدون خواندن مقدار قبلی، فقط یک merge به RocksDB فرستاده می‌شود.
+In `BitmapFreelistManager`, `bytes_per_block` equals the allocation unit (`min_alloc_size`) and `blocks_per_key = bluestore_freelist_blocks_per_key = 128`. So each `b` key, with a 16-byte value, covers 128 units (with a 4K unit, 512K of disk). Allocation and release are both an XOR with a mask (`XorMergeOperator` named `bitwise_xor`). So without reading the previous value, only one merge is sent to RocksDB.
 
-گزینه‌ی `bluestore_allocation_from_file` از Quincy وجود دارد (در Pacific نیست) و در main پیش‌فرض `true` است. در این حالت به‌روزرسانی freelist در مسیر نوشتن حذف می‌شود و BlueStore هنگام umount تمیز، نقشه‌ی allocator را در فایل `ALLOCATOR_NCB_DIR/ALLOCATOR_NCB_FILE` درون BlueFS می‌نویسد. اگر shutdown تمیز نباشد، mount بعدی با `read_allocation_from_onodes` همه‌ی onodeها را پویش می‌کند تا فضای استفاده‌شده را بازسازی کند. این روش تراکنش‌ها را سبک‌تر می‌کند، ولی پس از crash زمان mount روی OSDهای پراز اشیا را چند دقیقه بیشتر می‌کند.
+The `bluestore_allocation_from_file` option has existed since Quincy (it is not in Pacific), and on main its default is `true`. In this mode the freelist update is removed from the write path, and on a clean umount BlueStore writes the allocator map into the file `ALLOCATOR_NCB_DIR/ALLOCATOR_NCB_FILE` inside BlueFS. If the shutdown is not clean, the next mount scans all onodes with `read_allocation_from_onodes` to rebuild the used space. This makes transactions lighter, but after a crash it adds several minutes to the mount time of OSDs full of objects.
 
-# کش BlueStore {#sec-24-9}
+# The BlueStore cache {#sec-24-9}
 
-![کش BlueStore. کش buffer به‌طور پیش‌فرض الگوریتم 2Q را دارد: داده‌ی تازه به warm_in می‌رود. با بیرون رانده شدن، فقط سرآیند آن در warm_out می‌ماند. اگر همان بازه دوباره خوانده شود، به hot منتقل می‌شود. این کار از بیرون راندن داده‌های پرکاربرد توسط یک اسکن ترتیبی جلوگیری می‌کند. autotune هر ۵ ثانیه حافظه را بر اساس osd_memory_target میان kv، meta و data تقسیم می‌کند](figures/ch24/f05_cache.png){#fig-24-f05_cache}
+![The BlueStore cache. The buffer cache uses the 2Q algorithm by default: fresh data goes to warm_in. When evicted, only its header remains in warm_out. If the same range is read again, it moves to hot. This prevents a sequential scan from evicting frequently used data. Every 5 seconds autotune splits memory between kv, meta and data based on osd_memory_target](figures/ch24/f05_cache.png){#fig-24-f05_cache}
 
-| گزینه | پیش‌فرض | نقش |
+| Option | Default | Role |
 |---|---|---|
-| `bluestore_cache_type` | 2q | نوع کش buffer (`2q` یا `lru`)؛ کش onode همیشه LRU است |
-| `bluestore_2q_cache_kin_ratio` / `kout_ratio` | 0.5 / 0.5 | سهم warm_in و اندازه‌ی warm_out |
-| `bluestore_cache_autotune` | true | تقسیم پویا با PriorityCache |
-| `bluestore_cache_autotune_interval` | 5 | ثانیه |
-| `bluestore_cache_size_hdd` / `ssd` | 1_G / 3_G | فقط وقتی autotune خاموش باشد |
-| `bluestore_cache_meta_ratio` / `kv_ratio` / `kv_onode_ratio` | 0.45 / 0.45 / 0.04 | سهم‌های اولیه در حالت دستی |
-| `osd_memory_cache_min` | 128_M | کف کل کش |
+| `bluestore_cache_type` | 2q | buffer cache type (`2q` or `lru`); the onode cache is always LRU |
+| `bluestore_2q_cache_kin_ratio` / `kout_ratio` | 0.5 / 0.5 | warm_in share and warm_out size |
+| `bluestore_cache_autotune` | true | dynamic split with PriorityCache |
+| `bluestore_cache_autotune_interval` | 5 | seconds |
+| `bluestore_cache_size_hdd` / `ssd` | 1_G / 3_G | only when autotune is off |
+| `bluestore_cache_meta_ratio` / `kv_ratio` / `kv_onode_ratio` | 0.45 / 0.45 / 0.04 | initial shares in manual mode |
+| `osd_memory_cache_min` | 128_M | floor for the whole cache |
 
-کش‌ها shardبندی شده‌اند (هر shard عملیاتی OSD کش خودش را دارد) تا رقابت روی قفل کم شود. onodeها با شمارنده‌ی ارجاع pin می‌شوند. onodeی که در یک تراکنش در جریان استفاده می‌شود، تا پایان تراکنش بیرون رانده نمی‌شود، حتی اگر کش پر باشد.
+The caches are sharded (each OSD op shard has its own cache) to reduce lock contention. Onodes are pinned with a reference counter. An onode in use by an in-flight transaction is not evicted until the transaction ends, even if the cache is full.
 
 ```bash
 ceph daemon osd.4 perf dump bluestore | jq '.bluestore | {onodes, onode_hits, onode_misses}'
 ceph daemon osd.4 dump_mempools | jq '.mempool.by_pool | {o: .bluestore_cache_onode, d: .bluestore_cache_data}'
 ```
 
-# تخصیص فضا با عدد {#sec-24-10}
+# Space allocation in numbers {#sec-24-10}
 
-فضای آزاد دستگاه اصلی BlueStore را تخصیص‌دهنده (allocator) نگه می‌دارد. پیش‌فرض `bluestore_allocator = hybrid` است: یک AVL allocator که بخشی از بازه‌هایش را در صورت نیاز به bitmap allocator می‌سپارد. این بخش سه الگوریتم آن را با عدد دنبال می‌کند.
+The free space of BlueStore's main device is kept by the allocator. The default is `bluestore_allocator = hybrid`: an AVL allocator that hands part of its ranges to a bitmap allocator when needed. This section follows three of its algorithms with numbers.
 
-## near-fit و best-fit در AVL {#sec-24-10-1}
+## near-fit and best-fit in AVL {#sec-24-10-1}
 
-::: {.algo #alg-24-1 title="انتخاب بازه در AvlAllocator" src="src/os/bluestore/AvlAllocator.cc :: AvlAllocator::_allocate، _pick_block_after، _pick_block_fits" complexity="near-fit O(log R + c) با سقف c = 100 گام یا 16 MiB پیمایش؛ best-fit O(log R) روی درخت اندازه"}
+::: {.algo #alg-24-1 title="Choosing a range in AvlAllocator" src="src/os/bluestore/AvlAllocator.cc :: AvlAllocator::_allocate, _pick_block_after, _pick_block_fits" complexity="near-fit O(log R + c) with a cap of c = 100 steps or 16 MiB scanned; best-fit O(log R) on the size tree"}
 :::
 
 ```text
 pseudocode
-max_size = بزرگ‌ترین بازه (انتهای درخت اندازه)
-if max_size < want: want = p2align(max_size, unit) ; force best-fit   # تخصیص تکه‌ای
+max_size = the largest range (the end of the size tree)
+if max_size < want: want = p2align(max_size, unit) ; force best-fit   # piecewise allocation
 free_pct = num_free × 100 / device_size
 if force or max_size < bf_threshold (128K) or free_pct < bf_free_pct (4): best-fit
 else near-fit:
-    align = want & −want ; cursor = lbas[cbits(align) − 1]   # یک cursor برای هر توان دو
-    از lower_bound(cursor) در درخت offset جلو برو تا offset + want ≤ end
-    (حداکثر ff_max_search_count = 100 بازه یا ff_max_search_bytes = 16M؛ بعد از ابتدا تا cursor)
-best-fit: lower_bound({0, want}) در درخت اندازه ⇒ کوچک‌ترین بازه‌ی کافی؛ در تساوی، offset کمتر
+    align = want & −want ; cursor = lbas[cbits(align) − 1]   # one cursor per power of two
+    walk forward from lower_bound(cursor) in the offset tree until offset + want ≤ end
+    (at most ff_max_search_count = 100 ranges or ff_max_search_bytes = 16M; then from the start up to cursor)
+best-fit: lower_bound({0, want}) in the size tree ⇒ the smallest sufficient range; on a tie, the lower offset
 ```
 
-**مثال عددی.** بخشی از دستگاه چهار بازه‌ی آزاد دارد: 32K در 0x10000، 128K در 0x40000، 32K در 0x100000 و 1M در 0x200000.
+**Numerical example.** Part of the device has four free ranges: 32K at 0x10000, 128K at 0x40000, 32K at 0x100000 and 1M at 0x200000.
 
-- **درخواست 64K (near-fit):** align = 0x10000، پس cbits = 17 و cursor = lbas[16] = 0. بازه‌ی اول کوچک است و cursor به 0x20000 می‌رود. بازه‌ی دوم جا دارد: offset = 0x40000 و cursor = 0x50000. درخواست 64K بعدی با همین cursor از 0x50000 ادامه می‌دهد، پس تخصیص‌های هم‌اندازه کنار هم می‌افتند.
-- **درخواست 32K (best-fit):** فرض کنید دستگاه بزرگ است و فضای آزاد زیر 4٪ آمده. درخت اندازه دو بازه‌ی 32K دارد و lower_bound با کلید {0، 32K} آنکه offset کمتر دارد را برمی‌گرداند، یعنی 0x10000. بازه‌ی 1M دست نخورده می‌ماند.
+- **A 64K request (near-fit):** align = 0x10000, so cbits = 17 and cursor = lbas[16] = 0. The first range is too small and the cursor moves to 0x20000. The second range fits: offset = 0x40000 and cursor = 0x50000. The next 64K request continues from 0x50000 with the same cursor, so same-sized allocations land next to each other.
+- **A 32K request (best-fit):** suppose the device is large and free space has dropped below 4%. The size tree has two 32K ranges, and lower_bound with key {0, 32K} returns the one with the lower offset, that is 0x10000. The 1M range stays untouched.
 
-جریمه‌ی near-fit این است که بازه‌های بزرگ را تکه‌تکه می‌کند. best-fit کندتر نیست، اما تخصیص‌های پیاپی را از هم دور می‌کند. به همین دلیل فقط وقتی فضا کم است فعال می‌شود.
+The penalty of near-fit is that it fragments large ranges. best-fit is not slower, but it spreads consecutive allocations apart. That is why it is only enabled when space is low.
 
-![سه نمای یک ناحیه‌ی 3 مگابایتی از دستگاه. سبز بازه‌ی آزاد است و هاشور بخش تخصیص‌یافته. در نمای میانی، near-fit با cursor مخصوص اندازه‌ی 64K از ابتدای ناحیه جلو می‌رود، بازه‌ی 32K را رد می‌کند و ابتدای بازه‌ی 128K را برمی‌دارد. در نمای پایین، best-fit درخواست 32K را دقیقاً در کوچک‌ترین بازه‌ی کافی می‌گذارد تا بازه‌های بزرگ برای درخواست‌های بزرگ بمانند](figures/ch24/f07_avl.png){#fig-24-f07_avl}
+![Three views of a 3-megabyte region of the device. Green is a free range and hatching is the allocated part. In the middle view, near-fit with the cursor for the 64K size walks forward from the start of the region, skips the 32K range and takes the start of the 128K range. In the bottom view, best-fit places the 32K request exactly in the smallest sufficient range, so the large ranges remain for large requests](figures/ch24/f07_avl.png){#fig-24-f07_avl}
 
-## امتیاز تکه‌تکه شدن با عدد {#sec-24-10-2}
+## The fragmentation score in numbers {#sec-24-10-2}
 
-::: {.algo #alg-24-2 title="محاسبه‌ی fragmentation_rating" src="src/os/bluestore/Allocator.cc :: Allocator::get_fragmentation_score" complexity="O(R) برای R بازه‌ی آزاد (یک پیمایش با foreach_interruptible)"}
+::: {.algo #alg-24-2 title="Computing fragmentation_rating" src="src/os/bluestore/Allocator.cc :: Allocator::get_fragmentation_score" complexity="O(R) for R free ranges (one pass with foreach_interruptible)"}
 :::
 
 ```text
 pseudocode
-scale[0] = 1 ; scale[k+1] = scale[k] × w(k)    # w = 1.2 تا 2^20، خطی تا 1.0 در 2^27، بعد 1.0
+scale[0] = 1 ; scale[k+1] = scale[k] × w(k)    # w = 1.2 up to 2^20, linear to 1.0 at 2^27, then 1.0
 score(v): sc = floor(log2 v) ; b = 2^sc ; x = (v − b)/b
-          return b·scale[sc]·(1 − x) + 2b·scale[sc+1]·x       # درون‌یابی خطی
+          return b·scale[sc]·(1 − x) + 2b·scale[sc+1]·x       # linear interpolation
 actual = Σ score(len_i) ; ideal = score(Σ len) ; terrible = (Σ len / block_size) × score(block_size)
 rating = (ideal − actual) / (ideal − terrible)
 ```
 
-**مثال عددی (block_size = 4K، 1 GiB آزاد).** این اعداد با پیاده‌سازی مستقل همین فرمول حساب شده‌اند:
+**Numerical example (block_size = 4K, 1 GiB free).** These numbers were computed with an independent implementation of the same formula:
 
-- یک تکه‌ی 1G، و هر تکه‌ی بزرگ‌تر از 128M: امتیاز 0.
-- تکه‌های 16M: 0.093.
-- تکه‌های 1M: 0.498.
-- تکه‌های 64K: 0.837.
-- تکه‌های 16K: 0.933.
-- تکه‌های 4K: 1.
-- **ترکیب 896 مگابایتی** (دو تکه‌ی 256M، 256 تکه‌ی 1M و 2048 تکه‌ی 64K): 0.262. بیشتر فضا در تکه‌های بزرگ است، پس امتیاز پایین می‌ماند، هرچند تعداد تکه‌های کوچک زیاد است.
+- One 1G piece, and any piece larger than 128M: score 0.
+- 16M pieces: 0.093.
+- 1M pieces: 0.498.
+- 64K pieces: 0.837.
+- 16K pieces: 0.933.
+- 4K pieces: 1.
+- **An 896-megabyte mix** (two 256M pieces, 256 1M pieces and 2048 64K pieces): 0.262. Most of the space is in large pieces, so the score stays low even though there are many small pieces.
 
-چون ضریب بالای 128M برابر 1 است، تکه‌هایی بزرگ‌تر از 128M هیچ جریمه‌ای ندارند. امتیاز بالای 0.8 روی HDD معمولاً یعنی min_alloc_size کوچک و تخصیص‌های پراکنده. در این حالت نوشتن‌های بزرگ به چند extent شکسته می‌شوند.
+Because the factor above 128M is 1, pieces larger than 128M carry no penalty. A score above 0.8 on HDD usually means a small min_alloc_size and scattered allocations. In that state, large writes are broken into several extents.
 
-![امتیاز تکه‌تکه شدن برای یک گیگابایت فضای آزاد که به تکه‌های هم‌اندازه تقسیم شده است. محور افقی لگاریتمی است. منحنی میان 1 مگابایت و 128 مگابایت سریع پایین می‌آید، چون ضریب ارزش هر دو برابر شدن طول در این بازه از 1.2 به 1 کاهش می‌یابد. خط‌چین آبی ترکیب نمونه‌ی متن است که با وجود هزاران تکه‌ی کوچک امتیاز 0.26 دارد](figures/ch24/f06_fragscore.png){#fig-24-f06_fragscore}
+![The fragmentation score for one gigabyte of free space divided into equal-sized pieces. The horizontal axis is logarithmic. The curve falls quickly between 1 megabyte and 128 megabytes, because the value factor for each doubling of length decreases from 1.2 to 1 in this range. The dashed blue line is the text's sample mix, which has a score of 0.26 despite thousands of small pieces](figures/ch24/f06_fragscore.png){#fig-24-f06_fragscore}
 
-## سرریز hybrid به bitmap {#sec-24-10-3}
+## Hybrid overflow to bitmap {#sec-24-10-3}
 
-::: {.algo #alg-24-3 title="سقف حافظه‌ی AVL و انتقال بازه به bitmap" src="src/os/bluestore/AvlAllocator.h :: AvlAllocator::_try_insert_range؛ src/os/bluestore/HybridAllocator_impl.h :: HybridAllocatorBase::allocate، _spillover_range" complexity="درج O(log R)؛ با سقف R ≤ range_count_cap"}
+::: {.algo #alg-24-3 title="AVL memory cap and moving ranges to bitmap" src="src/os/bluestore/AvlAllocator.h :: AvlAllocator::_try_insert_range; src/os/bluestore/HybridAllocator_impl.h :: HybridAllocatorBase::allocate, _spillover_range" complexity="insert O(log R); with the cap R ≤ range_count_cap"}
 :::
 
 ```text
 pseudocode
 range_count_cap = bluestore_hybrid_alloc_mem_cap (64M) / sizeof(range_seg_t)
 insert(start, end):
-    if size_tree.size < cap: درج در AVL
-    elif end − start > کوچک‌ترین بازه‌ی AVL: درج و انتقال کوچک‌ترین به bitmap
-    else: مستقیم به bitmap
+    if size_tree.size < cap: insert into the AVL
+    elif end − start > the smallest AVL range: insert and move the smallest to bitmap
+    else: straight to bitmap
 allocate(want):
-    primary = AVL ، مگر bitmap فضای آزاد دارد و want < کوچک‌ترین بازه‌ی AVL ⇒ primary = bitmap
-    از primary بگیر ؛ کسری را از دیگری بگیر ؛ هیچ ⇒ ENOSPC
+    primary = AVL, unless bitmap has free space and want < the smallest AVL range ⇒ primary = bitmap
+    take from primary ; take the shortfall from the other ; nothing ⇒ ENOSPC
 ```
 
-**مثال عددی.** هر range_seg_t دو عدد 64 بیتی (start و end، روی هم 16 بایت) و دو hook درخت AVL از boost::intrusive دارد (`offset_hook` و `size_hook`). `MEMPOOL_CLASS_HELPERS()` فقط operator new/delete تعریف می‌کند و عضو داده‌ای اضافه نمی‌کند. هر `avl_set_member_hook<>` با پارامترهای پیش‌فرض (بدون optimize_size) سه اشاره‌گر parent، left و right و یک فیلد balance دارد که با هم‌ترازی 8 بایتی 32 بایت می‌شود. پس sizeof(range_seg_t) = 16 + 32 + 32 = **80 بایت** است. این عدد را با کامپایل یک برنامه‌ی کوچک با همین چیدمان روی x86-64 (هدرهای boost.intrusive شاخه‌ی اصلی، Clang 22.1 از طریق zig c++ 0.17.1، استاندارد C++17) بررسی کردیم: خروجی hook = 32، seg = 80، offsetof(size_hook) = 48 و alignof = 8 بود. سقف 64 مگابایتی (`bluestore_hybrid_alloc_mem_cap` = 64 MiB = 67108864 بایت) بنابراین ⌊67108864 / 80⌋ = 838860 بازه را در AVL نگه می‌دارد. حافظه‌ی واقعی کمی بیشتر است، چون سربار تخصیص‌دهنده‌ی heap در این محاسبه نیست. روی معماری‌های 32 بیتی یا با هدرهای boost دیگر ممکن است عدد فرق کند.
+**Numerical example.** Each range_seg_t has two 64-bit numbers (start and end, 16 bytes together) and two boost::intrusive AVL tree hooks (`offset_hook` and `size_hook`). `MEMPOOL_CLASS_HELPERS()` only defines operator new/delete and adds no data member. Each `avl_set_member_hook<>` with default parameters (no optimize_size) has three pointers, parent, left and right, and a balance field, which with 8-byte alignment comes to 32 bytes. So sizeof(range_seg_t) = 16 + 32 + 32 = **80 bytes**. We checked this number by compiling a small program with the same layout on x86-64 (boost.intrusive headers from the main branch, Clang 22.1 via zig c++ 0.17.1, the C++17 standard): the output was hook = 32, seg = 80, offsetof(size_hook) = 48 and alignof = 8. The 64-megabyte cap (`bluestore_hybrid_alloc_mem_cap` = 64 MiB = 67108864 bytes) therefore keeps ⌊67108864 / 80⌋ = 838860 ranges in the AVL. The real memory is a bit higher, because the heap allocator's overhead is not in this calculation. On 32-bit architectures or with other boost headers the number may differ.
 
-- **HDD شانزده ترابایتی با 30٪ فضای آزاد و میانگین تکه‌ی 64K:** حدود 4.8T / 64K، یعنی نزدیک 73 میلیون بازه وجود دارد. پس بیش از 98٪ بازه‌ها، یعنی کوچک‌ترین‌ها، در bitmap می‌مانند و AVL فقط بزرگ‌ترین‌ها را نگه می‌دارد.
-- **تخصیص 4K:** از کوچک‌ترین بازه‌ی AVL کوچک‌تر است، پس مستقیم از bitmap گرفته می‌شود و بازه‌های بزرگ دست نخورده می‌مانند.
+- **A sixteen-terabyte HDD with 30% free space and an average piece of 64K:** there are about 4.8T / 64K, that is nearly 73 million ranges. So more than 98% of the ranges, the smallest ones, stay in the bitmap, and the AVL keeps only the largest.
+- **A 4K allocation:** it is smaller than the smallest AVL range, so it is taken directly from the bitmap and the large ranges stay untouched.
 
-![دو مسیر hybrid allocator. ردیف بالا درج یک بازه‌ی آزاد است: تا سقف حافظه بازه در دو درخت AVL درج می‌شود و پس از آن کوچک‌ترین بازه‌ها به bitmap رانده می‌شوند. ردیف پایین تخصیص است: درخواست‌های کوچک‌تر از کوچک‌ترین بازه‌ی AVL اول از bitmap پاسخ می‌گیرند. این کار حافظه‌ی OSD را محدود نگه می‌دارد، بدون اینکه بازه‌های بزرگ گم شوند](figures/ch24/f08_hybrid.png){#fig-24-f08_hybrid}
+![The two paths of the hybrid allocator. The top row is inserting a free range: up to the memory cap the range is inserted into the two AVL trees, and after that the smallest ranges are pushed to the bitmap. The bottom row is allocation: requests smaller than the smallest AVL range are answered from the bitmap first. This keeps the OSD's memory bounded without losing large ranges](figures/ch24/f08_hybrid.png){#fig-24-f08_hybrid}
 
 ::: {.tip}
-برای دیدن وضعیت واقعی، `ceph daemon osd.N bluestore allocator score block` و `bluestore allocator fragmentation histogram block` را اجرا کنید. اگر بیشتر بازه‌ها کوچک‌اند و امتیاز بالاست، `ceph-bluestore-tool --command free-dump` توزیع کامل را می‌دهد. این دستور فقط روی OSD متوقف اجرا می‌شود.
+To see the real state, run `ceph daemon osd.N bluestore allocator score block` and `bluestore allocator fragmentation histogram block`. If most ranges are small and the score is high, `ceph-bluestore-tool --command free-dump` gives the full distribution. This command only runs on a stopped OSD.
 :::
 
-# روی دیسک واقعی: label و نقشه‌ی فضای آزاد {#sec-24-11}
+# On a real disk: the label and the free space map {#sec-24-11}
 
-دو شکل این بخش از OSDهای BlueStore یک کلاستر آزمایشی با Ceph 18.2.7 گرفته شده‌اند. دستگاه block هر OSD یک فایل sparse ده‌گیگابایتی بود.
+The two figures in this section were taken from the BlueStore OSDs of a test cluster with Ceph 18.2.7. Each OSD's block device was a ten-gigabyte sparse file.
 
-## 588 بایت نخست label {#sec-24-11-1}
+## The first 588 bytes of the label {#sec-24-11-1}
 
-بایت‌ها مستقیم از فایل block خوانده شدند و با خروجی `ceph-bluestore-tool show-label` مقایسه شدند. این کلاستر بدون cephx بود، پس meta کلید `osd_key` نداشت. در کلاستر واقعی این فیلد را پیش از نشان دادن به کسی حذف کنید.
+The bytes were read directly from the block file and compared with the output of `ceph-bluestore-tool show-label`. This cluster had no cephx, so meta had no `osd_key`. On a real cluster, remove this field before showing it to anyone.
 
-::: {.algo #alg-24-4 title="رمزگشایی و وارسی label" src="bluestore_bdev_label_t::encode/decode در src/os/bluestore/bluestore_types.cc؛ _write_bdev_label با bl.crc32c(-1) در BlueStore.cc" complexity="O(طول label)"}
+::: {.algo #alg-24-4 title="Decoding and verifying the label" src="bluestore_bdev_label_t::encode/decode in src/os/bluestore/bluestore_types.cc; _write_bdev_label with bl.crc32c(-1) in BlueStore.cc" complexity="O(label length)"}
 :::
 
 ```text
 pseudocode
-b = 4 KiB نخست دستگاه
-از 60 بایت متنی بپر: "bluestore block device\n" (23) + uuid متنی + "\n" (37)
-struct_v = b[60] ؛ compat = b[61] ؛ len = u32le(b[62:66])        # ENCODE_START(2, 1)
-osd_uuid = b[66:82] ؛ size = u64le(b[82:90]) ؛ btime = (u32 sec, u32 nsec)
-description = (u32 len, bytes) ؛ meta = u32 count و سپس count جفت (u32 len, key)(u32 len, value)
-end = 60 + 6 + len ؛ crc = u32le(b[end:end+4])
-درست اگر crc32c(seed = 0xffffffff, بدون xor پایانی)(b[0:end]) == crc
+b = the first 4 KiB of the device
+skip the 60 text bytes: "bluestore block device\n" (23) + text uuid + "\n" (37)
+struct_v = b[60] ; compat = b[61] ; len = u32le(b[62:66])        # ENCODE_START(2, 1)
+osd_uuid = b[66:82] ; size = u64le(b[82:90]) ; btime = (u32 sec, u32 nsec)
+description = (u32 len, bytes) ; meta = u32 count then count pairs (u32 len, key)(u32 len, value)
+end = 60 + 6 + len ; crc = u32le(b[end:end+4])
+valid if crc32c(seed = 0xffffffff, no final xor)(b[0:end]) == crc
 ```
 
-**مقادیر واقعی.**
+**Real values.**
 
-- **سرآیند ساختار:** در آفست 0x3c مقدار `02 01` یعنی struct_v = 2 و compat = 1، و `06 02 00 00` یعنی طول 518. پس بدنه تا آفست 584 ادامه دارد.
-- **size:** ‏`00 00 00 80 02 00 00 00` برابر 0x280000000، یعنی 10737418240 بایت.
-- **btime:** شامل sec = 1794712746 و nsec = 393184192، یعنی 2026-11-15 06:49:06.393 به وقت تهران.
-- **description و meta:** مقدار description برابر "main" است و meta چهارده جفت دارد، از جمله `bfm_blocks = 2621440`، `bfm_bytes_per_block = 4096`، `kv_backend = rocksdb` و `magic = ceph osd volume v026`.
-- **crc:** چهار بایت آفست 0x248 برابر 0xb012c37d است. همین مقدار را با پیاده‌سازی مستقل crc32c (چندجمله‌ای Castagnoli، seed برابر −1، بدون xor پایانی) دوباره حساب کردیم. ‏decoder همان 60 بایت را با `p += 60u` رد می‌کند.
+- **Structure header:** at offset 0x3c the value `02 01`, that is struct_v = 2 and compat = 1, and `06 02 00 00`, that is a length of 518. So the body continues up to offset 584.
+- **size:** `00 00 00 80 02 00 00 00` equals 0x280000000, that is 10737418240 bytes.
+- **btime:** sec = 1794712746 and nsec = 393184192, that is 2026-11-15 06:49:06.393 Tehran time.
+- **description and meta:** the description value is "main", and meta has fourteen pairs, including `bfm_blocks = 2621440`, `bfm_bytes_per_block = 4096`, `kv_backend = rocksdb` and `magic = ceph osd volume v026`.
+- **crc:** the four bytes at offset 0x248 are 0xb012c37d. We recomputed this value with an independent crc32c implementation (the Castagnoli polynomial, seed −1, no final xor). The decoder skips the same 60 bytes with `p += 60u`.
 
-![588 بایت نخست label واقعی osd.0 روی کلاستر آزمایشی Ceph 18.2.7، به رنگ میدان‌ها: متن جادویی و uuid متنی (60 بایت)، سرآیند ENCODE_START با نسخه و طول، uuid دودویی، size، btime، description، meta چهارده‌جفتی و crc32c پایانی که با محاسبه‌ی مستقل وارسی شد](figures/ch24/f09_labelhex.png){#fig-24-f09_labelhex}
+![The first 588 bytes of the real label of osd.0 on the Ceph 18.2.7 test cluster, coloured by field: the magic text and text uuid (60 bytes), the ENCODE_START header with version and length, the binary uuid, size, btime, description, the fourteen-pair meta and the final crc32c, which was verified with an independent computation](figures/ch24/f09_labelhex.png){#fig-24-f09_labelhex}
 
-## نقشه‌ی فضای آزاد allocator {#sec-24-11-2}
+## The allocator's free space map {#sec-24-11-2}
 
-ابزار مورد استفاده `ceph daemon osd.0 bluestore allocator dump block` است. این فرمان فهرست کامل extentهای آزاد را می‌دهد. `… allocator score block` هم fragmentation_rating را برمی‌گرداند. هر دو برای allocator پیش‌فرض این نسخه (hybrid) با min_alloc_size برابر 4 KiB گرفته شدند. سه لحظه ثبت شد:
+The tool used is `ceph daemon osd.0 bluestore allocator dump block`. This command gives the complete list of free extents. `… allocator score block` returns the fragmentation_rating. Both were taken for this version's default allocator (hybrid) with a min_alloc_size of 4 KiB. Three moments were recorded:
 
-- **A:** پس از حذف poolهای آزمایشی قبلی (بنچمارک‌های 4 KiB و 4 MiB). امتیاز 0.0163 بود.
-- **B:** پس از نوشتن 6000 شیء 64 KiB در یک pool تک‌نسخه‌ای. امتیاز 0.0167 بود.
-- **C:** پس از حذف تصادفی 51٪ آن شیءها. امتیاز 0.0215 بود.
+- **A:** after deleting the earlier test pools (the 4 KiB and 4 MiB benchmarks). The score was 0.0163.
+- **B:** after writing 6000 64 KiB objects into a single-replica pool. The score was 0.0167.
+- **C:** after randomly deleting 51% of those objects. The score was 0.0215.
 
-**آنچه داده نشان می‌دهد.**
+**What the data shows.**
 
-1. **حفره‌های 4 KiB:** حتی در A، فضای آزاد به 26235 extent تکه شده بود که 23218 تای آن‌ها فقط 4 KiB بودند. علت دقیق این حفره‌ها را در این آزمایش جدا نکردیم. احتمالاً به جای‌گیری درهم با داده‌ها و فراداده‌های زنده برمی‌گردد.
-2. **حجم فضای آزاد:** حدود 8.5 GiB فضای آزاد تقریباً همه در چند extent بزرگ 256 MiB تا 2.4 GiB است.
-3. **نوشتن 64 KiB:** این نوشتن‌ها حفره‌های 4 KiB را پر نکردند، چون allocator برای درخواست 64 KiB یک extent پیوسته می‌خواهد. حذف تصادفی بعدی حدود 330 حفره‌ی تازه‌ی 64 تا 512 KiB ساخت.
-4. **امتیاز کلی:** fragmentation_rating در هر سه حالت زیر 0.03 ماند. این امتیاز با وزن بایت حساب می‌شود (الگوریتم امتیاز fragmentation در بخش قبل) و وقتی بیشتر بایت‌های آزاد در extentهای بزرگ‌اند، ده‌ها هزار حفره‌ی کوچک آن را بالا نمی‌برند.
+1. **4 KiB holes:** even in A, the free space was fragmented into 26235 extents, 23218 of which were only 4 KiB. We did not isolate the exact cause of these holes in this experiment. It probably comes from interleaved placement with live data and metadata.
+2. **Amount of free space:** about 8.5 GiB of free space is almost all in a few large extents of 256 MiB to 2.4 GiB.
+3. **64 KiB writes:** these writes did not fill the 4 KiB holes, because the allocator wants a contiguous extent for a 64 KiB request. The later random deletion created about 330 new holes of 64 to 512 KiB.
+4. **Overall score:** fragmentation_rating stayed below 0.03 in all three states. This score is byte-weighted (the fragmentation score algorithm in the previous section), and when most free bytes are in large extents, tens of thousands of small holes do not raise it.
 
-پس امتیاز پایین به این معنا نیست که «حفره‌ی کوچک نداریم». تعداد extentها روی حافظه‌ی allocator و زمان جست‌وجو اثر دارد. برای دیدن آن، خود فهرست extentها را بشمارید.
+So a low score does not mean "we have no small holes". The number of extents affects the allocator's memory and search time. To see it, count the extent list itself.
 
-![نقشه‌ی واقعی فضای آزاد osd.0 در سه لحظه. چپ: تعداد extentهای آزاد در هر بازه‌ی اندازه (محور لگاریتمی). راست: مجموع بایت آزاد در هر بازه. ده‌ها هزار حفره‌ی 4 KiB تقریباً هیچ سهمی از بایت‌ها ندارند و به همین دلیل fragmentation_rating پایین می‌ماند](figures/ch24/f10_freemap.png){#fig-24-f10_freemap}
+![The real free space map of osd.0 at three moments. Left: the number of free extents in each size range (logarithmic axis). Right: the total free bytes in each range. Tens of thousands of 4 KiB holes have almost no share of the bytes, which is why fragmentation_rating stays low](figures/ch24/f10_freemap.png){#fig-24-f10_freemap}
 
-# تکمیلی و به‌روز {#sec-24-12}
+# Supplementary and up to date {#sec-24-12}
 
-- **کپی‌های label** (`bdev_label_positions`) در کد Squid، Tentacle و main وجود دارند. **حالت envelope در BlueFS** فقط در Tentacle و main هست و در Squid نیست. اگر خوشه‌ی مختلط دارید، روی OSDهای قدیمی‌تر روی این ویژگی‌ها حساب نکنید.
-- `hybrid_btree2` و `bluestore_allocator_lookup_policy` در Squid و بالاتر وجود دارند.
-- شاخه‌ی main همچنین ساختارهای مربوط به نوشتن جدید BlueStore (مثل `segment_size` در onode و FragMetric در `bluestore_common.h`) را دارد که بخشی از کارهای در جریان روی کاهش تکه‌تکه شدن و EC جدید است. جزئیات آن را پیش از انتشار نهایی در یادداشت‌های نسخه دنبال کنید.
+- **Label copies** (`bdev_label_positions`) exist in the code of Squid, Tentacle and main. **Envelope mode in BlueFS** is only in Tentacle and main, not in Squid. If you have a mixed cluster, do not count on these features on the older OSDs.
+- `hybrid_btree2` and `bluestore_allocator_lookup_policy` exist in Squid and later.
+- The main branch also has structures for BlueStore's new write path (such as `segment_size` in the onode and FragMetric in `bluestore_common.h`), which are part of ongoing work on reducing fragmentation and the new EC. Follow the details in the release notes before the final release.
 
-# تمرین عملی {#sec-24-13}
+# Hands-on exercise {#sec-24-13}
 
-1. روی یک OSD آزمایشی ۴K اول دستگاه را با `dd` بخوانید. ۶۰ بایت متنی را ببینید، بقیه را با خروجی `ceph-bluestore-tool show-label` مقایسه کنید و crc را با تابع پایتون فصل ۲۳ دوباره حساب کنید.
-2. یک تابع `lowz` و `lba` بنویسید، مقادیر جدول این فصل را بازتولید کنید و برای offsetهای واقعی خروجی `ceph-bluestore-tool fsck --deep` یا `dump onode` اندازه‌ی کدگذاری را بسنجید.
-3. یک تصویر RBD را با fio به‌صورت تصادفی 4K بنویسید و تعداد کلیدهای `O` با پسوند `x` (shardها) را پیش و پس از آن با `ceph-kvstore-tool` بشمارید.
-4. `bluestore allocator score block` را روزانه روی چند OSD ثبت و با درصد پر بودن آن‌ها مقایسه کنید.
-5. OSD را با `kill -9` متوقف کنید، دوباره راه بیندازید و در لاگ زمان `read_allocation_from_onodes` را اندازه بگیرید.
+1. On a test OSD, read the device's first 4K with `dd`. Look at the 60 text bytes, compare the rest with the output of `ceph-bluestore-tool show-label`, and recompute the crc with the Python function from chapter 23.
+2. Write a `lowz` and an `lba` function, reproduce the values in this chapter's table, and measure the encoded size for real offsets from the output of `ceph-bluestore-tool fsck --deep` or `dump onode`.
+3. Write an RBD image with random 4K fio, and count the `O` keys with an `x` suffix (shards) before and after with `ceph-kvstore-tool`.
+4. Record `bluestore allocator score block` daily on several OSDs and compare it with how full they are.
+5. Stop an OSD with `kill -9`, start it again, and measure the time of `read_allocation_from_onodes` in the log.
 
-# پرسش‌های مرور {#sec-24-14}
+# Review questions {#sec-24-14}
 
-1. ۶۰ بایت اول label شامل چیست و چرا decoder از آن می‌پرد؟
-2. چرا superblock مربوط به BlueFS همیشه در offset 4096 است؟
-3. `denc_lba` برای offset هم‌تراز با ۴K چند بایت مصرف می‌کند و چرا؟
-4. چه شرطی فشرده‌سازی لاگ BlueFS را آغاز می‌کند؟
-5. چرا hash در کلید onode بیت‌معکوس است؟
-6. پرچم‌های BLOBID در extent map چه صرفه‌جویی‌ای ایجاد می‌کنند؟
-7. چرا checksum بزرگ‌ترین بخش یک blob کدگذاری‌شده است؟
-8. hybrid allocator چگونه مصرف حافظه را محدود می‌کند؟
-9. چرا freelist از merge با XOR استفاده می‌کند؟
-10. الگوریتم 2Q چه مشکلی از LRU را حل می‌کند؟
+1. What do the label's first 60 bytes contain, and why does the decoder skip them?
+2. Why is the BlueFS superblock always at offset 4096?
+3. How many bytes does `denc_lba` use for a 4K-aligned offset, and why?
+4. What condition starts BlueFS log compaction?
+5. Why is the hash in the onode key bit-reversed?
+6. What savings do the BLOBID flags in the extent map create?
+7. Why is the checksum the largest part of an encoded blob?
+8. How does the hybrid allocator limit memory use?
+9. Why does the freelist use merge with XOR?
+10. What problem of LRU does the 2Q algorithm solve?
 
-# منابع این فصل {#sec-24-15}
+# Sources for this chapter {#sec-24-15}
 
-- انواع BlueStore: https://github.com/ceph/ceph/blob/main/src/os/bluestore/bluestore_types.h
-- انواع BlueFS: https://github.com/ceph/ceph/blob/main/src/os/bluestore/bluefs_types.h
-- کدگذاری denc: https://github.com/ceph/ceph/blob/main/src/include/denc.h
-- امتیاز تکه‌تکه شدن: https://github.com/ceph/ceph/blob/main/src/os/bluestore/Allocator.cc
+- BlueStore types: https://github.com/ceph/ceph/blob/main/src/os/bluestore/bluestore_types.h
+- BlueFS types: https://github.com/ceph/ceph/blob/main/src/os/bluestore/bluefs_types.h
+- denc encoding: https://github.com/ceph/ceph/blob/main/src/include/denc.h
+- Fragmentation score: https://github.com/ceph/ceph/blob/main/src/os/bluestore/Allocator.cc
 - BitmapFreelistManager: https://github.com/ceph/ceph/blob/main/src/os/bluestore/BitmapFreelistManager.cc
-- پیکربندی BlueStore: https://docs.ceph.com/en/latest/rados/configuration/bluestore-config-ref/
+- BlueStore configuration: https://docs.ceph.com/en/latest/rados/configuration/bluestore-config-ref/
 - ceph-bluestore-tool: https://docs.ceph.com/en/latest/man/8/ceph-bluestore-tool/
-- مقاله‌ی BlueStore (SOSP 2019): https://www.pdl.cmu.edu/PDL-FTP/Storage/ceph-exp-sosp19.pdf
-- 2Q (Johnson و Shasha، VLDB 1994): https://www.vldb.org/conf/1994/P439.PDF
+- The BlueStore paper (SOSP 2019): https://www.pdl.cmu.edu/PDL-FTP/Storage/ceph-exp-sosp19.pdf
+- 2Q (Johnson and Shasha, VLDB 1994): https://www.vldb.org/conf/1994/P439.PDF
