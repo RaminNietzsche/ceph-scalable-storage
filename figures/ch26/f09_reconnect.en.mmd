@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant C as Client (out_seq=120)
+  participant S as OSD (in_seq=118)
+  Note over C: sent = messages 118, 119, 120 (unacked)
+  C--xS: TCP drops
+  Note over C: requeue_sent: out_seq = 120 − 3 = 117 and 118..120 to the head of the HIGHEST queue
+  C->>S: banner, HELLO, AUTH
+  C->>S: SESSION_RECONNECT with global_seq, connect_seq and msg_seq=the client's in_seq
+  S->>S: handle_reconnect: check cookie and global_seq
+  S-->>C: SESSION_RECONNECT_OK with msg_seq=118
+  Note over C: discard_requeued_up_to(117, 118): 118 is discarded and out_seq = 118
+  C->>S: MESSAGE seq 119
+  C->>S: MESSAGE seq 120
+  S-->>C: ACK 120

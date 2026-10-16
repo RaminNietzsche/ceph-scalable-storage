@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["AsyncMessenger"]
+    direction LR
+    A["NetworkStack (Posix)"] --> W1["Worker 0<br/>EventCenter"] --> W2["Worker 1"] --> W3["Worker 2<br/>(ms_async_op_threads=3)"]
+  end
+  subgraph R2["Loop of each Worker"]
+    direction LR
+    E["process_events():<br/>timers"] --> P["epoll_wait<br/>(EPOLLET)"] --> F["fd callbacks<br/>read/write handler"] --> X["external events<br/>(from other threads)"]
+  end
+  subgraph R3["Wake-up"]
+    direction LR
+    T["another thread:<br/>dispatch_event_external"] --> Q["external queue"] --> N["eventfd write<br/>(or pipe)"] --> P2["epoll wakes up"]
+  end
+  R1 ~~~ R2 ~~~ R3

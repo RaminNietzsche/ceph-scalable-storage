@@ -1608,80 +1608,74 @@ ch25/f10_wgroup:
   Sync اگر هر عضو sync خواسته باشد: Sync if any member asked for sync
   درج batchها با seq پیوسته: insert the batches with consecutive seq
 ch26/f01_hs:
-  کلاینت: null
-  سرور: null
-  از اینجا: null
-  یا: null
-  روی بایت‌های تبادل‌شده: null
+  کلاینت (connect): Client (connect)
+  سرور (accept): Server (accept)
+  'از اینجا: crc یا secure (AES-128-GCM)': 'From here on: crc or secure (AES-128-GCM)'
+  AUTH_SIGNATURE (HMAC روی بایت‌های تبادل‌شده): AUTH_SIGNATURE (HMAC over the exchanged bytes)
 ch26/f02_frame:
-  بایت: null
-  روی: null
-  حالت: null
-  اولین: null
-  بقیه‌ی: null
-  ها: null
-  به: null
-  پیام: null
+  (pad به 16): (padded to 16)
+  preamble_block_t (32 بایت): preamble_block_t (32 bytes)
+  seed 0 روی 28 بایت: seed 0 over 28 bytes
+  حالت crc، msgr2.1: crc mode, msgr2.1
+  + crc32c(−1) 4 بایت: + crc32c(−1) 4 bytes
+  حالت secure، msgr2.1: secure mode, msgr2.1
+  preamble 32 + اولین 48 بایت: preamble 32 + first 48 bytes
+  بقیه‌ی segmentها: remaining segments
+  پیام (Tag MESSAGE): Message (Tag MESSAGE)
 ch26/f03_state:
-  سمت: null
-  جلسه: null
-  جلسه‌ی تازه: null
-  قبلی: null
-  دریافت یک پیام در: null
-  تعداد: null
-  خطا و پایان: null
-  خطای سوکت: null
-  یا: null
-  با: null
+  سمت connect: connect side
+  جلسه: Session
+  جلسه‌ی تازه: new session
+  cookie قبلی: previous cookie
+  دریافت یک پیام در READY: Receiving a message in READY
+  تعداد: count
+  خطا و پایان: Fault and close
+  خطای سوکت: socket error
+  یا reconnect با backoff: or reconnect with backoff
+  سمت accept: accept side
 ch26/f04_event:
-  حلقه‌ی هر: null
-  زمان‌سنج‌ها: null
-  های: null
-  از: null
-  های دیگر: null
-  بیدار کردن: null
-  دیگر: null
-  صف: null
-  یا: null
-  بیدار می‌شود: null
+  حلقه‌ی هر Worker: Loop of each Worker
+  زمان‌سنج‌ها: timers
+  callbackهای fd: fd callbacks
+  از threadهای دیگر: from other threads
+  بیدار کردن: Wake-up
+  'thread دیگر:': 'another thread:'
+  صف external: external queue
+  یا pipe: or pipe
+  epoll بیدار می‌شود: epoll wakes up
 ch26/f08_evloop:
-  محاسبه‌ی مهلت در: null
-  اگر نخستین: null
-  زودتر است: null
-  مهلت: null
-  تا آن زمان: null
-  کف مهلت: null
-  اگر: null
-  یا رویداد خارجی هست: null
-  انتظار و رویدادهای فایل: null
-  با مهلت: null
-  برای هر: null
-  آماده: null
-  در صورت: null
-  اگر با: null
-  یکی نباشد: null
-  زمان‌دار و خارجی: null
-  مرتب بر حسب زمان: null
-  زیر: null
-  روی هر رویداد: null
-  مثلاً ارسال پیام از: null
-  دیگر: null
-  بیدار کردن از: null
-  در: null
-  و: null
-  بیدار می‌شود: null
+  محاسبه‌ی مهلت در process_events: Timeout computation in process_events
+  'اگر نخستین time event زودتر است:': 'if the first time event is earlier:'
+  مهلت = تا آن زمان: timeout = until then
+  'کف مهلت: ms_time_events_min_wait_interval': 'timeout floor: ms_time_events_min_wait_interval'
+  'اگر poller یا رویداد خارجی هست:': 'if there is a poller or an external event:'
+  مهلت = 0: timeout = 0
+  انتظار و رویدادهای فایل: Wait and file events
+  epoll_wait با مهلت: epoll_wait with the timeout
+  'برای هر fd آماده:': 'for each ready fd:'
+  read_cb در صورت READABLE: read_cb if READABLE
+  write_cb در صورت WRITABLE: write_cb if WRITABLE
+  اگر با read_cb یکی نباشد: unless it is the same as read_cb
+  زمان‌دار و خارجی: Timed and external
+  map مرتب بر حسب زمان: map sorted by time
+  زیر external_lock: under external_lock
+  do_request روی هر رویداد: do_request on each event
+  مثلاً ارسال پیام از thread دیگر: e.g. sending a message from another thread
+  بیدار کردن از thread دیگر: Wake-up from another thread
+  push در external_events: push into external_events
+  و external_num_events++: and external_num_events++
+  write(eventfd، 1): write(eventfd, 1)
+  epoll_wait بیدار می‌شود: epoll_wait wakes up
 ch26/f09_reconnect:
-  کلاینت: null
-  پیام‌های: null
-  بی: null
-  قطع: null
-  یعنی: null
-  و: null
-  به سر صف: null
-  با: null
-  سمت کلاینت: null
-  یعنی بررسی: null
-  دور ریخته می‌شود و: null
+  کلاینت (out_seq=120): Client (out_seq=120)
+  sent = پیام‌های 118، 119، 120 (بی‌ack): sent = messages 118, 119, 120 (unacked)
+  قطع TCP: TCP drops
+  requeue_sent یعنی out_seq = 120 − 3 = 117 و 118..120 به سر صف HIGHEST: 'requeue_sent: out_seq = 120 − 3 = 117 and 118..120 to the head of the HIGHEST queue'
+  banner، HELLO، AUTH: banner, HELLO, AUTH
+  SESSION_RECONNECT با global_seq، connect_seq و msg_seq=in_seq سمت کلاینت: SESSION_RECONNECT with global_seq, connect_seq and msg_seq=the client's in_seq
+  handle_reconnect یعنی بررسی cookie و global_seq: 'handle_reconnect: check cookie and global_seq'
+  SESSION_RECONNECT_OK با msg_seq=118: SESSION_RECONNECT_OK with msg_seq=118
+  discard_requeued_up_to(117، 118) یعنی 118 دور ریخته می‌شود و out_seq = 118: 'discard_requeued_up_to(117, 118): 118 is discarded and out_seq = 118'
 ch27/f01_stripe:
   شیء: null
   چیدمان یک: null

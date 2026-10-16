@@ -1,0 +1,19 @@
+flowchart TB
+  subgraph T["Timeout computation in process_events"]
+    direction LR
+    t1["end = now + 30 s<br/>(EventMaxWaitUs)"] --> t2["if the first time event is earlier:<br/>timeout = until then"] --> t3["timeout floor: ms_time_events_min_wait_interval<br/>= 1000 µs"] --> t4["if there is a poller or an external event:<br/>timeout = 0"]
+  end
+  subgraph W["Wait and file events"]
+    direction LR
+    w1["driver.event_wait<br/>epoll_wait with the timeout"] --> w2["for each ready fd:<br/>read_cb if READABLE"] --> w3["write_cb if WRITABLE<br/>unless it is the same as read_cb"]
+  end
+  subgraph X["Timed and external"]
+    direction LR
+    x1["process_time_events<br/>(map sorted by time)"] --> x2["external_events.swap<br/>under external_lock"] --> x3["do_request on each event<br/>(e.g. sending a message from another thread)"]
+  end
+  subgraph K["Wake-up from another thread"]
+    direction LR
+    k1["dispatch_event_external(e)"] --> k2["push into external_events<br/>and external_num_events++"] --> k3["wakeup: write(eventfd, 1)"] --> k4["epoll_wait wakes up"]
+  end
+  T --> W --> X
+  X ~~~ K

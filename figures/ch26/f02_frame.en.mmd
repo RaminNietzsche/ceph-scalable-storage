@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph R1["preamble_block_t (32 bytes)"]
+    direction LR
+    A["tag (1)<br/>num_segments (1)"] --> B["segments[4]<br/>{length u32, alignment u16} × 4 = 24"] --> C["flags (1)<br/>_reserved (1)"] --> D["crc32c (4)<br/>seed 0 over 28 bytes"]
+  end
+  subgraph R2["crc mode, msgr2.1"]
+    direction LR
+    E["preamble 32"] --> F["segment 0<br/>+ crc32c(−1) 4 bytes"] --> G["segment 1..3"] --> H["epilogue:<br/>late_status(1) + crc×3"]
+  end
+  subgraph R3["secure mode, msgr2.1"]
+    direction LR
+    I["preamble 32 + first 48 bytes<br/>segment 0 (inline)"] --> J["GCM tag 16"] --> K["remaining segments<br/>(padded to 16) + tag 16"]
+  end
+  subgraph R4["Message (Tag MESSAGE)"]
+    direction LR
+    M0["0: header2<br/>(seq, tid, type, prio, ...)"] --> M1["1: front"] --> M2["2: middle"] --> M3["3: data<br/>(alignment 4096)"]
+  end
+  R1 ~~~ R2 ~~~ R3 ~~~ R4
