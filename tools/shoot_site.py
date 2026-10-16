@@ -72,6 +72,29 @@ SEED = r"""([lang, name]) => {
     localStorage.setItem('book-progress:' + lang, JSON.stringify({ v: 2, read, max: {}, last: { s: chs[13], f: 0.3, h: '', t: Date.now() }, marks: [], g }));
 }"""
 
+# every lab card must show a drawn icon and a non-empty preview
+CARD_VIS = r"""() => [...document.querySelectorAll('.lab-card')].map(c => {
+    const ic = c.querySelector('.sim-ic'), path = ic && ic.querySelector('path'), th = c.querySelector('.lab-thumb');
+    const st = ic ? getComputedStyle(ic).stroke : 'none', bb = path ? path.getBBox() : {width: 0, height: 0};
+    const tr = th ? th.getBoundingClientRect() : {width: 0, height: 0};
+    const drawn = th ? [...th.querySelectorAll('svg rect, svg path, svg line, svg text, td, .sim-stat, li, .ec-card, .ps-osd, .st-set')].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).length : 0;
+    return { href: c.getAttribute('href'), icon: !!path && st !== 'none' && bb.width > 0 && bb.height > 0, stroke: st,
+             thumb: tr.width > 100 && tr.height > 50, drawn };
+})"""
+
+
+def check_cards(page, where):
+    cards = page.evaluate(CARD_VIS)
+    if len(cards) != 7:
+        problems.append(f'[{where}] {len(cards)} lab cards (expected 7)')
+    for c in cards:
+        if not c['icon']:
+            problems.append(f'[{where}] {c["href"]}: icon not drawn (stroke {c["stroke"]})')
+        if not c['thumb'] or c['drawn'] < 3:
+            problems.append(f'[{where}] {c["href"]}: preview empty ({c})')
+    return cards
+
+
 # UI consistency (fonts of every control, equal badge cards): fa desktop and mobile, light and dark
 FONT_CHECK = r"""(want) => {
     const bad = [];
@@ -502,7 +525,17 @@ with sync_playwright() as pw:
     page.goto(url('fa', 'index'))
     page.evaluate("localStorage.removeItem('book-progress:fa')")
     page.goto(url('fa', 'lab'))
+    for _th in page.locator('.lab-thumb').all():
+        _th.scroll_into_view_if_needed()
+    page.evaluate('window.scrollTo(0, 0)')
+    notes.append(f'[lab cards] {check_cards(page, "lab fa")}')
     p = os.path.join(OUT, 'fa-desktop-lab.png'); page.screenshot(path=p, full_page=True); shots.append(p)
+    page.goto(url('en', 'lab'))
+    for _th in page.locator('.lab-thumb').all():
+        _th.scroll_into_view_if_needed()
+    check_cards(page, 'lab en')
+    p = os.path.join(OUT, 'en-desktop-lab.png'); page.screenshot(path=p, full_page=True); shots.append(p)
+    page.goto(url('fa', 'lab'))
     for n in SIMS:
         page.goto(url('fa', f'lab-{n}'))
         if not mounted(page, n):
@@ -530,6 +563,9 @@ with sync_playwright() as pw:
     ssnap(page, 'fa-print-sim-bluestore')
     page.emulate_media(media='screen')
     page.goto(url('fa', 'index'))
+    page.locator('#lab').scroll_into_view_if_needed()
+    page.wait_for_timeout(200)
+    check_cards(page, 'home fa')
     ssnap(page, 'fa-desktop-home-lab', el='#lab')
     page.goto(url('en', 'lab-crush'))
     if mounted(page, 'crush'):
@@ -546,6 +582,12 @@ with sync_playwright() as pw:
         p = os.path.join(OUT, 'fa-mobile-sim-crush.png'); page.screenshot(path=p, full_page=True); shots.append(p)
     ctx.close()
     ctx, page = sim_ctx(scheme='dark', tag='sim dark')
+    page.goto(url('fa', 'lab'))
+    for _th in page.locator('.lab-thumb').all():
+        _th.scroll_into_view_if_needed()
+    page.evaluate('window.scrollTo(0, 0)')
+    check_cards(page, 'lab fa dark')
+    p = os.path.join(OUT, 'fa-dark-lab.png'); page.screenshot(path=p, full_page=True); shots.append(p)
     page.goto(url('fa', 'lab-peering'))
     if mounted(page, 'peering'):
         drive(page, 'peering')

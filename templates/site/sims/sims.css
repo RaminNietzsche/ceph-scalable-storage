@@ -2,14 +2,16 @@
 .sim-slot { margin: 1.6rem 0; }
 .sim-slot .sim-print { display: none; }
 .sim-slot.sim-on > .sim-fallback { display: none; }
-.sim { --sim-a: var(--accent); --sim-hot: #d97706; --sim-ok: #059669; --sim-bad: #dc2626; --sim-c0: #0891b2; --sim-c1: #7c3aed; --sim-c2: #059669; --sim-c3: #db2777; --sim-c4: #ca8a04; --sim-c5: #2563eb;
+/* simulator palette: on .sim and on the lab cards (their icon and preview live outside .sim) */
+.sim, .lab-card, .sim-head { --sim-a: var(--accent); --sim-hot: #d97706; --sim-ok: #059669; --sim-bad: #dc2626; --sim-c0: #0891b2; --sim-c1: #7c3aed; --sim-c2: #059669; --sim-c3: #db2777; --sim-c4: #ca8a04; --sim-c5: #2563eb; }
+.sim {
   border: 1px solid var(--card-line); border-radius: 14px; background: var(--card); box-shadow: 0 1px 2px rgba(15, 23, 42, .04); padding: 1rem 1.1rem 1.1rem; font-size: .93rem; line-height: 1.6; }
-html[data-theme="dark"] .sim { --sim-hot: #f59e0b; --sim-ok: #34d399; --sim-bad: #f87171; --sim-c0: #22d3ee; --sim-c1: #a78bfa; --sim-c2: #34d399; --sim-c3: #f472b6; --sim-c4: #facc15; --sim-c5: #60a5fa; }
+html[data-theme="dark"] .sim, html[data-theme="dark"] .lab-card { --sim-hot: #f59e0b; --sim-ok: #34d399; --sim-bad: #f87171; --sim-c0: #22d3ee; --sim-c1: #a78bfa; --sim-c2: #34d399; --sim-c3: #f472b6; --sim-c4: #facc15; --sim-c5: #60a5fa; }
 .sim-fallback { margin: 0; }
 .sim-fallback > .sim { box-shadow: none; }
 .sim-fallback figcaption.sim-cap { font-size: .85rem; color: var(--fg-mute); margin-top: .4rem; }
 .sim-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
-.sim-ic { width: 34px; height: 34px; padding: 6px; border-radius: 10px; background: var(--bg-soft); stroke: var(--sim-a); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.sim-ic { width: 34px; height: 34px; padding: 6px; border-radius: 10px; background: var(--bg-soft); stroke: var(--sim-a, var(--accent)); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .sim-ttl { flex: 1 1 12rem; min-width: 0; }
 .sim-ttl h3 { margin: 0; font-size: 1.08rem; line-height: 1.35; }
 .sim-tag { font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--sim-a); }
@@ -197,13 +199,25 @@ ul.sim-warn { padding-inline-start: 1.2rem; }
 
 /* lab pages */
 .lab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: .9rem; margin: 1.2rem 0; }
-.lab-card { display: flex; flex-direction: column; gap: .35rem; border: 1px solid var(--card-line); border-radius: 14px; padding: .9rem 1rem; background: var(--card); color: var(--fg); text-decoration: none; transition: border-color .2s, transform .2s; }
-.lab-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-.lab-card .sim-ic { margin-bottom: .2rem; }
-.lab-card b { font-size: 1rem; }
-.lab-card span { color: var(--fg-soft); font-size: .86rem; }
-.lab-card small { color: var(--fg-mute); font-size: .78rem; }
+.lab-card { display: flex; flex-direction: column; gap: .4rem; border: 1px solid var(--card-line); border-radius: 14px; padding: 0 0 .9rem; overflow: hidden; background: var(--card); color: var(--fg); text-decoration: none; transition: border-color .2s, transform .2s, box-shadow .2s; }
+.lab-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
+.lab-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lab-card-h { display: flex; align-items: center; gap: .6rem; padding: .7rem 1rem 0; }
+.lab-card-h .sim-ic { width: 34px; height: 34px; }
+.lab-card-h b { font-size: 1rem; line-height: 1.4; }
+.lab-card > .lab-card-d { color: var(--fg-soft); font-size: .86rem; padding: 0 1rem; }
+.lab-card > small { color: var(--fg-mute); font-size: .78rem; padding: 0 1rem; margin-top: auto; }
 .lab-card small a { color: var(--link); }
+/* preview: the visual parts of the static figure (THUMB_PARTS in build_site.py) at half size, clipped in a 16:9 box */
+.lab-thumb { display: block; position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: var(--bg-soft); border-bottom: 1px solid var(--card-line);
+  contain: layout paint; pointer-events: none; user-select: none; }
+.lab-thumb-in { position: absolute; top: 0; inset-inline-start: 0; width: calc(100% / .5); transform: scale(.5); transform-origin: top left; }
+html[dir="rtl"] .lab-thumb-in { transform-origin: top right; }
+.lab-thumb .sim { border: 0; box-shadow: none; background: transparent; padding: 1.2rem 1.4rem; margin: 0; font-size: .93rem; }
+.lab-thumb .sim-out > * { margin-top: 0; }
+.lab-thumb::after { content: ""; position: absolute; inset: auto 0 0 0; height: 28%; background: linear-gradient(to bottom, transparent, var(--bg-soft)); }
+.lab-thumb-ph { display: grid; place-items: center; }
+.lab-thumb-ph .sim-ic { width: 72px; height: 72px; padding: 14px; background: var(--card); }
 .lab-in { font-size: .86rem; color: var(--fg-soft); }
 
 @media (max-width: 720px) {

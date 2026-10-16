@@ -11,6 +11,7 @@ restructures the book.
 
 - Every control (buttons, `.btn`, chips, toggles, simulator controls, quiz and flashcard buttons, header pills, inputs and selects) now uses the site font (Vazirmatn in Persian, Inter in English) with one size, weight and line-height scale, instead of the browser's system font.
 - Badge gallery: a uniform grid with equal-size cards, titles clamped to two lines, descriptions to three, and tier labels and progress bars aligned at the bottom; learning-path and part cards stretch to equal height.
+- Interactive lab cards (lab page and home): the icons were empty because the simulator palette (`--sim-a`) was defined only inside `.sim`; it now also applies to the cards. Each card has a preview: the visual part of the simulator's static figure (histogram, sequence diagram, table, OSD logs or object grid) at half size in a 16:9 box, using the theme colours (dark mode included). Without node, a large icon stands in. `shoot_site` checks that all 7 cards show a drawn icon and a non-empty preview (fa, en, dark, home).
 - `tools/shoot_site.py --ui-only` checks the computed font of every visible control and the badge card sizes (fa desktop and mobile, light and dark).
 
 ### Interactive lab (web edition)

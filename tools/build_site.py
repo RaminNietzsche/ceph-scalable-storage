@@ -215,6 +215,48 @@ def sim_icon(name):
     return f'<svg class="sim-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="{d}"/></svg>'
 
 
+# the parts of each static figure that make a readable preview (first match of each)
+THUMB_PARTS = {'crush': ('sim-stats', 'sim-fig'), 'pgcalc': ('sim-stats', 'table-wrap'), 'ecprofile': ('sim-stats', 'ec-cards'),
+               'peering': ('ps-top', 'ps-osds'), 'bluestore': ('sim-stats', 'sim-fig'), 'rgwput': ('sim-stats', 'sim-fig'),
+               'striping': ('sim-stats', 'st-sets')}
+
+
+def sim_thumb(name):
+    """Preview for a lab card: the visual part (.sim-out) of the static figure, scaled down by CSS.
+    Interactive or linking elements are flattened (the card itself is the link) and ids get a
+    prefix so they stay unique next to a live simulator. Without node, a large icon stands in."""
+    h = SIMFB['html'].get(name)
+    out = frag(h).select_one('.sim-out') if h else None
+    if out is None:
+        return f'<div class="lab-thumb lab-thumb-ph" aria-hidden="true">{sim_icon(name)}</div>'
+    keep, seen = THUMB_PARTS.get(name, ()), set()
+    for c in list(out.find_all(recursive=False)):
+        cls = next((k for k in keep if k in (c.get('class') or [])), None)
+        if keep and (cls is None or cls in seen):
+            c.decompose()
+        elif cls:
+            seen.add(cls)
+    for t in out.find_all(['a', 'button', 'summary']):
+        t.name = 'span'
+        for k in ('href', 'type', 'aria-pressed', 'aria-expanded', 'tabindex'):
+            t.attrs.pop(k, None)
+    for t in out.find_all(['details', 'input', 'select', 'textarea']):
+        if t.name == 'details':
+            t.name = 'div'
+            t.attrs.pop('open', None)
+        else:
+            t.decompose()
+    html_ = str(out)
+    for i in re.findall(r'\bid="([^"]+)"', html_):
+        html_ = html_.replace(f'id="{i}"', f'id="th-{i}"').replace(f'#{i})', f'#th-{i})').replace(f'href="#{i}"', f'href="#th-{i}"')
+    return (f'<div class="lab-thumb" aria-hidden="true"><div class="lab-thumb-in"><div class="sim sim-{name} sim-static">{html_}</div></div></div>')
+
+
+def lab_card(name, where=''):
+    return (f'<a class="lab-card" href="lab-{name}.html">{sim_thumb(name)}<span class="lab-card-h">{sim_icon(name)}<b>{esc(SIMY[name + "_t"])}</b></span>'
+            f'<span class="lab-card-d">{esc(SIMY[name + "_d"])}</span>{where}</a>')
+
+
 def sim_slot_html(name):
     inner = SIMFB['html'].get(name) or f'<div class="sim-head">{sim_icon(name)}<div class="sim-ttl"><h3>{esc(SIMY[name + "_t"])}</h3></div></div><p class="sim-sub">{esc(SIMY[name + "_d"])}</p>'
     return (f'<div class="sim-slot" data-sim="{name}" data-href="lab-{name}.html"><figure class="sim-fallback"><div class="sim sim-{name} sim-static">{inner}</div>'
@@ -799,7 +841,7 @@ if LANG == 'en':
         for t in list(body.find_all(string=True)):
             if type(t) is not NavigableString or not t.strip():
                 continue
-            if t.find_parent(SKIP) or t.find_parent(class_=['url', 'code', 'hanchor', 'term', 'cmd', 'src', 'sim-slot']):
+            if t.find_parent(SKIP) or t.find_parent(class_=['url', 'code', 'hanchor', 'term', 'cmd', 'src', 'sim-slot', 'lab-thumb']):
                 continue
             new_t = _word.sub(lambda m: m.group(0) if any(c.isupper() for c in m.group(0)[1:]) else _dic.inserted(m.group(0), hyphen='\u00ad'), str(t))
             if new_t != str(t):
@@ -826,7 +868,7 @@ def index_docs(p):
             continue
         if type(el) is not NavigableString:
             continue
-        if el.find_parent(['h2', 'h3']) or el.find_parent(class_='hanchor') or el.find_parent(class_='code-head') or el.find_parent(class_='sim-slot'):
+        if el.find_parent(['h2', 'h3']) or el.find_parent(class_='hanchor') or el.find_parent(class_='code-head') or el.find_parent(class_='sim-slot') or el.find_parent(class_='lab-thumb'):
             continue
         state['buf'].append(str(el).replace('\u200f', ''))
     flush()
@@ -915,7 +957,7 @@ rp = (f'<div class="rp" id="rp" hidden><div class="ring-wrap">{ring("big")}<b cl
 term = ('<div class="term" dir="ltr" aria-hidden="true"><div class="term-bar"><i></i><i></i><i></i><span>' + esc(S['term_label']) + '</span></div>'
         '<pre><span class="tp">$</span> ceph -s\n  cluster:\n    health: <span class="tok">HEALTH_OK</span>\n  services:\n    mon: 3 daemons, quorum a,b,c\n'
         '    osd: 36 osds: 36 up, 36 in\n    rgw: 3 daemons active\n  data:\n    pgs: <span class="tok">1024 active+clean</span></pre></div>')
-LAB_CARDS = ''.join(f'<a class="lab-card" href="lab-{n}.html">{sim_icon(n)}<b>{esc(SIMY[n + "_t"])}</b><span>{esc(SIMY[n + "_d"])}</span></a>' for n in SIM_NAMES)
+LAB_CARDS = ''.join(lab_card(n) for n in SIM_NAMES)
 home = f'''<article class="content home" id="top">
 <section class="hero"><div class="hero-text">
 <div class="hbadge"><span class="pulse" aria-hidden="true"></span>{esc(S["badge"].format(v=loc(META["version_display"])))}</div>
@@ -954,8 +996,7 @@ def lab_where(name):
 
 
 LAB = AppPage('lab', SIMY['lab_title'])
-_cards = ''.join(f'<a class="lab-card" href="lab-{n}.html">{sim_icon(n)}<b>{esc(SIMY[n + "_t"])}</b><span>{esc(SIMY[n + "_d"])}</span>'
-                 f'<small>{esc(SIMY["lab_in"])} {esc(UI["list_sep"].join((f"{UI["chapter_word"]} {loc(pg.chap)}" if pg.chap else pg.nav_text) for pg, _, _ in SIM_WHERE[n]))}</small></a>'
+_cards = ''.join(lab_card(n, f'<small>{esc(SIMY["lab_in"])} {esc(UI["list_sep"].join((f"{UI["chapter_word"]} {loc(pg.chap)}" if pg.chap else pg.nav_text) for pg, _, _ in SIM_WHERE[n]))}</small>')
                  for n in SIM_NAMES)
 emit(LAB, f'<article class="content app app-lab" id="top"><header class="page-head"><h1>{esc(LAB.title_text)}</h1></header>'
           f'<p class="lead">{esc(SIMY["lab_intro"])}</p><div class="lab-grid">{_cards}</div></article>', f'{LAB.title_text} · {BOOK}')
