@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph I["Profile input: plugin=lrc k=4 m=2 l=3"]
+    direction LR
+    i1["local_group_count = (k+m)/l = 2"] --> i2["k/2 = 2 data and m/2 = 1 parity per group"] --> i3["each group l+1 = 4 chunks ⇒ 8 in total"]
+  end
+  subgraph M["Strings generated in parse_kml"]
+    direction LR
+    m1["mapping = DD__DD__"] --> m2["global layer: DDc_DDc_"] --> m3["local layer 1: DDDc____"] --> m4["local layer 2: ____DDDc"]
+  end
+  subgraph R["Repairing a chunk of group 1"]
+    direction LR
+    r1["chunk 1 lost"] --> r2["local layer 1: read 0, 2, 3"] --> r3["three chunks instead of four<br/>and traffic within the rack"]
+  end
+  subgraph Q["CRUSH rule with crush-locality=rack"]
+    direction LR
+    q1["choose 2 type rack"] --> q2["chooseleaf 4 type host"]
+  end
+  I --> M --> R --> Q

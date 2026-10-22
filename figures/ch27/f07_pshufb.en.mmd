@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph A["Input: 32 bytes of data in one ymm register (AVX2)"]
+    direction LR
+    a1["d = B7 4C 01 …"] --> a2["lo = d AND 0x0F<br/>07 0C 01 …"] --> a3["hi = (d ≫ 4) AND 0x0F<br/>0B 04 00 …"]
+  end
+  subgraph B["Two parallel lookups with VPSHUFB"]
+    direction LR
+    b1["VPSHUFB(tbl_lo, lo)<br/>0E 18 02 …"] --> b2["VPSHUFB(tbl_hi, hi)<br/>7D 80 00 …"] --> b3["VPXOR ⇒ c·d<br/>73 98 02 …"]
+  end
+  subgraph C["Accumulating into the parity (gf_vect_dot_prod / gf_vect_mad)"]
+    direction LR
+    c1["P ⊕= c0·D0"] --> c2["P ⊕= c1·D1"] --> c3["… up to c(k-1)·D(k-1)"] --> c4["store 32 bytes of P"]
+  end
+  A --> B --> C

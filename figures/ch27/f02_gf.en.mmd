@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["GF(2^8) with the polynomial 0x11D"]
+    direction LR
+    A["addition = XOR"] --> B["multiplication: shift and XOR with 0x1D<br/>if bit 8 overflows"] --> C["or log/exp tables:<br/>a·b = exp[(log a + log b) mod 255]"]
+  end
+  subgraph R2["Generator matrix (k=4, m=2) ISA-L Vandermonde"]
+    direction LR
+    I["I₄ (systematic)"] --> V0["row P0: 1 1 1 1"] --> V1["row P1: 1 2 4 8"]
+  end
+  subgraph R3["SIMD (ISA-L)"]
+    direction LR
+    T["ec_init_tables:<br/>two 16-entry tables per coefficient<br/>(low and high nibble)"] --> P["PSHUFB / VPSHUFB:<br/>32 or 64 bytes per instruction"] --> X["accumulating XOR<br/>ec_encode_data"]
+  end
+  R1 ~~~ R2 ~~~ R3

@@ -1,0 +1,22 @@
+sequenceDiagram
+  participant C as Client
+  participant P as primary (shard D0)
+  participant S1 as OSD shard D1
+  participant SP as OSD shard P
+  participant SQ as OSD shard Q
+  C->>P: write 4K at an offset inside D1
+  P->>S1: read D1_old (only that 4K)
+  P->>SP: read P_old (same extent)
+  P->>SQ: read Q_old (same extent)
+  S1-->>P: D1_old
+  SP-->>P: P_old
+  SQ-->>P: Q_old
+  Note over P: encode_delta: Δ = D1_old ⊕ D1_new
+  Note over P: apply_delta: P_new = P_old ⊕ c41·Δ and Q_new = Q_old ⊕ c51·Δ
+  P->>S1: write D1_new
+  P->>SP: write P_new
+  P->>SQ: write Q_new
+  S1-->>P: commit
+  SP-->>P: commit
+  SQ-->>P: commit
+  P-->>C: ack

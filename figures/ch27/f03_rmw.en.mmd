@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Partial 4K write in the old EC (overwrite)"]
+    direction LR
+    A["primary: read the whole stripe<br/>(k chunk)"] --> B["merge the new 4K"] --> C["full encode<br/>m parity"] --> D["write 1 + m chunks"]
+  end
+  subgraph R2["Optimized EC (Tentacle, allow_ec_optimizations)"]
+    direction LR
+    E["read only the old chunk<br/>the same 4K"] --> F["delta = old ⊕ new"] --> G["parity' = parity ⊕ coef·delta<br/>(parity delta)"] --> H["write 1 + m chunks<br/>without reading the rest"]
+  end
+  subgraph R3["Small read"]
+    direction LR
+    I["old: read from k shards<br/>and decode"] --> J["optimized: read directly<br/>from one data shard"]
+  end
+  R1 ~~~ R2 ~~~ R3

@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph R1["RS (k=4, m=2): rebuilding one shard"]
+    direction LR
+    A["read 4 whole chunks<br/>= 4 × S"] --> B["decode"] --> C["traffic: 4S"]
+  end
+  subgraph R2["LRC (k=4, m=2, l=3)"]
+    direction LR
+    D["local group (3 + 1 local parity)"] --> E["read 3 chunks<br/>from the same group/rack"] --> F["traffic: 3S"]
+  end
+  subgraph R3["CLAY (k=4, m=2, d=5)"]
+    direction LR
+    G["each chunk into sub-chunks"] --> H["from d=5 helpers, a fraction 1/(d−k+1)=1/2"] --> I["traffic: 5 × S/2 = 2.5S"]
+  end
+  subgraph R4["SHEC (k=4, m=3, c=2)"]
+    direction LR
+    J["parities over a subset<br/>of the data"] --> K["single-failure rebuild<br/>reading fewer than k"]
+  end
+  R1 ~~~ R2 ~~~ R3 ~~~ R4

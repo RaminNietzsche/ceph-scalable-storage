@@ -1677,101 +1677,87 @@ ch26/f09_reconnect:
   SESSION_RECONNECT_OK با msg_seq=118: SESSION_RECONNECT_OK with msg_seq=118
   discard_requeued_up_to(117، 118) یعنی 118 دور ریخته می‌شود و out_seq = 118: 'discard_requeued_up_to(117, 118): 118 is discarded and out_seq = 118'
 ch27/f01_stripe:
-  شیء: null
-  چیدمان یک: null
-  روی: null
-  ها: null
-  روی هر: null
-  با: null
-  اندازه: null
-  هر: null
-  در: null
+  شیء 64K، k=4 m=2، stripe_unit=4K → stripe_width=16K: 64K object, k=4 m=2, stripe_unit=4K → stripe_width=16K
+  چیدمان یک stripe روی shardها: Layout of one stripe on the shards
+  روی هر OSD: On each OSD
+  شیء shard (ghobject با shard_id): shard object (ghobject with shard_id)
+  اندازه = 64K/4 = 16K: size = 64K/4 = 16K
+  hinfo / crc هر chunk: hinfo / crc of each chunk
+  (در xattr): (in an xattr)
 ch27/f02_gf:
-  با چندجمله‌ای: null
-  جمع: null
-  ضرب: null
-  و: null
-  با: null
-  اگر بیت: null
-  سرریز شود: null
-  یا جدول: null
-  ماتریس تولید: null
-  سیستماتیک: null
-  سطر: null
-  برای هر ضریب دو جدول: null
-  خانه‌ای: null
-  پایین و بالا: null
-  یا: null
-  بایت در هر دستور: null
-  انباشتی: null
+  GF(2^8) با چندجمله‌ای 0x11D: GF(2^8) with the polynomial 0x11D
+  جمع = XOR: addition = XOR
+  'ضرب: shift و XOR با 0x1D': 'multiplication: shift and XOR with 0x1D'
+  اگر بیت 8 سرریز شود: if bit 8 overflows
+  'یا جدول log/exp:': 'or log/exp tables:'
+  ماتریس تولید (k=4, m=2) ISA-L Vandermonde: Generator matrix (k=4, m=2) ISA-L Vandermonde
+  I₄ (سیستماتیک): I₄ (systematic)
+  'سطر P0: 1 1 1 1': 'row P0: 1 1 1 1'
+  'سطر P1: 1 2 4 8': 'row P1: 1 2 4 8'
+  برای هر ضریب دو جدول 16 خانه‌ای: two 16-entry tables per coefficient
+  (nibble پایین و بالا): (low and high nibble)
+  32 یا 64 بایت در هر دستور: 32 or 64 bytes per instruction
+  XOR انباشتی: accumulating XOR
 ch27/f03_rmw:
-  نوشتن جزئی: null
-  در: null
-  قدیمی: null
-  خواندن کل: null
-  ادغام: null
-  جدید: null
-  کامل: null
-  نوشتن: null
-  بهینه: null
-  خواندن فقط: null
-  همان: null
-  بدون خواندن بقیه: null
-  خواندن کوچک: null
-  خواندن از: null
-  و: null
-  خواندن مستقیم: null
-  از یک: null
-  داده: null
+  نوشتن جزئی 4K در EC قدیمی (overwrite): Partial 4K write in the old EC (overwrite)
+  'primary: خواندن کل stripe': 'primary: read the whole stripe'
+  ادغام 4K جدید: merge the new 4K
+  encode کامل: full encode
+  نوشتن 1 + m chunk<br/>بدون خواندن بقیه: write 1 + m chunks<br/>without reading the rest
+  نوشتن 1 + m chunk: write 1 + m chunks
+  EC بهینه (Tentacle، allow_ec_optimizations): Optimized EC (Tentacle, allow_ec_optimizations)
+  خواندن فقط chunk قدیمی: read only the old chunk
+  همان 4K: the same 4K
+  خواندن کوچک: Small read
+  'قدیمی: خواندن از k shard': 'old: read from k shards'
+  و decode: and decode
+  'بهینه: خواندن مستقیم': 'optimized: read directly'
+  از یک shard داده: from one data shard
 ch27/f04_repair:
-  بازسازی یک: null
-  خواندن: null
-  کامل: null
-  ترافیک: null
-  گروه محلی: null
-  محلی: null
-  از همان گروه: null
-  هر: null
-  به: null
-  از: null
-  ، کسری: null
-  ها روی زیرمجموعه‌ای: null
-  از دادهها: null
-  بازسازی تک‌خرابی: null
-  با خواندن کمتر از: null
+  'RS (k=4, m=2): بازسازی یک shard': 'RS (k=4, m=2): rebuilding one shard'
+  خواندن 4 chunk کامل: read 4 whole chunks
+  'ترافیک: 4S': 'traffic: 4S'
+  گروه محلی (3 + 1 parity محلی): local group (3 + 1 local parity)
+  خواندن 3 chunk: read 3 chunks
+  از همان گروه/rack: from the same group/rack
+  'ترافیک: 3S': 'traffic: 3S'
+  هر chunk به sub-chunk: each chunk into sub-chunks
+  از d=5 helper، کسری 1/(d−k+1)=1/2: from d=5 helpers, a fraction 1/(d−k+1)=1/2
+  'ترافیک: 5 × S/2 = 2.5S': 'traffic: 5 × S/2 = 2.5S'
+  parityها روی زیرمجموعه‌ای: parities over a subset
+  از دادهها: of the data
+  بازسازی تک‌خرابی: single-failure rebuild
+  با خواندن کمتر از k: reading fewer than k
 ch27/f07_pshufb:
-  ورودی: null
-  ۳۲ بایت داده در یک ثبات: null
-  دو جست‌وجوی موازی با: null
-  انباشت در: null
-  تا: null
-  ذخیره‌ی ۳۲ بایت: null
+  'ورودی: ۳۲ بایت داده در یک ثبات ymm (AVX2)': 'Input: 32 bytes of data in one ymm register (AVX2)'
+  دو جست‌وجوی موازی با VPSHUFB: Two parallel lookups with VPSHUFB
+  VPSHUFB(tbl_lo، lo): VPSHUFB(tbl_lo, lo)
+  VPSHUFB(tbl_hi، hi): VPSHUFB(tbl_hi, hi)
+  انباشت در parity (gf_vect_dot_prod / gf_vect_mad): Accumulating into the parity (gf_vect_dot_prod / gf_vect_mad)
+  … تا c(k-1)·D(k-1): … up to c(k-1)·D(k-1)
+  ذخیره‌ی ۳۲ بایت P: store 32 bytes of P
 ch27/f08_delta:
-  کلاینت: null
-  در آفست درون: null
-  فقط همان: null
-  همان بازه: null
-  یعنی: null
-  و: null
+  participant C as کلاینت: participant C as Client
+  write 4K در آفست درون D1: write 4K at an offset inside D1
+  read D1_old (فقط همان 4K): read D1_old (only that 4K)
+  read P_old (همان بازه): read P_old (same extent)
+  read Q_old (همان بازه): read Q_old (same extent)
+  encode_delta یعنی Δ = D1_old ⊕ D1_new: 'encode_delta: Δ = D1_old ⊕ D1_new'
+  apply_delta یعنی P_new = P_old ⊕ c41·Δ و Q_new = Q_old ⊕ c51·Δ: 'apply_delta: P_new = P_old ⊕ c41·Δ and Q_new = Q_old ⊕ c51·Δ'
 ch27/f09_lrc:
-  ورودی پروفایل: null
-  داده و: null
-  در هر گروه: null
-  هر گروه: null
-  کل: null
-  رشته‌های تولیدشده در: null
-  لایه‌ی سراسری: null
-  لایه‌ی محلی ۱: null
-  لایه‌ی محلی ۲: null
-  ترمیم یک: null
-  از گروه ۱: null
-  از دست رفت: null
-  خواندن: null
-  سه: null
-  به جای چهار: null
-  و ترافیک درون: null
-  قانون: null
-  با: null
+  'ورودی پروفایل: plugin=lrc k=4 m=2 l=3': 'Profile input: plugin=lrc k=4 m=2 l=3'
+  k/2 = 2 داده و m/2 = 1 parity در هر گروه: k/2 = 2 data and m/2 = 1 parity per group
+  هر گروه l+1 = 4 chunk ⇒ کل 8: each group l+1 = 4 chunks ⇒ 8 in total
+  رشته‌های تولیدشده در parse_kml: Strings generated in parse_kml
+  'لایه‌ی سراسری: DDc_DDc_': 'global layer: DDc_DDc_'
+  'لایه‌ی محلی ۱: DDDc____': 'local layer 1: DDDc____'
+  'لایه‌ی محلی ۲: ____DDDc': 'local layer 2: ____DDDc'
+  ترمیم یک chunk از گروه ۱: Repairing a chunk of group 1
+  chunk 1 از دست رفت: chunk 1 lost
+  'لایه‌ی محلی ۱: خواندن 0، 2، 3': 'local layer 1: read 0, 2, 3'
+  سه chunk به جای چهار: three chunks instead of four
+  و ترافیک درون rack: and traffic within the rack
+  قانون CRUSH با crush-locality=rack: CRUSH rule with crush-locality=rack
 ch28/f01_pipe:
   نام شیء: null
   ورودی: null
