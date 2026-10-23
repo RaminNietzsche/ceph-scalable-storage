@@ -4,107 +4,106 @@ id: ch28
 title: 'Lower Layers (6): CRUSH at the Bit Level, from rjenkins to upmap'
 part: lower
 lang: en
-translation: pending
 ---
 
-# مقدمه: CRUSH چگونه «حساب» می‌کند؟ {#sec-28-1}
+# Introduction: how does CRUSH "compute"? {#sec-28-1}
 
-در فصل‌های ۱ و ۸ CRUSH را به‌عنوان الگوریتمی دیدیم که بدون جدول مرکزی جای هر PG را تعیین می‌کند. این فصل تا سطح بیت پایین می‌رود: hashهای rjenkins که هر تصمیم را تعیین‌پذیر می‌کنند، الگوریتم straw2 با جدول لگاریتم fixed-point، اجرای گام‌به‌گام `crush_do_rule`، تلاش‌های مجدد هنگام تصادم، و در پایان این‌که choose_args، weight-set و upmap نتیجه‌ی خام CRUSH را چگونه اصلاح می‌کنند. یک مثال کامل را از نام شیء تا انتخاب host با اعدادی دنبال می‌کنیم که با کامپایل همان کد C مربوط به Ceph (`src/crush/hash.c` و `mapper.c`، LGPL) در یک برنامه‌ی آزمایشی کوچک محاسبه شده‌اند.
+In chapters 1 and 8 we saw CRUSH as an algorithm that determines the location of each PG without a central table. This chapter goes down to the bit level: the rjenkins hashes that make every decision deterministic, the straw2 algorithm with its fixed-point logarithm table, the step-by-step execution of `crush_do_rule`, the retries on collisions, and finally how choose_args, weight-set and upmap correct CRUSH's raw result. We follow a complete example from the object name to the choice of host, with numbers computed by compiling Ceph's own C code (`src/crush/hash.c` and `mapper.c`, LGPL) into a small test program.
 
 ::: {.summary}
 
-- نام شیء با `ceph_str_hash_rjenkins` hash می‌شود. `ceph_stable_mod` آن را به یک PG نگاشت می‌کند و با `HASHPSPOOL`، ورودی CRUSH برابر `crush_hash32_2(ps, pool)` است.
-- straw2 برای هر آیتم یک «قرعه» محاسبه می‌کند: draw = ln(u) / w، که u یک hash شانزده‌بیتی است و ln از جدول fixed-point به دست می‌آید. بیشترین draw برنده است. احتمال برنده شدن هر آیتم دقیقاً با وزنش متناسب است.
-- تصادم (انتخاب تکراری) با افزایش r حل می‌شود (r = rep + ftotal) تا `choose_total_tries=50`.
-- `reweight` با `is_out` احتمالی کار می‌کند. weight-set در choose_args وزن جایگزین برای CRUSH است و upmap نتیجه را پس از CRUSH صریحاً جایگزین می‌کند.
+- The object name is hashed with `ceph_str_hash_rjenkins`. `ceph_stable_mod` maps it to a PG, and with `HASHPSPOOL` the CRUSH input is `crush_hash32_2(ps, pool)`.
+- straw2 computes a "draw" for each item: draw = ln(u) / w, where u is a sixteen-bit hash and ln comes from a fixed-point table. The largest draw wins. The probability of each item winning is exactly proportional to its weight.
+- A collision (a repeated choice) is resolved by increasing r (r = rep + ftotal), up to `choose_total_tries=50`.
+- `reweight` works through a probabilistic `is_out`. A weight-set in choose_args is a substitute weight for CRUSH, and upmap explicitly replaces the result after CRUSH.
 
 :::
 
-# از نام شیء تا x {#sec-28-2}
+# From the object name to x {#sec-28-2}
 
-![خط لوله‌ی کامل نگاشت. نام شیء با rjenkins به 0xD1895615 hash می‌شود. با pg_num=128، ceph_stable_mod نتیجه‌ی 0x15 را می‌دهد، یعنی PG 3.15. با پرچم HASHPSPOOL، شماره‌ی pool هم در hash دخیل می‌شود تا PGهای poolهای مختلف روی هم نیفتند، و x = 0x36D15C32 ورودی CRUSH است. crush_do_rule فهرست خام OSDها را برمی‌گرداند، سپس OSDهای ناموجود حذف و upmapها اعمال می‌شوند و در پایان pg_temp مجموعه‌ی acting را تعیین می‌کند](figures/ch28/f01_pipe.png){#fig-28-f01_pipe}
+![The complete mapping pipeline. The object name is hashed with rjenkins to 0xD1895615. With pg_num=128, ceph_stable_mod gives 0x15, that is PG 3.15. With the HASHPSPOOL flag, the pool number is also mixed into the hash so that the PGs of different pools do not overlap, and x = 0x36D15C32 is the CRUSH input. crush_do_rule returns the raw list of OSDs, then non-existent OSDs are removed and upmaps applied, and finally pg_temp determines the acting set](figures/ch28/f01_pipe.png){#fig-28-f01_pipe}
 
-`ceph_stable_mod(x, b, bmask)` در `include/rados.h` تعریف شده است: اگر `x & bmask` کمتر از b باشد، همان را برمی‌گرداند، وگرنه `x & (bmask >> 1)`. این تابع «پایدار» است، چون وقتی pg_num از ۱۲۸ به ۱۹۲ افزایش می‌یابد، فقط PGهایی که بیت جدید را دارند جابه‌جا می‌شوند (split) و بقیه همان شماره را نگه می‌دارند. این دلیل ریاضی آن است که split فقط بخشی از داده را حرکت می‌دهد.
+`ceph_stable_mod(x, b, bmask)` is defined in `include/rados.h`: if `x & bmask` is less than b it returns that, otherwise `x & (bmask >> 1)`. This function is "stable" because when pg_num grows from 128 to 192, only the PGs that have the new bit move (split) and the rest keep their number. This is the mathematical reason a split moves only part of the data.
 
-| گام | مقدار در مثال | تابع |
+| Step | Value in the example | Function |
 |---|---|---|
-| hash نام | 0xD1895615 | `ceph_str_hash_rjenkins` (`common/ceph_hash.cc`) |
+| hash of the name | 0xD1895615 | `ceph_str_hash_rjenkins` (`common/ceph_hash.cc`) |
 | ps | 0x15 (= 0xD1895615 & 127) | `ceph_stable_mod(h, 128, 127)` |
 | PG | 3.15 | `pg_t(ps, pool)` |
-| x (pps) | 0x36D15C32 | `crush_hash32_2(RJENKINS1, ps, 3)` در `pg_pool_t::raw_pg_to_pps` |
+| x (pps) | 0x36D15C32 | `crush_hash32_2(RJENKINS1, ps, 3)` in `pg_pool_t::raw_pg_to_pps` |
 
-## hash مربوط به rjenkins {#sec-28-2-1}
+## The rjenkins hash {#sec-28-2-1}
 
-`crush_hashmix(a, b, c)` نُه دور تفریق، XOR و شیفت روی سه کلمه‌ی ۳۲ بیتی است، برگرفته از تابع ترکیب Bob Jenkins. نسخه‌ی سه‌ورودی `crush_hash32_rjenkins1_3(a, b, c)` با `hash = 1315423911 ^ a ^ b ^ c` (ثابت `crush_hash_seed`) شروع می‌کند و پنج بار mix را با ثابت‌های `x = 231232` و `y = 1232` اجرا می‌کند. ویژگی مهم آن **تعیین‌پذیری کامل روی همه‌ی معماری‌ها** است: فقط عملیات صحیح بدون علامت ۳۲ بیتی دارد، بدون اعشار. به همین دلیل کلاینت هسته‌ی لینوکس (که همین فایل را در `net/ceph/crush/` دارد) و librados دقیقاً همان نتیجه را می‌گیرند.
+`crush_hashmix(a, b, c)` is nine rounds of subtraction, XOR and shift on three 32-bit words, taken from Bob Jenkins's mixing function. The three-input version `crush_hash32_rjenkins1_3(a, b, c)` starts with `hash = 1315423911 ^ a ^ b ^ c` (the `crush_hash_seed` constant) and runs mix five times with the constants `x = 231232` and `y = 1232`. Its important property is **complete determinism on all architectures**: it uses only unsigned 32-bit integer operations, no floating point. That is why the Linux kernel client (which has the same file in `net/ceph/crush/`) and librados get exactly the same result.
 
 ::: {.warn}
-هر تغییری در این توابع، در جدول لگاریتم یا در tunableها (مثل `chooseleaf_stable`) نگاشت تقریباً همه‌ی PGها را عوض می‌کند. به همین دلیل tunableها پروفایل‌های نام‌دار دارند (`ceph osd crush tunables optimal`) و تغییر آن‌ها روی خوشه‌ی پر، حرکت داده‌ی عظیمی ایجاد می‌کند.
+Any change to these functions, to the logarithm table or to the tunables (such as `chooseleaf_stable`) changes the mapping of almost every PG. That is why the tunables have named profiles (`ceph osd crush tunables optimal`), and changing them on a full cluster causes huge data movement.
 :::
 
-# straw2: قرعه‌کشی نمایی {#sec-28-3}
+# straw2: an exponential draw {#sec-28-3}
 
-فرض کنید هر آیتم i با وزن w_i یک متغیر تصادفی نمایی با نرخ w_i بکشد. احتمال این‌که آیتم i **کمترین** مقدار را داشته باشد، دقیقاً w_i / Σw است. straw2 همین را بدون عدد اعشاری پیاده می‌کند:
+Suppose each item i with weight w_i draws an exponential random variable with rate w_i. The probability that item i has the **smallest** value is exactly w_i / Σw. straw2 implements exactly this without floating-point numbers:
 
 ```text
-straw2 (منطق mapper.c، LGPL؛ نمایش ساده‌شده از این کتاب)
+straw2 (the logic of mapper.c, LGPL; a simplified rendering by this book)
   for each item i in bucket:
-      u    = crush_hash32_3(bucket.hash, x, id_i, r) & 0xFFFF       # 16 بیت
+      u    = crush_hash32_3(bucket.hash, x, id_i, r) & 0xFFFF       # 16 bits
       ln   = crush_ln(u) − 2^48          # ≈ 2^44 · log2((u+1)/2^16) ≤ 0
-      draw = ln / weight_i                # weight در 16.16 fixed-point
-  return item with max draw              # کمترین −ln/w = نمایی با نرخ w
+      draw = ln / weight_i                # weight in 16.16 fixed point
+  return item with max draw              # the smallest −ln/w = exponential with rate w
 ```
 
-`crush_ln(x)` مقدار 2^44 · log2(x+1) را با دو جدول `__RH_LH_tbl` و `__LL_tbl` (در `crush_ln_table.h`) و فقط با عملیات صحیح محاسبه می‌کند. ابتدا ورودی را نرمال می‌کند (توان)، سپس با ۸ بیت بالای mantissa در جدول اول (تقریب 1/x و log2) و با ۸ بیت بعدی در جدول دوم (تصحیح) جست‌وجو می‌کند. نتیجه‌ها در برنامه‌ی آزمایشی ما: `crush_ln(0) = 0`، `crush_ln(0x7FFF) = 0xF00000000000` (یعنی 15 · 2^44) و `crush_ln(0xFFFF) = 0xFFFFF0000000` (تقریباً 16 · 2^44 = 2^48).
+`crush_ln(x)` computes 2^44 · log2(x+1) with two tables, `__RH_LH_tbl` and `__LL_tbl` (in `crush_ln_table.h`), using only integer operations. It first normalizes the input (the exponent), then looks up the top 8 bits of the mantissa in the first table (an approximation of 1/x and log2) and the next 8 bits in the second table (the correction). The results in our test program: `crush_ln(0) = 0`, `crush_ln(0x7FFF) = 0xF00000000000` (that is 15 · 2^44) and `crush_ln(0xFFFF) = 0xFFFFF0000000` (about 16 · 2^44 = 2^48).
 
-![اجرای واقعی straw2 برای x=0x36D15C32 در یک bucket ریشه با سه host: -3 و -4 هرکدام با وزن ۱۰ و -5 با وزن ۲۰. در r=0، host -4 با بیشترین draw (−8.9M) برنده است. در r=1، host -5 برنده است. برای replica سوم، r=2 تا r=5 به hostهای تکراری می‌رسند و هر بار ftotal افزایش می‌یابد، تا این‌که r=6 به host -3 می‌رسد. سقف تلاش choose_total_tries=50 است](figures/ch28/f02_straw2.png){#fig-28-f02_straw2}
+![A real straw2 run for x=0x36D15C32 in a root bucket with three hosts: -3 and -4 each with weight 10 and -5 with weight 20. At r=0, host -4 wins with the largest draw (−8.9M). At r=1, host -5 wins. For the third replica, r=2 to r=5 land on repeated hosts and ftotal is increased each time, until r=6 reaches host -3. The retry limit is choose_total_tries=50](figures/ch28/f02_straw2.png){#fig-28-f02_straw2}
 
-| r | draw(-3) | draw(-4) | draw(-5) | برنده |
+| r | draw(-3) | draw(-4) | draw(-5) | Winner |
 |---|---|---|---|---|
 | 0 | −77,259,388 | **−8,880,361** | −31,248,985 | -4 |
 | 1 | −7,177,981 | −14,582,287 | **−3,918,635** | -5 |
-| 2 | −11,854,384 | −59,760,693 | **−2,413,629** | -5 (تکراری) |
-| 3 | −63,878,138 | −125,349,258 | **−14,701,300** | -5 (تکراری) |
+| 2 | −11,854,384 | −59,760,693 | **−2,413,629** | -5 (repeat) |
+| 3 | −63,878,138 | −125,349,258 | **−14,701,300** | -5 (repeat) |
 
-**بررسی توزیع:** در همان برنامه، با سه آیتم با وزن‌های 1، 1 و 2 و ۳۰۰٬۰۰۰ مقدار x، شمارش برنده‌ها 75,274، 74,753 و 149,973 بود، یعنی ۲۵٪، ۲۵٪ و ۵۰٪، همان‌طور که نظریه پیش‌بینی می‌کند.
+**Checking the distribution:** in the same program, with three items of weights 1, 1 and 2 and 300,000 values of x, the winner counts were 75,274, 74,753 and 149,973, that is 25%, 25% and 50%, just as the theory predicts.
 
 ::: {.deep}
-**چرا straw2 و نه straw؟** در straw قدیمی، «طول نی» هر آیتم از روی وزن‌ها به‌صورت نسبی و وابسته به سایر آیتم‌ها محاسبه می‌شد. بنابراین تغییر وزن یک آیتم، draw آیتم‌های دیگر را هم تغییر می‌داد و داده بین آیتم‌هایی جابه‌جا می‌شد که وزنشان تغییر نکرده بود. در straw2، draw هر آیتم فقط به (x، id، r، وزن خودش) بستگی دارد. اگر وزن آیتم A زیاد شود، فقط برخی x‌ها از سایر آیتم‌ها به A **منتقل** می‌شوند و هیچ داده‌ای بین B و C جابه‌جا نمی‌شود. این خاصیت حداقل حرکت (optimal reorganization) است.
+**Why straw2 and not straw?** In the old straw, the "straw length" of each item was computed from the weights relative to, and dependent on, the other items. So changing the weight of one item also changed the draws of the other items, and data moved between items whose weights had not changed. In straw2, the draw of each item depends only on (x, id, r, its own weight). If item A's weight increases, only some x values **move** from the other items to A, and no data moves between B and C. This is the minimal-movement property (optimal reorganization).
 :::
 
-# crush_do_rule گام‌به‌گام {#sec-28-4}
+# crush_do_rule step by step {#sec-28-4}
 
-![اجرای replicated_rule. TAKE ریشه را در بردار کاری w می‌گذارد. CHOOSELEAF_FIRSTN با numrep=0 (یعنی برابر size) برای هر replica یک host انتخاب می‌کند و سپس به‌صورت بازگشتی یک OSD درون آن. EMIT نتیجه را به خروجی می‌افزاید. در هر انتخاب، r = rep + ftotal است. اگر نتیجه تکراری باشد یا OSD با is_out رد شود، ftotal افزایش می‌یابد و تلاش تکرار می‌شود. is_out برای وزن reweight بین ۰ و ۱، با hash دیگری از (x، osd) تصمیم احتمالی می‌گیرد](figures/ch28/f03_rule.png){#fig-28-f03_rule}
+![Executing replicated_rule. TAKE puts the root into the working vector w. CHOOSELEAF_FIRSTN with numrep=0 (that is, equal to size) chooses a host for each replica and then, recursively, an OSD inside it. EMIT appends the result to the output. In each choice r = rep + ftotal. If the result is a repeat or the OSD is rejected by is_out, ftotal is increased and the attempt is repeated. For a reweight between 0 and 1, is_out makes a probabilistic decision with another hash of (x, osd)](figures/ch28/f03_rule.png){#fig-28-f03_rule}
 
-یک قاعده آرایه‌ای از گام‌هاست (`crush_rule_step` با op، arg1 و arg2). `crush_do_rule` یک بردار کاری `w` و یک بردار خروجی `o` دارد:
+A rule is an array of steps (`crush_rule_step` with op, arg1 and arg2). `crush_do_rule` has a working vector `w` and an output vector `o`:
 
-| op | مقدار | عمل |
+| op | Value | Action |
 |---|---|---|
-| `TAKE` | 1 | w = [arg1] (مثلاً id ریشه یا یک device class در shadow tree) |
-| `CHOOSE_FIRSTN` | 2 | از هر bucket در w، arg1 آیتم از نوع arg2 انتخاب کن (برای replicated) |
-| `CHOOSE_INDEP` | 3 | همان، با جایگاه‌های ثابت (برای EC؛ shard گم‌شده جای خالی می‌ماند) |
-| `EMIT` | 4 | o += w؛ w خالی می‌شود |
-| `CHOOSELEAF_FIRSTN` / `_INDEP` | 6 / 7 | انتخاب bucket از نوع arg2 و سپس یک leaf (OSD) در آن |
-| `SET_CHOOSE_TRIES` و موارد مشابه | 8–13 | override کردن tunableها برای همین قاعده |
-| `SET_MSR_DESCENTS` / `SET_MSR_COLLISION_TRIES` / `CHOOSE_MSR` | 14 / 15 / 16 | قواعد MSR (چند OSD در هر failure domain) — در Squid و بالاتر، نه در Reef |
+| `TAKE` | 1 | w = [arg1] (for example the root id or a device class in the shadow tree) |
+| `CHOOSE_FIRSTN` | 2 | from each bucket in w, choose arg1 items of type arg2 (for replicated) |
+| `CHOOSE_INDEP` | 3 | the same, with fixed positions (for EC; a lost shard leaves an empty slot) |
+| `EMIT` | 4 | o += w; w is emptied |
+| `CHOOSELEAF_FIRSTN` / `_INDEP` | 6 / 7 | choose a bucket of type arg2 and then one leaf (OSD) inside it |
+| `SET_CHOOSE_TRIES` and similar | 8–13 | override tunables for this rule |
+| `SET_MSR_DESCENTS` / `SET_MSR_COLLISION_TRIES` / `CHOOSE_MSR` | 14 / 15 / 16 | MSR rules (several OSDs per failure domain) — in Squid and later, not in Reef |
 
-**numrep:** اگر arg1 ≤ 0 باشد، numrep = result_max + arg1. پس `0` یعنی «به تعداد size» و `-1` یعنی «size منهای یک». این برای قواعدی مثل «یکی در DC اول، بقیه در DC دوم» استفاده می‌شود.
+**numrep:** if arg1 ≤ 0, numrep = result_max + arg1. So `0` means "as many as size" and `-1` means "size minus one". This is used for rules such as "one in the first DC, the rest in the second DC".
 
-## firstn در برابر indep {#sec-28-4-1}
+## firstn versus indep {#sec-28-4-1}
 
-در **firstn**، ترتیب مهم نیست. اگر replica دوم ناموجود شود، replica سوم جایش را می‌گیرد و همه‌چیز یک خانه به جلو می‌رود. برای replication این بهینه است، چون فقط یک کپی تازه لازم است. در **indep**، جایگاه r ام همیشه shard r ام است. اگر OSD یک shard از دست برود، فقط همان جایگاه با r تازه (r + numrep · ftotal) دوباره انتخاب می‌شود و بقیه‌ی shardها جابه‌جا نمی‌شوند. برای EC این حیاتی است، چون shardها قابل‌جابه‌جایی نیستند.
+In **firstn**, order does not matter. If the second replica becomes unavailable, the third replica takes its place and everything shifts forward by one. For replication this is optimal, because only one new copy is needed. In **indep**, position r is always shard r. If the OSD of one shard is lost, only that position is chosen again with a new r (r + numrep · ftotal), and the other shards do not move. For EC this is vital, because shards are not interchangeable.
 
-| tunable (پروفایل jewel/optimal) | مقدار | اثر |
+| tunable (jewel/optimal profile) | Value | Effect |
 |---|---|---|
-| `choose_local_tries` | 0 | تلاش محلی قدیمی خاموش |
-| `choose_local_fallback_tries` | 0 | خاموش |
-| `choose_total_tries` | 50 | سقف تلاش‌ها؛ در مثال ما ۴ تلاش ناموفق داشتیم |
-| `chooseleaf_descend_once` | 1 | در chooseleaf، یک بار پایین برو و اگر شکست خورد از بالا تلاش کن |
-| `chooseleaf_vary_r` | 1 | r در زیرانتخاب leaf به r والد وابسته است تا تلاش‌های مجدد نتیجه‌ی متفاوت بدهند |
-| `chooseleaf_stable` | 1 | با out شدن یک OSD، replicaهای دیگر جابه‌جا نمی‌شوند |
-| `straw_calc_version` | 1 | اصلاح محاسبه‌ی straw قدیمی |
+| `choose_local_tries` | 0 | old local retry off |
+| `choose_local_fallback_tries` | 0 | off |
+| `choose_total_tries` | 50 | the retry limit; in our example there were 4 failed attempts |
+| `chooseleaf_descend_once` | 1 | in chooseleaf, descend once and, if it fails, retry from the top |
+| `chooseleaf_vary_r` | 1 | r in the leaf sub-choice depends on the parent's r, so that retries give different results |
+| `chooseleaf_stable` | 1 | when one OSD goes out, the other replicas do not move |
+| `straw_calc_version` | 1 | fix to the old straw calculation |
 
 ::: {.note}
-تصادم‌ها وقتی تعداد failure domainها به size نزدیک است زیاد می‌شوند. در مثال ما با سه host و size=3، replica سوم پس از ۴ تلاش پیدا شد. اگر یکی از hostها وزن بسیار کمی داشته باشد، ممکن است ۵۰ تلاش هم کافی نباشد و PG با کمتر از size عضو در وضعیت `undersized` بماند. `crushtool --test --show-bad-mappings` همین را آزمایش می‌کند.
+Collisions become frequent when the number of failure domains is close to size. In our example, with three hosts and size=3, the third replica was found after 4 attempts. If one of the hosts has a very small weight, even 50 attempts may not be enough, and the PG stays `undersized` with fewer than size members. `crushtool --test --show-bad-mappings` tests exactly this.
 :::
 
 ```bash
@@ -112,52 +111,52 @@ ceph osd getcrushmap -o cm.bin && crushtool -d cm.bin -o cm.txt
 crushtool -i cm.bin --test --rule 0 --num-rep 3 --min-x 0 --max-x 1023 --show-utilization
 crushtool -i cm.bin --test --rule 0 --num-rep 3 --x 0x36d15c32 --show-mappings
 crushtool -i cm.bin --test --show-bad-mappings --rule 0 --num-rep 3
-ceph osd map rbd rbd_data.10ab2c3d4e5f.0000000000000000     # pg و up/acting
+ceph osd map rbd rbd_data.10ab2c3d4e5f.0000000000000000     # pg and up/acting
 ```
 
-# choose_args، weight-set و upmap {#sec-28-5}
+# choose_args, weight-set and upmap {#sec-28-5}
 
-![سه ابزار اصلاح توزیع و ترتیب اعمال آن‌ها. reweight با is_out احتمالی کار می‌کند و جابه‌جایی گسترده ایجاد می‌کند. choose_args (weight-set) وزن‌های جایگزینی برای straw2 فراهم می‌کند که حتی می‌تواند برای هر position (replica اول، دوم و ...) متفاوت باشد و balancer در حالت crush-compat از آن استفاده می‌کند. upmap پس از CRUSH نتیجه را صریحاً جایگزین می‌کند. در OSDMap ترتیب اعمال این است: crush_do_rule با choose_args، حذف OSDهای ناموجود، pg_upmap، pg_upmap_items و pg_upmap_primary](figures/ch28/f04_adjust.png){#fig-28-f04_adjust}
+![The three tools for correcting the distribution and the order in which they apply. reweight works through a probabilistic is_out and causes widespread movement. choose_args (weight-set) provides substitute weights for straw2 that can even differ per position (first replica, second, and so on), and the balancer uses it in crush-compat mode. upmap explicitly replaces the result after CRUSH. In the OSDMap the order of application is: crush_do_rule with choose_args, removal of non-existent OSDs, pg_upmap, pg_upmap_items and pg_upmap_primary](figures/ch28/f04_adjust.png){#fig-28-f04_adjust}
 
-**choose_args:** در `bucket_straw2_choose`، تابع `get_choose_arg_weights` اگر `weight_set` موجود باشد، به‌جای `item_weights` از `weight_set[position]` استفاده می‌کند. `position` شماره‌ی replica در حال انتخاب است. این امکان اصلاح یک مشکل ظریف را می‌دهد: در straw2 با وزن‌های نابرابر، replica دوم و سوم کمی از نسبت وزن منحرف می‌شوند، چون انتخاب‌های قبلی کنار گذاشته شده‌اند. weight-set برای هر position وزن کمی متفاوتی می‌دهد. `ids` جایگزین هم وجود دارد، تا بتوان hash را بدون تغییر شناسه‌ی واقعی bucket عوض کرد.
+**choose_args:** in `bucket_straw2_choose`, the function `get_choose_arg_weights` uses `weight_set[position]` instead of `item_weights` if a `weight_set` exists. `position` is the number of the replica being chosen. This makes it possible to fix a subtle problem: in straw2 with unequal weights, the second and third replicas deviate slightly from the weight ratio, because the earlier choices have been excluded. The weight-set gives slightly different weights for each position. There are also substitute `ids`, so that the hash can be changed without changing the bucket's real id.
 
-**upmap:** `OSDMap::_apply_upmap` ابتدا `pg_upmap` (جایگزینی کل فهرست) را بررسی می‌کند، سپس `pg_upmap_items` (جفت‌های from→to) و در پایان `pg_upmap_primaries` (فقط تعیین primary، برای read balancer). upmapهایی که قاعده‌ی CRUSH را نقض کنند (مثلاً دو replica در یک host) توسط mon بررسی و حذف می‌شوند (`clean_pg_upmaps`).
+**upmap:** `OSDMap::_apply_upmap` first checks `pg_upmap` (replacing the whole list), then `pg_upmap_items` (from→to pairs) and finally `pg_upmap_primaries` (only setting the primary, for the read balancer). Upmaps that violate the CRUSH rule (for example two replicas on one host) are checked and removed by the mon (`clean_pg_upmaps`).
 
-| حالت balancer | مکانیزم | نسخه |
+| Balancer mode | Mechanism | Release |
 |---|---|---|
-| `crush-compat` | weight-set در choose_args | از Luminous؛ برای کلاینت‌های قدیمی |
-| `upmap` | `pg_upmap_items` | پیش‌فرض؛ نیازمند `require-min-compat-client luminous` |
-| `read` | `pg_upmap_primaries` (فقط primary) | Reef و بالاتر (طبق مستندات) |
-| `upmap-read` | هر دو | Reef و بالاتر |
+| `crush-compat` | weight-set in choose_args | since Luminous; for old clients |
+| `upmap` | `pg_upmap_items` | the default; requires `require-min-compat-client luminous` |
+| `read` | `pg_upmap_primaries` (primary only) | Reef and later (according to the documentation) |
+| `upmap-read` | both | Reef and later |
 
 ```bash
-ceph osd pg-upmap-items 3.15 4 11        # جایگزینی osd.4 با osd.11 برای PG 3.15
+ceph osd pg-upmap-items 3.15 4 11        # replace osd.4 with osd.11 for PG 3.15
 ceph osd rm-pg-upmap-items 3.15
 ceph osd crush weight-set ls
 ceph balancer status && ceph balancer eval
 ceph osd dump | grep -E '^pg_upmap(_items|_primary)?' | head
 ```
 
-# is_out و reweight: یک مثال عددی {#sec-28-6}
+# is_out and reweight: a numerical example {#sec-28-6}
 
-`is_out` در `mapper.c` وزن reweight یک OSD (عددی 16.16 بین 0 و 0x10000) را این‌طور تفسیر می‌کند: اگر وزن کامل باشد، OSD داخل است. اگر صفر باشد، بیرون است. در غیر این صورت، `crush_hash32_2(x, osd) & 0xFFFF` با وزن مقایسه می‌شود و اگر کمتر باشد، OSD برای این x داخل است. پس reweight برابر 0.5 یعنی تقریباً نیمی از PGهایی که CRUSH به این OSD داده بود، رد می‌شوند و با تلاش مجدد به جای دیگری می‌روند.
+`is_out` in `mapper.c` interprets an OSD's reweight value (a 16.16 number between 0 and 0x10000) like this: if the weight is full, the OSD is in. If it is zero, it is out. Otherwise `crush_hash32_2(x, osd) & 0xFFFF` is compared with the weight, and if it is smaller, the OSD is in for this x. So a reweight of 0.5 means roughly half of the PGs CRUSH had given to this OSD are rejected and go elsewhere on retry.
 
-| مثال | مقدار |
+| Example | Value |
 |---|---|
-| x | 0x36D15C32 (همان PG 3.15) |
+| x | 0x36D15C32 (the same PG 3.15) |
 | osd | 7 |
 | `crush_hash32_2(x, 7) & 0xFFFF` | 0xC425 |
-| reweight 0.5 (0x8000) | 0xC425 ≥ 0x8000 → **out** برای این PG |
+| reweight 0.5 (0x8000) | 0xC425 ≥ 0x8000 → **out** for this PG |
 | reweight 0.9 (0xE666) | 0xC425 < 0xE666 → **in** |
-| نسبت in با reweight 0.5 در ۱۰۰٬۰۰۰ x | 50,069 (≈ ۵۰٪) |
+| fraction in with reweight 0.5 over 100,000 x | 50,069 (≈ 50%) |
 
 ::: {.tip}
-تفاوت `ceph osd reweight` (همین is_out احتمالی، که پس از انتخاب straw2 اعمال می‌شود) با `ceph osd crush reweight` (وزن straw2 در خود bucket) مهم است. reweight کردن با is_out باعث تلاش‌های مجدد بیشتر و انحراف ظریف توزیع می‌شود، به همین دلیل balancer مبتنی بر upmap جایگزین بهتری است. مقادیر نزدیک ۱ (مثلاً 0.95) جابه‌جایی کمی ایجاد می‌کنند، ولی مقادیر کوچک (مثلاً 0.3) می‌توانند تلاش‌ها را به سقف ۵۰ نزدیک کنند.
+The difference between `ceph osd reweight` (this probabilistic is_out, applied after the straw2 choice) and `ceph osd crush reweight` (the straw2 weight in the bucket itself) matters. Reweighting through is_out causes more retries and a subtle skew of the distribution, which is why the upmap-based balancer is a better alternative. Values close to 1 (for example 0.95) cause little movement, but small values (for example 0.3) can push the retries close to the limit of 50.
 :::
 
-# device class و shadow tree {#sec-28-7}
+# Device classes and the shadow tree {#sec-28-7}
 
-وقتی OSDها کلاس دارند (`hdd`، `ssd`، `nvme`)، CrushWrapper برای هر bucket و هر کلاس یک «سایه» با id منفی جدید و نامی مثل `default~ssd` می‌سازد که فقط OSDهای آن کلاس را دارد. قاعده‌ای مثل `step take default class ssd` در واقع `TAKE` روی id سایه است. چون سایه‌ها idهای خودشان را دارند، hash مربوط به straw2 (که id آیتم در آن دخیل است) برای سایه‌ها مستقل از درخت اصلی است. افزودن یک OSD از نوع hdd هیچ PGی را در poolهای ssd جابه‌جا نمی‌کند.
+When OSDs have classes (`hdd`, `ssd`, `nvme`), CrushWrapper builds for each bucket and each class a "shadow" with a new negative id and a name such as `default~ssd` that contains only the OSDs of that class. A rule such as `step take default class ssd` is in fact a `TAKE` on the shadow id. Because the shadows have their own ids, the straw2 hash (which includes the item id) for the shadows is independent of the main tree. Adding an hdd OSD does not move any PG in the ssd pools.
 
 ```bash
 ceph osd crush tree --show-shadow
@@ -166,25 +165,25 @@ ceph osd crush class ls-osd ssd
 ```
 
 ::: {.deep}
-**چرا idهای سایه پایدار می‌مانند؟** نگاشت کلاس به id سایه در خود CRUSH map ذخیره می‌شود (`class_bucket`). بنابراین بازسازی سایه‌ها پس از افزودن OSD یا تغییر وزن، همان idها را نگه می‌دارد. اگر این idها تغییر می‌کردند، x مربوط به همه‌ی PGهای poolهای وابسته به آن کلاس hash متفاوتی می‌گرفت و کل داده جابه‌جا می‌شد. ابزار `crushtool --reclassify` برای تبدیل نقشه‌های قدیمی (با ریشه‌های جداگانه برای ssd) به کلاس‌ها، دقیقاً همین idها را طوری تنظیم می‌کند که نگاشت تغییر نکند.
+**Why do the shadow ids stay stable?** The mapping from class to shadow id is stored in the CRUSH map itself (`class_bucket`). So rebuilding the shadows after adding an OSD or changing a weight keeps the same ids. If these ids changed, the x of every PG in the pools that depend on that class would get a different hash and all the data would move. The `crushtool --reclassify` tool, for converting old maps (with separate roots for ssd) to classes, sets exactly these ids so that the mapping does not change.
 :::
 
-# سه نوع bucket دیگر: uniform، list و tree {#sec-28-8}
+# Three other bucket types: uniform, list and tree {#sec-28-8}
 
-straw2 امروز پیش‌فرض است، اما CRUSH از ابتدا پنج الگوریتم bucket داشت: uniform، list، tree، straw و straw2. هرکدام مصالحه‌ای میان سرعت انتخاب و میزان جابه‌جایی داده هنگام تغییر است. نگاشت‌های قدیمی و نقشه‌های دست‌ساز هنوز ممکن است آن‌ها را داشته باشند. برای فهم اینکه چرا straw2 برنده شد، هر سه را با hash واقعی rjenkins اجرا کرده‌ایم. همه‌ی اعداد این بخش با یک برنامه‌ی کوچک C که `hash.c` و `crush_ln` را از کد Ceph می‌گیرد محاسبه شده‌اند.
+straw2 is the default today, but CRUSH had five bucket algorithms from the start: uniform, list, tree, straw and straw2. Each is a trade-off between selection speed and the amount of data movement on change. Old mappings and hand-written maps may still contain them. To understand why straw2 won, we ran all three with the real rjenkins hash. All the numbers in this section were computed with a small C program that takes `hash.c` and `crush_ln` from the Ceph code.
 
-## uniform: جایگشت شبه‌تصادفی {#sec-28-8-1}
+## uniform: a pseudo-random permutation {#sec-28-8-1}
 
-::: {.algo #alg-28-1 title="انتخاب در bucket از نوع uniform با جایگشت تدریجی" src="src/crush/mapper.c :: bucket_perm_choose و bucket_uniform_choose" complexity="r=0 در O(1)؛ r=k در O(k)؛ کار مشترک در crush_work_bucket.perm"}
+::: {.algo #alg-28-1 title="Choosing in a uniform bucket with an incremental permutation" src="src/crush/mapper.c :: bucket_perm_choose, bucket_uniform_choose" complexity="r=0 in O(1); r=k in O(k); shared work in crush_work_bucket.perm"}
 :::
 
 ```text
-pseudocode (برگرفته از bucket_perm_choose)
+pseudocode (taken from bucket_perm_choose)
 pr = r mod size
 if x changed:
-    if pr == 0: return items[hash3(x, bucket_id, 0) mod size]        # میان‌بر رایج
+    if pr == 0: return items[hash3(x, bucket_id, 0) mod size]        # common shortcut
     perm = [0..size-1]; perm_n = 0
-while perm_n ≤ pr:                         # Fisher–Yates تدریجی با hash به‌جای random
+while perm_n ≤ pr:                         # incremental Fisher–Yates with a hash instead of random
     p = perm_n
     if p < size-1:
         i = hash3(x, bucket_id, p) mod (size − p)
@@ -193,173 +192,173 @@ while perm_n ≤ pr:                         # Fisher–Yates تدریجی با 
 return items[perm[pr]]
 ```
 
-![اجرای واقعی bucket_perm_choose برای bucket با شماره‌ی -5 و چهار item با x=0x1234ABCD. سه گام Fisher–Yates جایگشت \[3 2 0 1\] را می‌سازند. پس r=0 به item 13، r=1 به 12، r=2 به 10 و r=3 به 11 می‌رسد. جایگشت در crush_work نگه داشته می‌شود تا تلاش‌های بعدی با همان x از نو محاسبه نشوند](figures/ch28/f05_uniform.png){#fig-28-f05_uniform}
+![A real run of bucket_perm_choose for bucket -5 with four items and x=0x1234ABCD. Three Fisher–Yates steps build the permutation \[3 2 0 1\]. So r=0 reaches item 13, r=1 reaches 12, r=2 reaches 10 and r=3 reaches 11. The permutation is kept in crush_work so that later attempts with the same x are not recomputed](figures/ch28/f05_uniform.png){#fig-28-f05_uniform}
 
-uniform فقط وقتی درست کار می‌کند که همه‌ی itemها وزن برابر داشته باشند، چون وزن اصلاً در محاسبه نیست. مشکل بزرگ‌تر این است که تغییر `size` پیمانه‌ی همه‌ی hashها را عوض می‌کند. شبیه‌سازی ما نشان می‌دهد افزودن item پنجم به چهار item، **۸۰٪** ورودی‌ها را جابه‌جا می‌کند، در حالی که حداقل لازم ۲۰٪ است. این bucket برای سخت‌افزاری طراحی شد که همیشه یک‌جا و هم‌اندازه خریده و جایگزین می‌شود.
+uniform only works correctly when all items have equal weight, because the weight is not part of the calculation at all. The bigger problem is that changing `size` changes the modulus of every hash. Our simulation shows that adding a fifth item to four items moves **80%** of the inputs, while the minimum needed is 20%. This bucket was designed for hardware that is always bought and replaced all at once and in identical sizes.
 
-## list: پیمایش از آخر {#sec-28-8-2}
+## list: walking from the end {#sec-28-8-2}
 
-::: {.algo #alg-28-2 title="انتخاب در bucket از نوع list" src="src/crush/mapper.c :: bucket_list_choose" complexity="O(n) در بدترین حالت؛ افزودن به انتها بهینه است"}
+::: {.algo #alg-28-2 title="Choosing in a list bucket" src="src/crush/mapper.c :: bucket_list_choose" complexity="O(n) in the worst case; appending at the end is optimal"}
 :::
 
 ```text
 for i = size-1 down to 0:
-    h = hash4(x, items[i], r, bucket_id) & 0xFFFF                   # عدد 16 بیتی
+    h = hash4(x, items[i], r, bucket_id) & 0xFFFF                   # a 16-bit number
     if (h × sum_weights[i]) >> 16 < item_weights[i]: return items[i]
 return items[0]
-# sum_weights[i] = Σ_{j ≤ i} item_weights[j]  ⇒ احتمال انتخاب i به شرط رسیدن به آن = w_i / sum_i
+# sum_weights[i] = Σ_{j ≤ i} item_weights[j]  ⇒ probability of choosing i given we reach it = w_i / sum_i
 ```
 
-![اجرای واقعی bucket_list_choose برای bucket با شماره‌ی -6 با وزن‌های 1، 1 و 2. برای r=0 مقدار مقیاس‌شده‌ی item 22 برابر 3.90 است که از وزن 2 بیشتر است، پس رد می‌شود. item 21 با 0.36 < 1 انتخاب می‌شود. برای r=1 و r=2 هر دو item آخر رد می‌شوند و item 20 انتخاب می‌شود](figures/ch28/f06_list.png){#fig-28-f06_list}
+![A real run of bucket_list_choose for bucket -6 with weights 1, 1 and 2. For r=0 the scaled value of item 22 is 3.90, which is more than its weight 2, so it is rejected. item 21 is chosen with 0.36 < 1. For r=1 and r=2 both of the last items are rejected and item 20 is chosen](figures/ch28/f06_list.png){#fig-28-f06_list}
 
-چرا درست است؟ احتمال انتخاب item آخر w₂/(w₀+w₁+w₂) = 2/4 است. اگر رد شود، احتمال item میانی w₁/(w₀+w₁) = 1/2 است. پس P(21) = (1 − 1/2) × 1/2 = 1/4 و P(20) = 1/4. شمارش روی ۴۰۰ هزار ورودی همین نسبت ۱:۱:۲ را داد (100336، 99970، 199694). افزودن item به **انتها** فقط داده‌ی لازم را جابه‌جا می‌کند (۲۰٫۱٪). اما حذف یک item از میانه ترتیب را می‌شکند (در شبیه‌سازی ما ۳۶٪ به‌جای ۲۵٪).
+Why is this correct? The probability of choosing the last item is w₂/(w₀+w₁+w₂) = 2/4. If it is rejected, the probability of the middle item is w₁/(w₀+w₁) = 1/2. So P(21) = (1 − 1/2) × 1/2 = 1/4 and P(20) = 1/4. A count over 400 thousand inputs gave the same 1:1:2 ratio (100336, 99970, 199694). Adding an item at the **end** moves only the necessary data (20.1%). But removing an item from the middle breaks the order (36% instead of 25% in our simulation).
 
-## tree: درخت دودویی وزن‌دار {#sec-28-8-3}
+## tree: a weighted binary tree {#sec-28-8-3}
 
-::: {.algo #alg-28-3 title="انتخاب در bucket از نوع tree" src="src/crush/mapper.c :: bucket_tree_choose؛ src/crush/builder.c :: crush_make_tree_bucket" complexity="O(log n)؛ شماره‌ی گره‌ها با افزودن item ثابت می‌ماند"}
+::: {.algo #alg-28-3 title="Choosing in a tree bucket" src="src/crush/mapper.c :: bucket_tree_choose; src/crush/builder.c :: crush_make_tree_bucket" complexity="O(log n); node numbers stay fixed when items are added"}
 :::
 
 ```text
-node(i) = 2(i+1) − 1   (برگ‌ها فرد)؛ height(n) = تعداد صفرهای انتهایی n
-n = num_nodes / 2                          # ریشه
-while n is even:                           # گره داخلی
-    t = (hash4(x, n, r, bucket_id) × node_weights[n]) >> 32     # عدد یکنواخت در [0, w)
+node(i) = 2(i+1) − 1   (leaves are odd); height(n) = number of trailing zeros of n
+n = num_nodes / 2                          # the root
+while n is even:                           # an internal node
+    t = (hash4(x, n, r, bucket_id) × node_weights[n]) >> 32     # a uniform number in [0, w)
     n = t < node_weights[left(n)] ? left(n) : right(n)
 return items[n >> 1]
 ```
 
-![اجرای واقعی bucket_tree_choose برای چهار item با وزن‌های 1، 2، 3 و 4. ریشه n4 وزن 10 دارد. t=4.22 از وزن زیردرخت چپ (3) بیشتر است، پس مسیر به راست (n6، وزن 7) می‌رود. آنجا t=0.78 < 3، پس برگ n5 یعنی item 32 انتخاب می‌شود. برای r=1 هم همین مسیر طی شد. توزیع روی ۴۰۰ هزار ورودی تقریباً 1:2:3:4 بود](figures/ch28/f07_tree.png){#fig-28-f07_tree}
+![A real run of bucket_tree_choose for four items with weights 1, 2, 3 and 4. The root n4 has weight 10. t=4.22 is greater than the weight of the left subtree (3), so the path goes right (n6, weight 7). There t=0.78 < 3, so leaf n5, that is item 32, is chosen. The same path was taken for r=1. The distribution over 400 thousand inputs was about 1:2:3:4](figures/ch28/f07_tree.png){#fig-28-f07_tree}
 
-ترفند زیبای tree شماره‌گذاری گره‌هاست. چون hash به **شماره‌ی گره** وابسته است و شماره‌ی گره‌های موجود با بزرگ شدن درخت تغییر نمی‌کند (ریشه‌ی قدیم n4 در درخت هشت‌برگی فرزند چپ n8 می‌شود)، افزودن item پنجم دقیقاً ۲۰٪ داده را جابه‌جا کرد. اما حذف از میانه و بازسازی درخت، چیدمان برگ‌ها را عوض می‌کند و در شبیه‌سازی ما ۵۴٪ جابه‌جایی داشت.
+The elegant trick of tree is its node numbering. Because the hash depends on the **node number**, and the numbers of existing nodes do not change as the tree grows (the old root n4 becomes the left child of n8 in an eight-leaf tree), adding a fifth item moved exactly 20% of the data. But removing from the middle and rebuilding the tree changes the layout of the leaves, and in our simulation it caused 54% movement.
 
-## مقایسه‌ی جابه‌جایی {#sec-28-8-4}
+## Comparing movement {#sec-28-8-4}
 
-![درصد ورودی‌هایی که با تغییر bucket مقصد دیگری گرفتند، روی ۲۰۰ هزار مقدار x با hash واقعی. ستون آبی: افزودن item پنجم به چهار item هم‌وزن (حداقل نظری ۲۰٪). ستون نارنجی: حذف item دوم و ساخت دوباره‌ی bucket (حداقل نظری ۲۵٪). فقط straw2 در هر دو حالت به حداقل نظری می‌رسد](figures/ch28/f08_moves.png){#fig-28-f08_moves}
+![The percentage of inputs that got a different destination when the bucket changed, over 200 thousand values of x with the real hash. Blue bar: adding a fifth item to four equal-weight items (theoretical minimum 20%). Orange bar: removing the second item and rebuilding the bucket (theoretical minimum 25%). Only straw2 reaches the theoretical minimum in both cases](figures/ch28/f08_moves.png){#fig-28-f08_moves}
 
-| نوع bucket | هزینه‌ی انتخاب | افزودن | حذف یا تغییر وزن | کاربرد امروز |
+| Bucket type | Selection cost | Adding | Removing or reweighting | Use today |
 |---|---|---|---|---|
-| uniform | O(1) | بد (۸۰٪ در شبیه‌سازی) | بد | تقریباً هیچ |
-| list | O(n) | بهینه اگر در انتها | بد در میانه | خوشه‌های فقط‌رشدی قدیمی |
-| tree | O(log n) | بهینه | متوسط | bucketهای خیلی بزرگ قدیمی |
-| straw | O(n) | تقریباً بهینه | تقریباً بهینه، با خطای شناخته‌شده در وزن‌ها | منسوخ، جایگزینش straw2 |
-| straw2 | O(n) | بهینه | بهینه (فقط جابه‌جایی به/از item تغییرکرده) | پیش‌فرض |
+| uniform | O(1) | bad (80% in the simulation) | bad | almost none |
+| list | O(n) | optimal if at the end | bad in the middle | old grow-only clusters |
+| tree | O(log n) | optimal | moderate | old, very large buckets |
+| straw | O(n) | nearly optimal | nearly optimal, with a known error in the weights | obsolete, replaced by straw2 |
+| straw2 | O(n) | optimal | optimal (movement only to/from the changed item) | the default |
 
 ::: {.note}
-شبیه‌سازی حذف، bucket را بدون item حذف‌شده از نو می‌سازد. در عمل، با `ceph osd crush reweight` به صفر یا `crush remove`، رفتار به نوع bucket و جای item بستگی دارد. برای straw2، صفر کردن وزن همان اثر حذف را دارد، چون هر item قرعه‌ی مستقل خودش را می‌کشد.
+The removal simulation rebuilds the bucket without the removed item. In practice, with `ceph osd crush reweight` to zero or `crush remove`, the behaviour depends on the bucket type and the item's position. For straw2, setting the weight to zero has the same effect as removal, because each item draws its own independent lot.
 :::
 
 ::: {.sim name="crush"}
 :::
 
-# balancer در حالت upmap: calc_pg_upmaps {#sec-28-9}
+# The balancer in upmap mode: calc_pg_upmaps {#sec-28-9}
 
-balancer مربوط به mgr در حالت upmap (فصل ۱۹) کار اصلی را به `OSDMap::calc_pg_upmaps` در C++ می‌سپارد. این تابع یک کپی از OSDMap می‌سازد، با جفت‌های `pg_upmap_items` آزمایش می‌کند و نتیجه را در یک Incremental برمی‌گرداند.
+The mgr balancer in upmap mode (chapter 19) hands the main work to `OSDMap::calc_pg_upmaps` in C++. This function makes a copy of the OSDMap, experiments with `pg_upmap_items` pairs and returns the result in an Incremental.
 
-![ساختار OSDMap::calc_pg_upmaps. پس از محاسبه‌ی PGهای هر OSD و انحراف هر OSD از هدف وزنی، در هر دور مجموعه‌های overfull و underfull ساخته می‌شوند. سپس از پرترین OSD، نخست حذف upmapهای قبلی و بعد افزودن یک جفت تازه آزموده می‌شود. هر تغییر فقط وقتی پذیرفته می‌شود که امتیاز توازن بدتر نشود](figures/ch28/f09_upmap.png){#fig-28-f09_upmap}
+![The structure of OSDMap::calc_pg_upmaps. After computing the PGs of each OSD and each OSD's deviation from its weight target, the overfull and underfull sets are built in every round. Then, starting from the fullest OSD, first removing earlier upmaps and then adding a new pair is tried. Each change is accepted only if the balance score does not get worse](figures/ch28/f09_upmap.png){#fig-28-f09_upmap}
 
-::: {.algo #alg-28-4 title="انتخاب upmap حریصانه با آزمون امتیاز" src="src/osd/OSDMap.cc :: OSDMap::calc_pg_upmaps، calc_deviations، fill_overfull_underfull، try_pg_upmap، find_best_remap" complexity="هر دور O(OSD × PG) برای پیمایش و یک محاسبه‌ی CRUSH برای هر نامزد؛ حداکثر max دور"}
+::: {.algo #alg-28-4 title="Greedy upmap selection with a score test" src="src/osd/OSDMap.cc :: OSDMap::calc_pg_upmaps, calc_deviations, fill_overfull_underfull, try_pg_upmap, find_best_remap" complexity="each round O(OSD × PG) for the scan and one CRUSH computation per candidate; at most max rounds"}
 :::
 
 ```text
 ppw = total_pgs / Σ weight
 dev(osd) = pgs(osd) − weight(osd) × ppw
-bal_score = Σ weight × (dev / target)²                  # 0 یعنی کامل
+bal_score = Σ weight × (dev / target)²                  # 0 means perfect
 repeat up to max times:
     overfull  = {dev > max_deviation};   more_overfull  = {0 < dev ≤ max_deviation}
     underfull = {dev < −max_deviation};  more_underfull = {−max_deviation ≤ dev < 0}
     if overfull and underfull both empty: break
     for osd in OSDs by dev descending (dev > max_deviation):
-        if try_drop_remap_overfull(osd): goto test       # اول upmapهای قدیمی را پس بگیر
-        for pg on osd (بدون pg_upmap دستی):
-            out = try_pg_upmap(pg, overfull, underfull)   # CRUSH را با وزن صفر برای overfullها دوباره اجرا کن
-            pos = find_best_remap(orig, out)            # بهترین یک جایگزینی
+        if try_drop_remap_overfull(osd): goto test       # first take back old upmaps
+        for pg on osd (without a manual pg_upmap):
+            out = try_pg_upmap(pg, overfull, underfull)   # rerun CRUSH with zero weight for the overfull ones
+            pos = find_best_remap(orig, out)            # the single best replacement
             if pos ≥ 0: add pair (orig[pos] → out[pos]); goto test
     for osd in underfull: try_drop_remap_underfull(osd) → test
     break
-test: if new_bal_score > bal_score: reject (پرش از آن PG)  else: apply
+test: if new_bal_score > bal_score: reject (skip that PG)  else: apply
 ```
 
-**مثال عددی.** چهار OSD هم‌وزن، یک pool با 64 PG و size=3، پس 192 نسخه و هدف 48 برای هر OSD. شمارش‌ها [56، 50، 44، 42] و انحراف‌ها [+8، +2، −4، −6] است. با `upmap_max_deviation=5` (پیش‌فرض ماژول balancer): overfull={osd.0}، underfull={osd.3}. امتیاز = (64 + 4 + 16 + 36)/48² = 0.0521.
+**Numerical example.** Four equal-weight OSDs, one pool with 64 PGs and size=3, so 192 copies and a target of 48 per OSD. The counts are [56, 50, 44, 42] and the deviations [+8, +2, −4, −6]. With `upmap_max_deviation=5` (the balancer module's default): overfull={osd.0}, underfull={osd.3}. Score = (64 + 4 + 16 + 36)/48² = 0.0521.
 
-| گام | جفت upmap | شمارش‌ها | انحراف‌ها | bal_score |
+| Step | upmap pair | Counts | Deviations | bal_score |
 |---|---|---|---|---|
-| 0 | — | 56، 50، 44، 42 | +8، +2، −4، −6 | 0.0521 |
-| 1 | (0 → 3) | 55، 50، 44، 43 | +7، +2، −4، −5 | 0.0408 |
-| 2 | (0 → 3) برای PG دیگر | 54، 50، 44، 44 | +6، +2، −4، −4 | 0.0313 |
-| 3 | (0 → 2) | 53، 50، 45، 44 | +5، +2، −3، −4 | 0.0234 |
+| 0 | — | 56, 50, 44, 42 | +8, +2, −4, −6 | 0.0521 |
+| 1 | (0 → 3) | 55, 50, 44, 43 | +7, +2, −4, −5 | 0.0408 |
+| 2 | (0 → 3) for another PG | 54, 50, 44, 44 | +6, +2, −4, −4 | 0.0313 |
+| 3 | (0 → 2) | 53, 50, 45, 44 | +5, +2, −3, −4 | 0.0234 |
 
-پس از گام 3، هیچ OSDی بیش از 5 انحراف ندارد، پس overfull و underfull خالی‌اند و حلقه پایان می‌یابد. از گام 2 به بعد underfull خالی است و جایگزین‌ها از more_underfull می‌آیند. سه ورودی `pg_upmap_items` در OSDMap ثبت می‌شوند. هر تغییر فقط **یک** جفت اضافه می‌کند. توضیح کد می‌گوید این کار عمداً «آرام» است تا هر گام کوچک توزیع را واقعاً به سمت حالت کامل ببرد. فرض این مثال آن است که قانون CRUSH اجازه‌ی این جایگزینی‌ها را بدهد (مثلاً OSDها در hostهای متفاوت باشند). اگر جایگزینی قانون failure domain را بشکند، try_pg_upmap آن را رد می‌کند.
+After step 3, no OSD deviates by more than 5, so overfull and underfull are empty and the loop ends. From step 2 on, underfull is empty and the replacements come from more_underfull. Three `pg_upmap_items` entries are recorded in the OSDMap. Each change adds only **one** pair. The code comment says this is deliberately "slow", so that every small step really moves the distribution toward the perfect state. This example assumes the CRUSH rule allows these replacements (for example, the OSDs are on different hosts). If a replacement breaks the failure-domain rule, try_pg_upmap rejects it.
 
 ::: {.note}
-`osd_calc_pg_upmaps_aggressively` (و نسخه‌ی fast آن) فهرست PGها را مخلوط و جست‌وجوی جامع‌تری می‌کند. در main، `bal_score` با double جمع می‌شود. توضیح کد می‌گوید در float، تغییر یک PG در خوشه‌های بزرگ ممکن بود کمتر از دقت مجموع باشد و balancer متوقف شود.
+`osd_calc_pg_upmaps_aggressively` (and its fast variant) shuffles the PG list and searches more exhaustively. In main, `bal_score` is summed as a double. The code comment says that with float, a change of one PG in large clusters could be smaller than the precision of the sum, and the balancer would stall.
 :::
 
-# قانون‌های MSR: چند OSD در هر failure domain {#sec-28-10}
+# MSR rules: several OSDs per failure domain {#sec-28-10}
 
-در EC با k+m بزرگ‌تر از تعداد hostها (مثلاً 4+2 روی سه host)، قانون کلاسیک `choose indep 3 type host` و سپس `chooseleaf indep 2 type osd` یک مشکل دارد. اگر یک OSD out شود، مرحله‌ی دوم فقط در **همان** host دنبال جایگزین می‌گردد. اگر آن host OSD سالم دیگری نداشته باشد، shard بی‌جا می‌ماند، چون CRUSH کلاسیک نمی‌تواند به مرحله‌ی قبل برگردد. قانون‌های **MSR** (Multi-Step Retry) از Squid با نوع‌های `msr_firstn` و `msr_indep` و گام `choosemsr` این را حل می‌کنند: کل نزول از ریشه دوباره تلاش می‌شود.
+In EC with k+m larger than the number of hosts (for example 4+2 on three hosts), the classic rule `choose indep 3 type host` followed by `chooseleaf indep 2 type osd` has a problem. If an OSD goes out, the second step looks for a replacement only in the **same** host. If that host has no other healthy OSD, the shard is left unplaced, because classic CRUSH cannot go back to the previous step. **MSR** (Multi-Step Retry) rules, from Squid, with the types `msr_firstn` and `msr_indep` and the `choosemsr` step, solve this: the whole descent from the root is retried.
 
-![قانون MSR برای EC 4+2 روی سه host. خروجی شش‌خانه‌ای به سه stride دوتایی تقسیم می‌شود و hostهای هر stride از strideهای دیگر جدا نگه داشته می‌شوند. وقتی osd.7 out است، شاخص 3 در این دور خالی می‌ماند و در دور بعدی نزول با شماره‌ی تلاش تازه از ریشه تکرار می‌شود. جایگزین می‌تواند در همان host یا در hostی باشد که در stride دیگری استفاده نشده است](figures/ch28/f10_msr.png){#fig-28-f10_msr}
+![An MSR rule for EC 4+2 on three hosts. The six-slot output is divided into three strides of two, and the hosts of each stride are kept apart from the other strides. When osd.7 is out, index 3 stays empty in this round, and in the next round the descent is repeated from the root with a new try number. The replacement can be in the same host or in a host not used in another stride](figures/ch28/f10_msr.png){#fig-28-f10_msr}
 
-::: {.algo #alg-28-5 title="نزول چندمرحله‌ای با تلاش دوباره (MSR)" src="src/crush/mapper.c :: crush_msr_do_rule، crush_msr_choose، crush_msr_descend، crush_msr_get_retry_value" complexity="O(msr_descents × result_max × عمق × اندازه‌ی bucket) در بدترین حالت؛ پیش‌فرض msr_descents = msr_collision_tries = 100"}
+::: {.algo #alg-28-5 title="Multi-step descent with retry (MSR)" src="src/crush/mapper.c :: crush_msr_do_rule, crush_msr_choose, crush_msr_descend, crush_msr_get_retry_value" complexity="O(msr_descents × result_max × depth × bucket size) in the worst case; default msr_descents = msr_collision_tries = 100"}
 :::
 
 ```text
 pseudocode
-total = Π(arg1 of choosemsr steps)      # مثلاً 3 × 2 = 6
-for descent in 0 .. msr_descents-1 while خروجی کامل نیست:
+total = Π(arg1 of choosemsr steps)      # for example 3 × 2 = 6
+for descent in 0 .. msr_descents-1 while the output is not complete:
     crush_msr_choose(root, [0, total), step0, tryno = descent)
 crush_msr_choose(bucket, [start, end), step):
-    num_strides = step.arg1 (یا result_max اگر 0)
+    num_strides = step.arg1 (or result_max if 0)
     stride_length = (end − start) / num_strides
     for each stride:
-        if همه‌ی شاخص‌های stride پر شده‌اند: continue
+        if all indexes of the stride are filled: continue
         for local_try in 0 .. msr_collision_tries-1:
             r = ((descent × result_max + index) << 16) + local_try
-            cand = crush_msr_descend(bucket, step.type, r)          # straw2 و ... تا نوع هدف
-            if cand در stride دیگری استفاده شده (collision): continue
-            if آخرین گام: اگر OSD out است ⇒ شاخص خالی بماند (undo پس از دور)
-            else: crush_msr_choose(cand, [stride], step+1) برای سطح بعد
+            cand = crush_msr_descend(bucket, step.type, r)          # straw2 etc. down to the target type
+            if cand is used in another stride (collision): continue
+            if last step: if the OSD is out ⇒ leave the index empty (undo after the round)
+            else: crush_msr_choose(cand, [stride], step+1) for the next level
 ```
 
-**مثال عددی.** با `choosemsr 3 host` و `choosemsr 2 osd`، total_descendants = 6، num_strides = 3 و stride_length = 2. در فراخوانی بازگشتی برای هر host، total_descendants = 2 و stride_length = 1 است (این‌ها همان اعداد توضیح بالای `crush_msr_choose` در کد هستند). مقدار تلاش برای descent=1، result_max=6، index=3 و local_try=0 برابر ((1×6+3) ≪ 16) + 0 = 9 × 65536 = 589824 است. پس hashها در هر دور کاملاً متفاوت‌اند. تضمین گام `choosemsr 3 host` «دست‌کم» سه host است، نه «دقیقاً» سه: یک stride ممکن است پس از out شدن یک OSD از دو host استفاده کند، به شرط آنکه آن hostها در strideهای دیگر نباشند.
+**Numerical example.** With `choosemsr 3 host` and `choosemsr 2 osd`, total_descendants = 6, num_strides = 3 and stride_length = 2. In the recursive call for each host, total_descendants = 2 and stride_length = 1 (these are the same numbers as in the comment above `crush_msr_choose` in the code). The try value for descent=1, result_max=6, index=3 and local_try=0 is ((1×6+3) ≪ 16) + 0 = 9 × 65536 = 589824. So the hashes are completely different in each round. The guarantee of the `choosemsr 3 host` step is "at least" three hosts, not "exactly" three: one stride may use two hosts after an OSD goes out, provided those hosts are not in other strides.
 
 ::: {.warn}
-قانون‌های MSR به ویژگی `CRUSH_MSR` (بیت 38 در `ceph_features.h`) نیاز دارند و فقط کلاینت‌ها و OSDهایی که آن را می‌شناسند (Squid و بالاتر) می‌توانند نگاشت را حساب کنند. در زمان نگارش، `net/ceph/crush/mapper.c` در شاخه‌ی اصلی هسته‌ی لینوکس هیچ پیاده‌سازی MSR ندارد، پس krbd و ceph.ko نمی‌توانند از poolی با قانون MSR استفاده کنند. پیش از ساختن قانون MSR، `ceph features` را بررسی کنید.
+MSR rules need the `CRUSH_MSR` feature (bit 38 in `ceph_features.h`), and only clients and OSDs that know it (Squid and later) can compute the mapping. At the time of writing, `net/ceph/crush/mapper.c` in the Linux kernel mainline has no MSR implementation, so krbd and ceph.ko cannot use a pool with an MSR rule. Check `ceph features` before creating an MSR rule.
 :::
 
-# تکمیلی و به‌روز {#sec-28-11}
+# Supplementary and up to date {#sec-28-11}
 
-- قواعد MSR (`CRUSH_RULE_CHOOSE_MSR` و انواع `CRUSH_RULE_TYPE_MSR_FIRSTN` و `MSR_INDEP`) در کد Squid و main وجود دارند و در Reef نیستند. هدف آن‌ها قرار دادن چند shard در یک failure domain با کنترل دقیق است (مثلاً EC 8+6 روی ۴ rack).
-- هسته‌ی لینوکس همین `mapper.c`، `hash.c` و `crush_ln_table.h` را در `net/ceph/crush/` دارد. پشتیبانی آن از قابلیت‌های جدید CRUSH (مثل MSR) به نسخه‌ی هسته بستگی دارد و قابلیت‌های خوشه باید با `ceph osd set-require-min-compat-client` هماهنگ شود.
+- MSR rules (`CRUSH_RULE_CHOOSE_MSR` and the types `CRUSH_RULE_TYPE_MSR_FIRSTN` and `MSR_INDEP`) exist in the Squid and main code and are not in Reef. Their goal is placing several shards in one failure domain with precise control (for example EC 8+6 on 4 racks).
+- The Linux kernel has the same `mapper.c`, `hash.c` and `crush_ln_table.h` in `net/ceph/crush/`. Its support for new CRUSH features (such as MSR) depends on the kernel version, and the cluster's features must be aligned with `ceph osd set-require-min-compat-client`.
 
-# تمرین عملی {#sec-28-12}
+# Hands-on exercise {#sec-28-12}
 
-1. برنامه‌ی آزمایشی این فصل را بازسازی کنید: فایل‌های `hash.c` و `crush_ln_table.h` را از کد Ceph بردارید و `bucket_straw2_choose` را برای bucketی با پنج آیتم و وزن‌های دلخواه اجرا کنید. توزیع را برای یک میلیون x بسنجید.
-2. با `ceph osd map` چند شیء را نگاشت کنید و ps را با محاسبه‌ی دستی `ceph_stable_mod` تطبیق دهید.
-3. وزن یک host را در یک نقشه‌ی آزمایشی ۱۰٪ زیاد کنید و با `crushtool --compare` تعداد PGهای جابه‌جاشده و مقصد آن‌ها را ببینید (باید فقط به همان host منتقل شوند).
-4. یک pg-upmap-items دستی بسازید که دو replica را در یک host قرار دهد و ببینید mon با آن چه می‌کند.
+1. Rebuild this chapter's test program: take `hash.c` and `crush_ln_table.h` from the Ceph code and run `bucket_straw2_choose` for a bucket with five items and arbitrary weights. Measure the distribution for one million x.
+2. Map a few objects with `ceph osd map` and match ps against a manual calculation of `ceph_stable_mod`.
+3. Increase the weight of one host by 10% in a test map and use `crushtool --compare` to see the number of PGs moved and their destinations (they should move only to that host).
+4. Create a manual pg-upmap-items that puts two replicas on one host and see what the mon does with it.
 
-# پرسش‌های مرور {#sec-28-13}
+# Review questions {#sec-28-13}
 
-1. ceph_stable_mod چگونه حرکت داده را هنگام افزایش pg_num محدود می‌کند؟
-2. چرا HASHPSPOOL لازم است؟
-3. چرا CRUSH فقط از عملیات صحیح استفاده می‌کند؟
-4. در straw2، draw چگونه محاسبه می‌شود و چرا بیشترین draw برنده است؟
-5. crush_ln چه چیزی را با چه دقتی برمی‌گرداند؟
-6. چرا straw2 حرکت حداقلی دارد و straw قدیمی نداشت؟
-7. تصادم در firstn چگونه حل می‌شود و سقف آن چیست؟
-8. تفاوت firstn و indep برای EC چیست؟
-9. weight-set در choose_args چه مشکلی را حل می‌کند؟
-10. ترتیب اعمال upmapها چیست و mon با upmap نامعتبر چه می‌کند؟
+1. How does ceph_stable_mod limit data movement when pg_num is increased?
+2. Why is HASHPSPOOL needed?
+3. Why does CRUSH use only integer operations?
+4. In straw2, how is the draw computed and why does the largest draw win?
+5. What does crush_ln return, and with what precision?
+6. Why does straw2 have minimal movement, and why did the old straw not?
+7. How is a collision resolved in firstn, and what is its limit?
+8. What is the difference between firstn and indep for EC?
+9. What problem does the weight-set in choose_args solve?
+10. What is the order in which upmaps are applied, and what does the mon do with an invalid upmap?
 
-# منابع این فصل {#sec-28-14}
+# Sources for this chapter {#sec-28-14}
 
-- مقاله‌ی CRUSH (Weil و همکاران، SC 2006): https://ceph.io/assets/pdfs/weil-crush-sc06.pdf
+- The CRUSH paper (Weil et al., SC 2006): https://ceph.io/assets/pdfs/weil-crush-sc06.pdf
 - mapper.c: https://github.com/ceph/ceph/blob/main/src/crush/mapper.c
 - hash.c: https://github.com/ceph/ceph/blob/main/src/crush/hash.c
 - CRUSH maps: https://docs.ceph.com/en/latest/rados/operations/crush-map/
-- ویرایش CRUSH map: https://docs.ceph.com/en/latest/rados/operations/crush-map-edits/
+- Editing a CRUSH map: https://docs.ceph.com/en/latest/rados/operations/crush-map-edits/
 - upmap: https://docs.ceph.com/en/latest/rados/operations/upmap/
 - balancer: https://docs.ceph.com/en/latest/rados/operations/balancer/
 - crushtool: https://docs.ceph.com/en/latest/man/8/crushtool/
-- تابع hash مربوط به Bob Jenkins: https://burtleburtle.net/bob/hash/doobs.html
+- Bob Jenkins's hash function: https://burtleburtle.net/bob/hash/doobs.html
