@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph R1["r=0 (root bucket, three hosts)"]
+    direction LR
+    A["host -3 (w=10)<br/>u=0x22D1 → draw −77.3M"] --> B["host -4 (w=10)<br/>u=0xCB89 → draw −8.9M ✔"] --> C["host -5 (w=20)<br/>u=0x32F9 → draw −31.2M"]
+  end
+  subgraph R2["r=1"]
+    direction LR
+    D["-3: −7.18M"] --> E["-4: −14.6M"] --> F["-5: −3.92M ✔"]
+  end
+  subgraph R3["r=2 … r=5 (collision with earlier choices)"]
+    direction LR
+    G["r=2 → -5 ✘"] --> H["r=3 → -5 ✘"] --> I["r=4 → -5 ✘"] --> J["r=5 → -4 ✘"]
+  end
+  subgraph R4["r=6"]
+    direction LR
+    K["-3 ✔<br/>(after 4 failed attempts;<br/>choose_total_tries=50)"]
+  end
+  R1 ~~~ R2 ~~~ R3 ~~~ R4

@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["Three tools for correcting the distribution"]
+    direction LR
+    A["reweight (0..1)<br/>probabilistic is_out<br/>widespread movement"] --> B["choose_args / weight-set<br/>substitute weight per position<br/>(balancer crush-compat)"] --> C["pg_upmap_items<br/>explicit osd→osd replacement<br/>(balancer upmap)"]
+  end
+  subgraph R2["Order of application in OSDMap::_pg_to_raw_osds and _apply_upmap"]
+    direction LR
+    D["crush_do_rule<br/>with choose_args"] --> E["remove non-existent OSDs"] --> F["pg_upmap (whole list)"] --> G["pg_upmap_items (pairs)"] --> H["pg_upmap_primary"]
+  end
+  R1 ~~~ R2

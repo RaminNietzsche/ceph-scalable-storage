@@ -1759,95 +1759,89 @@ ch27/f09_lrc:
   و ترافیک درون rack: and traffic within the rack
   قانون CRUSH با crush-locality=rack: CRUSH rule with crush-locality=rack
 ch28/f01_pipe:
-  نام شیء: null
-  ورودی: null
-  ها: null
-  نگاشت نهایی: null
-  حذف: null
+  نام شیء → PG: Object name → PG
+  PG → ورودی CRUSH: PG → CRUSH input
+  CRUSH → OSDها → نگاشت نهایی: CRUSH → OSDs → final mapping
+  حذف down/out: remove down/out
 ch28/f02_straw2:
-  ، سه: null
-  تصادم با انتخاب‌های قبلی: null
-  پس از: null
-  تلاش ناموفق؛: null
+  r=0 (bucket root، سه host): r=0 (root bucket, three hosts)
+  r=2 … r=5 (تصادم با انتخاب‌های قبلی): r=2 … r=5 (collision with earlier choices)
+  (پس از 4 تلاش ناموفق؛: (after 4 failed attempts;
 ch28/f03_rule:
-  قاعده‌ی: null
-  داخل: null
-  برای هر: null
-  در: null
-  با: null
-  تصادم یا: null
-  ؟: null
-  و تکرار: null
-  وزن: null
-  بین آن‌ها: null
+  قاعده‌ی replicated_rule: The replicated_rule rule
+  داخل chooseleaf_firstn برای هر rep: Inside chooseleaf_firstn for each rep
+  در host (r′ با vary_r): in the host (r′ with vary_r)
+  تصادم یا out؟: collision or out?
+  ftotal++ و تکرار: ftotal++ and repeat
+  'is_out: وزن reweight': 'is_out: the reweight value'
+  'بین آن‌ها:': 'in between:'
 ch28/f04_adjust:
-  سه ابزار اصلاح توزیع: null
-  احتمالی: null
-  جابه‌جایی گسترده: null
-  وزن جایگزین در هر: null
-  جایگزینی صریح: null
-  ترتیب اعمال در: null
-  و: null
-  با: null
-  حذف: null
-  های ناموجود: null
-  کل لیست: null
-  جفت‌ها: null
+  سه ابزار اصلاح توزیع: Three tools for correcting the distribution
+  is_out احتمالی: probabilistic is_out
+  جابه‌جایی گسترده: widespread movement
+  وزن جایگزین در هر position: substitute weight per position
+  جایگزینی صریح osd→osd: explicit osd→osd replacement
+  ترتیب اعمال در OSDMap::_pg_to_raw_osds و _apply_upmap: Order of application in OSDMap::_pg_to_raw_osds and _apply_upmap
+  با choose_args: with choose_args
+  حذف OSDهای ناموجود: remove non-existent OSDs
+  pg_upmap (کل لیست): pg_upmap (whole list)
+  pg_upmap_items (جفت‌ها): pg_upmap_items (pairs)
 ch28/f05_uniform:
-  شماره‌ی: null
-  با چهار: null
-  و: null
-  آغازین: null
-  جابه‌جایی: null
-  با: null
-  خروجی برای: null
+  'bucket uniform شماره‌ی -5 با چهار item: 10، 11، 12، 13 و x = 0x1234ABCD': 'uniform bucket -5 with four items: 10, 11, 12, 13 and x = 0x1234ABCD'
+  perm آغازین: initial perm
+  جابه‌جایی 0 با 3: swap 0 with 3
+  جابه‌جایی 1 با 2: swap 1 with 2
+  جابه‌جایی 2 با 3: swap 2 with 3
+  خروجی برای r = 0، 1، 2، 3: Output for r = 0, 1, 2, 3
 ch28/f06_list:
-  شماره‌ی: null
-  ؛: null
-  شروع از آخر: null
-  رد: null
-  انتخاب: null
-  و: null
+  'bucket list شماره‌ی -6: item 20 (w=1)، 21 (w=1)، 22 (w=2)؛ sum_weights = 1، 2، 4': 'list bucket -6: item 20 (w=1), 21 (w=1), 22 (w=2); sum_weights = 1, 2, 4'
+  'شروع از آخر: item 22': 'start from the end: item 22'
+  3.90 ≥ 2 ⇒ رد: 3.90 ≥ 2 ⇒ reject
+  0.36 < 1 ⇒ انتخاب: 0.36 < 1 ⇒ choose
+  r=1 و r=2: r=1 and r=2
+  'r=1: 22 رد (2.81) ⇒ 21 رد (1.92)': 'r=1: 22 rejected (2.81) ⇒ 21 rejected (1.92)'
+  item 20 (0.29 < 1) ⇒ انتخاب: item 20 (0.29 < 1) ⇒ chosen
+  'r=2: 22 رد ⇒ 21 رد ⇒ 20': 'r=2: 22 rejected ⇒ 21 rejected ⇒ 20'
 ch28/f07_tree:
-  ریشه: null
-  وزن: null
-  راست: null
-  چپ: null
+  n4 (ریشه)<br/>وزن 10: n4 (root)<br/>weight 10
+  t = 4.22 ≥ 3 ⇒ راست: t = 4.22 ≥ 3 ⇒ right
+  n6<br/>وزن 7: n6<br/>weight 7
+  n2<br/>وزن 3: n2<br/>weight 3
+  item 30<br/>وزن 1: item 30<br/>weight 1
+  item 31<br/>وزن 2: item 31<br/>weight 2
+  t = 0.78 < 3 ⇒ چپ: t = 0.78 < 3 ⇒ left
+  item 32<br/>وزن 3 ✔: item 32<br/>weight 3 ✔
+  item 33<br/>وزن 4: item 33<br/>weight 4
 ch28/f09_upmap:
-  آماده‌سازی: null
-  های هر: null
-  و وزن‌ها: null
-  وزن: null
-  اگر: null
-  پایان: null
-  هر دور: null
-  تا: null
-  تغییر: null
-  پرترین: null
-  اول: null
-  یک جفت: null
-  آزمون تغییر: null
-  دوباره: null
-  بدتر شد: null
-  رد و پرش از: null
-  بهتر شد: null
-  اعمال در: null
+  آماده‌سازی (OSDMap::calc_pg_upmaps): Preparation (OSDMap::calc_pg_upmaps)
+  PGهای هر OSD و وزن‌ها: PGs of each OSD and the weights
+  total_pgs / Σ وزن: total_pgs / Σ weight
+  اگر max|dev| ≤ max_deviation: if max|dev| ≤ max_deviation
+  ⇒ پایان: ⇒ done
+  هر دور (تا max تغییر): Each round (up to max changes)
+  'پرترین OSD اول:': 'fullest OSD first:'
+  یک جفت (from,to): one (from,to) pair
+  آزمون تغییر: Testing the change
+  calc_deviations دوباره: calc_deviations again
+  بدتر شد: worse
+  رد و پرش از PG: reject and skip the PG
+  بهتر شد: better
+  اعمال در tmp_osd_map: apply to tmp_osd_map
 ch28/f10_msr:
-  قانون: null
-  برای: null
-  روی سه: null
-  تقسیم خروجی به: null
-  شاخص‌های: null
-  شدن: null
-  شاخص: null
-  خالی می‌ماند: null
-  تا پایان دور: null
-  دور بعد: null
-  با: null
-  یا: null
-  ی که در: null
-  دیگر: null
-  استفاده نشده: null
+  قانون msr_indep برای EC 4+2 روی سه host: An msr_indep rule for EC 4+2 on three hosts
+  تقسیم خروجی به stride: Dividing the output into strides
+  'stride 0: شاخص‌های 0، 1': 'stride 0: indexes 0, 1'
+  'host-a: osd.1، osd.4': 'host-a: osd.1, osd.4'
+  'stride 1: شاخص‌های 2، 3': 'stride 1: indexes 2, 3'
+  'host-c: osd.9، osd.7': 'host-c: osd.9, osd.7'
+  'stride 2: شاخص‌های 4، 5': 'stride 2: indexes 4, 5'
+  'host-b: osd.5، osd.2': 'host-b: osd.5, osd.2'
+  out شدن osd.7: osd.7 goes out
+  شاخص 3 خالی می‌ماند: index 3 stays empty
+  (undo تا پایان دور): (undo until the end of the round)
+  'دور بعد: retry با': 'next round: retry with'
+  host-c یا hostی که در stride دیگر: host-c or a host not used
+  'استفاده نشده: osd.8': 'in another stride: osd.8'
 ch29/f01_krbd:
   از برنامه تا: null
   روی: null

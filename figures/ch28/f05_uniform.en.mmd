@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph S["uniform bucket -5 with four items: 10, 11, 12, 13 and x = 0x1234ABCD"]
+    direction LR
+    s0["initial perm<br/>[0 1 2 3]"] -->|"p=0: hash mod 4 = 3<br/>swap 0 with 3"| s1["[3 1 2 0]"] -->|"p=1: hash mod 3 = 1<br/>swap 1 with 2"| s2["[3 2 1 0]"] -->|"p=2: hash mod 2 = 1<br/>swap 2 with 3"| s3["[3 2 0 1]"]
+  end
+  subgraph R["Output for r = 0, 1, 2, 3"]
+    direction LR
+    r0["r=0 ⇒ item 13"] --> r1["r=1 ⇒ item 12"] --> r2["r=2 ⇒ item 10"] --> r3["r=3 ⇒ item 11"]
+  end
+  S ~~~ R

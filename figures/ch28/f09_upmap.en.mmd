@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph A["Preparation (OSDMap::calc_pg_upmaps)"]
+    direction LR
+    a1["build_pool_pgs_info<br/>PGs of each OSD and the weights"] --> a2["pgs_per_weight =<br/>total_pgs / Σ weight"] --> a3["calc_deviations<br/>dev = pgs − w × ppw"] --> a4["if max|dev| ≤ max_deviation<br/>⇒ done"]
+  end
+  subgraph B["Each round (up to max changes)"]
+    direction LR
+    b1["fill_overfull_underfull<br/>dev > max ⇒ overfull<br/>dev < −max ⇒ underfull"] --> b2["fullest OSD first:<br/>try_drop_remap_overfull"] --> b3["try_pg_upmap ⇒<br/>find_best_remap"] --> b4["add_remap_pair<br/>one (from,to) pair"]
+  end
+  subgraph C["Testing the change"]
+    direction LR
+    c1["calc_deviations again<br/>new_bal_score"] -->|"worse"| c2["reject and skip the PG"]
+    c1 -->|"better"| c3["apply to tmp_osd_map<br/>pending_inc"]
+  end
+  A ~~~ B ~~~ C

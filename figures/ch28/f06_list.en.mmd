@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph L["list bucket -6: item 20 (w=1), 21 (w=1), 22 (w=2); sum_weights = 1, 2, 4"]
+    direction LR
+    a["start from the end: item 22<br/>h16=0xF9C9 × 4 ≫ 16 = 3.90"] -->|"3.90 ≥ 2 ⇒ reject"| b["item 21<br/>h16=0x2D95 × 2 ≫ 16 = 0.36"] -->|"0.36 < 1 ⇒ choose"| c["r=0 ⇒ item 21"]
+  end
+  subgraph M["r=1 and r=2"]
+    direction LR
+    d["r=1: 22 rejected (2.81) ⇒ 21 rejected (1.92)"] --> e["item 20 (0.29 < 1) ⇒ chosen"] --> f["r=2: 22 rejected ⇒ 21 rejected ⇒ 20"]
+  end
+  L ~~~ M

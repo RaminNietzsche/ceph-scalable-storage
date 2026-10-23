@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R["An msr_indep rule for EC 4+2 on three hosts"]
+    direction LR
+    r1["step take default"] --> r2["step choosemsr 3 type host<br/>num_strides = 3"] --> r3["step choosemsr 2 type osd<br/>stride_length = 6/3 = 2"] --> r4["step emit"]
+  end
+  subgraph S["Dividing the output into strides"]
+    direction LR
+    s0["stride 0: indexes 0, 1<br/>host-a: osd.1, osd.4"] --> s1["stride 1: indexes 2, 3<br/>host-c: osd.9, osd.7"] --> s2["stride 2: indexes 4, 5<br/>host-b: osd.5, osd.2"]
+  end
+  subgraph F["osd.7 goes out"]
+    direction LR
+    f1["index 3 stays empty<br/>(undo until the end of the round)"] --> f2["next round: retry with<br/>(descent × result_max + index) ≪ 16"] --> f3["host-c or a host not used<br/>in another stride: osd.8"]
+  end
+  R ~~~ S ~~~ F
