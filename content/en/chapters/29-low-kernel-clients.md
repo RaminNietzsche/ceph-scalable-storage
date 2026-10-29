@@ -4,158 +4,157 @@ id: ch29
 title: 'Lower Layers (7): Linux Kernel Clients — libceph, krbd and ceph.ko'
 part: lower
 lang: en
-translation: pending
 ---
 
-# مقدمه: Ceph درون هسته {#sec-29-1}
+# Introduction: Ceph inside the kernel {#sec-29-1}
 
-همه‌ی کلاینت‌های فصل‌های قبل، یعنی librados، librbd، ceph-fuse و RGW، در فضای کاربر اجرا می‌شوند و از کد C++ مشترک Ceph (Objecter و AsyncMessenger) استفاده می‌کنند. هسته‌ی لینوکس اما پیاده‌سازی **کاملاً مستقلی** به زبان C دارد: ماژول `libceph` (پوشه‌ی `net/ceph/`) که messenger، کلاینت mon و OSD، CRUSH و cephx را پیاده می‌کند. دو مصرف‌کننده‌ی آن `rbd.ko` (فایل `drivers/block/rbd.c`) و `ceph.ko` (پوشه‌ی `fs/ceph/`) هستند. این فصل هر سه را بررسی می‌کند. منبع، شاخه‌ی master در مخزن torvalds/linux است و کد هسته GPL-2.0 دارد. در این فصل فقط نام توابع و ثابت‌ها را آورده‌ایم و منطق را به زبان خود توضیح داده‌ایم.
+All the clients of the previous chapters, that is librados, librbd, ceph-fuse and RGW, run in user space and use Ceph's shared C++ code (Objecter and AsyncMessenger). The Linux kernel, however, has a **completely independent** implementation in C: the `libceph` module (the `net/ceph/` directory), which implements the messenger, the mon and OSD clients, CRUSH and cephx. Its two consumers are `rbd.ko` (the file `drivers/block/rbd.c`) and `ceph.ko` (the `fs/ceph/` directory). This chapter examines all three. The source is the master branch of the torvalds/linux repository, and the kernel code is GPL-2.0. In this chapter we give only the names of functions and constants and explain the logic in our own words.
 
 ::: {.summary}
 
-- `libceph` شامل این بخش‌هاست: `messenger.c` به‌همراه `messenger_v1.c` و `messenger_v2.c`، `osd_client.c`، `mon_client.c`، `osdmap.c`، `crush/` (همان mapper.c و hash.c مربوط به Ceph)، `auth_x.c` (cephx) و `striper.c`.
-- krbd هر درخواست blk-mq را به یک `rbd_img_request` و سپس به چند `rbd_obj_request` (یکی برای هر شیء ۴M) تبدیل می‌کند. هرکدام یک `ceph_osd_request` با opهایی مثل WRITE، WRITEFULL، ZERO یا DELETE است.
-- ویژگی‌های پشتیبانی‌شده‌ی krbd شامل layering، striping v2، exclusive-lock، object-map، fast-diff، deep-flatten، data-pool و operations است. journaling پشتیبانی نمی‌شود.
-- از هسته‌ی ۵٫۱۱، msgr2.1 با گزینه‌ی `ms_mode` پشتیبانی می‌شود. حالت secure از `gcm(aes)` در crypto API هسته استفاده می‌کند.
-- ceph.ko هماهنگی کش را با caps مربوط به MDS انجام می‌دهد. caps تعیین می‌کنند چه چیزی را می‌توان کش، بافر یا مستقیم خواند و نوشت.
+- `libceph` contains these parts: `messenger.c` together with `messenger_v1.c` and `messenger_v2.c`, `osd_client.c`, `mon_client.c`, `osdmap.c`, `crush/` (the same mapper.c and hash.c as Ceph), `auth_x.c` (cephx) and `striper.c`.
+- krbd turns each blk-mq request into an `rbd_img_request` and then into several `rbd_obj_request`s (one per 4M object). Each one is a `ceph_osd_request` with ops such as WRITE, WRITEFULL, ZERO or DELETE.
+- The features krbd supports include layering, striping v2, exclusive-lock, object-map, fast-diff, deep-flatten, data-pool and operations. journaling is not supported.
+- Since kernel 5.11, msgr2.1 is supported through the `ms_mode` option. secure mode uses `gcm(aes)` from the kernel crypto API.
+- ceph.ko keeps its cache coherent with the MDS caps. The caps determine what may be cached, buffered, or read and written directly.
 
 :::
 
-# libceph: ساختار {#sec-29-2}
+# libceph: structure {#sec-29-2}
 
-| فایل | نقش | معادل در فضای کاربر |
+| File | Role | User-space equivalent |
 |---|---|---|
-| `ceph_common.c` | `ceph_client`، تجزیه‌ی گزینه‌ها (`mon_addr`، `name`، `secret`، `ms_mode`) | `CephContext` + `librados::Rados` |
-| `messenger.c` / `_v1.c` / `_v2.c` | `ceph_connection`، ماشین وضعیت، banner و frameها | `AsyncConnection` + `ProtocolV1/V2` |
-| `mon_client.c` | اشتراک نقشه‌ها، hunting بین monها با backoff، احراز هویت | `MonClient` |
-| `osd_client.c` | `ceph_osd_request`، `calc_target`، `send_request`، linger (watch/notify)، timeout | `Objecter` |
-| `osdmap.c` + `crush/` | decode کردن OSDMap و اجرای CRUSH در هسته | `OSDMap` + `CrushWrapper` |
-| `auth_x.c` | cephx (ticket، authorizer) | `auth/cephx` |
-| `striper.c` | نگاشت بازه‌ی فایل یا تصویر به اشیا | `Striper` |
+| `ceph_common.c` | `ceph_client`, option parsing (`mon_addr`, `name`, `secret`, `ms_mode`) | `CephContext` + `librados::Rados` |
+| `messenger.c` / `_v1.c` / `_v2.c` | `ceph_connection`, state machine, banner and frames | `AsyncConnection` + `ProtocolV1/V2` |
+| `mon_client.c` | map subscriptions, hunting among mons with backoff, authentication | `MonClient` |
+| `osd_client.c` | `ceph_osd_request`, `calc_target`, `send_request`, linger (watch/notify), timeout | `Objecter` |
+| `osdmap.c` + `crush/` | decoding the OSDMap and running CRUSH in the kernel | `OSDMap` + `CrushWrapper` |
+| `auth_x.c` | cephx (ticket, authorizer) | `auth/cephx` |
+| `striper.c` | mapping a file or image extent to objects | `Striper` |
 
 ::: {.note}
-`net/ceph/crush/mapper.c` و `hash.c` در هسته در اصل همان فایل‌های `src/crush/` در Ceph هستند. شرط‌های `#ifdef __KERNEL__` در ابتدای `hash.c` در Ceph (فصل ۲۸) برای همین اشتراک‌اند. نتیجه این است که کلاینت هسته دقیقاً همان PG→OSD را محاسبه می‌کند که librados. ولی پشتیبانی از tunableها و قابلیت‌های جدید CRUSH به نسخه‌ی هسته بستگی دارد. اگر خوشه قابلیتی را لازم کند که هسته نمی‌شناسد، mount یا map با خطای feature mismatch شکست می‌خورد و در `dmesg` پیام `missing required protocol features` دیده می‌شود.
+`net/ceph/crush/mapper.c` and `hash.c` in the kernel are essentially the same files as `src/crush/` in Ceph. The `#ifdef __KERNEL__` conditions at the top of `hash.c` in Ceph (chapter 28) exist for this sharing. The result is that the kernel client computes exactly the same PG→OSD as librados. But support for the tunables and new CRUSH features depends on the kernel version. If the cluster requires a feature the kernel does not know, the mount or map fails with a feature-mismatch error, and the message `missing required protocol features` appears in `dmesg`.
 :::
 
-## osd_client: مسیر یک درخواست {#sec-29-2-1}
+## osd_client: the path of a request {#sec-29-2-1}
 
-1. **ساخت:** `ceph_osdc_alloc_request` و توابع `osd_req_op_*_init` (مثلاً extent، cls یا watch) opها را می‌سازند. داده به‌صورت `ceph_osd_data` (فهرست bio، bvec یا صفحه‌ها) بدون کپی متصل می‌شود.
-2. **هدف‌یابی:** `calc_target` با OSDMap فعلی شیء را به PG و سپس به primary نگاشت می‌کند (با upmap و pg_temp). اگر نقشه تغییر کند، درخواست‌های در جریان دوباره هدف‌یابی و ارسال می‌شوند.
-3. **ارسال:** `send_request` بررسی‌هایی انجام می‌دهد: اگر پرچم `PAUSEWR` در نقشه باشد یا pool پر باشد (`pool_full`) و درخواست نوشتن بدون `CEPH_OSD_FLAG_FULL_TRY` باشد، درخواست نگه داشته می‌شود تا نقشه‌ی بعدی برسد. سپس پیام `MOSDOp` روی `ceph_connection` مربوط به آن OSD صف می‌شود.
-4. **پاسخ:** `handle_reply` نتیجه را با tid پیدا و callback (مثلاً `rbd_osd_req_callback`) را صدا می‌زند.
-5. **linger:** watchهای RBD (برای header و exclusive lock) به‌صورت `ceph_osd_linger_request` نگه داشته و پس از هر تغییر نقشه یا بازاتصال دوباره ثبت می‌شوند.
+1. **Construction:** `ceph_osdc_alloc_request` and the `osd_req_op_*_init` functions (for example extent, cls or watch) build the ops. The data is attached without copying as `ceph_osd_data` (a bio list, a bvec or pages).
+2. **Targeting:** `calc_target` uses the current OSDMap to map the object to a PG and then to the primary (with upmap and pg_temp). If the map changes, in-flight requests are re-targeted and resent.
+3. **Sending:** `send_request` makes some checks: if the `PAUSEWR` flag is in the map, or the pool is full (`pool_full`) and the request is a write without `CEPH_OSD_FLAG_FULL_TRY`, the request is held until the next map arrives. Then the `MOSDOp` message is queued on the `ceph_connection` of that OSD.
+4. **Reply:** `handle_reply` finds the result by tid and calls the callback (for example `rbd_osd_req_callback`).
+5. **linger:** RBD watches (for the header and the exclusive lock) are kept as `ceph_osd_linger_request` and re-registered after every map change or reconnection.
 
 ::: {.warn}
-رفتار پیش‌فرض کلاینت هسته در برابر pool پر یا خوشه‌ی متوقف، **انتظار نامحدود** است، نه خطا. برنامه‌ای که روی `/dev/rbd0` یا CephFS هسته‌ای می‌نویسد، در وضعیت D (uninterruptible) گیر می‌کند. گزینه‌ی `osd_request_timeout` (در `rbd map -o` یا mount) این را محدود می‌کند، ولی پیامد آن خطای I/O برای فایل‌سیستم بالایی است. پیش از تنظیم آن، اثرش را بسنجید.
+The kernel client's default behaviour towards a full pool or a paused cluster is to **wait indefinitely**, not to fail. A program writing to `/dev/rbd0` or to kernel CephFS gets stuck in state D (uninterruptible). The `osd_request_timeout` option (in `rbd map -o` or mount) bounds this, but the consequence is an I/O error for the filesystem above. Measure its effect before setting it.
 :::
 
-# krbd: از blk-mq تا شیء {#sec-29-3}
+# krbd: from blk-mq to the object {#sec-29-3}
 
-![مسیر یک نوشتن در krbd. برنامه روی /dev/rbd0 یا فایل‌سیستمی روی آن می‌نویسد. لایه‌ی block درخواست‌ها را از طریق tag_set مربوط به blk-mq (با عمق queue_depth، پیش‌فرض BLKDEV_DEFAULT_RQ) به rbd_queue_rq می‌دهد. rbd.c هر request را به یک img_request تبدیل و آن را بر اساس اندازه‌ی شیء به obj_requestها تقسیم می‌کند. هر obj_request یک ceph_osd_request است که osd_client با CRUSH درون هسته به primary OSD می‌فرستد](figures/ch29/f01_krbd.png){#fig-29-f01_krbd}
+![The path of a write in krbd. The program writes to /dev/rbd0 or to a filesystem on it. The block layer passes requests to rbd_queue_rq through the blk-mq tag_set (with depth queue_depth, default BLKDEV_DEFAULT_RQ). rbd.c turns each request into an img_request and splits it into obj_requests according to the object size. Each obj_request is a ceph_osd_request that osd_client sends to the primary OSD using in-kernel CRUSH](figures/ch29/f01_krbd.png){#fig-29-f01_krbd}
 
-محدودیت‌های صف که `rbd.c` تنظیم می‌کند، مستقیم از ساختار تصویر می‌آیند: `io_opt` برابر اندازه‌ی یک object set (object_size × stripe_count) است، `io_min` برابر `alloc_size` (پیش‌فرض 64K، `RBD_ALLOC_SIZE_DEFAULT`) و `discard_granularity` هم برابر `alloc_size`. فایل‌سیستم‌هایی مثل XFS این مقادیر را در `mkfs` می‌خوانند تا هم‌ترازی را تنظیم کنند.
+The queue limits that `rbd.c` sets come directly from the image structure: `io_opt` equals the size of one object set (object_size × stripe_count), `io_min` equals `alloc_size` (default 64K, `RBD_ALLOC_SIZE_DEFAULT`), and `discard_granularity` also equals `alloc_size`. Filesystems such as XFS read these values in `mkfs` to set their alignment.
 
-| نوع I/O در blk-mq | op روی OSD (در `__rbd_osd_setup_write_ops` و مشابه) |
+| I/O type in blk-mq | op on the OSD (in `__rbd_osd_setup_write_ops` and similar) |
 |---|---|
-| read | `CEPH_OSD_OP_READ` (یا sparse-read) |
-| write که کل شیء را بپوشاند | `CEPH_OSD_OP_WRITEFULL` |
-| write جزئی | `CEPH_OSD_OP_WRITE` (پس از `SETALLOCHINT` با اندازه‌ی شیء) |
-| discard یا write-zeroes در انتهای شیء | `CEPH_OSD_OP_TRUNCATE` |
-| discard یا write-zeroes در میانه | `CEPH_OSD_OP_ZERO` |
-| discard کل شیء (بدون parent) | `CEPH_OSD_OP_DELETE` |
+| read | `CEPH_OSD_OP_READ` (or sparse-read) |
+| a write that covers the whole object | `CEPH_OSD_OP_WRITEFULL` |
+| a partial write | `CEPH_OSD_OP_WRITE` (after `SETALLOCHINT` with the object size) |
+| discard or write-zeroes at the end of the object | `CEPH_OSD_OP_TRUNCATE` |
+| discard or write-zeroes in the middle | `CEPH_OSD_OP_ZERO` |
+| discard of a whole object (no parent) | `CEPH_OSD_OP_DELETE` |
 
-![ماشین‌های وضعیت در rbd.c. img_request اگر exclusive-lock فعال باشد، ابتدا قفل را می‌گیرد، سپس همه‌ی obj_requestها را اجرا می‌کند و منتظر می‌ماند. هر نوشتن شیء در صورت فعال بودن object-map ابتدا آن را به‌روز می‌کند، سپس روی OSD می‌نویسد. در clone، اگر شیء هنوز وجود نداشته باشد، copyup داده‌ی parent را همراه نوشتن می‌فرستد و در پایان object-map نهایی می‌شود. خواندن اگر در clone با -ENOENT روبه‌رو شود، به parent می‌رود](figures/ch29/f02_objsm.png){#fig-29-f02_objsm}
+![The state machines in rbd.c. If exclusive-lock is enabled, the img_request first acquires the lock, then runs all obj_requests and waits. Each object write first updates the object-map if it is enabled, then writes to the OSD. In a clone, if the object does not exist yet, copyup sends the parent's data along with the write, and at the end the object-map is finalized. A read that meets -ENOENT in a clone goes to the parent](figures/ch29/f02_objsm.png){#fig-29-f02_objsm}
 
-# krbd در عمل {#sec-29-4}
+# krbd in practice {#sec-29-4}
 
 ```bash
 rbd map rbd/img1 -o ms_mode=prefer-crc,queue_depth=256,alloc_size=65536
 rbd showmapped
 cat /sys/block/rbd0/queue/{optimal_io_size,minimum_io_size,discard_granularity,nr_requests}
 cat /sys/bus/rbd/devices/0/{pool,name,image_id,features,current_snap}
-# درخواست‌های در جریان libceph (debugfs):
+# libceph in-flight requests (debugfs):
 mount -t debugfs none /sys/kernel/debug 2>/dev/null
-cat /sys/kernel/debug/ceph/*/osdc       # tid، osd، pg، شیء، op
-cat /sys/kernel/debug/ceph/*/monc       # نقشه‌ها و mon جاری
+cat /sys/kernel/debug/ceph/*/osdc       # tid, osd, pg, object, op
+cat /sys/kernel/debug/ceph/*/monc       # maps and the current mon
 cat /sys/kernel/debug/ceph/*/client_options
 ```
 
 ::: {.tip}
-خروجی `osdc` مهم‌ترین ابزار تشخیص «گیر کردن» کلاینت هسته است. اگر یک tid برای مدت طولانی روی یک OSD باقی بماند، با `ceph daemon osd.N dump_ops_in_flight` روی همان OSD ادامه‌ی ماجرا را پیدا کنید (فصل ۲۲). اگر همه‌ی درخواست‌ها روی `osd-1` (بدون هدف) باشند، کلاینت نقشه‌ی معتبری ندارد. در این صورت `monc` و ارتباط با monها را بررسی کنید.
+The `osdc` output is the most important tool for diagnosing a "stuck" kernel client. If a tid stays on one OSD for a long time, follow the story further on that OSD with `ceph daemon osd.N dump_ops_in_flight` (chapter 22). If all requests are on `osd-1` (no target), the client has no valid map. In that case check `monc` and the connection to the mons.
 :::
 
-| گزینه‌ی `rbd map -o` | پیش‌فرض (طبق کد master) | نکته |
+| `rbd map -o` option | Default (per the master code) | Note |
 |---|---|---|
-| `queue_depth` | `BLKDEV_DEFAULT_RQ` | عمق صف blk-mq |
-| `alloc_size` | 65536 | io_min و discard_granularity |
-| `lock_timeout` | 0 (بدون timeout) | انتظار برای exclusive lock |
+| `queue_depth` | `BLKDEV_DEFAULT_RQ` | blk-mq queue depth |
+| `alloc_size` | 65536 | io_min and discard_granularity |
+| `lock_timeout` | 0 (no timeout) | wait for the exclusive lock |
 | `read_only` / `ro` | false | — |
-| `ms_mode` | legacy (msgr1) | `crc`، `secure`، `prefer-crc` یا `prefer-secure` از ۵٫۱۱ |
-| `exclusive` | خاموش | قفل را رها نکن (برای fencing) |
-| `notrim` | خاموش | discard را نادیده بگیر (برای thick provisioning) |
+| `ms_mode` | legacy (msgr1) | `crc`, `secure`, `prefer-crc` or `prefer-secure` since 5.11 |
+| `exclusive` | off | do not release the lock (for fencing) |
+| `notrim` | off | ignore discard (for thick provisioning) |
 
 ::: {.note}
-پیش‌فرض `ms_mode` را در مستند هسته (`Documentation/filesystems/ceph.rst` برای CephFS و man page مربوط به rbd برای krbd) بررسی کنید. در کد master مربوط به `net/ceph/ceph_common.c`، مقدار اولیه‌ی `con_modes` برابر `CEPH_CON_MODE_UNKNOWN` است که به‌معنای استفاده از msgr1 (legacy) است. بنابراین اگر monها فقط روی v2 گوش دهند، باید `ms_mode` را صراحتاً تنظیم کنید.
+Check the default of `ms_mode` in the kernel documentation (`Documentation/filesystems/ceph.rst` for CephFS and the rbd man page for krbd). In the master code of `net/ceph/ceph_common.c`, the initial value of `con_modes` is `CEPH_CON_MODE_UNKNOWN`, which means msgr1 (legacy) is used. So if the mons listen only on v2, you must set `ms_mode` explicitly.
 :::
 
-# ceph.ko و caps {#sec-29-5}
+# ceph.ko and caps {#sec-29-5}
 
-![هماهنگی caps در CephFS هسته‌ای. کلاینت A فایل را برای نوشتن باز می‌کند و چون تنها نویسنده است، caps کامل، از جمله Fc (کش خواندن) و Fb (بافر نوشتن)، می‌گیرد. پس نوشتن‌ها در page cache می‌مانند. وقتی کلاینت B همان فایل را باز می‌کند، MDS از A می‌خواهد Fc و Fb را پس بدهد. A صفحه‌های dirty را مستقیم به OSDها می‌نویسد و اندازه و mtime را به MDS گزارش می‌کند. سپس B فقط Fr می‌گیرد و هر خواندن را مستقیم و هم‌گام از OSD انجام می‌دهد](figures/ch29/f03_caps.png){#fig-29-f03_caps}
+![Caps coordination in kernel CephFS. Client A opens a file for writing and, because it is the only writer, gets full caps, including Fc (read cache) and Fb (write buffer). So the writes stay in the page cache. When client B opens the same file, the MDS asks A to give back Fc and Fb. A writes its dirty pages directly to the OSDs and reports the size and mtime to the MDS. Then B gets only Fr and performs every read directly and synchronously from the OSD](figures/ch29/f03_caps.png){#fig-29-f03_caps}
 
-caps یک بیت‌ماسک‌اند که با «زیرسیستم» جابه‌جا (shift) می‌شوند. بیت‌های عمومی (`include/linux/ceph/ceph_fs.h` و معادل آن در Ceph) این‌ها هستند:
+Caps are a bitmask shifted by "subsystem". The generic bits (`include/linux/ceph/ceph_fs.h` and its equivalent in Ceph) are:
 
-| بیت | نام | معنی برای زیرسیستم File |
+| Bit | Name | Meaning for the File subsystem |
 |---|---|---|
-| 1 | `GSHARED` (s) | خواندن ویژگی‌ها |
-| 2 | `GEXCL` (x) | خواندن و تغییر انحصاری |
-| 4 | `GCACHE` (c) | کش کردن خواندن (page cache معتبر) |
-| 8 | `GRD` (r) | خواندن |
-| 16 | `GWR` (w) | نوشتن |
-| 32 | `GBUFFER` (b) | بافر کردن نوشتن (writeback) |
-| 64 | `GWREXTEND` (a) | گسترش EOF |
+| 1 | `GSHARED` (s) | read attributes |
+| 2 | `GEXCL` (x) | exclusive read and modify |
+| 4 | `GCACHE` (c) | cache reads (page cache valid) |
+| 8 | `GRD` (r) | read |
+| 16 | `GWR` (w) | write |
+| 32 | `GBUFFER` (b) | buffer writes (writeback) |
+| 64 | `GWREXTEND` (a) | extend EOF |
 | 128 | `GLAZYIO` (l) | lazy I/O |
 
-shiftها عبارت‌اند از `SAUTH=2` (A: مالک و mode)، `SLINK=4` (L: تعداد link)، `SXATTR=6` (X: xattrها) و `SFILE=8` (F: داده و اندازه). به همین دلیل رشته‌ای مثل `pAsLsXsFrwcb` در `ceph tell mds.0 session ls` یا debugfs یعنی: pin، Auth shared، Link shared، Xattr shared و File read/write/cache/buffer.
+The shifts are `SAUTH=2` (A: owner and mode), `SLINK=4` (L: link count), `SXATTR=6` (X: xattrs) and `SFILE=8` (F: data and size). That is why a string like `pAsLsXsFrwcb` in `ceph tell mds.0 session ls` or debugfs means: pin, Auth shared, Link shared, Xattr shared and File read/write/cache/buffer.
 
 ```text
-pseudocode: نوشتن در ceph.ko (خلاصه‌ی این کتاب از منطق fs/ceph/file.c و caps.c)
+pseudocode: writing in ceph.ko (this book's summary of the logic of fs/ceph/file.c and caps.c)
   ceph_write_iter:
-      need = Fw (+ Fb اگر بافرشده)، want = Fb
-      ceph_get_caps(need, want)        # اگر نیست → درخواست به MDS و انتظار
-      if have Fb:  generic_perform_write → page cache (writeback بعداً)
-      else:        ceph_sync_write → osd_client مستقیم (بدون کش)
+      need = Fw (+ Fb if buffered), want = Fb
+      ceph_get_caps(need, want)        # if missing → request to the MDS and wait
+      if have Fb:  generic_perform_write → page cache (writeback later)
+      else:        ceph_sync_write → osd_client directly (no cache)
       ceph_put_cap_refs
   MDS revoke(Fb):
-      writeback همه‌ی صفحات dirty → OSD
-      ceph_check_caps → cap ack همراه size و mtime
+      writeback all dirty pages → OSD
+      ceph_check_caps → cap ack with size and mtime
 ```
 
 ::: {.warn}
-اگر کلاینت هسته‌ای پاسخ revoke را ندهد (مثلاً چون OSDها کند هستند یا خود کلاینت گیر کرده است)، MDS هشدار سلامت با کد `MDS_HEALTH_CLIENT_LATE_RELEASE` و پیام «Client … failing to respond to capability release» می‌دهد (در `mds/Beacon.cc`) و کلاینت‌های دیگر منتظر می‌مانند. پس از `mds_session_blocklist_on_timeout` و timeoutهای session، MDS کلاینت را evict و blocklist می‌کند. سپس کلاینت هسته‌ای تا remount خطای I/O می‌گیرد، مگر آن‌که `recover_session=clean` تنظیم شده باشد.
+If a kernel client does not answer a revoke (for example because the OSDs are slow or the client itself is stuck), the MDS raises a health warning with the code `MDS_HEALTH_CLIENT_LATE_RELEASE` and the message "Client … failing to respond to capability release" (in `mds/Beacon.cc`), and the other clients wait. After `mds_session_blocklist_on_timeout` and the session timeouts, the MDS evicts and blocklists the client. The kernel client then gets I/O errors until a remount, unless `recover_session=clean` is set.
 :::
 
-# هسته در برابر فضای کاربر {#sec-29-6}
+# Kernel versus user space {#sec-29-6}
 
-![مقایسه‌ی کلاینت‌های هسته و فضای کاربر. krbd و ceph.ko روی libceph ساخته شده‌اند که پیاده‌سازی مستقلی در C است و ویژگی‌هایش با نسخه‌ی هسته محدود می‌شود. librbd و ceph-fuse روی librados و Objecter و AsyncMessenger ساخته شده‌اند، همه‌ی ویژگی‌ها (journaling، mirroring، QoS، کش) را دارند و بدون reboot ارتقا می‌یابند](figures/ch29/f04_cmp.png){#fig-29-f04_cmp}
+![Comparing kernel and user-space clients. krbd and ceph.ko are built on libceph, which is an independent implementation in C whose features are limited by the kernel version. librbd and ceph-fuse are built on librados, Objecter and AsyncMessenger, have all the features (journaling, mirroring, QoS, cache) and are upgraded without a reboot](figures/ch29/f04_cmp.png){#fig-29-f04_cmp}
 
-| جنبه | krbd / ceph.ko | librbd (qemu، rbd-nbd) / ceph-fuse |
+| Aspect | krbd / ceph.ko | librbd (qemu, rbd-nbd) / ceph-fuse |
 |---|---|---|
-| عملکرد | کمترین سربار؛ بدون context switch اضافه | یک لایه‌ی بیشتر (nbd یا fuse)، ولی librbd در qemu بسیار کاراست |
-| ویژگی‌ها | محدود به `RBD_FEATURES_SUPPORTED`؛ بدون journaling | همه‌ی ویژگی‌ها |
-| ارتقا | نیازمند هسته‌ی جدید و reboot یا بارگذاری دوباره‌ی ماژول | ارتقای بسته |
-| خرابی | panic یا hang در هسته، فرایندهای گیرکرده در وضعیت D | فقط فرایند کاربر |
-| کش | page cache هسته (و caps در CephFS) | کش librbd و `client_oc` در ceph-fuse |
+| Performance | lowest overhead; no extra context switch | one more layer (nbd or fuse), but librbd in qemu is very efficient |
+| Features | limited to `RBD_FEATURES_SUPPORTED`; no journaling | all features |
+| Upgrade | needs a new kernel and a reboot or module reload | a package upgrade |
+| Failure | panic or hang in the kernel, processes stuck in state D | only the user process |
+| Cache | the kernel page cache (and caps in CephFS) | the librbd cache and `client_oc` in ceph-fuse |
 
-# لایه‌ی پایین‌تر: از آفست فایل تا OSD در هسته {#sec-29-7}
+# A lower layer: from file offset to OSD in the kernel {#sec-29-7}
 
-## نگاشت آفست به شیء (striper) {#sec-29-7-1}
+## Mapping an offset to an object (striper) {#sec-29-7-1}
 
-هر دو کلاینت هسته، krbd و ceph.ko، برای تبدیل «آفست در دستگاه یا فایل» به «شیء و آفست درون شیء» از یک تابع مشترک در `net/ceph/striper.c` استفاده می‌کنند: `ceph_calc_file_object_mapping` و نسخه‌ی چندبخشی آن `ceph_file_to_extents`. ورودی یک layout با سه عدد است: stripe_unit (su)، stripe_count (sc) و object_size (os).
+Both kernel clients, krbd and ceph.ko, use a shared function in `net/ceph/striper.c` to turn "an offset in the device or file" into "an object and an offset inside the object": `ceph_calc_file_object_mapping` and its multi-extent version `ceph_file_to_extents`. The input is a layout of three numbers: stripe_unit (su), stripe_count (sc) and object_size (os).
 
-![محاسبه‌ی striping در هسته. آفست به شماره‌ی بلوک (su)، شماره‌ی stripe و مجموعه‌ی شیء تبدیل می‌شود. در مثال، یک خواندن 3MiB از آفست 10.5MiB با layout برابر 1MiB/4/4MiB به چهار تکه در چهار شیء مختلف می‌شکند. پایین شکل قالب نام شیء در RBD v2، RBD v1 و CephFS را نشان می‌دهد](figures/ch29/f05_striping.png){#fig-29-f05_striping}
+![Striping computation in the kernel. The offset is converted to a block number (su), a stripe number and an object set. In the example, a 3MiB read from offset 10.5MiB with a 1MiB/4/4MiB layout breaks into four pieces in four different objects. The bottom of the figure shows the object-name format in RBD v2, RBD v1 and CephFS](figures/ch29/f05_striping.png){#fig-29-f05_striping}
 
 ```text
-pseudocode: نگاشت یک آفست (بازنویسی این کتاب)
+pseudocode: mapping one offset (this book's rewrite)
   stripes_per_object = os / su
   blockno,  blockoff  = divmod(off, su)
   stripeno, stripepos = divmod(blockno, sc)
@@ -165,96 +164,96 @@ pseudocode: نگاشت یک آفست (بازنویسی این کتاب)
   len_in_this_object = min(len, su - blockoff)
 ```
 
-| تکه | آفست منطقی | blockno | stripeno / pos | شیء | آفست در شیء | طول |
+| Piece | Logical offset | blockno | stripeno / pos | Object | Offset in object | Length |
 |---|---|---|---|---|---|---|
 | 1 | 10.5 MiB | 10 | 2 / 2 | 2 | 2.5 MiB | 0.5 MiB |
 | 2 | 11 MiB | 11 | 2 / 3 | 3 | 2 MiB | 1 MiB |
 | 3 | 12 MiB | 12 | 3 / 0 | 0 | 3 MiB | 1 MiB |
 | 4 | 13 MiB | 13 | 3 / 1 | 1 | 3 MiB | 0.5 MiB |
 
-این جدول را با یک پیاده‌سازی مستقل از همین فرمول محاسبه کرده‌ایم. برای layout پیش‌فرض RBD (su=os=4MiB، sc=1) فرمول ساده می‌شود: objno = off / 4MiB. مثلاً آفست 10MiB به شیء 2 با آفست 2MiB می‌رود. krbd وقتی su با os برابر نباشد (ویژگی STRIPINGV2 که در `RBD_FEATURES_ALL` هسته هست) مسیر کپی‌دار `rbd_img_fill_request` را به‌جای مسیر بدون کپی (`rbd_img_fill_request_nocopy`) انتخاب می‌کند، چون bioها باید بین چند شیء بریده شوند. striping «فانتزی» در krbd کار می‌کند، اما هزینه‌ی CPU بیشتری دارد.
+We computed this table with an independent implementation of the same formula. For the default RBD layout (su=os=4MiB, sc=1) the formula simplifies to objno = off / 4MiB. For example, offset 10MiB goes to object 2 at offset 2MiB. When su does not equal os (the STRIPINGV2 feature, which is in the kernel's `RBD_FEATURES_ALL`), krbd chooses the copying path `rbd_img_fill_request` instead of the zero-copy path (`rbd_img_fill_request_nocopy`), because the bios have to be cut across several objects. "Fancy" striping works in krbd, but it costs more CPU.
 
-### نام شیء
+### Object names
 
-| کلاینت | قالب | مثال |
+| Client | Format | Example |
 |---|---|---|
-| RBD v2 | `RBD_V2_DATA_FORMAT` = `"%s.%016llx"` روی object_prefix | `rbd_data.10ab2c3d4e5f.0000000000000002` |
-| RBD v1 (منسوخ) | `"%s.%012llx"` | `rb.0.1234.000000000002` |
-| CephFS | `"%llx.%08llx"` (inode، شماره‌ی شیء) | `10000000000.00000002` |
+| RBD v2 | `RBD_V2_DATA_FORMAT` = `"%s.%016llx"` on object_prefix | `rbd_data.10ab2c3d4e5f.0000000000000002` |
+| RBD v1 (obsolete) | `"%s.%012llx"` | `rb.0.1234.000000000002` |
+| CephFS | `"%llx.%08llx"` (inode, object number) | `10000000000.00000002` |
 
-نام شیء ورودی مرحله‌ی بعد است. همان‌طور که فصل ۲۸ با نام `rbd_data.10ab2c3d4e5f.0000000000000000` نشان داد، hash نام به PG و CRUSH به OSD می‌رسد. هسته همین زنجیره را با کد C خودش (کپی هم‌نسخه‌ی `crush/` و `ceph_hash.c`) دوباره پیاده می‌کند. اگر نتیجه حتی یک بیت با سمت کاربر فرق کند، کلاینت هسته به OSD اشتباه می‌رود. به همین دلیل ویژگی‌های CRUSH (tunables، straw2، MSR) فقط پس از پشتیبانی هسته قابل استفاده‌اند (فصل ۲۲، `require-min-compat-client`).
+The object name is the input to the next stage. As chapter 28 showed with the name `rbd_data.10ab2c3d4e5f.0000000000000000`, the hash of the name leads to the PG, and CRUSH leads to the OSD. The kernel reimplements this same chain with its own C code (a same-version copy of `crush/` and `ceph_hash.c`). If the result differed from the user-space side by even one bit, the kernel client would go to the wrong OSD. That is why CRUSH features (tunables, straw2, MSR) are usable only after the kernel supports them (chapter 22, `require-min-compat-client`).
 
-## calc_target: انتخاب OSD {#sec-29-7-2}
+## calc_target: choosing the OSD {#sec-29-7-2}
 
-![انتخاب OSD در libceph. calc_target با hash نام شیء seed خام را می‌سازد، با ceph_stable_mod آن را به pg_num نگاشت می‌دهد، با crush_hash32_2 و شناسه‌ی pool مقدار pps را می‌سازد و CRUSH و سپس upmap و primary_temp را اعمال می‌کند. با هر osdmap جدید، scan_requests درخواست‌های در جریان را دوباره ارزیابی و در صورت تغییر target دوباره ارسال می‌کند. درخواست بدون OSD در دسترس در homeless_osd منتظر می‌ماند](figures/ch29/f06_target.png){#fig-29-f06_target}
+![Choosing the OSD in libceph. calc_target builds the raw seed from the hash of the object name, maps it to pg_num with ceph_stable_mod, builds pps with crush_hash32_2 and the pool id, and applies CRUSH and then upmap and primary_temp. With every new osdmap, scan_requests re-evaluates in-flight requests and resends them if the target changed. A request with no reachable OSD waits in homeless_osd](figures/ch29/f06_target.png){#fig-29-f06_target}
 
-مراحل در `net/ceph/osd_client.c` و `net/ceph/osdmap.c` عبارت‌اند از:
+The steps in `net/ceph/osd_client.c` and `net/ceph/osdmap.c` are:
 
-1. `__ceph_object_locator_to_pg`: ابتدا `ceph_str_hash(pool->object_hash, name)` (rjenkins) روی نام شیء (و در صورت وجود، namespace) اعمال و seed خام ساخته می‌شود.
-2. `raw_pg_to_pg`: با `ceph_stable_mod(seed, pg_num, pg_num_mask)` شماره‌ی PG به دست می‌آید. stable_mod باعث می‌شود با دو برابر شدن pg_num فقط نیمی از اشیا جابه‌جا شوند (فصل ۲۸).
-3. `raw_pg_to_pps`: اگر پرچم HASHPSPOOL روشن باشد (پیش‌فرض poolهای امروزی)، `crush_hash32_2(stable_mod(seed, pgp_num), pool_id)` محاسبه می‌شود تا PGهای poolهای مختلف روی هم نیفتند. در حالت قدیمی، شناسه‌ی pool با ps جمع می‌شد و PG 0.5 و 1.4 هم‌مکان می‌شدند.
-4. `do_crush` و سپس اعمال `pg_upmap`، `pg_upmap_items` و `primary_temp` در `ceph_pg_to_up_acting_osds`.
-5. `link_request` درخواست را به session همان OSD (`struct ceph_osd`) وصل می‌کند. اگر OSD هدف down باشد، درخواست به `homeless_osd` پیوند می‌خورد و هیچ پیامی ارسال نمی‌شود تا نقشه‌ی بعدی برسد.
+1. `__ceph_object_locator_to_pg`: first `ceph_str_hash(pool->object_hash, name)` (rjenkins) is applied to the object name (and the namespace, if there is one) and the raw seed is built.
+2. `raw_pg_to_pg`: the PG number is obtained with `ceph_stable_mod(seed, pg_num, pg_num_mask)`. stable_mod ensures that when pg_num doubles only half of the objects move (chapter 28).
+3. `raw_pg_to_pps`: if the HASHPSPOOL flag is on (the default for today's pools), `crush_hash32_2(stable_mod(seed, pgp_num), pool_id)` is computed so that the PGs of different pools do not overlap. In the old mode, the pool id was added to ps and PG 0.5 and 1.4 ended up co-located.
+4. `do_crush`, followed by applying `pg_upmap`, `pg_upmap_items` and `primary_temp` in `ceph_pg_to_up_acting_osds`.
+5. `link_request` attaches the request to the session of that OSD (`struct ceph_osd`). If the target OSD is down, the request is linked to `homeless_osd` and no message is sent until the next map arrives.
 
 ::: {.deep}
-**چرا درخواست‌ها «گیر» می‌کنند؟** در `/sys/kernel/debug/ceph/<fsid>.client<id>/osdc`، ستون اول شماره‌ی OSD هدف است. درخواستی که در آن عدد OSD نیست (homeless) یا مدت‌ها روی یک OSD مانده، یعنی یا کلاینت نقشه‌ی جدید را نگرفته (فایل `osdmap` را با epoch در `ceph osd dump` مقایسه کنید) یا PG هدف active نیست. در حالت دوم مشکل در سمت کلاستر است و باید `ceph pg <pgid> query` را بررسی کرد (فصل ۲۲)، نه کلاینت.
+**Why do requests get "stuck"?** In `/sys/kernel/debug/ceph/<fsid>.client<id>/osdc`, the first column is the target OSD number. A request with no OSD number there (homeless), or one that has stayed on one OSD for a long time, means either the client has not received the new map (compare the `osdmap` file with the epoch in `ceph osd dump`) or the target PG is not active. In the second case the problem is on the cluster side and you should examine `ceph pg <pgid> query` (chapter 22), not the client.
 :::
 
-## watch و exclusive lock در krbd {#sec-29-7-3}
+## watch and exclusive lock in krbd {#sec-29-7-3}
 
-krbd روی شیء `rbd_header.<id>` یک **linger request** (watch) ثبت می‌کند. `rbd_watch_cb` اعلان‌ها را دریافت می‌کند: `HEADER_UPDATE` (تغییر اندازه یا snapshot) و پیام‌های قفل (`ACQUIRED_LOCK`، `RELEASED_LOCK`، `REQUEST_LOCK`). وقتی exclusive-lock فعال است و کلاینت دیگری (مثلاً librbd یک VM) قفل را دارد، krbd پیش از اولین نوشتن `REQUEST_LOCK` می‌فرستد و منتظر آزاد شدن قفل می‌ماند. گزینه‌ی نگاشت `exclusive` این رفتار را سخت‌گیرانه می‌کند، یعنی قفل گرفته و پس داده نمی‌شود. linger requestها هم مثل درخواست‌های عادی با هر osdmap دوباره ارزیابی می‌شوند و پس از قطع اتصال، watch دوباره ثبت می‌شود (reconnect watch). اگر این کار شکست بخورد، تصویر تغییرات اندازه را نمی‌بیند تا watch برگردد.
+krbd registers a **linger request** (watch) on the `rbd_header.<id>` object. `rbd_watch_cb` receives the notifications: `HEADER_UPDATE` (a size or snapshot change) and the lock messages (`ACQUIRED_LOCK`, `RELEASED_LOCK`, `REQUEST_LOCK`). When exclusive-lock is enabled and another client (for example the librbd of a VM) holds the lock, krbd sends `REQUEST_LOCK` before its first write and waits for the lock to be released. The `exclusive` map option makes this behaviour strict, meaning the lock is acquired and not given back. Linger requests, like ordinary requests, are re-evaluated with every osdmap, and after a disconnection the watch is registered again (reconnect watch). If this fails, the image does not see size changes until the watch is back.
 
-## اعداد CephFS در debugfs {#sec-29-7-4}
+## CephFS numbers in debugfs {#sec-29-7-4}
 
-ceph.ko شاخه‌ی `metrics/` را در debugfs دارد. فایل `latency` تأخیر خواندن، نوشتن و metadata را از دید کلاینت می‌دهد و فایل `file` آمار باز و بسته شدن فایل‌ها را. همین داده‌ها با پیام metrics به MDS فرستاده می‌شوند و در `ceph fs top` (ماژول mgr به نام stats) دیده می‌شوند. فایل‌های `caps`، `mdsc` و `mds_sessions` به‌ترتیب شمار caps، درخواست‌های MDS در جریان و وضعیت sessionها را نشان می‌دهند.
+ceph.ko has a `metrics/` directory in debugfs. The `latency` file gives read, write and metadata latency from the client's point of view, and the `file` file gives statistics on files being opened and closed. The same data is sent to the MDS in a metrics message and appears in `ceph fs top` (the mgr module named stats). The `caps`, `mdsc` and `mds_sessions` files show, respectively, the number of caps, the in-flight MDS requests and the state of the sessions.
 
 ```bash
 D=/sys/kernel/debug/ceph/*.client*
-cat $D/osdc              # درخواست‌های OSD در جریان (tid، osd، pgid، oid)
-cat $D/osdmap | head -3  # epoch نقشه از دید هسته
-cat $D/metrics/latency   # فقط ceph.ko
+cat $D/osdc              # in-flight OSD requests (tid, osd, pgid, oid)
+cat $D/osdmap | head -3  # the map epoch as the kernel sees it
+cat $D/metrics/latency   # ceph.ko only
 cat $D/caps | head
 rbd showmapped; cat /sys/bus/rbd/devices/0/features
 ```
 
 ::: {.warn}
-debugfs اطلاعات داخلی (نام اشیا، شناسه‌ی inodeها و ...) را نشان می‌دهد و فقط برای root است. خروجی آن را بدون پاک کردن نام‌های حساس در تیکت‌ها کپی نکنید.
+debugfs shows internal information (object names, inode ids and so on) and is for root only. Do not copy its output into tickets without scrubbing sensitive names.
 :::
 
-# الگوریتم‌های کلاینت هسته در سطح کد {#sec-29-8}
+# Kernel client algorithms at the code level {#sec-29-8}
 
-بخش‌های پیشین مسیر را در سطح مفهوم نشان دادند. این بخش پنج الگوریتم کلیدی `net/ceph` و `drivers/block/rbd.c` و `fs/ceph` را با کد شاخه‌ی اصلی هسته‌ی لینوکس و مثال عددی بررسی می‌کند. شماره‌ی نسخه‌ی هسته‌ای که هر رفتار در آن آمده، اینجا ادعا نمی‌شود. برای هسته‌ی توزیع خود، همان توابع را در درخت منبع همان نسخه بررسی کنید.
+The previous sections showed the path at the conceptual level. This section examines five key algorithms of `net/ceph`, `drivers/block/rbd.c` and `fs/ceph`, with the code of the Linux kernel mainline and numerical examples. We do not claim here which kernel version each behaviour arrived in. For your distribution's kernel, check the same functions in the source tree of that version.
 
-## تبدیل یک درخواست به extentهای شیء {#sec-29-8-1}
+## Turning a request into object extents {#sec-29-8-1}
 
-::: {.algo #alg-29-1 title="تقسیم و ادغام extentها در striper" src="net/ceph/striper.c :: ceph_file_to_extents، ceph_calc_file_object_mapping، lookup_last" complexity="O(L/su) گام برای درخواست L بایتی؛ lookup_last از انتهای فهرست مرتب جست‌وجو می‌کند، پس در الگوی ترتیبی O(1) است"}
+::: {.algo #alg-29-1 title="Splitting and merging extents in the striper" src="net/ceph/striper.c :: ceph_file_to_extents, ceph_calc_file_object_mapping, lookup_last" complexity="O(L/su) steps for an L-byte request; lookup_last searches from the end of the sorted list, so it is O(1) for a sequential pattern"}
 :::
 
 ```text
 pseudocode
 while len > 0:
-    (objno, objoff, xlen) = calc_file_object_mapping(off, len)   # حداکثر تا پایان su
-    last = lookup_last(list, objno)                              # آخرین extent همان شیء
-    if last and last.off + last.len == objoff: last.len += xlen   # ادغام پیوسته
-    else: extent تازه در جای مرتب
-    action_fn(ex, xlen)   # krbd: ثبت bio_vec این تکه برای همان extent
+    (objno, objoff, xlen) = calc_file_object_mapping(off, len)   # at most up to the end of su
+    last = lookup_last(list, objno)                              # the last extent of the same object
+    if last and last.off + last.len == objoff: last.len += xlen   # contiguous merge
+    else: a new extent at the sorted position
+    action_fn(ex, xlen)   # krbd: record this piece's bio_vec for the same extent
     off += xlen ; len −= xlen
-بررسی نهایی: فهرست بر حسب (objno, off) مرتب و بدون هم‌پوشانی باشد
+final check: the list is sorted by (objno, off) and has no overlaps
 ```
 
-**مثال عددی.** layout با stripe_unit = 64K، stripe_count = 4 و object_size = 4M. یک نوشتن 256K در آفست 1056K (یعنی 1 MiB + 32K) به پنج تکه شکسته می‌شود:
+**Numerical example.** A layout with stripe_unit = 64K, stripe_count = 4 and object_size = 4M. A 256K write at offset 1056K (that is 1 MiB + 32K) breaks into five pieces:
 
-- 32K به شیء 0 در آفست 288K؛
-- 64K به شیء 1، 64K به شیء 2 و 64K به شیء 3، هرکدام در آفست 256K؛
-- 32K پایانی دوباره به شیء 0، در آفست 320K.
+- 32K to object 0 at offset 288K;
+- 64K to object 1, 64K to object 2 and 64K to object 3, each at offset 256K;
+- the final 32K again to object 0, at offset 320K.
 
-تکه‌ی پنجم دقیقاً پس از تکه‌ی اول در شیء 0 می‌نشیند (288K + 32K = 320K)، پس lookup_last آن را ادغام می‌کند. نتیجه چهار درخواست OSD است، هرکدام 64K، نه پنج. با layout پیش‌فرض RBD (su = os = 4M، sc = 1)، نوشتن 4M در آفست 3M دو extent می‌دهد: شیء 0 [3M، +1M] و شیء 1 [0، +3M].
+The fifth piece sits exactly after the first piece in object 0 (288K + 32K = 320K), so lookup_last merges it. The result is four OSD requests of 64K each, not five. With the default RBD layout (su = os = 4M, sc = 1), a 4M write at offset 3M gives two extents: object 0 [3M, +1M] and object 1 [0, +3M].
 
-![نگاشت یک نوشتن 256 کیلوبایتی روی دستگاه krbd با striping سفارشی. ردیف بالا تکه‌های درخواست را در فضای تصویر و شیء مقصد هرکدام را نشان می‌دهد. ردیف پایین همان تکه‌ها را درون چهار شیء نشان می‌دهد. دو تکه‌ی شیء 0 که در فضای تصویر 224K از هم فاصله دارند، درون شیء کنار هم می‌افتند و ceph_file_to_extents آن‌ها را به یک extent تبدیل می‌کند. پس یک obj_request با دو bio_vec ساخته می‌شود](figures/ch29/f08_extents.png){#fig-29-f08_extents}
+![Mapping a 256 KB write on a krbd device with custom striping. The top row shows the pieces of the request in the image space and the destination object of each. The bottom row shows the same pieces inside the four objects. The two pieces of object 0, which are 224K apart in the image space, fall next to each other inside the object, and ceph_file_to_extents turns them into one extent. So one obj_request with two bio_vecs is built](figures/ch29/f08_extents.png){#fig-29-f08_extents}
 
-## تصمیم بازفرستادن پس از نقشه‌ی تازه {#sec-29-8-2}
+## Deciding to resend after a new map {#sec-29-8-2}
 
-::: {.algo #alg-29-2 title="calc_target و تصمیم resend" src="net/ceph/osd_client.c :: calc_target، target_should_be_paused، ceph_osds_changed؛ net/ceph/osdmap.c :: ceph_pg_is_split" complexity="O(اندازه‌ی acting + هزینه‌ی CRUSH) برای هر درخواست در هر epoch تازه"}
+::: {.algo #alg-29-2 title="calc_target and the resend decision" src="net/ceph/osd_client.c :: calc_target, target_should_be_paused, ceph_osds_changed; net/ceph/osdmap.c :: ceph_pg_is_split" complexity="O(size of acting + CRUSH cost) per request for each new epoch"}
 :::
 
 ```text
@@ -262,51 +261,51 @@ pseudocode
 pi = pool(t.base_oloc) ; if not pi: return POOL_DNE
 if t.last_force_resend < pi.last_force_request_resend: force_resend = true
 pgid = object_locator_to_pg(t.target_oid) ; (up, acting) = pg_to_up_acting_osds(pgid)
-should_pause = PAUSERD/PAUSEWR یا pool/کلاستر پر (برای نوشتن)
+should_pause = PAUSERD/PAUSEWR or a full pool/cluster (for writes)
 unpaused = t.paused and not should_pause
-legacy_change = pgid عوض شد or osds_changed(t.acting, acting)
+legacy_change = pgid changed or osds_changed(t.acting, acting)
 split = t.pg_num and pg_is_split(last_pgid, t.pg_num, pi.pg_num)
 return (unpaused or legacy_change or force_resend or split) ? NEED_RESEND : NO_ACTION
 ```
 
-**مثال عددی.** یک درخواست در PG 3.1a (pg_num = 64، acting = [7، 2، 11]) منتظر است و epoch تازه می‌رسد:
+**Numerical example.** A request is waiting in PG 3.1a (pg_num = 64, acting = [7, 2, 11]) and a new epoch arrives:
 
-- **osd.11 مرده:** acting به [7، 2، 5] تغییر می‌کند. ceph_osds_changed true است، پس NEED_RESEND. اما primary همان osd.7 است و درخواست دوباره به همان session فرستاده می‌شود.
-- **pg_num از 64 به 128:** شیء ممکن است به PG 3.5a برود. split برقرار است، پس درخواست دوباره هدف‌گیری و فرستاده می‌شود.
-- **فقط یک OSD بی‌ربط عوض شده:** NO_ACTION، و درخواست دست نمی‌خورد.
+- **osd.11 died:** acting changes to [7, 2, 5]. ceph_osds_changed is true, so NEED_RESEND. But the primary is still osd.7, and the request is resent to the same session.
+- **pg_num from 64 to 128:** the object may go to PG 3.5a. split holds, so the request is re-targeted and resent.
+- **Only an unrelated OSD changed:** NO_ACTION, and the request is not touched.
 
-اگر پرچم `pausewr` روی کلاستر باشد، درخواست‌های نوشتن paused می‌شوند. با برداشتن پرچم، unpaused همه را دوباره می‌فرستد. این همان موجی از ارسال است که پس از `ceph osd unpause` در debugfs (فایل osdc) دیده می‌شود.
+If the `pausewr` flag is set on the cluster, write requests are paused. When the flag is removed, unpaused resends them all. This is the wave of sends seen in debugfs (the osdc file) after `ceph osd unpause`.
 
-![شاخه‌های تصمیم calc_target در libceph. ردیف بالا ورودی‌ها را از نقشه‌ی تازه می‌خواند: وجود pool، شمارنده‌ی force resend و نگاشت تازه‌ی PG. ردیف میانی سه نوع تغییر را می‌سنجد. ردیف پایین نتیجه است: هر تغییر معنادار درخواست را از session قبلی جدا و به session OSD تازه وصل می‌کند. تغییرهای بی‌ربط هیچ هزینه‌ای ندارند](figures/ch29/f09_calctarget.png){#fig-29-f09_calctarget}
+![The decision branches of calc_target in libceph. The top row reads the inputs from the new map: the existence of the pool, the force-resend counter and the new PG mapping. The middle row evaluates three kinds of change. The bottom row is the result: every meaningful change detaches the request from the previous session and attaches it to the new OSD's session. Unrelated changes cost nothing](figures/ch29/f09_calctarget.png){#fig-29-f09_calctarget}
 
-## تشخیص کندی و نگهداری sessionها {#sec-29-8-3}
+## Detecting slowness and maintaining sessions {#sec-29-8-3}
 
-::: {.algo #alg-29-3 title="handle_timeout و handle_osds_timeout" src="net/ceph/osd_client.c :: handle_timeout، handle_osds_timeout، send_linger_ping؛ include/linux/ceph/libceph.h (پیش‌فرض‌ها)" complexity="O(تعداد درخواست‌ها و lingerها) در هر دور پنج‌ثانیه‌ای؛ O(تعداد session در LRU) در هر دور پانزده‌ثانیه‌ای"}
+::: {.algo #alg-29-3 title="handle_timeout and handle_osds_timeout" src="net/ceph/osd_client.c :: handle_timeout, handle_osds_timeout, send_linger_ping; include/linux/ceph/libceph.h (defaults)" complexity="O(number of requests and lingers) per five-second round; O(number of sessions in the LRU) per fifteen-second round"}
 :::
 
 ```text
 pseudocode
-handle_timeout (هر osd_keepalive_timeout = 5 s):
+handle_timeout (every osd_keepalive_timeout = 5 s):
     cutoff = now − 5 s
-    for each osd, each req: if req.r_stamp < cutoff: osd را در slow_osds بگذار   # laggy
+    for each osd, each req: if req.r_stamp < cutoff: put the osd in slow_osds   # laggy
     for each linger (watch) committed: send_linger_ping
-    if osd_request_timeout > 0: درخواست‌های قدیمی‌تر از آن ⇒ abort با ETIMEDOUT
+    if osd_request_timeout > 0: requests older than that ⇒ abort with ETIMEDOUT
     for osd in slow_osds: ceph_con_keepalive(osd.o_con)
-handle_osds_timeout (هر osd_idle_ttl/4 = 15 s):
-    for osd in LRU: if now > osd.lru_ttl (= زمان بیکار شدن + 60 s): close_osd
+handle_osds_timeout (every osd_idle_ttl/4 = 15 s):
+    for osd in LRU: if now > osd.lru_ttl (= time it went idle + 60 s): close_osd
 ```
 
-**مثال عددی.** درخواست B در t = 3 s به osd.7 فرستاده شده و هنوز پاسخ نگرفته است. در دور t = 10 s، cutoff = 5 s و r_stamp = 3 کمتر است. پس osd.7 کند شمرده می‌شود و یک KEEPALIVE روی اتصالش می‌رود. اگر اتصال واقعاً مرده باشد، شکست keepalive باعث fault و بازاتصال می‌شود و درخواست دوباره فرستاده می‌شود. با پیش‌فرض `osd_request_timeout = 0`، درخواست هرگز با خطا برنمی‌گردد. برای همین یک krbd روی کلاستر ناسالم «گیر» می‌کند، نه اینکه خطای I/O بدهد. session osd.3 که آخرین درخواستش در 2.2 s تمام شد، lru_ttl = 62.2 s دارد و در نخستین دور handle_osds_timeout پس از آن (حداکثر حدود 15 ثانیه بعد) بسته می‌شود.
+**Numerical example.** Request B was sent to osd.7 at t = 3 s and has not had a reply yet. In the round at t = 10 s, cutoff = 5 s and r_stamp = 3 is smaller. So osd.7 is counted as slow and a KEEPALIVE goes out on its connection. If the connection is really dead, the keepalive failure causes a fault and a reconnection, and the request is resent. With the default `osd_request_timeout = 0`, a request never returns with an error. That is why krbd on an unhealthy cluster gets "stuck" instead of returning an I/O error. The session of osd.3, whose last request finished at 2.2 s, has lru_ttl = 62.2 s and is closed in the first handle_osds_timeout round after that (at most about 15 seconds later).
 
-![خط زمانی handle_timeout در osd_client. خط‌چین‌های آبی دورهای پنج‌ثانیه‌ای هستند. درخواست A به‌موقع تمام شده است. درخواست B از دور دهم کند شمرده می‌شود و keepalive برای OSD آن فرستاده می‌شود. session بیکار osd.3 تا گذشتن lru_ttl نگه داشته می‌شود و سپس در دور بعدی handle_osds_timeout بسته می‌شود](figures/ch29/f11_timeout.png){#fig-29-f11_timeout}
+![The handle_timeout timeline in osd_client. The blue dashed lines are the five-second rounds. Request A finished on time. Request B is counted as slow from the tenth second on, and a keepalive is sent to its OSD. The idle session of osd.3 is kept until lru_ttl passes and is then closed in the next handle_osds_timeout round](figures/ch29/f11_timeout.png){#fig-29-f11_timeout}
 
 ::: {.tip}
-برای اینکه krbd به جای گیر کردن خطا بدهد (مثلاً در کلاستر آزمایشی یا وقتی یک لایه‌ی بالاتر failover دارد)، گزینه‌ی `osd_request_timeout=<ثانیه>` را در `rbd map -o` بدهید. در تولید با احتیاط استفاده کنید: خطای I/O روی فایل‌سیستم بالای آن ممکن است به حالت read-only برود.
+To make krbd return an error instead of getting stuck (for example on a test cluster, or when a higher layer has failover), pass the `osd_request_timeout=<seconds>` option in `rbd map -o`. Use it with care in production: an I/O error may push the filesystem above it into read-only mode.
 :::
 
-## گرفتن exclusive lock در krbd {#sec-29-8-4}
+## Acquiring the exclusive lock in krbd {#sec-29-8-4}
 
-::: {.algo #alg-29-4 title="گرفتن قفل انحصاری و کنار زدن مالک مرده" src="drivers/block/rbd.c :: rbd_acquire_lock، rbd_try_acquire_lock، rbd_try_lock، find_watcher، rbd_request_lock" complexity="O(تعداد watcherها) برای هر تلاش؛ در بدترین حالت چند دور با فاصله‌ی 2 × RBD_NOTIFY_TIMEOUT = 10 s"}
+::: {.algo #alg-29-4 title="Acquiring the exclusive lock and pushing aside a dead owner" src="drivers/block/rbd.c :: rbd_acquire_lock, rbd_try_acquire_lock, rbd_try_lock, find_watcher, rbd_request_lock" complexity="O(number of watchers) per attempt; in the worst case several rounds 2 × RBD_NOTIFY_TIMEOUT = 10 s apart"}
 :::
 
 ```text
@@ -314,23 +313,23 @@ pseudocode
 rbd_try_lock:
   again: r = cls_lock(header, EXCLUSIVE, cookie) ; if r != −EBUSY: return r
          owner = get_lock_owner_info() ; if none: goto again
-         if find_watcher(owner): return 1                 # مالک زنده است ⇒ درخواست کن
-         if owner عوض شد: goto again
+         if find_watcher(owner): return 1                 # the owner is alive ⇒ ask it
+         if the owner changed: goto again
          ceph_monc_blocklist_add(owner.addr) ; cls_break_lock(owner) ; goto again
 rbd_acquire_lock (work):
   r = rbd_try_acquire_lock ; if r ≤ 0: done
-  r = rbd_request_lock (notify REQUEST_LOCK، مهلت 5 s)
-  ETIMEDOUT ⇒ مالک را مرده فرض کن، دوباره ; EROFS ⇒ مالک رها نمی‌کند
-  ack ⇒ دوباره پس از 10 s اگر آزاد نشد ; خطای دیگر ⇒ دوباره پس از RBD_RETRY_DELAY = 1 s
+  r = rbd_request_lock (notify REQUEST_LOCK, timeout 5 s)
+  ETIMEDOUT ⇒ assume the owner is dead, retry ; EROFS ⇒ the owner will not release
+  ack ⇒ retry after 10 s if not released ; other error ⇒ retry after RBD_RETRY_DELAY = 1 s
 ```
 
-**مثال عددی.** میزبان O که مالک قفل بود، بی‌خبر خاموش شده است. watch آن پس از مهلت watch (`osd_client_watch_timeout`، پیش‌فرض 30 ثانیه) از فهرست watcherها حذف می‌شود. اگر میزبان N در ثانیه‌ی 10 map کند، find_watcher هنوز watcher O را می‌بیند، پس REQUEST_LOCK می‌فرستد. پس از 5 ثانیه ETIMEDOUT می‌گیرد و دوباره تلاش می‌کند. این چرخه تا حدود ثانیه‌ی 30 ادامه دارد. پس از آن watcher ناپدید می‌شود، N آدرس O را blocklist می‌کند، قفل را می‌شکند و می‌گیرد. اولین نوشتن روی N می‌تواند تا حدود 30 ثانیه منتظر بماند. `lock_timeout` در `rbd map` (پیش‌فرض 0، یعنی بی‌نهایت) سقف این انتظار را تعیین می‌کند.
+**Numerical example.** Host O, which owned the lock, has shut down without warning. Its watch is removed from the watcher list after the watch timeout (`osd_client_watch_timeout`, default 30 seconds). If host N maps at second 10, find_watcher still sees O's watcher, so it sends REQUEST_LOCK. After 5 seconds it gets ETIMEDOUT and tries again. This cycle continues until about second 30. After that the watcher disappears, N blocklists O's address, breaks the lock and acquires it. The first write on N can wait up to about 30 seconds. `lock_timeout` in `rbd map` (default 0, meaning infinite) sets the upper bound of this wait.
 
-![دو شاخه‌ی گرفتن قفل در krbd. اگر مالک فعلی watcher زنده روی rbd_header داشته باشد، krbd با notify از او درخواست رها کردن می‌کند و صبر می‌کند. اگر watcherی نباشد، مالک مرده فرض می‌شود: آدرسش در mon blocklist می‌شود تا نتواند نوشتن معلقی را تمام کند، و سپس قفل شکسته و گرفته می‌شود. ترتیب blocklist پیش از break_lock برای جلوگیری از نوشتن هم‌زمان دو میزبان حیاتی است](figures/ch29/f10_lock.png){#fig-29-f10_lock}
+![The two branches of lock acquisition in krbd. If the current owner has a live watcher on rbd_header, krbd asks it with a notify to release the lock and waits. If there is no watcher, the owner is assumed dead: its address is blocklisted in the mon so that it cannot finish a pending write, and then the lock is broken and acquired. The order of blocklist before break_lock is vital to prevent two hosts writing at the same time](figures/ch29/f10_lock.png){#fig-29-f10_lock}
 
-## بیت‌های cap و رشته‌ی آن‌ها {#sec-29-8-5}
+## Cap bits and their string {#sec-29-8-5}
 
-::: {.algo #alg-29-5 title="رمزگذاری و نمایش caps" src="fs/ceph/caps.c :: ceph_cap_string، gcap_string؛ include/linux/ceph/ceph_fs.h (CEPH_CAP_S*، CEPH_CAP_G*)" complexity="O(1): حداکثر 16 بیت"}
+::: {.algo #alg-29-5 title="Encoding and displaying caps" src="fs/ceph/caps.c :: ceph_cap_string, gcap_string; include/linux/ceph/ceph_fs.h (CEPH_CAP_S*, CEPH_CAP_G*)" complexity="O(1): at most 16 bits"}
 :::
 
 ```text
@@ -338,47 +337,47 @@ pseudocode
 s = "" ; if caps & PIN: s += "p"
 for (letter, shift) in (A,2) (L,4) (X,6):  c = (caps ≫ shift) & 3 ; if c: s += letter + gcap(c)
 c = caps ≫ 8 ; if c: s += "F" + gcap(c)
-gcap(c): برای بیت‌های 1,2,4,…,128 به ترتیب حروف s x c r w b a l
-revoking = implemented & ~issued                # در __ceph_check_caps و handle_cap_grant
+gcap(c): for bits 1,2,4,…,128 the letters s x c r w b a l, in order
+revoking = implemented & ~issued                # in __ceph_check_caps and handle_cap_grant
 ```
 
-**مثال عددی.** مقدار 0x3F55 = 1 + 4 + 16 + 64 + (63 ≪ 8) به رشته‌ی `pAsLsXsFsxcrwb` تبدیل می‌شود. اگر MDS بیت Fb را پس بگیرد (issued جدید = 0x1F55)، revoking = 0x3F55 & ~0x1F55 = 0x2000، یعنی 1 ≪ 13 = FILE b. کلاینت باید صفحه‌های کثیف را flush کند و سپس ack بفرستد. تا وقتی ack نرسد، MDS کلاینت دیگری را که Fw خواسته منتظر نگه می‌دارد. همین منشأ پیام‌های «client X failing to respond to capability release» در `ceph health detail` است.
+**Numerical example.** The value 0x3F55 = 1 + 4 + 16 + 64 + (63 ≪ 8) becomes the string `pAsLsXsFsxcrwb`. If the MDS takes back the Fb bit (new issued = 0x1F55), revoking = 0x3F55 & ~0x1F55 = 0x2000, that is 1 ≪ 13 = FILE b. The client must flush its dirty pages and then send an ack. Until the ack arrives, the MDS keeps another client that asked for Fw waiting. This is the origin of the "client X failing to respond to capability release" messages in `ceph health detail`.
 
-![چیدمان بیت‌های cap در یک عدد صحیح و مثال 0x3F55. بیت 0 PIN است. هر کدام از AUTH، LINK و XATTR دو بیت (shared و exclusive) دارند. FILE از بیت 8 به بعد هشت بیت دارد: s، x، c، r، w، b، a و l. خانه‌های روشن بیت‌های فعال مثال‌اند. ceph_cap_string همین بیت‌ها را به رشته‌ای تبدیل می‌کند که در debugfs و لاگ‌های MDS دیده می‌شود](figures/ch29/f07_capbits.png){#fig-29-f07_capbits}
+![The layout of the cap bits in an integer, and the example 0x3F55. Bit 0 is PIN. AUTH, LINK and XATTR each have two bits (shared and exclusive). FILE has eight bits from bit 8 on: s, x, c, r, w, b, a and l. The highlighted cells are the active bits of the example. ceph_cap_string turns these bits into the string seen in debugfs and the MDS logs](figures/ch29/f07_capbits.png){#fig-29-f07_capbits}
 
-# تکمیلی و به‌روز {#sec-29-9}
+# Supplementary and up to date {#sec-29-9}
 
-- پشتیبانی msgr2.1 در کلاینت هسته از نسخه‌ی ۵٫۱۱ است (طبق `Documentation/filesystems/ceph.rst`).
-- `RBD_FEATURES_ALL` در rbd.c مربوط به master شامل layering، striping v2، exclusive-lock، object-map، fast-diff، deep-flatten، data-pool و operations است. journaling (بیت ۶) در آن نیست. پس تصویرهای دارای journaling برای rbd-mirror در حالت journal، با krbd map نمی‌شوند.
-- کدهای نقل‌شده یا نام‌برده در این فصل از شاخه‌ی master هسته در تاریخ نگارش است. توزیع‌های سازمانی (RHEL، Ubuntu LTS) ممکن است backportهای متفاوتی داشته باشند. همیشه `modinfo rbd` و `uname -r` را با changelog توزیع خود بسنجید.
+- msgr2.1 support in the kernel client is from version 5.11 (according to `Documentation/filesystems/ceph.rst`).
+- `RBD_FEATURES_ALL` in the master rbd.c includes layering, striping v2, exclusive-lock, object-map, fast-diff, deep-flatten, data-pool and operations. journaling (bit 6) is not in it. So images with journaling, for rbd-mirror in journal mode, cannot be mapped with krbd.
+- The code quoted or named in this chapter is from the kernel master branch at the time of writing. Enterprise distributions (RHEL, Ubuntu LTS) may have different backports. Always check `modinfo rbd` and `uname -r` against your distribution's changelog.
 
-# تمرین عملی {#sec-29-10}
+# Hands-on exercise {#sec-29-10}
 
-1. یک تصویر را با `rbd map` وصل و با `fio --direct=1 --rw=randwrite --bs=4k --iodepth=64` تست کنید. هم‌زمان `cat /sys/kernel/debug/ceph/*/osdc` را چند بار بخوانید و تعداد درخواست‌های در جریان را با iodepth مقایسه کنید.
-2. همان تست را با `rbd-nbd` و librbd اجرا و تأخیر را مقایسه کنید.
-3. یک فایل CephFS را از دو کلاینت هسته‌ای باز کنید (یکی نویسنده و دیگری خواننده) و تغییر caps را در `/sys/kernel/debug/ceph/*/caps` ببینید.
-4. روی یک خوشه‌ی آزمایشی، `ceph osd pause` را اجرا کنید، رفتار کلاینت هسته را با و بدون `osd_request_timeout=30` مقایسه کنید و سپس `ceph osd unpause` کنید.
+1. Attach an image with `rbd map` and test it with `fio --direct=1 --rw=randwrite --bs=4k --iodepth=64`. Meanwhile read `cat /sys/kernel/debug/ceph/*/osdc` several times and compare the number of in-flight requests with the iodepth.
+2. Run the same test with `rbd-nbd` and librbd and compare the latency.
+3. Open a CephFS file from two kernel clients (one writer and one reader) and watch the caps change in `/sys/kernel/debug/ceph/*/caps`.
+4. On a test cluster, run `ceph osd pause`, compare the kernel client's behaviour with and without `osd_request_timeout=30`, and then run `ceph osd unpause`.
 
-# پرسش‌های مرور {#sec-29-11}
+# Review questions {#sec-29-11}
 
-1. libceph از چه بخش‌هایی تشکیل شده است و چرا CRUSH در هسته هم هست؟
-2. یک request در blk-mq چگونه به obj_requestها تقسیم می‌شود؟
-3. چه زمانی krbd به‌جای WRITE از WRITEFULL، ZERO، TRUNCATE یا DELETE استفاده می‌کند؟
-4. copyup در krbd چه زمانی رخ می‌دهد؟
-5. چرا کلاینت هسته در برابر pool پر گیر می‌کند و چگونه می‌توان آن را محدود کرد؟
-6. مقادیر io_opt و io_min در krbd از کجا می‌آیند؟
-7. رشته‌ی caps به شکل `pAsLsXsFrwcb` را تفسیر کنید.
-8. چرا خواننده‌ی دوم یک فایل در حال نوشتن، Fc نمی‌گیرد؟
-9. هشدار MDS_HEALTH_CLIENT_LATE_RELEASE چه معنایی دارد؟
-10. دو مزیت و دو عیب krbd نسبت به librbd را بگویید.
+1. What parts make up libceph, and why is CRUSH in the kernel too?
+2. How is a blk-mq request split into obj_requests?
+3. When does krbd use WRITEFULL, ZERO, TRUNCATE or DELETE instead of WRITE?
+4. When does copyup happen in krbd?
+5. Why does the kernel client get stuck on a full pool, and how can this be bounded?
+6. Where do the io_opt and io_min values in krbd come from?
+7. Interpret a caps string of the form `pAsLsXsFrwcb`.
+8. Why does the second reader of a file being written not get Fc?
+9. What does the MDS_HEALTH_CLIENT_LATE_RELEASE warning mean?
+10. Name two advantages and two disadvantages of krbd compared with librbd.
 
-# منابع این فصل {#sec-29-12}
+# Sources for this chapter {#sec-29-12}
 
-- net/ceph در هسته: https://github.com/torvalds/linux/tree/master/net/ceph
+- net/ceph in the kernel: https://github.com/torvalds/linux/tree/master/net/ceph
 - drivers/block/rbd.c: https://github.com/torvalds/linux/blob/master/drivers/block/rbd.c
 - fs/ceph: https://github.com/torvalds/linux/tree/master/fs/ceph
-- مستند CephFS در هسته: https://docs.kernel.org/filesystems/ceph.html
+- Kernel CephFS documentation: https://docs.kernel.org/filesystems/ceph.html
 - rbd (man): https://docs.ceph.com/en/latest/man/8/rbd/
-- krbd در مستندات Ceph: https://docs.ceph.com/en/latest/rbd/rbd-ko/
-- caps در CephFS: https://docs.ceph.com/en/latest/cephfs/capabilities/
-- کلاینت هسته‌ی CephFS: https://docs.ceph.com/en/latest/cephfs/mount-using-kernel-driver/
+- krbd in the Ceph documentation: https://docs.ceph.com/en/latest/rbd/rbd-ko/
+- caps in CephFS: https://docs.ceph.com/en/latest/cephfs/capabilities/
+- The CephFS kernel client: https://docs.ceph.com/en/latest/cephfs/mount-using-kernel-driver/
