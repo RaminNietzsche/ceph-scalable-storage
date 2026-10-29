@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph A["Input: a new OSD map (handle_one_map) for each request"]
+    direction LR
+    a1["pool still exists?<br/>no ⇒ CALC_TARGET_POOL_DNE"] --> a2["last_force_request_resend<br/>increased? ⇒ force_resend"] --> a3["new pgid and up/acting<br/>with CRUSH and upmap"]
+  end
+  subgraph B["Evaluating the change"]
+    direction LR
+    b1["paused: PAUSERD/PAUSEWR flag<br/>or a full pool or cluster"] --> b2["legacy_change: pgid changed<br/>or ceph_osds_changed(acting)"] --> b3["split: ceph_pg_is_split<br/>(pg_num increased)"]
+  end
+  subgraph C["Result"]
+    direction LR
+    c1["unpaused or legacy_change<br/>or force_resend or split"] --> c2["CALC_TARGET_NEED_RESEND<br/>unlink and link to the new OSD"] --> c3["otherwise<br/>CALC_TARGET_NO_ACTION"]
+  end
+  A --> B --> C

@@ -1,0 +1,21 @@
+sequenceDiagram
+  participant N as krbd on host N (new)
+  participant H as rbd_header on the OSD
+  participant O as current owner (host O)
+  participant M as mon
+  N->>H: cls lock exclusive with cookie "auto N"
+  H-->>N: EBUSY
+  N->>H: get_lock_owner_info and list_watchers
+  alt the owner has a live watcher
+    N->>O: notify REQUEST_LOCK (timeout 5 s)
+    O-->>N: ack, then release the lock after flush
+    Note over N: if not released, retry after 2 × 5 s
+    N->>H: lock exclusive
+    H-->>N: OK
+  else the owner has no watcher
+    N->>M: blocklist add the owner address
+    M-->>N: OK
+    N->>H: break_lock of the previous owner
+    N->>H: lock exclusive
+    H-->>N: OK
+  end

@@ -1,0 +1,10 @@
+flowchart TB
+  subgraph R1["krbd / ceph.ko (kernel)"]
+    direction LR
+    A["libceph: messenger, osd_client,<br/>mon_client, CRUSH, auth_x"] --> B["no librados;<br/>a separate implementation in C"] --> C["features limited to RBD_FEATURES_SUPPORTED"]
+  end
+  subgraph R2["librbd / ceph-fuse (user space)"]
+    direction LR
+    D["librados + Objecter + AsyncMessenger"] --> E["librbd cache, journaling,<br/>mirroring, QoS"] --> F["upgrade without a reboot"]
+  end
+  R1 ~~~ R2

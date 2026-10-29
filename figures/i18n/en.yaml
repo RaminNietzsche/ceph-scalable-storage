@@ -1843,102 +1843,92 @@ ch28/f10_msr:
   host-c یا hostی که در stride دیگر: host-c or a host not used
   'استفاده نشده: osd.8': 'in another stride: osd.8'
 ch29/f01_krbd:
-  از برنامه تا: null
-  روی: null
-  یا: null
-  روی آن: null
-  درون: null
-  تقسیم به: null
-  ها: null
-  در هسته: null
-  در: null
-  به: null
+  از برنامه تا blk-mq: From the program to blk-mq
+  روی /dev/rbd0 یا FS روی آن: on /dev/rbd0 or an FS on it
+  درون rbd.c: Inside rbd.c
+  تقسیم به objectها: split into objects
+  (CRUSH در هسته): (CRUSH in the kernel)
+  (gcm(aes) در secure): (gcm(aes) in secure)
+  TCP به primary OSD: TCP to the primary OSD
 ch29/f02_objsm:
-  اگر: null
-  فعال باشد: null
-  انتظار برای همه‌ی: null
-  ها: null
-  تکمیل: null
-  در: null
-  علامت: null
-  نوشتن روی: null
-  و: null
-  دارد: null
+  (اگر feature فعال باشد): (if the feature is enabled)
+  (انتظار برای همه‌ی obj_reqها): (wait for all obj_reqs)
+  تکمیل request در blk-mq: complete the request in blk-mq
+  (علامت OBJECT_EXISTS): (mark OBJECT_EXISTS)
+  (نوشتن روی OSD): (write to the OSD)
+  (-ENOENT در clone): (-ENOENT in a clone)
+  (اگر -ENOENT و parent دارد): (if -ENOENT and it has a parent)
 ch29/f03_caps:
-  کلاینت: null
-  درخواست: null
-  تنها نویسنده: null
-  صفحات: null
-  به: null
-  ها: null
-  بدون: null
-  بدون کش: null
-  مستقیم از: null
+  participant A as کلاینت A (ceph.ko): participant A as Client A (ceph.ko)
+  participant B as کلاینت B: participant B as Client B
+  open(f, O_RDWR) → caps درخواست Fwb: open(f, O_RDWR) → caps request Fwb
+  grant pAsLsXsFrwcb (تنها نویسنده): grant pAsLsXsFrwcb (sole writer)
+  writeback صفحات dirty به OSDها: writeback of dirty pages to the OSDs
+  'grant Fr (بدون c: بدون کش)': 'grant Fr (no c: no cache)'
+  read مستقیم از OSD (sync read): read directly from the OSD (sync read)
 ch29/f04_cmp:
-  هسته: null
-  بدون: null
-  ؛: null
-  پیاده‌سازی جدا در: null
-  ویژگی‌ها محدود به: null
-  فضای کاربر: null
-  کش: null
-  ارتقا بدون: null
+  krbd / ceph.ko (هسته): krbd / ceph.ko (kernel)
+  'libceph: messenger، osd_client،': 'libceph: messenger, osd_client,'
+  mon_client، CRUSH، auth_x: mon_client, CRUSH, auth_x
+  بدون librados؛: no librados;
+  پیاده‌سازی جدا در C: a separate implementation in C
+  ویژگی‌ها محدود به RBD_FEATURES_SUPPORTED: features limited to RBD_FEATURES_SUPPORTED
+  librbd / ceph-fuse (فضای کاربر): librbd / ceph-fuse (user space)
+  کش librbd، journaling،: librbd cache, journaling,
+  mirroring، QoS: mirroring, QoS
+  ارتقا بدون reboot: upgrade without a reboot
 ch29/f05_striping:
-  مثال: null
-  خواندن: null
-  از آفست: null
-  شیء: null
-  طول: null
-  نام شیء: null
+  'layout: stripe_unit=1MiB، stripe_count=4، object_size=4MiB': 'layout: stripe_unit=1MiB, stripe_count=4, object_size=4MiB'
+  'مثال: خواندن 3MiB از آفست 10.5MiB': 'Example: reading 3MiB from offset 10.5MiB'
+  10.5M→ شیء 2 @2.5M<br/>طول 0.5M: 10.5M→ object 2 @2.5M<br/>length 0.5M
+  11M→ شیء 3 @2M<br/>طول 1M: 11M→ object 3 @2M<br/>length 1M
+  12M→ شیء 0 @3M<br/>طول 1M: 12M→ object 0 @3M<br/>length 1M
+  13M→ شیء 1 @3M<br/>طول 0.5M: 13M→ object 1 @3M<br/>length 0.5M
+  نام شیء: Object name
 ch29/f06_target:
-  در: null
-  ارسال و تغییر نقشه: null
-  به: null
-  ارسال: null
-  جدید: null
-  تغییر: null
-  ارسال دوباره: null
-  در دسترس نیست: null
-  تا نقشه‌ی بعدی: null
+  calc_target در osd_client.c: calc_target in osd_client.c
+  (pool، namespace): (pool, namespace)
+  ceph_stable_mod(seed، pg_num، mask): ceph_stable_mod(seed, pg_num, mask)
+  crush_hash32_2(stable_mod(seed، pgp_num)، pool): crush_hash32_2(stable_mod(seed, pgp_num), pool)
+  up، acting، primary: up, acting, primary
+  ارسال و تغییر نقشه: Sending and map changes
+  link به ceph_osd (session): link to ceph_osd (session)
+  ارسال MOSDOp: send MOSDOp
+  osdmap جدید ⇒ scan_requests: new osdmap ⇒ scan_requests
+  تغییر target ⇒ ارسال دوباره: target changed ⇒ resend
+  'homeless: OSD در دسترس نیست': 'homeless: no OSD reachable'
+  تا نقشه‌ی بعدی: until the next map
 ch29/f09_calctarget:
-  ورودی: null
-  نقشه‌ی تازه‌ی: null
-  برای هر درخواست: null
-  هنوز هست؟: null
-  نه: null
-  بزرگ‌تر شد؟: null
-  تازه و: null
-  با: null
-  و: null
-  سنجش تغییر: null
-  پرچم: null
-  یا پری: null
-  یا کلاستر: null
-  عوض شد: null
-  یا: null
-  بیشتر شد: null
-  نتیجه: null
-  به: null
-  تازه: null
-  در غیر این صورت: null
+  'ورودی: نقشه‌ی تازه‌ی OSD (handle_one_map) برای هر درخواست': 'Input: a new OSD map (handle_one_map) for each request'
+  pool هنوز هست؟: pool still exists?
+  نه ⇒ CALC_TARGET_POOL_DNE: no ⇒ CALC_TARGET_POOL_DNE
+  بزرگ‌تر شد؟ ⇒ force_resend: increased? ⇒ force_resend
+  pgid تازه و up/acting: new pgid and up/acting
+  با CRUSH و upmap: with CRUSH and upmap
+  سنجش تغییر: Evaluating the change
+  'paused: پرچم PAUSERD/PAUSEWR': 'paused: PAUSERD/PAUSEWR flag'
+  یا پری pool یا کلاستر: or a full pool or cluster
+  'legacy_change: pgid عوض شد': 'legacy_change: pgid changed'
+  یا ceph_osds_changed(acting): or ceph_osds_changed(acting)
+  (pg_num بیشتر شد): (pg_num increased)
+  نتیجه: Result
+  unpaused یا legacy_change: unpaused or legacy_change
+  یا force_resend یا split: or force_resend or split
+  unlink و link به OSD تازه: unlink and link to the new OSD
+  در غیر این صورت: otherwise
 ch29/f10_lock:
-  روی میزبان: null
-  تازه: null
-  روی: null
-  مالک فعلی: null
-  میزبان: null
-  با: null
-  و: null
-  مالک: null
-  زنده دارد: null
-  مهلت: null
-  و سپس آزادسازی: null
-  پس از: null
-  اگر آزاد نشد، تلاش دوباره پس از: null
-  هیچ: null
-  ی برای مالک نیست: null
-  آدرس مالک: null
-  مالک قبلی: null
+  participant N as krbd روی میزبان N (تازه): participant N as krbd on host N (new)
+  participant H as rbd_header روی OSD: participant H as rbd_header on the OSD
+  participant O as مالک فعلی (میزبان O): participant O as current owner (host O)
+  cls lock exclusive با cookie «auto N»: cls lock exclusive with cookie "auto N"
+  get_lock_owner_info و list_watchers: get_lock_owner_info and list_watchers
+  alt مالک watcher زنده دارد: alt the owner has a live watcher
+  notify REQUEST_LOCK (مهلت 5 s): notify REQUEST_LOCK (timeout 5 s)
+  ack و سپس آزادسازی lock پس از flush: ack, then release the lock after flush
+  اگر آزاد نشد، تلاش دوباره پس از 2 × 5 s: if not released, retry after 2 × 5 s
+  else هیچ watcherی برای مالک نیست: else the owner has no watcher
+  blocklist add آدرس مالک: blocklist add the owner address
+  break_lock مالک قبلی: break_lock of the previous owner
 ch30/f01_threads:
   کلاسیک: null
   ها و قفل‌ها: null

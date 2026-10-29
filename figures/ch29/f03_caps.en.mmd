@@ -1,0 +1,13 @@
+sequenceDiagram
+  participant A as Client A (ceph.ko)
+  participant M as MDS
+  participant B as Client B
+  A->>M: open(f, O_RDWR) → caps request Fwb
+  M-->>A: grant pAsLsXsFrwcb (sole writer)
+  A->>A: write → page cache (Fb: buffer)
+  B->>M: open(f, O_RDONLY)
+  M->>A: revoke Fcb (cap op REVOKE)
+  A->>A: writeback of dirty pages to the OSDs
+  A->>M: cap ack / FLUSH (size, mtime)
+  M-->>B: grant Fr (no c: no cache)
+  B->>B: read directly from the OSD (sync read)

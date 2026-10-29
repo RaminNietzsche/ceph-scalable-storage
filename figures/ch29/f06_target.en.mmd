@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["calc_target in osd_client.c"]
+    direction LR
+    A["oid + oloc<br/>(pool, namespace)"] --> B["ceph_str_hash rjenkins<br/>→ raw seed"] --> C["raw_pg_to_pg:<br/>ceph_stable_mod(seed, pg_num, mask)"]
+  end
+  subgraph R2["osdmap.c"]
+    direction LR
+    D["raw_pg_to_pps:<br/>crush_hash32_2(stable_mod(seed, pgp_num), pool)"] --> E["do_crush → crush_do_rule"] --> F["pg_upmap / pg_upmap_items<br/>/ primary_temp"] --> G["up, acting, primary"]
+  end
+  subgraph R3["Sending and map changes"]
+    direction LR
+    H["link to ceph_osd (session)<br/>send MOSDOp"] --> I["new osdmap ⇒ scan_requests<br/>target changed ⇒ resend"] --> J["homeless: no OSD reachable<br/>until the next map"]
+  end
+  R1 ~~~ R2 ~~~ R3
