@@ -4,247 +4,246 @@ id: ch30
 title: 'Lower Layers (8): Crimson and Seastar — Shard-per-Core OSD and SeaStore'
 part: lower
 lang: en
-translation: pending
 ---
 
-# مقدمه: چرا یک OSD تازه؟ {#sec-30-1}
+# Introduction: why a new OSD? {#sec-30-1}
 
-OSD کلاسیک (فصل‌های ۱۲، ۲۱ و ۲۲) در دوره‌ای طراحی شد که دیسک چرخان چند میلی‌ثانیه تأخیر داشت و چند ده میکروثانیه هزینه‌ی نرم‌افزار در برابر آن ناچیز بود. روی NVMe امروزی، یک خواندن 4K در حدود ۱۰ تا ۸۰ میکروثانیه تمام می‌شود. در همین مدت، OSD کلاسیک پیام را از یک thread شبکه به صف شارد، از آنجا به thread دیگری با قفل PG و سپس به threadهای kv_sync و finisher در BlueStore می‌سپارد. هر جابه‌جایی بین threadها هزینه‌ی context switch، از دست رفتن cache پردازنده و رقابت قفل دارد. **Crimson** بازنویسی OSD روی چارچوب **Seastar** است تا این هزینه‌ها حذف شوند: هر هسته‌ی پردازنده یک reactor دارد و هر PG فقط روی یک هسته زندگی می‌کند.
+The classic OSD (chapters 12, 21 and 22) was designed in an era when a spinning disk had a latency of several milliseconds and a few tens of microseconds of software cost were negligible against it. On today's NVMe, a 4K read completes in about 10 to 80 microseconds. In that same time, the classic OSD hands the message from a network thread to a shard queue, from there to another thread holding the PG lock, and then to the kv_sync and finisher threads in BlueStore. Every hand-off between threads costs a context switch, lost processor cache and lock contention. **Crimson** is a rewrite of the OSD on the **Seastar** framework to eliminate these costs: each processor core has one reactor, and each PG lives on only one core.
 
 ::: {.note}
-**وضعیت.** طبق مستند رسمی (`doc/crimson/crimson.rst` در شاخه‌ی main و `doc/dev/crimson/crimson.rst` در Squid و Tentacle)، Crimson در مرحله‌ی **tech preview** است و **برای production مناسب نیست**. فعال کردن آن به سه پرچم نیاز دارد: ویژگی آزمایشی `crimson` در `enable_experimental_unrecoverable_data_corrupting_features`، پرچم OSDMap با `ceph osd set-allow-crimson --yes-i-really-mean-it` و ساخت poolها با پرچم crimson (`osd_pool_default_crimson`). Crimson فقط PGهای poolهای crimson را می‌سازد. همه‌ی مطالب این فصل برای فهم معماری است، نه توصیه‌ی استقرار.
+**Status.** According to the official documentation (`doc/crimson/crimson.rst` in the main branch and `doc/dev/crimson/crimson.rst` in Squid and Tentacle), Crimson is at the **tech preview** stage and is **not suitable for production**. Enabling it requires three flags: the experimental feature `crimson` in `enable_experimental_unrecoverable_data_corrupting_features`, the OSDMap flag via `ceph osd set-allow-crimson --yes-i-really-mean-it`, and creating pools with the crimson flag (`osd_pool_default_crimson`). Crimson only creates PGs of crimson pools. Everything in this chapter is for understanding the architecture, not a deployment recommendation.
 :::
 
-![مقایسه‌ی مدل اجرای OSD کلاسیک و Crimson. در OSD کلاسیک هر درخواست از چند thread pool و چند قفل عبور می‌کند. در Crimson هر هسته یک reactor مستقل دارد که هم شبکه و هم PGهای خودش را اجرا می‌کند. ارتباط بین هسته‌ها فقط با پیام صریح (submit_to و invoke_on) است و نتیجه به‌صورت future به هسته‌ی مبدأ برمی‌گردد](figures/ch30/f01_threads.png){#fig-30-f01_threads}
+![Comparing the execution models of the classic OSD and Crimson. In the classic OSD each request passes through several thread pools and several locks. In Crimson each core has an independent reactor that runs both the network and its own PGs. Communication between cores happens only through explicit messages (submit_to and invoke_on), and the result returns to the originating core as a future](figures/ch30/f01_threads.png){#fig-30-f01_threads}
 
-این شکل تفاوت بنیادی دو مدل را نشان می‌دهد. در ردیف بالا، یک درخواست دست‌کم چهار بار بین threadها جابه‌جا می‌شود و در هر جابه‌جایی داده‌ی آن باید از cache هسته‌ی دیگری خوانده شود. در ردیف میانی، داده‌ی یک PG (log، object context، cache) فقط در حافظه‌ی یک هسته است و هیچ قفلی لازم نیست، چون هیچ هسته‌ی دیگری به آن دست نمی‌زند. بهای این سادگی آن است که هر تعامل بین هسته‌ها باید صریح باشد، مثل پیامی که به هسته‌ی 0 برای پیدا کردن هسته‌ی صاحب PG فرستاده می‌شود.
+This figure shows the fundamental difference between the two models. In the top row, a request moves between threads at least four times, and at each move its data has to be read from another core's cache. In the middle row, the data of a PG (log, object context, cache) lives only in one core's memory and no lock is needed, because no other core touches it. The price of this simplicity is that every interaction between cores must be explicit, such as the message sent to core 0 to find the core that owns a PG.
 
-# Seastar: future، continuation و reactor {#sec-30-2}
+# Seastar: future, continuation and reactor {#sec-30-2}
 
-در Seastar هیچ تابعی بلوکه نمی‌شود. تابعی که کار ناهم‌گام دارد (خواندن از شبکه، نوشتن روی دیسک، پرسش از هسته‌ی دیگر) بی‌درنگ یک `future<T>` برمی‌گرداند. ادامه‌ی کار با `.then()` به آن future وصل می‌شود. وقتی نتیجه آماده شد، تولیدکننده با `promise.set_value()` آن را آماده می‌کند و continuation به صف task همان reactor می‌رود. reactor یک حلقه‌ی بی‌پایان روی هر هسته است: taskهای آماده را اجرا می‌کند، backend ورودی و خروجی (io_uring، linux-aio یا epoll، با گزینه‌ی `crimson_reactor_backend`) را poll می‌کند و تایمرها را بررسی می‌کند.
+In Seastar no function blocks. A function that has asynchronous work (reading from the network, writing to disk, asking another core) immediately returns a `future<T>`. The rest of the work is attached to that future with `.then()`. When the result is ready, the producer makes it ready with `promise.set_value()` and the continuation goes into the task queue of the same reactor. The reactor is an endless loop on each core: it runs ready tasks, polls the I/O backend (io_uring, linux-aio or epoll, chosen with the `crimson_reactor_backend` option) and checks the timers.
 
-![مسیر یک درخواست روی یک reactor. هیچ مرحله‌ای منتظر نمی‌ماند. هر عمل ناهم‌گام future برمی‌گرداند و continuation پس از آماده شدن نتیجه در صف همان هسته قرار می‌گیرد. چون زمان‌بندی تعاونی است، هر task باید زود تمام شود. Crimson سهم زمانی هر task را با crimson_reactor_task_quota_ms (پیش‌فرض 0.5 میلی‌ثانیه در main) تنظیم می‌کند](figures/ch30/f02_future.png){#fig-30-f02_future}
+![The path of a request on one reactor. No step waits. Every asynchronous operation returns a future, and the continuation is queued on the same core once the result is ready. Because scheduling is cooperative, each task must finish quickly. Crimson sets each task's time slice with crimson_reactor_task_quota_ms (default 0.5 milliseconds in main)](figures/ch30/f02_future.png){#fig-30-f02_future}
 
-::: {.algo #alg-30-1 title="زمان‌بندی تعاونی reactor در Seastar" src="seastar: reactor::run (به‌کارگیری در src/crimson/osd/main.cc و گزینه‌های crimson_reactor_*)" complexity="هر دور O(تعداد task آماده + رویدادهای poll)؛ بدون قفل"}
+::: {.algo #alg-30-1 title="Cooperative scheduling in the Seastar reactor" src="seastar: reactor::run (used in src/crimson/osd/main.cc and the crimson_reactor_* options)" complexity="each round O(number of ready tasks + poll events); lock-free"}
 :::
 
 ```text
-pseudocode: یک دور reactor (مدل مفهومی، بازنویسی این کتاب)
+pseudocode: one reactor round (a conceptual model, this book's rewrite)
 loop forever:
   t0 = now()
   while ready_tasks not empty and now() - t0 < task_quota:   # 0.5ms
-      task = ready_tasks.pop_front(); task.run()             # continuation‌ها
-  poll(io backend)          # تکمیل io_uring/aio ⇒ promise.set_value ⇒ task جدید
-  poll(network)             # داده‌ی socket ⇒ task جدید
-  poll(smp queues)          # پیام از هسته‌های دیگر (submit_to)
+      task = ready_tasks.pop_front(); task.run()             # continuations
+  poll(io backend)          # io_uring/aio completion ⇒ promise.set_value ⇒ new task
+  poll(network)             # socket data ⇒ new task
+  poll(smp queues)          # messages from other cores (submit_to)
   run expired timers
-  if nothing to do for idle_poll_time (200us): sleep in kernel (مگر poll_mode)
+  if nothing to do for idle_poll_time (200us): sleep in kernel (unless poll_mode)
 ```
 
-**مثال عددی.** فرض کنید هر خواندن 4K روی reactor حدود ۱۵ میکروثانیه CPU مصرف کند (decode، جست‌وجوی object context، ساخت پاسخ). با سهم 0.5 میلی‌ثانیه، در هر دور حدود ۳۳ درخواست اجرا می‌شود و سپس reactor دوباره دستگاه و شبکه را poll می‌کند. پس بیشینه‌ی تأخیر اضافه برای یک تکمیل ورودی و خروجی تازه حدود ۰٫۵ میلی‌ثانیه است. اگر یک continuation بد ۵ میلی‌ثانیه CPU مصرف کند (مثلاً پیمایش یک omap بزرگ بدون تقسیم کار)، همه‌ی PGهای آن هسته ۵ میلی‌ثانیه متوقف می‌شوند. این همان «stall» است که Seastar در log گزارش می‌کند. در مدل تعاونی، کار طولانی باید با `seastar::maybe_yield()` یا حلقه‌های ناهم‌گام تکه‌تکه شود.
+**Numerical example.** Suppose each 4K read uses about 15 microseconds of CPU on the reactor (decoding, looking up the object context, building the reply). With a 0.5 millisecond quota, about 33 requests run per round, and then the reactor polls the device and the network again. So the maximum added latency for a new I/O completion is about 0.5 milliseconds. If one bad continuation uses 5 milliseconds of CPU (for example walking a large omap without splitting the work), all the PGs on that core stop for 5 milliseconds. This is the "stall" that Seastar reports in the log. In the cooperative model, long work must be cut into pieces with `seastar::maybe_yield()` or asynchronous loops.
 
 ::: {.warn}
-`crimson_reactor_idle_poll_time_us=200` یعنی reactor پس از ۲۰۰ میکروثانیه بی‌کاری در هسته‌ی سیستم‌عامل می‌خوابد. `crimson_poll_mode=true` این خواب را حذف می‌کند و همیشه polling انجام می‌دهد. در این حالت تأخیر کمتر می‌شود، اما هر reactor یک هسته را صددرصد مشغول نگه می‌دارد، حتی بدون بار. داشبوردی که `osd_reactor_utilization` را نشان می‌دهد در حالت poll همیشه نزدیک ۱۰۰ است و دیگر نشانه‌ی اشباع نیست.
+`crimson_reactor_idle_poll_time_us=200` means the reactor sleeps in the operating-system kernel after 200 microseconds of idleness. `crimson_poll_mode=true` removes this sleep and polls all the time. In this mode latency is lower, but each reactor keeps one core 100% busy, even with no load. A dashboard showing `osd_reactor_utilization` is always close to 100 in poll mode, and that is no longer a sign of saturation.
 :::
 
-## shared-nothing در عمل {#sec-30-2-1}
+## shared-nothing in practice {#sec-30-2-1}
 
-داده‌ای که بین هسته‌ها مشترک است فقط از سه راه جابه‌جا می‌شود: `seastar::smp::submit_to(core, func)` یک تابع را روی هسته‌ی دیگر اجرا می‌کند و future نتیجه را برمی‌گرداند. `sharded<T>` یک نمونه از سرویس را روی هر هسته نگه می‌دارد و `invoke_on` و `invoke_on_all` آن را فرا می‌خوانند. `foreign_ptr` هم مالکیت شیئی را که روی هسته‌ی دیگر ساخته شده است منتقل می‌کند تا آزادسازی آن روی همان هسته‌ی سازنده انجام شود. در Crimson، `PGShardMapping` یک `peering_sharded_service` است. یعنی هر هسته یک کپی محلی از نقشه‌ی PG به هسته دارد، ولی فقط هسته‌ی 0 آن را تغییر می‌دهد.
+Data shared between cores moves in only three ways: `seastar::smp::submit_to(core, func)` runs a function on another core and returns the result as a future. `sharded<T>` keeps one instance of a service on each core, and `invoke_on` and `invoke_on_all` call it. `foreign_ptr` transfers ownership of an object created on another core so that it is freed on the core that created it. In Crimson, `PGShardMapping` is a `peering_sharded_service`. That is, each core has a local copy of the PG-to-core map, but only core 0 changes it.
 
-# الگوریتم نگاشت PG به هسته {#sec-30-3}
+# The PG-to-core mapping algorithm {#sec-30-3}
 
-::: {.algo #alg-30-2 title="انتخاب کم‌بارترین هسته برای PG تازه" src="src/crimson/osd/pg_map.cc :: PGShardMapping::get_or_create_pg_mapping" complexity="جست‌وجو O(log P) با std::map؛ انتخاب O(C) روی C هسته؛ یک رفت‌وبرگشت به هسته‌ی 0"}
+::: {.algo #alg-30-2 title="Choosing the least-loaded core for a new PG" src="src/crimson/osd/pg_map.cc :: PGShardMapping::get_or_create_pg_mapping" complexity="lookup O(log P) with std::map; choice O(C) over C cores; one round trip to core 0"}
 :::
 
-![نگاشت PG به هسته در Crimson. اگر هسته‌ای PG را در نقشه‌ی محلی نیابد، از هسته‌ی 0 می‌پرسد. هسته‌ی 0 برای PG تازه کم‌بارترین هسته را با min_element روی شمار PGهای هر هسته انتخاب، شمارنده را افزایش و نقشه را به همه‌ی هسته‌ها پخش می‌کند. از آن پس همه‌ی کارهای آن PG فقط روی همان هسته اجرا می‌شود](figures/ch30/f03_pgmap.png){#fig-30-f03_pgmap}
+![Mapping PGs to cores in Crimson. If a core does not find the PG in its local map, it asks core 0. For a new PG, core 0 chooses the least-loaded core with min_element over the PG count of each core, increments the counter and broadcasts the map to all cores. From then on all the work of that PG runs only on that core](figures/ch30/f03_pgmap.png){#fig-30-f03_pgmap}
 
 ```text
-pseudocode: get_or_create_pg_mapping (خلاصه‌ی منطق کد)
+pseudocode: get_or_create_pg_mapping (a summary of the code's logic)
 on any core:
   if pgid in local.pg_to_core: return local.pg_to_core[pgid]
   return invoke_on(core 0):
      if pgid in primary.pg_to_core: core = that core
      else:
-        core = argmin_c primary.core_to_num_pgs[c]    # کم‌بارترین هسته
+        core = argmin_c primary.core_to_num_pgs[c]    # the least-loaded core
         primary.core_to_num_pgs[core] += 1
-        store_index = pick least-loaded store shard on core (اگر چند shard ذخیره‌ساز)
+        store_index = pick least-loaded store shard on core (if there are several store shards)
         primary.pg_to_core[pgid] = (core, store_index)
      broadcast mapping to all cores; return (core, store_index)
 ```
 
-**مثال عددی.** OSD با `crimson_cpu_num=4` و هسته‌های 0 تا 3 را در نظر بگیرید که به‌ترتیب 30، 29، 31 و 29 PG دارند. PG تازه‌ی 2.1f وارد می‌شود. min_element **اولین** کمینه را برمی‌گرداند، پس هسته‌ی 1 انتخاب می‌شود (نه 3) و شمارش‌ها 30، 30، 31 و 29 می‌شوند. PG بعدی به هسته‌ی 3 می‌رود. این روش فقط **تعداد** PG را متوازن می‌کند، نه بار آن‌ها را. اگر دو PG داغ RBD روی یک هسته بیفتند، آن هسته اشباع می‌شود و هسته‌های دیگر بی‌کار می‌مانند، چون در مدل shared-nothing هیچ work-stealing وجود ندارد. این یکی از تفاوت‌های عملی مهم با OSD کلاسیک است که threadهای هر شارد بین PGهای متعدد آن شارد مشترک‌اند.
+**Numerical example.** Consider an OSD with `crimson_cpu_num=4` and cores 0 to 3 holding 30, 29, 31 and 29 PGs respectively. A new PG 2.1f arrives. min_element returns the **first** minimum, so core 1 is chosen (not 3), and the counts become 30, 30, 31 and 29. The next PG goes to core 3. This method balances only the **number** of PGs, not their load. If two hot RBD PGs land on one core, that core saturates while the other cores stay idle, because the shared-nothing model has no work-stealing. This is one of the important practical differences from the classic OSD, where the threads of each shard are shared among that shard's many PGs.
 
 ::: {.deep}
-نگاشت تا پایان عمر PG روی OSD ثابت است و با `ceph tell osd.N dump_store_shards` قابل مشاهده است (تابع `dump_store_shards` در همان فایل). اگر تعداد shardهای ذخیره‌ساز (مثلاً SeaStore) با تعداد reactorها برابر نباشد، کد یک لایه‌ی دوم از انتخاب کم‌بارترین (روی `core_alien_to_num_pgs` یا `core_shard_to_num_pgs`) اضافه می‌کند. گزینه‌ی `seastore_require_partition_count_match_reactor_count` این حالت را محدود می‌کند.
+The mapping is fixed for the lifetime of the PG on the OSD and can be seen with `ceph tell osd.N dump_store_shards` (the `dump_store_shards` function in the same file). If the number of store shards (for example SeaStore's) is not equal to the number of reactors, the code adds a second layer of least-loaded selection (over `core_alien_to_num_pgs` or `core_shard_to_num_pgs`). The `seastore_require_partition_count_match_reactor_count` option restricts this case.
 :::
 
-# pipeline عملیات {#sec-30-4}
+# The operation pipeline {#sec-30-4}
 
-در OSD کلاسیک، ترتیب درخواست‌های یک PG با قفل PG و صف شارد حفظ می‌شود. Crimson به‌جای قفل از **phaseها** استفاده می‌کند (`src/crimson/osd/osd_operation.h`). هر phase یا **OrderedExclusive** است، یعنی در هر لحظه فقط یک عملیات در آن است و ترتیب ورود حفظ می‌شود، یا **OrderedConcurrent**، یعنی چند عملیات هم‌زمان در آن هستند ولی به همان ترتیب خارج می‌شوند.
+In the classic OSD, the order of a PG's requests is preserved by the PG lock and the shard queue. Instead of locks, Crimson uses **phases** (`src/crimson/osd/osd_operation.h`). Each phase is either **OrderedExclusive**, meaning only one operation is in it at any moment and the order of arrival is preserved, or **OrderedConcurrent**, meaning several operations are in it at once but they leave in the same order.
 
-![phaseهای یک ClientRequest در Crimson. سطح اتصال (منتظر فعال شدن، دریافت نقشه و یافتن هسته‌ی PG)، سطح شارد (ساختن یا انتظار برای PG)، سطح PG (آماده بودن PG، gate نسخه‌ی OSDMap، فعال بودن PG و گرفتن object context) و سطح شیء (پردازش، انتظار برای scrub، انتظار برای تکرار در replicaها و ارسال پاسخ). phaseهای exclusive ترتیب را تضمین می‌کنند و concurrentها هم‌پوشانی را ممکن می‌کنند](figures/ch30/f04_pipeline.png){#fig-30-f04_pipeline}
+![The phases of a ClientRequest in Crimson. The connection level (waiting to become active, getting the map and finding the PG's core), the shard level (creating or waiting for the PG), the PG level (PG ready, OSDMap version gate, PG active and getting the object context) and the object level (processing, waiting for scrub, waiting for replication to the replicas and sending the reply). Exclusive phases guarantee order, and concurrent ones make overlap possible](figures/ch30/f04_pipeline.png){#fig-30-f04_pipeline}
 
-| phase | نوع | چه چیزی را تضمین می‌کند |
+| phase | Type | What it guarantees |
 |---|---|---|
-| ConnectionPipeline::AwaitActive / AwaitMap / GetPGMapping | exclusive | ترتیب پیام‌های یک اتصال تا رسیدن به هسته‌ی PG |
-| PerShardPipeline::CreateOrWaitPG | exclusive | ساخت PG فقط یک بار |
-| CommonPGPipeline::WaitPGReady | concurrent | انتظار برای آماده شدن PG بدون ترتیب‌شکنی |
-| CommonPGPipeline::GetOBC | exclusive | ترتیب گرفتن object context (معادل قفل شیء) |
-| CommonOBCPipeline::Process | exclusive | اجرای opها روی شیء به ترتیب ورود |
-| CommonOBCPipeline::WaitRepop | concurrent | چند نوشتن هم‌زمان منتظر ack از replicaها |
-| CommonOBCPipeline::SendReply | exclusive | پاسخ‌ها به ترتیب درخواست‌ها |
+| ConnectionPipeline::AwaitActive / AwaitMap / GetPGMapping | exclusive | the order of a connection's messages until they reach the PG's core |
+| PerShardPipeline::CreateOrWaitPG | exclusive | the PG is created only once |
+| CommonPGPipeline::WaitPGReady | concurrent | waiting for the PG to be ready without breaking order |
+| CommonPGPipeline::GetOBC | exclusive | the order of getting the object context (equivalent to an object lock) |
+| CommonOBCPipeline::Process | exclusive | running the ops on the object in arrival order |
+| CommonOBCPipeline::WaitRepop | concurrent | several concurrent writes waiting for acks from the replicas |
+| CommonOBCPipeline::SendReply | exclusive | replies in the order of the requests |
 
-**استدلال تأخیر.** چون WaitRepop هم‌زمان است، ۳۲ نوشتن متوالی روی یک شیء می‌توانند هم‌زمان منتظر replicaها باشند. اگر رفت‌وبرگشت تا replica 200 میکروثانیه و پردازش هر نوشتن 20 میکروثانیه باشد، گذردهی یک شیء حدود 1/20µs=50K نوشتن در ثانیه است، نه 1/220µs. اگر Process بلوکه شود (مثلاً منتظر خواندن object context از دیسک)، کل صف شیء پشت آن می‌ماند. به همین دلیل `crimson_osd_obc_lru_size=512` (اندازه‌ی cache مربوط به object context) برای بار تصادفی اهمیت زیادی دارد.
+**Latency reasoning.** Because WaitRepop is concurrent, 32 consecutive writes to one object can wait for the replicas at the same time. If the round trip to a replica is 200 microseconds and processing each write is 20 microseconds, the throughput of one object is about 1/20µs=50K writes per second, not 1/220µs. If Process blocks (for example waiting to read the object context from disk), the whole queue of the object waits behind it. That is why `crimson_osd_obc_lru_size=512` (the size of the object-context cache) matters a lot for random load.
 
-# پشتیبان‌های ذخیره‌سازی در Crimson {#sec-30-5}
+# Storage backends in Crimson {#sec-30-5}
 
-رابط ذخیره‌سازی Crimson `FuturizedStore` است (`src/crimson/os/futurized_store.h`). هر عمل به‌جای مقدار، future برمی‌گرداند. سه پیاده‌سازی در `src/crimson/os/` وجود دارد:
+Crimson's storage interface is `FuturizedStore` (`src/crimson/os/futurized_store.h`). Each operation returns a future instead of a value. There are three implementations in `src/crimson/os/`:
 
-![پشتیبان‌های ذخیره‌سازی Crimson. SeaStore و CyanStore بومی‌اند و مستقیماً روی reactor اجرا می‌شوند. AlienStore، BlueStore یا MemStore کلاسیک را در threadهای «بیگانه» (خارج از Seastar) اجرا می‌کند. درخواست از reactor به thread pool فرستاده می‌شود و نتیجه با seastar::alien::submit_to به هسته‌ی مبدأ برمی‌گردد](figures/ch30/f05_backends.png){#fig-30-f05_backends}
+![Crimson's storage backends. SeaStore and CyanStore are native and run directly on the reactor. AlienStore runs the classic BlueStore or MemStore in "alien" threads (outside Seastar). The request is sent from the reactor to a thread pool, and the result returns to the originating core with seastar::alien::submit_to](figures/ch30/f05_backends.png){#fig-30-f05_backends}
 
-| پشتیبان | اجرا | کاربرد | وضعیت (مستند main) |
+| Backend | Execution | Use | Status (main documentation) |
 |---|---|---|---|
-| SeaStore | بومی، روی reactor | طراحی تازه برای NVMe | «اولیه»، پیش‌فرض نیست |
-| CyanStore | بومی، در حافظه | سنجش سربار خود OSD؛ **داده ذخیره نمی‌کند** | فقط آزمایش |
-| AlienStore + BlueStore | thread pool بیگانه | پیش‌فرض؛ سازگار با HDD و SSD | پیش‌فرض در Crimson |
-| AlienStore + MemStore | thread pool بیگانه | آزمایش و توسعه | فقط آزمایش |
+| SeaStore | native, on the reactor | a new design for NVMe | "early", not the default |
+| CyanStore | native, in memory | measuring the overhead of the OSD itself; **stores no data** | testing only |
+| AlienStore + BlueStore | alien thread pool | the default; compatible with HDD and SSD | the default in Crimson |
+| AlienStore + MemStore | alien thread pool | testing and development | testing only |
 
-در `alien_store.cc`، thread pool با `crimson_bluestore_num_threads` (پیش‌فرض 6 در main) ساخته می‌شود. عملیات یک collection با `ch->get_cid().hash_to_shard(tp->size())` همیشه به یک thread مشخص می‌رود تا ترتیب تراکنش‌های یک PG حفظ شود. این همان نقشی است که در OSD کلاسیک صف شارد ایفا می‌کند.
+In `alien_store.cc`, the thread pool is built with `crimson_bluestore_num_threads` (default 6 in main). The operations of one collection always go to a specific thread via `ch->get_cid().hash_to_shard(tp->size())`, so that the order of a PG's transactions is preserved. This is the same role the shard queue plays in the classic OSD.
 
 ::: {.warn}
-**هزینه‌ی پنهان AlienStore.** هر عمل دو بار مرز reactor و thread را می‌گذراند (رفت به pool و برگشت با alien::submit_to). روی NVMe سریع، این دو انتقال و کار BlueStore در threadهای خودش بخش بزرگی از سود Crimson را از بین می‌برند. به همین دلیل مستند توصیه می‌کند مجموعه‌ی CPU مربوط به BlueStore (`crimson_bluestore_cpu_set`) از هسته‌های reactor (`crimson_cpu_set`) جدا باشد تا threadهای بیگانه با reactorها رقابت نکنند.
+**The hidden cost of AlienStore.** Each operation crosses the reactor/thread boundary twice (out to the pool and back with alien::submit_to). On fast NVMe, these two transfers and BlueStore's work in its own threads wipe out a large part of Crimson's gain. That is why the documentation recommends keeping BlueStore's CPU set (`crimson_bluestore_cpu_set`) separate from the reactor cores (`crimson_cpu_set`), so that the alien threads do not compete with the reactors.
 :::
 
-# SeaStore: معماری {#sec-30-6}
+# SeaStore: architecture {#sec-30-6}
 
-SeaStore یک ObjectStore **log-structured** و تراکنشی است. هیچ داده‌ای در جای قبلی بازنویسی نمی‌شود، مگر در backend مربوط به random block (RBM). هر تراکنش به یک **record** در journal تبدیل می‌شود که deltaها (تغییرات منطقی روی بلوک‌ها) و بلوک‌های تازه را در بر دارد.
+SeaStore is a **log-structured**, transactional ObjectStore. No data is overwritten in place, except in the random block (RBM) backend. Each transaction becomes a **record** in the journal that contains the deltas (logical changes to blocks) and the new blocks.
 
-![لایه‌های SeaStore. مدیرهای منطقی (onode با درخت FLTree، omap و xattr با BTree، داده‌ی شیء و collectionها) روی آدرس منطقی laddr کار می‌کنند. TransactionManager تغییرات را در یک Transaction جمع و به‌صورت یک record اتمیک ثبت می‌کند. LBAManager نگاشت laddr به paddr را در یک B-tree نگه می‌دارد و BackrefManager نگاشت معکوس را برای GC. Journal، ExtentPlacementManager، Cache و AsyncCleaner روی دستگاه‌های segmented، RBM یا ZBD کار می‌کنند](figures/ch30/f06_seastore.png){#fig-30-f06_seastore}
+![The layers of SeaStore. The logical managers (onode with the FLTree, omap and xattr with a BTree, object data and collections) work on the logical address laddr. The TransactionManager gathers the changes in a Transaction and commits them as one atomic record. The LBAManager keeps the laddr-to-paddr mapping in a B-tree, and the BackrefManager keeps the reverse mapping for GC. The Journal, ExtentPlacementManager, Cache and AsyncCleaner work on segmented, RBM or ZBD devices](figures/ch30/f06_seastore.png){#fig-30-f06_seastore}
 
-دو نوع آدرس در SeaStore وجود دارد. **laddr** آدرس منطقی است که onodeها و درخت‌های omap به آن اشاره می‌کنند و با جابه‌جایی بلوک در GC تغییر نمی‌کند. **paddr** آدرس فیزیکی است. تنها ساختاری که باید با جابه‌جایی بلوک به‌روز شود LBA tree است. این طراحی هزینه‌ی GC را محدود می‌کند: جابه‌جا کردن یک بلوک داده فقط یک ورودی برگ در LBA tree را عوض می‌کند، نه همه‌ی اشاره‌گرهای به آن.
+SeaStore has two kinds of address. **laddr** is the logical address that onodes and the omap trees point to, and it does not change when GC moves a block. **paddr** is the physical address. The only structure that has to be updated when a block moves is the LBA tree. This design bounds the cost of GC: moving a data block changes only one leaf entry in the LBA tree, not all the pointers to it.
 
-## paddr_t بیت به بیت {#sec-30-6-1}
+## paddr_t bit by bit {#sec-30-6-1}
 
-![ساختار ۶۴ بیتی paddr_t در seastore_types.h. هشت بیت بالایی device_id است (DEVICE_ID_BITS = digits(uint8_t) = 8). در دستگاه segmented، ۲۴ بیت بعدی شماره‌ی segment درون دستگاه و ۳۲ بیت پایینی آفست درون segment است. در RBM، ۵۶ بیت پایینی آفست مطلق است. هفت مقدار بالای device_id برای آدرس‌های نمادین مثل آفست نسبی درون record یا آدرس تأخیری رزرو شده‌اند](figures/ch30/f07_paddr.png){#fig-30-f07_paddr}
+![The 64-bit structure of paddr_t in seastore_types.h. The top eight bits are the device_id (DEVICE_ID_BITS = digits(uint8_t) = 8). On a segmented device, the next 24 bits are the segment number within the device and the low 32 bits are the offset within the segment. On RBM, the low 56 bits are an absolute offset. The top seven device_id values are reserved for symbolic addresses such as an offset relative to a record or a delayed address](figures/ch30/f07_paddr.png){#fig-30-f07_paddr}
 
-آدرس‌های **نسبی** (`DEVICE_ID_RECORD_RELATIVE` و `DEVICE_ID_BLOCK_RELATIVE`) نکته‌ی ظریفی دارند. وقتی تراکنشی ساخته می‌شود، هنوز معلوم نیست record آن در کجای journal قرار می‌گیرد. پس بلوک‌های تازه با آفست نسبی به ابتدای record نام‌گذاری می‌شوند و هنگام نوشتن record، این آدرس‌ها به paddr مطلق تبدیل می‌شوند. `DEVICE_ID_DELAYED` برای بلوک‌هایی است که جای آن‌ها تا لحظه‌ی ثبت با ExtentPlacementManager تعیین نشده است (نوشتن out-of-line).
+**Relative** addresses (`DEVICE_ID_RECORD_RELATIVE` and `DEVICE_ID_BLOCK_RELATIVE`) have a subtle point. When a transaction is built, it is not yet known where in the journal its record will be placed. So the new blocks are named with an offset relative to the start of the record, and when the record is written these addresses are converted to absolute paddrs. `DEVICE_ID_DELAYED` is for blocks whose location has not been decided by the ExtentPlacementManager until the moment of commit (out-of-line writes).
 
-## record و دسته‌بندی در journal {#sec-30-6-2}
+## Records and batching in the journal {#sec-30-6-2}
 
-![ساختار سگمنت journal و record group. هر record group با یک نوشتن روی دیسک ثبت می‌شود و شامل record_group_header_t (تعداد recordها، طول فراداده و داده، nonce سگمنت، committed_to و crc داده)، سپس header هر record (نوع تراکنش، شمار delta و extent، زمان تغییر)، deltaها و extentهای inline است. RecordSubmitter تا 16 record را در یک batch جمع و حداکثر 5 نوشتن هم‌زمان روی journal نگه می‌دارد (پیش‌فرض‌های main)](figures/ch30/f09_record.png){#fig-30-f09_record}
+![The structure of a journal segment and a record group. Each record group is committed with one disk write and contains a record_group_header_t (number of records, metadata and data length, segment nonce, committed_to and the data crc), then the header of each record (transaction type, number of deltas and extents, modification time), the deltas and the inline extents. RecordSubmitter gathers up to 16 records in a batch and keeps at most 5 concurrent writes on the journal (the main defaults)](figures/ch30/f09_record.png){#fig-30-f09_record}
 
-::: {.algo #alg-30-3 title="دسته‌بندی recordها در RecordSubmitter" src="src/crimson/os/seastore/journal/record_submitter.cc :: RecordSubmitter::submit / flush_current_batch" complexity="هر record O(اندازه) برای کدگذاری؛ تأخیر در بدترین حالت یک batch"}
+::: {.algo #alg-30-3 title="Batching records in RecordSubmitter" src="src/crimson/os/seastore/journal/record_submitter.cc :: RecordSubmitter::submit / flush_current_batch" complexity="each record O(size) to encode; latency at worst one batch"}
 :::
 
 ```text
-pseudocode: دسته‌بندی journal (مدل مفهومی)
+pseudocode: journal batching (a conceptual model)
 submit(record):
   if current_batch can fit record and batch.size < batch_capacity(16):
       current_batch.add(record)
   else: flush_current_batch(); current_batch.add(record)
-  if outstanding_ios < iodepth_limit(5): flush_current_batch()      # دیسک بی‌کار است: صبر نکن
-  else: wait (batch بزرگ‌تر می‌شود تا یکی از نوشتن‌ها تمام شود)
+  if outstanding_ios < iodepth_limit(5): flush_current_batch()      # the disk is idle: do not wait
+  else: wait (the batch grows until one of the writes finishes)
 flush_current_batch():
   header = record_group_header_t{records=n, mdlength, dlength, segment_nonce,
-                                 committed_to = آخرین نقطه‌ای که همه‌ی قبلی‌ها کامل‌اند,
+                                 committed_to = the last point at which all earlier ones are complete,
                                  data_crc = crc(data)}
   write(header + metadata + data) as ONE aligned I/O
 ```
 
-**مثال عددی.** فرض کنید ۴۰ تراکنش کوچک (هرکدام یک delta روی onode و 4K داده) هم‌زمان می‌رسند و دیسک هر نوشتن را در ۲۰ میکروثانیه کامل می‌کند. پنج record اول هرکدام به یک نوشتن جدا تبدیل می‌شوند، چون صف دیسک خالی است. پس از رسیدن به سقف ۵ نوشتن هم‌زمان، بقیه تا ۱۶ عدد در یک batch جمع می‌شوند. ۳۵ record باقی‌مانده در ۳ نوشتن (16+16+3) ثبت می‌شوند. در مجموع ۸ نوشتن به‌جای ۴۰ انجام می‌شود و بیشترین تأخیر اضافه‌ی هر record کمتر از دو بار زمان یک نوشتن است. این همان مصالحه‌ی group commit در `kv_sync_thread` در BlueStore است، با این تفاوت که بدون thread جداگانه و فقط با futureها پیاده شده است.
+**Numerical example.** Suppose 40 small transactions (each a delta on an onode plus 4K of data) arrive at the same time and the disk completes each write in 20 microseconds. The first five records each become a separate write, because the disk queue is empty. Once the limit of 5 concurrent writes is reached, the rest are gathered in batches of up to 16. The remaining 35 records are committed in 3 writes (16+16+3). In total 8 writes are done instead of 40, and the largest added latency for any record is less than twice the time of one write. This is the same group-commit trade-off as `kv_sync_thread` in BlueStore, except that it is implemented without a separate thread, using only futures.
 
 ::: {.note}
-**وابسته به نسخه.** در Squid، `seastore_max_concurrent_transactions` برابر 8 و در main برابر 128 است. نام گزینه‌ها هم تغییر کرده است: Squid و Tentacle از `crimson_seastar_num_threads` و `crimson_alien_op_num_threads` استفاده می‌کنند و main از `crimson_cpu_num` و `crimson_bluestore_num_threads`. cache در Squid با `seastore_cache_lru_size=64M` تنظیم می‌شد و در main با `seastore_cachepin_size_pershard=2G` و انتخاب LRU یا 2Q. پیش از هر آزمایش، `ceph config help` را روی نسخه‌ی خود اجرا کنید.
+**Version-dependent.** In Squid, `seastore_max_concurrent_transactions` is 8 and in main it is 128. The option names have also changed: Squid and Tentacle use `crimson_seastar_num_threads` and `crimson_alien_op_num_threads`, and main uses `crimson_cpu_num` and `crimson_bluestore_num_threads`. The cache in Squid was set with `seastore_cache_lru_size=64M`, and in main with `seastore_cachepin_size_pershard=2G` and a choice of LRU or 2Q. Before any experiment, run `ceph config help` on your own version.
 :::
 
-## حالت‌های یک extent در cache {#sec-30-6-3}
+## The states of an extent in the cache {#sec-30-6-3}
 
-![ماشین حالت extentها در Cache مربوط به SeaStore. extent تازه در INITIAL_WRITE_PENDING ساخته و پس از commit تمیز (CLEAN) می‌شود. تغییر یک extent موجود نسخه‌ای در MUTATION_PENDING می‌سازد که پس از commit با ثبت delta در journal، DIRTY می‌شود (محتوای حافظه با دیسک متفاوت و pinned در حافظه). extentهایی که فراداده‌شان هنوز ثبت نشده EXIST_CLEAN و EXIST_MUTATION_PENDING هستند. DIRTYها با بازنویسی توسط cleaner یا trim مربوط به journal دوباره CLEAN می‌شوند](figures/ch30/f08_extstate.png){#fig-30-f08_extstate}
+![The extent state machine in SeaStore's Cache. A new extent is created in INITIAL_WRITE_PENDING and becomes CLEAN after commit. Modifying an existing extent creates a version in MUTATION_PENDING that becomes DIRTY after commit, with the delta recorded in the journal (the in-memory content differs from disk and is pinned in memory). Extents whose metadata has not been committed yet are EXIST_CLEAN and EXIST_MUTATION_PENDING. DIRTY extents become CLEAN again when they are rewritten by the cleaner or by the journal trim](figures/ch30/f08_extstate.png){#fig-30-f08_extstate}
 
-نکته‌ی مهم این ماشین حالت **کنترل هم‌روندی خوش‌بینانه** است. هر تراکنش extentهایی را که خوانده در `read_set` نگه می‌دارد. اگر تراکنش دیگری پیش از commit یکی از آن‌ها را تغییر دهد، `Cache::mark_transaction_conflicted` تراکنش اول را نامعتبر می‌کند و تراکنش باید از نو اجرا شود. مستند SeaStore یادآوری می‌کند که این سازوکار در بارهای نوشتن سنگین نرخ تکرار بالایی دارد و برای حذف آن برنامه‌ریزی شده است. این یکی از دلایل وضعیت «اولیه»ی SeaStore است.
+The important point of this state machine is **optimistic concurrency control**. Each transaction keeps the extents it has read in a `read_set`. If another transaction modifies one of them before commit, `Cache::mark_transaction_conflicted` invalidates the first transaction and it has to run again from scratch. The SeaStore documentation notes that this mechanism has a high retry rate under heavy write loads and that its removal is planned. This is one of the reasons for SeaStore's "early" status.
 
-# GC سگمنت‌ها: انتخاب سگمنت قربانی {#sec-30-7}
+# Segment GC: choosing the victim segment {#sec-30-7}
 
-در دستگاه segmented، هر بایتی که نوشته می‌شود در نهایت باید با «تمیز کردن» یک سگمنت قدیمی جبران شود: داده‌ی زنده‌ی آن سگمنت به سگمنت تازه منتقل و سگمنت آزاد می‌شود. پرسش کلیدی این است که کدام سگمنت انتخاب شود.
+On a segmented device, every byte written must eventually be paid for by "cleaning" an old segment: the live data of that segment is moved to a new segment and the segment is freed. The key question is which segment to choose.
 
-::: {.algo #alg-30-4 title="انتخاب سگمنت برای بازیابی (greedy / cost-benefit / benefit)" src="src/crimson/os/seastore/async_cleaner.cc :: SegmentCleaner::calc_gc_benefit_cost و get_next_reclaim_segment" complexity="O(S) روی S سگمنت بسته در هر انتخاب"}
+::: {.algo #alg-30-4 title="Choosing a segment to reclaim (greedy / cost-benefit / benefit)" src="src/crimson/os/seastore/async_cleaner.cc :: SegmentCleaner::calc_gc_benefit_cost, get_next_reclaim_segment" complexity="O(S) over S closed segments per choice"}
 :::
 
 ```text
-pseudocode: get_next_reclaim_segment (خلاصه)
+pseudocode: get_next_reclaim_segment (summary)
 for each closed segment s:
    u = live_bytes(s) / segment_size                      # 0 ≤ u < 1
    score(s) = greedy:       1 - u
               cost_benefit: (1 - u) × age(s) / (2u)        # u=0 ⇒ +∞
-              benefit:      ترکیب (1-u) با عامل سن نرمال‌شده
+              benefit:      a combination of (1-u) with a normalized age factor
 pick = argmax score;  greedy_pick = argmin u
 if autotune and formula ≠ greedy and (1-u_greedy) ≥ ratio(2.0) × (1-u_pick):
-   pick = greedy_pick                                     # فرمول سن‌محور اشتباه کرده است
+   pick = greedy_pick                                     # the age-based formula got it wrong
 ```
 
-فرمول cost-benefit همان فرمول کلاسیک سامانه‌های فایل log-structured (LFS) است. سود پاک کردن سگمنت متناسب با فضای آزادشده (1-u) و «پایداری» آن (سن) است و هزینه‌اش خواندن u و نوشتن u (یعنی 2u). سگمنت قدیمی با داده‌ی کم‌زنده بهترین گزینه است، چون داده‌ی باقی‌مانده‌اش احتمالاً «سرد» است و دوباره به این زودی نمی‌میرد.
+The cost-benefit formula is the classic formula of log-structured file systems (LFS). The benefit of cleaning a segment is proportional to the space freed (1-u) and its "stability" (age), and its cost is reading u and writing u (that is, 2u). An old segment with little live data is the best choice, because its remaining data is probably "cold" and will not die again soon.
 
-**مثال عددی.** سه سگمنت بسته داریم:
+**Numerical example.** We have three closed segments:
 
-| سگمنت | u (سهم زنده) | سن (ثانیه) | greedy = 1-u | cost-benefit = (1-u)·age/(2u) |
+| Segment | u (live fraction) | Age (seconds) | greedy = 1-u | cost-benefit = (1-u)·age/(2u) |
 |---|---|---|---|---|
 | A | 0.2 | 100 | **0.8** | 200 |
 | B | 0.5 | 1000 | 0.5 | 500 |
 | C | 0.9 | 10000 | 0.1 | **555.6** |
 
-فرمول cost-benefit سگمنت C را انتخاب می‌کند، چون بسیار قدیمی است. اما پاک کردن C فقط 10٪ فضای آزاد به دست می‌دهد و باید 90٪ آن را جابه‌جا کرد. autotune این را بررسی می‌کند: سهم آزاد greedy (0.8) دست‌کم 2 برابر سهم آزاد انتخاب فرمول (0.1) است، پس انتخاب به A برمی‌گردد. اگر C در کار نبود، فرمول B را با امتیاز 500 انتخاب می‌کرد. نسبت 0.8/0.5=1.6 کمتر از 2 است، پس انتخاب فرمول حفظ می‌شد. این گزینه‌ها (`seastore_segment_cleaner_gc_formula=cost_benefit`، `seastore_segment_cleaner_gc_autotune=true` و `ratio=2.0`) در main هستند و در yaml مربوط به Squid و Tentacle دیده نمی‌شوند.
+The cost-benefit formula chooses segment C, because it is very old. But cleaning C frees only 10% of the space and 90% of it has to be moved. autotune checks this: greedy's free fraction (0.8) is at least 2 times the free fraction of the formula's choice (0.1), so the choice goes back to A. If C were not there, the formula would choose B with a score of 500. The ratio 0.8/0.5=1.6 is less than 2, so the formula's choice would be kept. These options (`seastore_segment_cleaner_gc_formula=cost_benefit`, `seastore_segment_cleaner_gc_autotune=true` and `ratio=2.0`) are in main and do not appear in the Squid and Tentacle yaml.
 
-**استدلال write amplification.** اگر cleaner در حالت پایدار سگمنت‌هایی با میانگین u=0.5 را پاک کند، برای هر ۱ بایت آزادشده ۱ بایت بازنویسی لازم است و WA حدود 2 است. با u=0.2، برای هر 0.8 بایت آزاد 0.2 بایت جابه‌جا می‌شود و WA حدود 1.25 است. پس رزرو فضای آزاد بیشتر روی دستگاه، u سگمنت‌های قربانی را پایین می‌آورد و هم عمر NVMe و هم تأخیر نوشتن را بهتر می‌کند.
+**Write-amplification reasoning.** If, in the steady state, the cleaner cleans segments with an average u=0.5, then for every 1 byte freed 1 byte has to be rewritten, and WA is about 2. With u=0.2, 0.2 bytes are moved for every 0.8 bytes freed, and WA is about 1.25. So reserving more free space on the device lowers the u of the victim segments and improves both the NVMe's lifetime and the write latency.
 
-# سنجش و پایش Crimson {#sec-30-8}
+# Measuring and monitoring Crimson {#sec-30-8}
 
 ```bash
-ceph tell osd.0 dump_metrics reactor_utilization     # بهره‌وری هر reactor (shard)
-ceph tell osd.0 dump_store_shards                    # نگاشت PGها و store shardها به هسته‌ها
-ceph config set osd crimson_prometheus_port_base 29180   # main: osd.N روی 29180+N
+ceph tell osd.0 dump_metrics reactor_utilization     # utilization of each reactor (shard)
+ceph tell osd.0 dump_store_shards                    # mapping of PGs and store shards to cores
+ceph config set osd crimson_prometheus_port_base 29180   # main: osd.N on 29180+N
 curl -s http://HOST:29180/metrics | grep osd_reactor_utilization
-ceph osd dump | grep -E 'allow_crimson|crimson'          # پرچم‌های نقشه و pool
+ceph osd dump | grep -E 'allow_crimson|crimson'          # map and pool flags
 ```
 
 ::: {.debug}
-اگر یک reactor نزدیک ۱۰۰٪ و بقیه کم‌کار باشند، (۱) poll_mode را بررسی کنید، (۲) با `dump_store_shards` ببینید کدام PGها روی آن هسته‌اند و (۳) بار هر PG را با `ceph pg dump pgs` مقایسه کنید. در Crimson راه‌حل، توزیع PGها (افزایش pg_num یا upmap) است، نه افزایش thread.
+If one reactor is close to 100% and the rest are lightly loaded, (1) check poll_mode, (2) use `dump_store_shards` to see which PGs are on that core, and (3) compare the load of each PG with `ceph pg dump pgs`. In Crimson the solution is to redistribute the PGs (increase pg_num or use upmap), not to add threads.
 :::
 
-# تکمیلی و به‌روز {#sec-30-9}
+# Supplementary and up to date {#sec-30-9}
 
-- در شاخه‌ی main، مستند کاربری Crimson از `doc/dev/crimson/` به `doc/crimson/crimson.rst` منتقل شده و استقرار با `ceph orch apply osd --osd-type crimson` و برای SeaStore با `--objectstore seastore` شرح داده شده است. در Squid و Tentacle این فرمان‌ها در مستند نیستند.
-- `crimson_cpu_num` پیش‌فرض ندارد و پس از استقرار تغییرپذیر نیست. مستند توصیه می‌کند آن را کمتر از nproc تقسیم بر تعداد OSDهای میزبان بگذارید.
-- io_uring backend پیش‌فرض reactor است، اگر هسته اجازه دهد (`kernel.io_uring_disabled`). در برخی توزیع‌های محافظه‌کار باید آن را صریحاً فعال کرد.
-- SeaStore برای HDD مناسب نیست (طبق مستند). Crimson برای HDD و SSDهای کند همچنان BlueStore را از راه AlienStore پشتیبانی می‌کند.
+- In the main branch, the Crimson user documentation has moved from `doc/dev/crimson/` to `doc/crimson/crimson.rst`, and deployment is described with `ceph orch apply osd --osd-type crimson`, and for SeaStore with `--objectstore seastore`. In Squid and Tentacle these commands are not in the documentation.
+- `crimson_cpu_num` has no default and cannot be changed after deployment. The documentation recommends setting it below nproc divided by the number of OSDs on the host.
+- io_uring is the reactor's default backend, if the kernel allows it (`kernel.io_uring_disabled`). On some conservative distributions it has to be enabled explicitly.
+- SeaStore is not suitable for HDD (according to the documentation). For HDD and slow SSDs, Crimson still supports BlueStore through AlienStore.
 
-# تمرین عملی {#sec-30-10}
+# Hands-on exercise {#sec-30-10}
 
-1. با vstart (`MDS=0 MON=1 OSD=1 ../src/vstart.sh -n --crimson --crimson-smp 2`) یک خوشه‌ی Crimson بسازید. `dump_metrics reactor_utilization` را پیش و پس از `rados bench` مقایسه کنید.
-2. CyanStore را با AlienStore+BlueStore با یک بار 4K تصادفی مقایسه کنید. تفاوت تأخیر، هزینه‌ی ذخیره‌ساز است و تأخیر CyanStore سربار خود OSD.
-3. با چهار PG در pool و دو reactor، با `dump_store_shards` نگاشت را ببینید و آن را با مثال این فصل مقایسه کنید.
-4. سه سگمنت فرضی با u و سن دلخواه بسازید و امتیاز greedy و cost-benefit و نتیجه‌ی autotune را دستی حساب کنید.
+1. Build a Crimson cluster with vstart (`MDS=0 MON=1 OSD=1 ../src/vstart.sh -n --crimson --crimson-smp 2`). Compare `dump_metrics reactor_utilization` before and after `rados bench`.
+2. Compare CyanStore with AlienStore+BlueStore under a random 4K load. The latency difference is the cost of the store, and CyanStore's latency is the overhead of the OSD itself.
+3. With four PGs in a pool and two reactors, look at the mapping with `dump_store_shards` and compare it with this chapter's example.
+4. Make up three segments with arbitrary u and age and compute the greedy and cost-benefit scores and the autotune result by hand.
 
-# پرسش‌های مرور {#sec-30-11}
+# Review questions {#sec-30-11}
 
-1. چرا مدل thread pool در OSD کلاسیک روی NVMe هزینه‌بر است؟
-2. future و continuation در Seastar چگونه جایگزین بلوکه شدن می‌شوند؟
-3. crimson_reactor_task_quota_ms چه چیزی را محدود می‌کند و یک continuation طولانی چه اثری دارد؟
-4. PG تازه چگونه به یک هسته نسبت داده می‌شود و این روش چه ضعفی دارد؟
-5. تفاوت phaseهای exclusive و concurrent را با مثال WaitRepop توضیح دهید.
-6. AlienStore چرا لازم است و چه هزینه‌ای دارد؟
-7. laddr و paddr در SeaStore چه تفاوتی دارند و چرا این جداسازی هزینه‌ی GC را کم می‌کند؟
-8. ساختار ۶۴ بیتی paddr_t را برای segment و RBM شرح دهید.
-9. فرمول cost-benefit را بنویسید و autotune را با مثال توضیح دهید.
-10. سه پرچمی که برای فعال کردن Crimson لازم‌اند کدام‌اند؟
+1. Why is the thread-pool model of the classic OSD expensive on NVMe?
+2. How do futures and continuations in Seastar replace blocking?
+3. What does crimson_reactor_task_quota_ms limit, and what is the effect of a long continuation?
+4. How is a new PG assigned to a core, and what is the weakness of this method?
+5. Explain the difference between exclusive and concurrent phases with the WaitRepop example.
+6. Why is AlienStore needed, and what does it cost?
+7. How do laddr and paddr differ in SeaStore, and why does this separation reduce the cost of GC?
+8. Describe the 64-bit structure of paddr_t for segments and for RBM.
+9. Write the cost-benefit formula and explain autotune with an example.
+10. Which three flags are needed to enable Crimson?
 
-# منابع این فصل {#sec-30-12}
+# Sources for this chapter {#sec-30-12}
 
-- Crimson در مستندات (main): https://github.com/ceph/ceph/blob/main/doc/crimson/crimson.rst
-- راهنمای توسعه‌دهنده‌ی Crimson: https://github.com/ceph/ceph/blob/main/doc/dev/crimson/index.rst
-- طراحی SeaStore: https://github.com/ceph/ceph/blob/main/doc/dev/crimson/seastore.rst
-- کد Crimson: https://github.com/ceph/ceph/tree/main/src/crimson
-- گزینه‌های Crimson: https://github.com/ceph/ceph/blob/main/src/common/options/crimson.yaml.in
+- Crimson in the documentation (main): https://github.com/ceph/ceph/blob/main/doc/crimson/crimson.rst
+- Crimson developer guide: https://github.com/ceph/ceph/blob/main/doc/dev/crimson/index.rst
+- SeaStore design: https://github.com/ceph/ceph/blob/main/doc/dev/crimson/seastore.rst
+- Crimson code: https://github.com/ceph/ceph/tree/main/src/crimson
+- Crimson options: https://github.com/ceph/ceph/blob/main/src/common/options/crimson.yaml.in
 - Seastar: https://seastar.io/
-- آموزش Seastar: https://github.com/scylladb/seastar/blob/master/doc/tutorial.md
-- پروژه‌ی Crimson در وبلاگ Ceph: https://ceph.io/en/news/crimson/
-- Rosenblum و Ousterhout، The Design and Implementation of a Log-Structured File System (1992): https://people.eecs.berkeley.edu/~brewer/cs262/LFS.pdf
+- Seastar tutorial: https://github.com/scylladb/seastar/blob/master/doc/tutorial.md
+- The Crimson project on the Ceph blog: https://ceph.io/en/news/crimson/
+- Rosenblum and Ousterhout, The Design and Implementation of a Log-Structured File System (1992): https://people.eecs.berkeley.edu/~brewer/cs262/LFS.pdf
