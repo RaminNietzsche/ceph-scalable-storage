@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Connection and shard level"]
+    direction LR
+    A["ConnectionPipeline<br/>AwaitActive → AwaitMap → GetPGMapping"] --> B["PerShardPipeline<br/>CreateOrWaitPG"]
+  end
+  subgraph R2["PG level (CommonPGPipeline)"]
+    direction LR
+    C["WaitPGReady<br/>(concurrent)"] --> D["OSDMap gate<br/>epoch sufficient?"] --> E["PGActivationBlocker<br/>PG active?"] --> F["GetOBC<br/>(exclusive)"]
+  end
+  subgraph R3["Object level (CommonOBCPipeline)"]
+    direction LR
+    G["Process<br/>(exclusive)"] --> H["PGScrubber<br/>is the object under scrub?"] --> I["WaitRepop<br/>(concurrent)"] --> J["SendReply<br/>(exclusive, order kept)"]
+  end
+  R1 ~~~ R2 ~~~ R3

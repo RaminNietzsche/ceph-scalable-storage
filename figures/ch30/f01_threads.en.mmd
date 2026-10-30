@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["Classic OSD: thread pools and locks"]
+    direction LR
+    A["msgr-worker ×3<br/>(epoll)"] --> B["ShardedOpWQ<br/>N shards × M threads"] --> C["PG lock<br/>(mutex)"] --> D["BlueStore<br/>kv_sync / aio / finisher"]
+  end
+  subgraph R2["Crimson: one reactor per core (shared-nothing)"]
+    direction LR
+    E["core 0<br/>reactor: network + PGs A"] --- F["core 1<br/>reactor: network + PGs B"] --- G["core 2<br/>reactor: network + PGs C"] --- H["core N-1<br/>…"]
+  end
+  subgraph R3["Communication between cores"]
+    direction LR
+    I["no shared lock"] --> J["explicit message:<br/>smp::submit_to / invoke_on"] --> K["the future returns<br/>on the originating core"]
+  end
+  R1 ~~~ R2 ~~~ R3

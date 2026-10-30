@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph R1["Logical layer (logical address laddr)"]
+    direction LR
+    A["OnodeManager<br/>FLTree: ghobject → onode"] --- B["OmapManager<br/>BTree"] --- C["ObjectDataHandler<br/>laddr extent of the data"] --- D["CollectionManager"]
+  end
+  subgraph R2["TransactionManager"]
+    direction LR
+    E["read / alloc / mutate extent<br/>within a Transaction"] --> F["submit_transaction<br/>⇒ one atomic record"]
+  end
+  subgraph R3["Physical layer (paddr)"]
+    direction LR
+    G["LBAManager<br/>BTree: laddr → paddr"] --- H["BackrefManager<br/>paddr → laddr"] --- I["Journal<br/>Segmented / CircularBounded"] --- J["ExtentPlacementManager"]
+  end
+  subgraph R4["Sublayer"]
+    direction LR
+    K["Cache<br/>(LRU or 2Q)"] --- L["AsyncCleaner<br/>segment GC"] --- M["devices<br/>Segment / RBM / ZBD"]
+  end
+  R1 ~~~ R2 ~~~ R3 ~~~ R4

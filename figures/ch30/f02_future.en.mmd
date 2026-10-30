@@ -1,0 +1,11 @@
+sequenceDiagram
+  participant R as reactor of core 1
+  participant N as network (socket)
+  participant S as ObjectStore
+  N->>R: message data arrived (poll)
+  R->>R: task: decode MOSDOp ⇒ future<>
+  R->>S: do_transaction(t) ⇒ future<>
+  Note over R: no blocking; the next queued task runs<br/>(per-task limit: crimson_reactor_task_quota_ms = 0.5)
+  S-->>R: promise.set_value() ⇒ continuation queued
+  R->>R: .then(): build MOSDOpReply
+  R->>N: send the reply ⇒ future<>

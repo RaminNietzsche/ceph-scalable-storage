@@ -1930,105 +1930,95 @@ ch29/f10_lock:
   blocklist add آدرس مالک: blocklist add the owner address
   break_lock مالک قبلی: break_lock of the previous owner
 ch30/f01_threads:
-  کلاسیک: null
-  ها و قفل‌ها: null
-  شارد: null
-  قفل: null
-  یک: null
-  برای هر هسته: null
-  هسته‌ی: null
-  شبکه: null
-  های: null
-  ارتباط بین هسته‌ها: null
-  بدون قفل مشترک: null
-  پیام صریح: null
-  برمی‌گردد: null
-  روی هسته‌ی مبدأ: null
+  'OSD کلاسیک: thread poolها و قفل‌ها': 'Classic OSD: thread pools and locks'
+  N شارد × M thread: N shards × M threads
+  قفل PG: PG lock
+  'Crimson: یک reactor برای هر هسته (shared-nothing)': 'Crimson: one reactor per core (shared-nothing)'
+  'هسته‌ی 0<br/>reactor: شبکه + PGهای A': 'core 0<br/>reactor: network + PGs A'
+  'هسته‌ی 1<br/>reactor: شبکه + PGهای B': 'core 1<br/>reactor: network + PGs B'
+  'هسته‌ی 2<br/>reactor: شبکه + PGهای C': 'core 2<br/>reactor: network + PGs C'
+  هسته‌ی N-1: core N-1
+  ارتباط بین هسته‌ها: Communication between cores
+  بدون قفل مشترک: no shared lock
+  'پیام صریح:': 'explicit message:'
+  future برمی‌گردد: the future returns
+  روی هسته‌ی مبدأ: on the originating core
 ch30/f02_future:
-  هسته‌ی: null
-  شبکه: null
-  داده‌ی پیام رسید: null
-  بدون بلوکه شدن؛: null
-  بعدی در صف اجرا می‌شود: null
-  سقف هر: null
-  در صف: null
-  ساخت: null
-  ارسال پاسخ: null
+  participant R as reactor هسته‌ی 1: participant R as reactor of core 1
+  participant N as شبکه (socket): participant N as network (socket)
+  داده‌ی پیام رسید (poll): message data arrived (poll)
+  بدون بلوکه شدن؛ task بعدی در صف اجرا می‌شود: no blocking; the next queued task runs
+  '(سقف هر task: crimson_reactor_task_quota_ms = 0.5)': '(per-task limit: crimson_reactor_task_quota_ms = 0.5)'
+  promise.set_value() ⇒ continuation در صف: promise.set_value() ⇒ continuation queued
+  '.then(): ساخت MOSDOpReply': '.then(): build MOSDOpReply'
+  ارسال پاسخ ⇒ future<>: send the reply ⇒ future<>
 ch30/f03_pgmap:
-  درخواست برای: null
-  تازه روی هسته‌ی: null
-  در نقشه‌ی محلی نیست: null
-  پرسش از هسته‌ی: null
-  هسته‌ی: null
-  نقشه‌ی اصلی: null
-  نیست: null
-  کم‌بارترین هسته: null
-  ؛ انتخاب: null
-  هست: null
-  همان هسته: null
-  پخش و ادامه: null
-  به‌روزرسانی نقشه‌ی همه‌ی هسته‌ها: null
-  پیام به هسته‌ی مقصد منتقل می‌شود: null
-  همه‌ی کارهای آن: null
-  فقط روی همان هسته: null
+  درخواست برای PG تازه روی هسته‌ی 2: A request for a new PG on core 2
+  در نقشه‌ی محلی نیست: not in the local map
+  پرسش از هسته‌ی 0: ask core 0
+  'هسته‌ی 0: نقشه‌ی اصلی': 'Core 0: the primary map'
+  نیست: absent
+  کم‌بارترین هسته: least-loaded core
+  ++count ؛ انتخاب store shard: ++count; choose a store shard
+  هست: present
+  همان هسته: that core
+  پخش و ادامه: Broadcast and continue
+  به‌روزرسانی نقشه‌ی همه‌ی هسته‌ها: update the map on all cores
+  پیام به هسته‌ی مقصد منتقل می‌شود: the message moves to the target core
+  همه‌ی کارهای آن PG: all the work of that PG
+  فقط روی همان هسته: only on that core
 ch30/f04_pipeline:
-  سطح اتصال و شارد: null
-  سطح: null
-  کافی؟: null
-  فعال؟: null
-  سطح شیء: null
-  آیا شیء زیر: null
-  است؟: null
-  ، ترتیب حفظ: null
+  سطح اتصال و شارد: Connection and shard level
+  سطح PG (CommonPGPipeline): PG level (CommonPGPipeline)
+  epoch کافی؟: epoch sufficient?
+  PG فعال؟: PG active?
+  سطح شیء (CommonOBCPipeline): Object level (CommonOBCPipeline)
+  آیا شیء زیر scrub است؟: is the object under scrub?
+  (exclusive، ترتیب حفظ): (exclusive, order kept)
 ch30/f05_backends:
-  رابط: null
-  پشتیبان‌های بومی: null
-  روی: null
-  ، تراکنشی: null
-  در حافظه، داده ذخیره نمی‌شود: null
-  پشتیبان‌های غیربومی: null
-  کد کلاسیک: null
-  نتیجه به هسته‌ی مبدأ: null
+  (رابط future): (future interface)
+  پشتیبان‌های بومی (روی reactor): Native backends (on the reactor)
+  log-structured، تراکنشی: log-structured, transactional
+  در حافظه، داده ذخیره نمی‌شود: in memory, no data stored
+  پشتیبان‌های غیربومی (alien threads): Non-native backends (alien threads)
+  کد کلاسیک: classic code
+  نتیجه به هسته‌ی مبدأ: result to the originating core
 ch30/f06_seastore:
-  لایه‌ی منطقی: null
-  آدرس منطقی: null
-  بازه‌ی: null
-  داده: null
-  در قالب: null
-  یک: null
-  اتمیک: null
-  لایه‌ی فیزیکی: null
-  زیرلایه: null
-  یا: null
-  سگمنت‌ها: null
-  دستگاه‌ها: null
+  لایه‌ی منطقی (آدرس منطقی laddr): Logical layer (logical address laddr)
+  بازه‌ی laddr داده: laddr extent of the data
+  در قالب Transaction: within a Transaction
+  ⇒ یک record اتمیک: ⇒ one atomic record
+  لایه‌ی فیزیکی (paddr): Physical layer (paddr)
+  زیرلایه: Sublayer
+  (LRU یا 2Q): (LRU or 2Q)
+  GC سگمنت‌ها: segment GC
+  دستگاه‌ها: devices
 ch30/f08_extstate:
-  تازه: null
-  در: null
-  تراکنش: null
-  هم‌خوان با دیسک،: null
-  تغییر: null
-  موجود: null
-  یا: null
-  در تراکنش: null
-  نسخه‌ی کپی؛: null
-  در حافظه،: null
-  موجود بدون فراداده‌ی ثبت‌شده: null
-  پایان: null
-  بازنویسی توسط: null
+  extent تازه: New extent
+  در write_set تراکنش: in the transaction's write_set
+  هم‌خوان با دیسک، version=0: matches disk, version=0
+  تغییر extent موجود: Modifying an existing extent
+  CLEAN یا DIRTY: CLEAN or DIRTY
+  mutate در تراکنش: mutate in a transaction
+  نسخه‌ی کپی؛ prior_instance: a copy; prior_instance
+  'commit: delta در journal': 'commit: delta in the journal'
+  pinned در حافظه، version>0: pinned in memory, version>0
+  extent موجود بدون فراداده‌ی ثبت‌شده: Existing extent without committed metadata
+  پایان: End
+  بازنویسی توسط cleaner/trim: rewritten by cleaner/trim
 ch30/f09_record:
-  سگمنت: null
-  بلوک اول: null
-  یک: null
-  یک نوشتن: null
-  نوع،: null
-  ، بایت‌های: null
-  های: null
-  هم‌تراز بلوک: null
-  دسته‌بندی در: null
-  تا: null
-  در: null
-  نقطه‌ی امن: null
+  سگمنت journal (SegmentedJournal): Journal segment (SegmentedJournal)
+  بلوک اول: first block
+  یک record group (یک نوشتن): One record group (one write)
+  records، mdlength، dlength،: records, mdlength, dlength,
+  segment_nonce، committed_to، data_crc: segment_nonce, committed_to, data_crc
+  'type، #deltas، #extents، modify_time': 'type, #deltas, #extents, modify_time'
+  (نوع، paddr/laddr، بایت‌های delta): (type, paddr/laddr, delta bytes)
+  extentهای inline: inline extents
+  (هم‌تراز بلوک): (block-aligned)
+  دسته‌بندی در RecordSubmitter: Batching in RecordSubmitter
+  تا 16 record در batch: up to 16 records per batch
+  نقطه‌ی امن replay: safe replay point
 ch31/f01_paths:
   مسیر هسته: null
   تگ و صف سخت‌افزاری: null

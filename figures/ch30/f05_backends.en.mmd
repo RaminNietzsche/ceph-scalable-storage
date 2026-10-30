@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph R1["crimson-osd"]
+    direction LR
+    A["PG / PGBackend"] --> B["FuturizedStore<br/>(future interface)"]
+  end
+  subgraph R2["Native backends (on the reactor)"]
+    direction LR
+    C["SeaStore<br/>log-structured, transactional"] --- D["CyanStore<br/>in memory, no data stored"]
+  end
+  subgraph R3["Non-native backends (alien threads)"]
+    direction LR
+    E["AlienStore"] --> F["ThreadPool<br/>crimson_bluestore_num_threads=6 (main)"] --> G["BlueStore / MemStore<br/>classic code"] --> H["seastar::alien::submit_to<br/>result to the originating core"]
+  end
+  R1 ~~~ R2 ~~~ R3

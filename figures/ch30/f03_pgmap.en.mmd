@@ -1,0 +1,15 @@
+flowchart TB
+  subgraph R1["A request for a new PG on core 2"]
+    direction LR
+    A["get_or_create_pg_mapping(pgid)<br/>not in the local map"] --> B["container().invoke_on(0, …)<br/>ask core 0"]
+  end
+  subgraph R2["Core 0: the primary map"]
+    direction LR
+    C["pg_to_core.find(pgid)"] -->|"absent"| D["min_element(core_to_num_pgs)<br/>least-loaded core"] --> E["++count; choose a store shard"]
+    C -->|"present"| F["that core"]
+  end
+  subgraph R3["Broadcast and continue"]
+    direction LR
+    G["update the map on all cores"] --> H["the message moves to the target core"] --> I["all the work of that PG<br/>only on that core"]
+  end
+  R1 ~~~ R2 ~~~ R3

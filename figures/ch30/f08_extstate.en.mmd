@@ -1,0 +1,19 @@
+flowchart TB
+  subgraph R1["New extent"]
+    direction LR
+    A["INITIAL_WRITE_PENDING<br/>in the transaction's write_set"] -->|"commit"| B["CLEAN<br/>matches disk, version=0"]
+  end
+  subgraph R2["Modifying an existing extent"]
+    direction LR
+    C["CLEAN or DIRTY"] -->|"mutate in a transaction"| D["MUTATION_PENDING<br/>a copy; prior_instance"] -->|"commit: delta in the journal"| E["DIRTY<br/>pinned in memory, version>0"]
+  end
+  subgraph R3["Existing extent without committed metadata"]
+    direction LR
+    F["EXIST_CLEAN"] -->|"mutate"| G["EXIST_MUTATION_PENDING"] -->|"commit"| H["DIRTY"]
+    F -->|"commit"| I["CLEAN"]
+  end
+  subgraph R4["End"]
+    direction LR
+    J["DIRTY"] -->|"rewritten by cleaner/trim"| K["CLEAN"] --> L["INVALID<br/>(retire / evict)"]
+  end
+  R1 ~~~ R2 ~~~ R3 ~~~ R4
