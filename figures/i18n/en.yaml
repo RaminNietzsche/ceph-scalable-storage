@@ -1947,7 +1947,7 @@ ch30/f02_future:
   participant R as reactor هسته‌ی 1: participant R as reactor of core 1
   participant N as شبکه (socket): participant N as network (socket)
   داده‌ی پیام رسید (poll): message data arrived (poll)
-  بدون بلوکه شدن؛ task بعدی در صف اجرا می‌شود: no blocking; the next queued task runs
+  بدون بلوکه شدن؛ task بعدی در صف اجرا می‌شود: no blocking, the next queued task runs
   '(سقف هر task: crimson_reactor_task_quota_ms = 0.5)': '(per-task limit: crimson_reactor_task_quota_ms = 0.5)'
   promise.set_value() ⇒ continuation در صف: promise.set_value() ⇒ continuation queued
   '.then(): ساخت MOSDOpReply': '.then(): build MOSDOpReply'
