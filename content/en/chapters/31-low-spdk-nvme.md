@@ -4,103 +4,102 @@ id: ch31
 title: 'Lower Layers (9): SPDK and NVMe — from Hardware Queues to the NVMe-oF Gateway'
 part: lower
 lang: en
-translation: pending
 ---
 
-# چرا این فصل؟ {#sec-31-1}
+# Why this chapter? {#sec-31-1}
 
-در فصل‌های قبل، پایین‌ترین لایه‌ای که دیدیم `KernelDevice` در BlueStore بود که با libaio یا io_uring درخواست را به هسته می‌دهد. این فصل یک لایه پایین‌تر می‌رود: خود **صف‌های سخت‌افزاری NVMe**، بایت‌های یک فرمان و یک تکمیل، doorbellها و Phase Tag. سپس دو جایی را بررسی می‌کنیم که Ceph با **SPDK** (Storage Performance Development Kit) هسته را دور می‌زند:
+In the previous chapters, the lowest layer we saw was `KernelDevice` in BlueStore, which hands requests to the kernel with libaio or io_uring. This chapter goes one layer lower: the **NVMe hardware queues** themselves, the bytes of a command and of a completion, the doorbells and the Phase Tag. Then we examine the two places where Ceph bypasses the kernel with **SPDK** (Storage Performance Development Kit):
 
-- **NVMEDevice** در BlueStore (`src/blk/spdk/NVMEDevice.cc`): درایور فضای کاربری برای دستگاه محلی یا هدف NVMe-oF.
-- **درگاه NVMe-oF** (پروژه‌ی ceph-nvmeof): هدف NVMe/TCP مبتنی بر SPDK که تصاویر RBD را به میزبان‌ها صادر می‌کند. بخش مدیریت آن در mon با `NVMeofGwMon` و `NVMeofGwMap` پیاده شده است.
+- **NVMEDevice** in BlueStore (`src/blk/spdk/NVMEDevice.cc`): a user-space driver for a local device or an NVMe-oF target.
+- **The NVMe-oF gateway** (the ceph-nvmeof project): an SPDK-based NVMe/TCP target that exports RBD images to hosts. Its management side in the mon is implemented with `NVMeofGwMon` and `NVMeofGwMap`.
 
 ::: {.note}
-**وضعیت.** گزینه‌های `bluestore_spdk_*` در کد سطح `dev` دارند. پشتیبانی SPDK در BlueStore هنوز ابزاری برای آزمایش و پژوهش است و در استقرار cephadm مسیر معمول نیست. اما درگاه NVMe-oF با `ceph orch apply nvmeof` مستند و پشتیبانی می‌شود. همه‌ی ارجاع‌های کد این فصل به شاخه‌ی main در زمان نگارش است.
+**Status.** The `bluestore_spdk_*` options are at the `dev` level in the code. SPDK support in BlueStore is still a tool for testing and research and is not the usual path in a cephadm deployment. The NVMe-oF gateway, however, is documented and supported with `ceph orch apply nvmeof`. All code references in this chapter are to the main branch at the time of writing.
 :::
 
-# NVMe از نگاه درایور {#sec-31-2}
+# NVMe from the driver's point of view {#sec-31-2}
 
-## دو مسیر داده {#sec-31-2-1}
+## Two data paths {#sec-31-2-1}
 
-![مقایسه‌ی دو مسیر از BlueStore تا کنترلر NVMe. در مسیر هسته، درخواست از syscall، لایه‌ی blk-mq و درایور nvme-pci می‌گذرد و تکمیل با وقفه‌ی MSI-X گزارش می‌شود. در مسیر SPDK، همه‌ی این کارها در فضای کاربر انجام می‌شود: درایور SPDK خود SQE را در صف می‌نویسد، doorbell را از راه BAR نگاشته‌شده‌ی دستگاه به‌روز می‌کند و تکمیل را با polling پیدا می‌کند. هر دو مسیر روی همان ساختار سخت‌افزاری (SQ و CQ در حافظه‌ی میزبان) به هم می‌رسند](figures/ch31/f01_paths.png){#fig-31-f01_paths}
+![Comparing the two paths from BlueStore to the NVMe controller. In the kernel path, the request passes through a syscall, the blk-mq layer and the nvme-pci driver, and completion is reported with an MSI-X interrupt. In the SPDK path all this work is done in user space: the SPDK driver writes the SQE into the queue itself, updates the doorbell through the device's mapped BAR and finds the completion by polling. Both paths meet at the same hardware structure (SQ and CQ in host memory)](figures/ch31/f01_paths.png){#fig-31-f01_paths}
 
-کنترلر NVMe با میزبان از راه **جفت صف** (queue pair) گفت‌وگو می‌کند: یک **Submission Queue** (SQ) که میزبان فرمان‌ها را در آن می‌نویسد و یک **Completion Queue** (CQ) که کنترلر نتیجه‌ها را در آن می‌گذارد. هر دو، آرایه‌های حلقوی در حافظه‌ی میزبان‌اند. درایور هسته‌ی لینوکس معمولاً برای هر CPU یک جفت صف می‌سازد. به همین دلیل، دو هسته‌ی CPU برای ارسال فرمان روی یک صف رقابت نمی‌کنند.
+The NVMe controller talks to the host through **queue pairs**: a **Submission Queue** (SQ) into which the host writes commands and a **Completion Queue** (CQ) into which the controller puts the results. Both are ring arrays in host memory. The Linux kernel driver usually creates one queue pair per CPU. That is why two CPU cores do not compete to submit commands on one queue.
 
-## بایت‌های یک فرمان {#sec-31-2-2}
+## The bytes of a command {#sec-31-2-2}
 
-![ساختار ۶۴ بایتی فرمان Read/Write در صف ارسال، با مقادیر یک خواندن 4 KiB از آفست 1 GiB. opcode=0x02 یعنی Read (0x01 Write است). command_id شناسه‌ای است که درایور انتخاب می‌کند و کنترلر در CQE برمی‌گرداند. slba آدرس منطقی آغاز بر حسب بلوک است و length تعداد بلوک‌ها به‌صورت صفرمبنا. prp1 و prp2 آدرس‌های فیزیکی (یا IOVA پشت IOMMU) صفحه‌های داده‌اند](figures/ch31/f02_sqe.png){#fig-31-f02_sqe}
+![The 64-byte structure of a Read/Write command in the submission queue, with the values of a 4 KiB read from offset 1 GiB. opcode=0x02 means Read (0x01 is Write). command_id is an identifier the driver chooses and the controller returns in the CQE. slba is the starting logical address in blocks, and length is the number of blocks, zero-based. prp1 and prp2 are the physical addresses (or IOVAs behind the IOMMU) of the data pages](figures/ch31/f02_sqe.png){#fig-31-f02_sqe}
 
-دو نکته‌ی سطح پایین در این ساختار مهم است:
+Two low-level points in this structure matter:
 
-1. **طول صفرمبنا.** مقدار 0 در `length` یعنی یک بلوک. خطای off-by-one در درایورهای آزمایشی رایج است.
-2. **PRP و صفحه‌ها.** PRP1 به اولین صفحه اشاره می‌کند (می‌تواند آفست درون صفحه داشته باشد). اگر داده بیش از دو صفحه باشد، PRP2 به **فهرست PRP** اشاره می‌کند. هر ورودی ۸ بایت است، پس یک صفحه‌ی 4 KiB فهرستی از 512 صفحه را نگه می‌دارد. برای یک I/O هشت کیلوبایتی هم‌تراز، PRP1 صفحه‌ی اول و PRP2 صفحه‌ی دوم است و فهرستی لازم نیست. برای 128 KiB (32 صفحه)، PRP2 به فهرستی با 31 ورودی اشاره می‌کند.
+1. **Zero-based length.** A value of 0 in `length` means one block. Off-by-one errors are common in experimental drivers.
+2. **PRPs and pages.** PRP1 points to the first page (it may have an offset within the page). If the data spans more than two pages, PRP2 points to a **PRP list**. Each entry is 8 bytes, so one 4 KiB page holds a list of 512 pages. For an aligned 8 KB I/O, PRP1 is the first page and PRP2 the second, and no list is needed. For 128 KiB (32 pages), PRP2 points to a list with 31 entries.
 
-## بایت‌های یک تکمیل {#sec-31-2-3}
+## The bytes of a completion {#sec-31-2-3}
 
-![ساختار ۱۶ بایتی ورودی صف تکمیل. sq_head به میزبان می‌گوید کنترلر تا کجای SQ را خوانده است. sq_id و command_id با هم فرمان را یکتا مشخص می‌کنند. بیت صفر فیلد status همان Phase Tag است: کنترلر در دور اول صف آن را 1 می‌نویسد، در دور دوم 0، و همین‌طور تا آخر](figures/ch31/f03_cqe.png){#fig-31-f03_cqe}
+![The 16-byte structure of a completion queue entry. sq_head tells the host how far into the SQ the controller has read. sq_id and command_id together identify the command uniquely. Bit zero of the status field is the Phase Tag: the controller writes it as 1 on the first pass through the queue, 0 on the second, and so on](figures/ch31/f03_cqe.png){#fig-31-f03_cqe}
 
-::: {.algo #alg-31-1 title="تشخیص تکمیل با Phase Tag (پیمایش CQ)" src="linux: drivers/nvme/host/pci.c :: nvme_poll_cq، nvme_cqe_pending، nvme_update_cq_head" complexity="O(k) برای k تکمیل تازه؛ یک نوشتن MMIO در پایان"}
+::: {.algo #alg-31-1 title="Detecting completion with the Phase Tag (walking the CQ)" src="linux: drivers/nvme/host/pci.c :: nvme_poll_cq, nvme_cqe_pending, nvme_update_cq_head" complexity="O(k) for k new completions; one MMIO write at the end"}
 :::
 
 ```text
-pseudocode (برگرفته از منطق nvme_poll_cq، بازنویسی‌شده)
+pseudocode (taken from the logic of nvme_poll_cq, rewritten)
 found = false
-while (cqes[cq_head].status & 1) == cq_phase:     # ورودی تازه؟
+while (cqes[cq_head].status & 1) == cq_phase:     # a new entry?
     found = true
-    dma_rmb()                                      # بقیه‌ی CQE را پس از phase بخوان
-    handle(cqes[cq_head])                          # command_id ⇒ request ⇒ تکمیل
+    dma_rmb()                                      # read the rest of the CQE after the phase
+    handle(cqes[cq_head])                          # command_id ⇒ request ⇒ completion
     cq_head += 1
     if cq_head == q_depth: cq_head = 0; cq_phase ^= 1
-if found: writel(cq_head, CQ_HEAD_DOORBELL)        # یک بار برای کل دسته
+if found: writel(cq_head, CQ_HEAD_DOORBELL)        # once for the whole batch
 ```
 
-**چرا Phase Tag؟** CQ پیش از شروع با صفر پر شده است و `cq_phase` میزبان از 1 شروع می‌شود. کنترلر در دور اول CQEها را با P=1 می‌نویسد، پس هر خانه‌ای که P آن 1 است تازه است. وقتی صف یک دور کامل می‌چرخد، خانه‌های قدیمی P=1 دارند و کنترلر این بار P=0 می‌نویسد. میزبان هم با وارونه کردن `cq_phase` معیار «تازه» را عوض می‌کند. بنابراین میزبان بدون خواندن هیچ ثبات (register) از دستگاه و فقط با خواندن حافظه‌ی خودش می‌فهمد چه چیزی رسیده است. همین ویژگی است که polling را ارزان می‌کند: پیمایش خالی فقط یک خواندن از cache است.
+**Why a Phase Tag?** The CQ is filled with zeros before starting, and the host's `cq_phase` starts at 1. On the first pass the controller writes CQEs with P=1, so any slot whose P is 1 is new. When the queue wraps around a full cycle, the old slots have P=1 and this time the controller writes P=0. The host likewise flips `cq_phase` to change its criterion for "new". So the host knows what has arrived without reading any register from the device, just by reading its own memory. This property is what makes polling cheap: an empty poll is just one read from cache.
 
-**مثال عددی.** q_depth=4، cq_head=2، cq_phase=1. کنترلر سه فرمان را کامل می‌کند و در خانه‌های 2 و 3 با P=1 و در خانه‌ی 0 با P=0 (دور تازه) می‌نویسد. میزبان خانه‌ی 2 (P=1، تازه)، خانه‌ی 3 (تازه) را پردازش می‌کند و به انتهای صف می‌رسد: cq_head=0 و cq_phase=0. خانه‌ی 0 با P=0 تازه است و پردازش می‌شود. خانه‌ی 1 هنوز P=1 قدیمی دارد، پس حلقه می‌ایستد و یک doorbell با مقدار 1 نوشته می‌شود. سه تکمیل با یک نوشتن MMIO گزارش شدند.
+**Numerical example.** q_depth=4, cq_head=2, cq_phase=1. The controller completes three commands and writes them in slots 2 and 3 with P=1 and in slot 0 with P=0 (a new pass). The host processes slot 2 (P=1, new) and slot 3 (new) and reaches the end of the queue: cq_head=0 and cq_phase=0. Slot 0 with P=0 is new and is processed. Slot 1 still has the old P=1, so the loop stops and one doorbell with value 1 is written. Three completions were reported with one MMIO write.
 
-## doorbellها و هزینه‌ی MMIO {#sec-31-2-4}
+## Doorbells and the cost of MMIO {#sec-31-2-4}
 
-![توالی کامل یک فرمان: نوشتن SQE در خانه‌ی sq_tail، به‌روزرسانی SQ Tail Doorbell، واکشی و اجرای فرمان توسط کنترلر، نوشتن CQE، وقفه (یا polling)، پیمایش CQ و به‌روزرسانی CQ Head Doorbell. آفست doorbellها از ثبات CAP.DSTRD به دست می‌آید](figures/ch31/f04_rings.png){#fig-31-f04_rings}
+![The full sequence of a command: writing the SQE into slot sq_tail, updating the SQ Tail Doorbell, the controller fetching and executing the command, writing the CQE, an interrupt (or polling), walking the CQ and updating the CQ Head Doorbell. The doorbell offsets are derived from the CAP.DSTRD register](figures/ch31/f04_rings.png){#fig-31-f04_rings}
 
-آفست doorbellها در فضای ثبات کنترلر (BAR0) از فرمول استاندارد NVMe به دست می‌آید: `SQyTDBL = 0x1000 + (2y) × (4 << CAP.DSTRD)` و `CQyHDBL = 0x1000 + (2y+1) × (4 << CAP.DSTRD)`. برای صف 3 با DSTRD=0، doorbell مربوط به SQ در 0x1018 و doorbell مربوط به CQ در 0x101C است. هر doorbell یک نوشتن MMIO غیرقابل‌cache است که از PCIe عبور می‌کند. به همین دلیل، هسته در `nvme_write_sq_db` نوشتن doorbell را تا آخرین درخواست یک دسته به تعویق می‌اندازد (پارامتر `write_sq` و `last_sq_tail`) و `nvme_commit_rqs` در پایان دسته آن را می‌نویسد. ویژگی **Doorbell Buffer Config** (در هسته `nvme_dbbuf_update_and_check_event`) در کنترلرهای مجازی حتی همین نوشتن را حذف می‌کند، اگر دستگاه اعلام کند که لازم نیست.
+The doorbell offsets in the controller's register space (BAR0) come from the standard NVMe formula: `SQyTDBL = 0x1000 + (2y) × (4 << CAP.DSTRD)` and `CQyHDBL = 0x1000 + (2y+1) × (4 << CAP.DSTRD)`. For queue 3 with DSTRD=0, the SQ doorbell is at 0x1018 and the CQ doorbell at 0x101C. Each doorbell is an uncacheable MMIO write that crosses PCIe. That is why the kernel, in `nvme_write_sq_db`, defers the doorbell write until the last request of a batch (the `write_sq` parameter and `last_sq_tail`), and `nvme_commit_rqs` writes it at the end of the batch. The **Doorbell Buffer Config** feature (in the kernel, `nvme_dbbuf_update_and_check_event`) eliminates even this write on virtual controllers, if the device declares it unnecessary.
 
 ::: {.deep}
-**قفل‌ها در مسیر هسته.** `nvme_sq_copy_cmd` و `nvme_write_sq_db` با `__must_hold(&nvmeq->sq_lock)` علامت خورده‌اند: کپی ۶۴ بایت و جلو بردن sq_tail زیر یک spinlock مخصوص همان صف انجام می‌شود. چون معمولاً هر CPU صف خودش را دارد، این قفل تقریباً هیچ‌وقت رقابتی نیست. مسیر تکمیل هم در زمینه‌ی وقفه‌ی همان صف اجرا می‌شود و قفلی روی CQ نمی‌گیرد.
+**Locks in the kernel path.** `nvme_sq_copy_cmd` and `nvme_write_sq_db` are annotated with `__must_hold(&nvmeq->sq_lock)`: copying the 64 bytes and advancing sq_tail happen under a spinlock specific to that queue. Because each CPU usually has its own queue, this lock is almost never contended. The completion path also runs in the interrupt context of the same queue and takes no lock on the CQ.
 :::
 
-# NVMEDevice: SPDK در BlueStore، تابع به تابع {#sec-31-3}
+# NVMEDevice: SPDK in BlueStore, function by function {#sec-31-3}
 
-## پیکربندی و باز کردن {#sec-31-3-1}
+## Configuration and opening {#sec-31-3-1}
 
-BlueStore وقتی نام فایل دستگاه با `spdk:` شروع شود (`SPDK_PREFIX` در `BlockDevice.h`)، به‌جای `KernelDevice` از `NVMEDevice` استفاده می‌کند. مستند BlueStore دو شکل را نشان می‌دهد:
+When the device file name starts with `spdk:` (`SPDK_PREFIX` in `BlockDevice.h`), BlueStore uses `NVMEDevice` instead of `KernelDevice`. The BlueStore documentation shows two forms:
 
 ```ini
 bluestore_block_path = "spdk:trtype:PCIe traddr:0000:01:00.0"
 bluestore_block_path = "spdk:trtype:TCP adrfam:IPv4 traddr:10.0.0.7 trsvcid:4420 subnqn:nqn.2019-02.io.spdk:cnode1"
-# برای اینکه DB و WAL هم از SPDK بروند (هم‌مکانی):
+# so that DB and WAL also go through SPDK (co-located):
 bluestore_block_db_path = ""
 bluestore_block_wal_path = ""
 ```
 
-![مسیر کد NVMEDevice در سه مرحله. در باز کردن، رشته‌ی transport ID از فایل خوانده و با spdk_nvme_transport_id_parse تجزیه می‌شود. NVMEManager یک thread جدا برای محیط DPDK و probe می‌سازد. در نوشتن، داده به تکه‌های 128 KiB تقسیم و در یک فهرست پیوندی Task در IOContext جمع می‌شود. aio_submit روی یک qpair مخصوص همان thread (thread_local) فرمان‌ها را می‌فرستد. تکمیل در همان thread با polling پیدا می‌شود و بافرهای DMA به مخزن برمی‌گردند](figures/ch31/f05_nvmedev.png){#fig-31-f05_nvmedev}
+![The NVMEDevice code path in three stages. On open, the transport ID string is read from the file and parsed with spdk_nvme_transport_id_parse. NVMEManager creates a separate thread for the DPDK environment and the probe. On write, the data is split into 128 KiB pieces and collected in a linked list of Tasks in the IOContext. aio_submit sends the commands on a qpair dedicated to that thread (thread_local). The completion is found by polling on the same thread, and the DMA buffers return to the pool](figures/ch31/f05_nvmedev.png){#fig-31-f05_nvmedev}
 
-| تابع | کار | thread و قفل |
+| Function | Work | Thread and lock |
 |---|---|---|
-| NVMEDevice::open | خواندن خط trid، spdk_nvme_transport_id_parse، manager.try_get | thread بازکننده؛ قفل NVMEManager::lock |
-| NVMEManager::try_get | اولین بار: ساخت dpdk_thread با spdk_env_init (coremask، mem_size)، صف probe | probe_queue_lock و probe_queue_cond |
-| probe_cb / attach_cb | تطبیق trid، register_ctrlr | thread مربوط به DPDK |
-| register_ctrlr | فقط namespace شماره‌ی 1؛ «فعلاً فقط یک دستگاه برای هر OSD» (ceph_assert) | زیر NVMEManager::lock |
-| SharedDriverData | برای transport غیر PCIe یک admin_thread که هر 1 ثانیه admin completionها را پردازش می‌کند (keep-alive) | thread جدا |
-| aio_write ⇒ write_split | تکه‌های 131072 بایتی، bl.splice به Task | thread فراخواننده |
-| aio_submit | num_pending ⇒ num_running؛ thread_local SharedDriverQueueData | بدون قفل: qpair مخصوص همان thread |
-| _aio_handle | ارسال Taskها و polling تا num_running صفر شود | همان thread، busy-poll |
-| io_complete | کاهش عمق صف، release_segs، aio_callback | همان thread (داخل process_completions) |
+| NVMEDevice::open | read the trid line, spdk_nvme_transport_id_parse, manager.try_get | the opening thread; NVMEManager::lock |
+| NVMEManager::try_get | first time: create dpdk_thread with spdk_env_init (coremask, mem_size), the probe queue | probe_queue_lock and probe_queue_cond |
+| probe_cb / attach_cb | match the trid, register_ctrlr | the DPDK thread |
+| register_ctrlr | only namespace number 1; "only one device per OSD for now" (ceph_assert) | under NVMEManager::lock |
+| SharedDriverData | for a non-PCIe transport, an admin_thread that processes admin completions every 1 second (keep-alive) | a separate thread |
+| aio_write ⇒ write_split | 131072-byte pieces, bl.splice into the Task | the calling thread |
+| aio_submit | num_pending ⇒ num_running; thread_local SharedDriverQueueData | lock-free: a qpair dedicated to that thread |
+| _aio_handle | submit the Tasks and poll until num_running is zero | the same thread, busy-poll |
+| io_complete | decrement the queue depth, release_segs, aio_callback | the same thread (inside process_completions) |
 
-## مخزن بافر DMA و تقسیم درخواست {#sec-31-3-2}
+## The DMA buffer pool and request splitting {#sec-31-3-2}
 
-SPDK نمی‌تواند مستقیماً از حافظه‌ی معمولی bufferlist استفاده کند. کنترلر با DMA به حافظه‌ای نیاز دارد که pinned باشد و آدرس فیزیکی یا IOVA آن معلوم باشد (hugepageهای DPDK). بنابراین `SharedDriverQueueData` در سازنده‌اش ۱۰۲۴ بافر ۸ کیلوبایتی با `spdk_dma_zmalloc` می‌سازد (`data_buffer_default_num` و `data_buffer_size`). داده‌ی هر نوشتن در این بافرها **کپی** می‌شود. توضیح کد (TODO) خود می‌گوید اگر لایه‌ی بالا حافظه با آدرس فیزیکی معلوم بدهد، این کپی حذف‌شدنی است.
+SPDK cannot use the ordinary memory of a bufferlist directly. For DMA, the controller needs memory that is pinned and whose physical address or IOVA is known (DPDK hugepages). So `SharedDriverQueueData` creates, in its constructor, 1024 buffers of 8 KB with `spdk_dma_zmalloc` (`data_buffer_default_num` and `data_buffer_size`). The data of each write is **copied** into these buffers. The code comment (a TODO) itself says this copy could be removed if the upper layer provided memory with a known physical address.
 
-::: {.algo #alg-31-2 title="تقسیم I/O و تخصیص بافر DMA در NVMEDevice" src="src/blk/spdk/NVMEDevice.cc :: write_split، make_read_tasks، SharedDriverQueueData::alloc_buf_from_pool" complexity="O(len/8K) برای کپی و تخصیص؛ فضای ثابت 8 MiB برای هر thread"}
+::: {.algo #alg-31-2 title="I/O splitting and DMA buffer allocation in NVMEDevice" src="src/blk/spdk/NVMEDevice.cc :: write_split, make_read_tasks, SharedDriverQueueData::alloc_buf_from_pool" complexity="O(len/8K) for copying and allocation; a fixed 8 MiB of space per thread"}
 :::
 
 ```text
@@ -111,173 +110,173 @@ write_split(off, bl):
         task = Task(WRITE, off+begin, n); bl.splice(0, n, task.bl); append(ioc, task)
 alloc_buf_from_pool(task):
     count = ceil(task.len / 8 KiB)
-    if count > free_buffers: return -ENOMEM        # _aio_handle دوباره poll می‌کند (goto again)
+    if count > free_buffers: return -ENOMEM        # _aio_handle polls again (goto again)
     segs = count ≤ 32 ? task.inline_segs : new void*[count]
     pop count buffers; copy task.bl into them (write)
 submit: spdk_nvme_ns_cmd_writev(ns, qpair, off/bs, len/bs, io_complete, task,
                                 reset_sgl=data_buf_reset_sgl, next_sge=data_buf_next_sge)
 ```
 
-**مثال عددی.** نوشتن 300 KiB (307200 بایت) با بلوک 4096 بایتی:
+**Numerical example.** A 300 KiB (307200-byte) write with a 4096-byte block:
 
-| Task | آفست نسبی | طول | lba_count | بافرهای 8 KiB |
+| Task | Relative offset | Length | lba_count | 8 KiB buffers |
 |---|---|---|---|---|
 | 1 | 0 | 131072 | 32 | 16 |
 | 2 | 131072 | 131072 | 32 | 16 |
-| 3 | 262144 | 45056 | 11 | 6 (پنج کامل + یکی با 4096 بایت) |
+| 3 | 262144 | 45056 | 11 | 6 (five full + one with 4096 bytes) |
 
-در مجموع ۳ فرمان NVMe و ۳۸ بافر از ۱۰۲۴ بافر. چون هر Task حداکثر 128 KiB است، شمار بافرها هیچ‌وقت از 16 بیشتر نمی‌شود و همیشه در 32 خانه‌ی `inline_segs` جا می‌گیرد. شاخه‌ی `extra_segs` عملاً برای این اندازه‌ی تقسیم استفاده نمی‌شود. SPDK فهرست scatter-gather را با دو callback از Task می‌گیرد: `data_buf_next_sge` بافر بعدی را با طول 8192 (یا باقی‌مانده‌ی آخر، اینجا 4096) برمی‌گرداند و `data_buf_reset_sgl` برای بازپخش از یک آفست است. مخزن ۱۰۲۴ بافری یعنی حداکثر 8 MiB داده‌ی در پرواز برای هر thread. یک batch بزرگ‌تر از این، با `-ENOMEM` به حلقه‌ی polling برمی‌گردد تا بافرها آزاد شوند.
+In total, 3 NVMe commands and 38 of the 1024 buffers. Because each Task is at most 128 KiB, the number of buffers never exceeds 16 and always fits in the 32 slots of `inline_segs`. The `extra_segs` branch is effectively unused for this split size. SPDK gets the scatter-gather list from the Task through two callbacks: `data_buf_next_sge` returns the next buffer with length 8192 (or the final remainder, here 4096), and `data_buf_reset_sgl` is for replaying from an offset. A pool of 1024 buffers means at most 8 MiB of data in flight per thread. A batch larger than this returns to the polling loop with `-ENOMEM` until buffers are freed.
 
-## polling هم‌زمان در thread فراخواننده {#sec-31-3-3}
+## Synchronous polling in the calling thread {#sec-31-3-3}
 
-مهم‌ترین نکته‌ی رفتاری این درایور در `_aio_handle` است: حلقه‌ی بیرونی `while (ioc->num_running)` تا وقتی **همه‌ی** I/Oهای این IOContext کامل نشده‌اند ادامه دارد. پس `aio_submit` در NVMEDevice برخلاف KernelDevice فقط ارسال نمی‌کند، بلکه thread را تا تکمیل نگه می‌دارد. اگر `process_completions` چیزی پیدا نکند، thread به اندازه‌ی `bluestore_spdk_io_sleep` (پیش‌فرض 5 میکروثانیه) با usleep می‌خوابد. `bluestore_spdk_max_io_completion` (پیش‌فرض 0 یعنی تصمیم با SPDK) تعداد تکمیل‌های هر بار poll را محدود می‌کند.
+The most important behavioural point of this driver is in `_aio_handle`: the outer loop `while (ioc->num_running)` continues until **all** the I/Os of this IOContext have completed. So, unlike KernelDevice, `aio_submit` in NVMEDevice does not just submit; it holds the thread until completion. If `process_completions` finds nothing, the thread sleeps with usleep for `bluestore_spdk_io_sleep` (default 5 microseconds). `bluestore_spdk_max_io_completion` (default 0, meaning SPDK decides) limits the number of completions per poll.
 
 ::: {.warn}
-**پیامد برای BlueStore.** در KernelDevice، thread مربوط به aio جداگانه تکمیل‌ها را جمع می‌کند و kv_sync_thread یا thread مربوط به op فقط ارسال می‌کند. در NVMEDevice، هر threadی که `aio_submit` را صدا می‌زند تا پایان I/O خودش منتظر می‌ماند. با `thread_local`، هر thread یک qpair مخصوص دارد که رقابت را حذف می‌کند، اما هر thread تازه‌ای که I/O می‌فرستد ۱۰۲۴ بافر DMA (8 MiB) و یک qpair مصرف می‌کند. مجموع قابل‌محاسبه است: اگر ۱۶ thread مختلف (shardهای op، kv_sync، BlueFS) I/O بفرستند، 128 MiB از حافظه‌ی DPDK، که با `bluestore_spdk_mem=512` (MB) محدود است، فقط به این بافرها می‌رسد.
+**The consequence for BlueStore.** In KernelDevice, a separate aio thread collects the completions, and kv_sync_thread or the op thread only submits. In NVMEDevice, every thread that calls `aio_submit` waits until its own I/O finishes. With `thread_local`, each thread has a dedicated qpair, which removes contention, but every new thread that submits I/O consumes 1024 DMA buffers (8 MiB) and one qpair. The total can be calculated: if 16 different threads (op shards, kv_sync, BlueFS) submit I/O, 128 MiB of DPDK memory, which is limited by `bluestore_spdk_mem=512` (MB), goes to these buffers alone.
 :::
 
-**استدلال تأخیر.** خواندن تصادفی 4 KiB روی یک SSD نمونه با تأخیر داخلی 80 میکروثانیه را در نظر بگیرید. در مسیر هسته، فرض کنید ۲ تا ۵ میکروثانیه هزینه‌ی syscall، blk-mq، وقفه و بیدار کردن thread اضافه می‌شود. در SPDK بخش بزرگی از این حذف می‌شود، اما ۰ تا ۵ میکروثانیه usleep در هنگام بی‌کاری و کپی به بافر DMA اضافه می‌شود (برای 4 KiB ناچیز، برای 128 KiB چند میکروثانیه). سود SPDK بیشتر در **CPU به‌ازای هر I/O** است تا تأخیر. وقتی تأخیر دستگاه در حد ده‌ها میکروثانیه است، چند میکروثانیه‌ی نرم‌افزار در لایه‌ی BlueStore در برابر هزینه‌ی OSD (فصل‌های ۲۲ و ۳۰) کوچک است.
+**Latency reasoning.** Consider a random 4 KiB read on a sample SSD with an internal latency of 80 microseconds. In the kernel path, suppose 2 to 5 microseconds are added for the syscall, blk-mq, the interrupt and waking the thread. SPDK removes a large part of this, but adds 0 to 5 microseconds of usleep when idle and the copy into the DMA buffer (negligible for 4 KiB, a few microseconds for 128 KiB). SPDK's gain is more in **CPU per I/O** than in latency. When the device latency is in the tens of microseconds, a few microseconds of software in the BlueStore layer are small compared with the cost of the OSD (chapters 22 and 30).
 
-::: {.algo #alg-31-3 title="قانون Little برای عمق صف لازم" src="نتیجه‌ی صف‌نگاری؛ در کد: max_queue_depth = io_queue_size − 1 در SharedDriverQueueData" complexity="O(1)"}
+::: {.algo #alg-31-3 title="Little's law for the required queue depth" src="a queueing-theory result; in the code: max_queue_depth = io_queue_size − 1 in SharedDriverQueueData" complexity="O(1)"}
 :::
 
 ```text
 QD_needed = target_IOPS × latency
 ```
 
-برای 500K IOPS با تأخیر 80 میکروثانیه: `QD = 500000 × 0.00008 = 40` درخواست هم‌زمان. اگر فقط یک thread با یک IOContext که همه را در یک دسته می‌فرستد I/O بدهد و منتظر تکمیل همه بماند، QD مؤثر به اندازه‌ی همان دسته است. برای رسیدن به ۴۰، یا دسته‌ها باید بزرگ باشند، یا چند thread هم‌زمان کار کنند. همین محاسبه نشان می‌دهد چرا اجرای چند OSD روی یک NVMe سریع، یا shardهای بیشتر، گاهی بیش از تغییر درایور اثر دارد.
+For 500K IOPS with a latency of 80 microseconds: `QD = 500000 × 0.00008 = 40` concurrent requests. If I/O comes from only one thread with one IOContext that submits everything in one batch and waits for all of it to complete, the effective QD is just the size of that batch. To reach 40, either the batches must be large or several threads must work concurrently. The same calculation shows why running several OSDs on one fast NVMe, or more shards, sometimes has more effect than changing the driver.
 
-# درگاه NVMe-oF {#sec-31-4}
+# The NVMe-oF gateway {#sec-31-4}
 
-## معماری {#sec-31-4-1}
+## Architecture {#sec-31-4-1}
 
-![اجزای درگاه NVMe-oF. هدف SPDK (nvmf_tgt) فرمان‌های NVMe/TCP را از میزبان می‌گیرد و هر namespace را به یک bdev از نوع rbd می‌دهد. این bdev با librbd ناهم‌گام (rbd_aio_readv و rbd_aio_writev) کار می‌کند. سرویس gRPC درگاه پیکربندی را در یک شیء omap در RADOS نگه می‌دارد. NVMeofGwMonitorClient با mon در ارتباط است و وضعیت ANA هر گروه را از NVMeofGwMap می‌گیرد](figures/ch31/f07_gw.png){#fig-31-f07_gw}
+![The components of the NVMe-oF gateway. The SPDK target (nvmf_tgt) receives NVMe/TCP commands from the host and hands each namespace to a bdev of type rbd. This bdev works with asynchronous librbd (rbd_aio_readv and rbd_aio_writev). The gateway's gRPC service keeps its configuration in an omap object in RADOS. NVMeofGwMonitorClient talks to the mon and gets the ANA state of each group from NVMeofGwMap](figures/ch31/f07_gw.png){#fig-31-f07_gw}
 
-مستند Ceph درگاه را یک هدف NVMe/TCP توصیف می‌کند که تصاویر RBD را صادر می‌کند. هر درگاه همچنین یک Discovery Controller اجرا می‌کند. اعدادی که مستند main برای مقیاس اعلام می‌کند: تا ۴ گروه درگاه، ۸ درگاه در هر گروه، ۱۲۸ subsystem در هر گروه، ۳۲ میزبان در هر subsystem و ۱۰۲۴ namespace در هر گروه. حداقل منابع پیشنهادی ۸ GB حافظه و چهار thread پردازنده برای هر نمونه‌ی درگاه است.
+The Ceph documentation describes the gateway as an NVMe/TCP target that exports RBD images. Each gateway also runs a Discovery Controller. The scale figures the main documentation gives are: up to 4 gateway groups, 8 gateways per group, 128 subsystems per group, 32 hosts per subsystem and 1024 namespaces per group. The suggested minimum resources are 8 GB of memory and four processor threads per gateway instance.
 
 ::: {.note}
-**وابسته به نسخه.** این سقف‌ها از مستند main گرفته شده‌اند. پیکربندی نمونه‌ی شاخه‌ی devel پروژه‌ی ceph-nvmeof گزینه‌هایی مثل `max_subsystems = 128`، `max_namespaces = 4096` و `max_gws_in_grp = 16` را نشان می‌دهد. پیش از برنامه‌ریزی ظرفیت، مستند همان نسخه‌ای را که نصب می‌کنید ببینید.
+**Version-dependent.** These limits are taken from the main documentation. The sample configuration of the ceph-nvmeof project's devel branch shows options such as `max_subsystems = 128`, `max_namespaces = 4096` and `max_gws_in_grp = 16`. Before capacity planning, read the documentation of the version you are installing.
 :::
 
-## مسیر یک نوشتن از میزبان تا OSD {#sec-31-4-2}
+## The path of a write from the host to the OSD {#sec-31-4-2}
 
-![بایت‌های NVMe/TCP. هر PDU با هدر مشترک ۸ بایتی (type، flags، hlen، pdo، plen) شروع می‌شود. Command Capsule همان SQE ۶۴ بایتی را حمل می‌کند و اگر داده از in_capsule_data_size کوچک‌تر باشد، داده هم درون کپسول می‌آید. برای داده‌ی بزرگ‌تر، هدف با یک R2T اجازه‌ی ارسال می‌دهد و میزبان داده را در H2CData می‌فرستد](figures/ch31/f06_tcppdu.png){#fig-31-f06_tcppdu}
+![The bytes of NVMe/TCP. Each PDU starts with an 8-byte common header (type, flags, hlen, pdo, plen). The Command Capsule carries the same 64-byte SQE, and if the data is smaller than in_capsule_data_size, the data also comes inside the capsule. For larger data, the target grants permission to send with an R2T and the host sends the data in H2CData](figures/ch31/f06_tcppdu.png){#fig-31-f06_tcppdu}
 
-1. میزبان (`nvme_tcp` در هسته) یک Command Capsule با opcode Write می‌فرستد. پیکربندی نمونه‌ی درگاه `in_capsule_data_size` را 8192 گذاشته است، پس نوشتن 4 KiB در یک PDU با plen=4168 جا می‌گیرد.
-2. reactor مربوط به SPDK روی socket آن qpair poll می‌کند، PDU را تجزیه و فرمان را به bdev می‌دهد.
-3. `bdev_rbd` با `rbd_aio_create_completion` و `rbd_aio_writev` درخواست را به librbd می‌دهد. از اینجا مسیر همان مسیر librbd است (فصل‌های ۲ و ۲۲): ObjectRequest، Objecter و MOSDOp.
-4. callback مربوط به librbd در threadهای خود librbd اجرا می‌شود، نه در reactor مربوط به SPDK. `bdev_rbd_io_complete` با `spdk_thread_send_msg` تکمیل را به thread ارسال‌کننده (`submit_td`) برمی‌گرداند تا مدل تک‌threadی SPDK حفظ شود.
-5. reactor یک Response Capsule برمی‌گرداند.
+1. The host (`nvme_tcp` in the kernel) sends a Command Capsule with the Write opcode. The gateway's sample configuration sets `in_capsule_data_size` to 8192, so a 4 KiB write fits in one PDU with plen=4168.
+2. The SPDK reactor polls the socket of that qpair, parses the PDU and hands the command to the bdev.
+3. `bdev_rbd` hands the request to librbd with `rbd_aio_create_completion` and `rbd_aio_writev`. From here the path is the librbd path (chapters 2 and 22): ObjectRequest, Objecter and MOSDOp.
+4. The librbd callback runs in librbd's own threads, not in the SPDK reactor. `bdev_rbd_io_complete` uses `spdk_thread_send_msg` to return the completion to the submitting thread (`submit_td`), so that SPDK's single-threaded model is preserved.
+5. The reactor returns a Response Capsule.
 
-**بودجه‌ی تأخیر (نمونه‌ی فرضی، 4 KiB، شبکه‌ی 25 گیگابیتی).** رفت و برگشت میزبان تا درگاه حدود 20 تا 40 میکروثانیه، پردازش SPDK چند میکروثانیه، دو گذر از مرز thread (librbd به reactor و برعکس) چند میکروثانیه، و مسیر librbd تا OSD و replicaها (که در خوشه‌های NVMe معمولاً ۰٫۵ تا ۲ میلی‌ثانیه است). بنابراین درگاه NVMe-oF معمولاً **یک رفت و برگشت شبکه‌ی اضافه** به مسیر krbd یا librbd مستقیم می‌افزاید. سود آن سازگاری با میزبان‌های بدون کلاینت Ceph (مثلاً VMware) و multipath استاندارد است، نه کاهش تأخیر.
+**Latency budget (a hypothetical example, 4 KiB, 25-gigabit network).** The host-to-gateway round trip is about 20 to 40 microseconds, SPDK processing a few microseconds, two thread-boundary crossings (librbd to the reactor and back) a few microseconds, and the librbd path to the OSD and the replicas (usually 0.5 to 2 milliseconds in NVMe clusters). So the NVMe-oF gateway usually adds **one extra network round trip** to the direct krbd or librbd path. Its benefit is compatibility with hosts that have no Ceph client (for example VMware) and standard multipath, not lower latency.
 
-## ANA و failover در mon {#sec-31-4-3}
+## ANA and failover in the mon {#sec-31-4-3}
 
-NVMe-oF برای HA از **ANA** (Asymmetric Namespace Access) استفاده می‌کند. هر namespace به یک **گروه ANA** (گروه توازن بار) تعلق دارد. در هر لحظه فقط یک درگاه برای آن گروه «optimized» است و بقیه «inaccessible» گزارش می‌شوند. multipath میزبان I/O را فقط به مسیر optimized می‌فرستد. شمار گروه‌های توازن بار برابر شمار درگاه‌های گروه است.
+For HA, NVMe-oF uses **ANA** (Asymmetric Namespace Access). Each namespace belongs to an **ANA group** (a load-balancing group). At any moment only one gateway is "optimized" for that group, and the rest are reported as "inaccessible". The host's multipath sends I/O only to the optimized path. The number of load-balancing groups equals the number of gateways in the group.
 
-![ماشین حالت هر درگاه برای هر گروه ANA در gw_states_per_group_t (NVMeofGwTypes.h): IDLE، STANDBY، ACTIVE، OWNER_WAIT_FAILBACK_PREPARED، WAIT_FAILBACK_PREPARED و WAIT_BLOCKLIST_CMPL. حالت صادرشده به میزبان فقط دو مقدار دارد: OPTIMIZED برای ACTIVE و WAIT_BLOCKLIST_CMPL، و INACCESSIBLE برای بقیه](figures/ch31/f08_anafsm.png){#fig-31-f08_anafsm}
+![The state machine of each gateway for each ANA group in gw_states_per_group_t (NVMeofGwTypes.h): IDLE, STANDBY, ACTIVE, OWNER_WAIT_FAILBACK_PREPARED, WAIT_FAILBACK_PREPARED and WAIT_BLOCKLIST_CMPL. The state exported to the host has only two values: OPTIMIZED for ACTIVE and WAIT_BLOCKLIST_CMPL, and INACCESSIBLE for the rest](figures/ch31/f08_anafsm.png){#fig-31-f08_anafsm}
 
-**چرا WAIT_BLOCKLIST_CMPL؟** پیش از اینکه درگاه B گروه درگاه خراب A را بپذیرد، باید مطمئن شد A (اگر فقط از mon جدا شده و هنوز زنده است) دیگر نمی‌تواند روی تصاویر RBD بنویسد. وگرنه دو درگاه هم‌زمان روی یک namespace می‌نویسند. `set_failover_gw_for_ANA_group` نشانی‌های A را با `blocklist_gw` در OSDMap blocklist می‌کند و epoch آن را در `blocklist_data[grp].osd_epoch` نگه می‌دارد. B فقط وقتی ACTIVE می‌شود که beacon آن نشان دهد OSDMap با epoch مساوی یا بزرگ‌تر را دیده است (`fsm_handle_gw_alive`). این همان الگوی fencing با blocklist است که در exclusive lock مربوط به RBD و rbd-mirror (فصل‌های ۲ و ۱۸) دیدیم.
+**Why WAIT_BLOCKLIST_CMPL?** Before gateway B takes over the group of failed gateway A, we must be sure that A (if it is only cut off from the mon and still alive) can no longer write to the RBD images. Otherwise two gateways would write to one namespace at the same time. `set_failover_gw_for_ANA_group` blocklists A's addresses in the OSDMap with `blocklist_gw` and keeps its epoch in `blocklist_data[grp].osd_epoch`. B becomes ACTIVE only when its beacon shows it has seen an OSDMap with an equal or larger epoch (`fsm_handle_gw_alive`). This is the same blocklist-fencing pattern we saw in RBD's exclusive lock and in rbd-mirror (chapters 2 and 18).
 
-![توالی failover. پس از mon_nvmeofgw_beacon_grace (پیش‌فرض 7 ثانیه) بدون beacon، درگاه A ناموجود اعلام می‌شود. find_failover_candidate کم‌بارترین درگاه را پیدا می‌کند، A blocklist می‌شود و B در WAIT_BLOCKLIST_CMPL با تایمر 30 ثانیه قرار می‌گیرد. با رسیدن OSDMap تازه به B، گروه برای B فعال و ANA میزبان به‌روز می‌شود](figures/ch31/f09_failover.png){#fig-31-f09_failover}
+![The failover sequence. After mon_nvmeofgw_beacon_grace (default 7 seconds) without a beacon, gateway A is declared unavailable. find_failover_candidate finds the least-loaded gateway, A is blocklisted and B is put in WAIT_BLOCKLIST_CMPL with a 30-second timer. When the new OSDMap reaches B, the group becomes active for B and the host's ANA is updated](figures/ch31/f09_failover.png){#fig-31-f09_failover}
 
-::: {.algo #alg-31-4 title="انتخاب درگاه جایگزین (کم‌بارترین، با اولویت location)" src="src/mon/NVMeofGwMap.cc :: NVMeofGwMap::find_failover_candidate و find_failover_gw_logic" complexity="O(G × A) برای G درگاه و A گروه ANA"}
+::: {.algo #alg-31-4 title="Choosing the replacement gateway (least loaded, with location priority)" src="src/mon/NVMeofGwMap.cc :: NVMeofGwMap::find_failover_candidate, find_failover_gw_logic" complexity="O(G × A) for G gateways and A ANA groups"}
 :::
 
 ```text
 pseudocode
 find_failover_gw_logic(gws, location, ignore_locations):
     best = none; best_load = 0xFFF; busy = 0
-    for gw in gws (به ترتیب شناسه):
+    for gw in gws (in id order):
         if not AVAILABLE or (not ignore_locations and gw.location ≠ location): continue
         if location(gw) in disaster: continue
         load = 0
         for grp in gw.sm_state:
             if state in {OWNER_WAIT_FAILBACK_PREPARED, WAIT_FAILBACK_PREPARED, WAIT_BLOCKLIST_CMPL}:
-                load = 0xFFFF; busy += 1; break           # در حال گذار: کنار گذاشته می‌شود
+                load = 0xFFFF; busy += 1; break           # in transition: excluded
             if state == ACTIVE: load += 1
         if load < best_load: best, best_load = gw, load
     return best ? 0 : (busy ? -EBUSY : -ENOENT)
-find_failover_candidate: اول با location همان گروه؛ اگر -ENOENT، با ignore_locations=true
+find_failover_candidate: first with the group's own location; if -ENOENT, with ignore_locations=true
 ```
 
-**مثال عددی.** گروه درگاهی با چهار درگاه در دو location داریم: A و B در L1، و C و D در L2. گروه‌های ANA فعال: A={1}، B={2، 5}، C={3}، D={4}. A از دست می‌رود و گروه 1 در L1 است. در دور اول فقط B در L1 در دسترس است، با بار 2، پس B انتخاب می‌شود، اگرچه C و D بار کمتری دارند. این تصمیم عمدی است: ترافیک در همان location می‌ماند. اگر B در آن لحظه در WAIT_FAILBACK_PREPARED برای گروه دیگری بود، بار آن 0xFFFF می‌شد و نتیجه‌ی دور اول -EBUSY بود. چون -EBUSY با -ENOENT فرق دارد، دور دوم اجرا نمی‌شود و failover تا پایان گذار B به تعویق می‌افتد. اگر B هم خراب بود (-ENOENT)، دور دوم میان C و D (هر دو با بار 1) اولی را به ترتیب شناسه، یعنی C، انتخاب می‌کرد، چون مقایسه اکید (`>`) است.
+**Numerical example.** We have a gateway group with four gateways in two locations: A and B in L1, and C and D in L2. The active ANA groups are: A={1}, B={2, 5}, C={3}, D={4}. A is lost, and group 1 is in L1. In the first round only B in L1 is available, with load 2, so B is chosen, even though C and D have less load. This decision is deliberate: the traffic stays in the same location. If B had been in WAIT_FAILBACK_PREPARED for another group at that moment, its load would have been 0xFFFF and the result of the first round -EBUSY. Because -EBUSY is different from -ENOENT, the second round does not run, and the failover is postponed until B's transition ends. If B had also failed (-ENOENT), the second round, between C and D (both with load 1), would choose the first in id order, that is C, because the comparison is strict (`>`).
 
-| گزینه (mon.yaml.in، main) | پیش‌فرض | معنا |
+| Option (mon.yaml.in, main) | Default | Meaning |
 |---|---|---|
-| mon_nvmeofgw_beacon_grace | 7 ثانیه | بی‌خبری پس از آن درگاه خراب اعلام می‌شود |
-| mon_nvmeofgw_skip_failovers_interval | 16 ثانیه | دوره‌ای که در آن هیچ failover در آن pool و گروه انجام نمی‌شود |
-| mon_nvmeofgw_beacons_till_ack | 15 | تعداد beacon از MonClient پیش از اینکه NVMeofGwMon نقشه‌ی ack بفرستد |
-| mon_nvmeofgw_max_down_gws | 1 | فرمان ok-to-stop بررسی می‌کند بیش از این تعداد درگاه down نباشد (جلوگیری از توقف همه هنگام ارتقا) |
-| mon_nvmeofgw_delete_grace | 15 دقیقه | پس از این مدت، هشدار سلامت NVMEOF_GATEWAY_DELETING داده می‌شود |
-| mon_nvmeofgw_failback_delay | 0 | تأخیر failback پس از برگشت مالک |
+| mon_nvmeofgw_beacon_grace | 7 seconds | silence after which the gateway is declared failed |
+| mon_nvmeofgw_skip_failovers_interval | 16 seconds | a period during which no failover is done in that pool and group |
+| mon_nvmeofgw_beacons_till_ack | 15 | the number of beacons from MonClient before NVMeofGwMon sends an ack map |
+| mon_nvmeofgw_max_down_gws | 1 | the ok-to-stop command checks that no more than this many gateways are down (preventing all of them from stopping during an upgrade) |
+| mon_nvmeofgw_delete_grace | 15 minutes | after this time, the NVMEOF_GATEWAY_DELETING health warning is raised |
+| mon_nvmeofgw_failback_delay | 0 | the failback delay after the owner comes back |
 
-**محاسبه‌ی زمان قطع I/O در failover.** در بدترین حالت: 7 ثانیه تا اعلام خرابی، به اضافه‌ی زمان یک proposal مربوط به Paxos برای blocklist (معمولاً کمتر از یک ثانیه)، به اضافه‌ی رسیدن OSDMap به B و beacon بعدی آن. پس میزبان باید چند ثانیه تا ده و چند ثانیه I/O معلق را تحمل کند. مستند توصیه می‌کند در `nvme connect-all` گزینه‌ی `-l 1800` (ctrl-loss-tmo برابر 1800 ثانیه) را بدهید تا میزبان در این فاصله مسیر را رها نکند.
+**Calculating the I/O interruption during failover.** In the worst case: 7 seconds until the failure is declared, plus the time of one Paxos proposal for the blocklist (usually under a second), plus the OSDMap reaching B and its next beacon. So the host must tolerate a few seconds, up to ten-odd seconds, of suspended I/O. The documentation recommends passing `-l 1800` (ctrl-loss-tmo of 1800 seconds) to `nvme connect-all` so that the host does not give up the path in the meantime.
 
-# فرمان‌های عملی {#sec-31-5}
+# Practical commands {#sec-31-5}
 
 ```bash
-# درگاه (مستند main)
+# the gateway (main documentation)
 ceph orch apply nvmeof POOL GROUP --placement="host01, host02"
 ceph nvmeof subsystem add --nqn nqn.2016-06.io.spdk:cnode1
 ceph nvmeof listener add --nqn nqn.2016-06.io.spdk:cnode1 --host-name host01 --traddr 10.0.0.11 --trsvcid 4420
 ceph nvmeof namespace add --nqn nqn.2016-06.io.spdk:cnode1 --rbd-pool rbd --rbd-image-name vol1
-ceph nvme-gw show POOL GROUP          # وضعیت ANA هر درگاه از دید mon
-# میزبان
+ceph nvme-gw show POOL GROUP          # the ANA state of each gateway as the mon sees it
+# the host
 nvme discover -t tcp -a 10.0.0.11 -s 8009
 nvme connect-all --traddr 10.0.0.11 --transport tcp -l 1800 -s 8009
-nvme list-subsys                       # مسیرها و وضعیت ANA (optimized/inaccessible)
-# دیدن فرمان‌های NVMe در هسته
+nvme list-subsys                       # paths and ANA state (optimized/inaccessible)
+# seeing NVMe commands in the kernel
 bpftrace -e 'tracepoint:nvme:nvme_setup_cmd { @op[args->opcode] = count(); }'
 ```
 
 ::: {.debug}
-اگر پس از خرابی یک درگاه، I/O میزبان بیش از چند ده ثانیه معلق ماند: (۱) با `ceph nvme-gw show` ببینید گروه ANA در WAIT_BLOCKLIST_CMPL مانده است یا نه؛ (۲) `ceph osd blocklist ls` را بررسی کنید که نشانی درگاه قدیمی blocklist شده باشد؛ (۳) مطمئن شوید OSDMonitor قابل نوشتن است. `CMonRequestProposal` تا writeable شدن OSDMonitor صبر می‌کند، پس مشکل quorum مستقیماً failover را متوقف می‌کند.
+If host I/O stays suspended for more than a few tens of seconds after a gateway fails: (1) use `ceph nvme-gw show` to see whether the ANA group is stuck in WAIT_BLOCKLIST_CMPL; (2) check `ceph osd blocklist ls` to confirm the old gateway's address has been blocklisted; (3) make sure the OSDMonitor is writeable. `CMonRequestProposal` waits until the OSDMonitor becomes writeable, so a quorum problem directly stops the failover.
 :::
 
 ::: {.warn}
-مستند هشدار می‌دهد `ceph nvme-gw create` و `delete` را روی خوشه‌ی مدیریت‌شده با cephadm دستی اجرا نکنید: حذف درگاه بی‌درنگ گروه‌های ANA آن را failover می‌کند. `disable` کردن همه‌ی درگاه‌های یک گروه دسترسی NVMe-oF به namespaceها را قطع می‌کند.
+The documentation warns not to run `ceph nvme-gw create` and `delete` by hand on a cephadm-managed cluster: deleting a gateway immediately fails over its ANA groups. `disable`-ing all the gateways of a group cuts off NVMe-oF access to the namespaces.
 :::
 
-# تکمیلی و به‌روز {#sec-31-6}
+# Supplementary and up to date {#sec-31-6}
 
-- فرمان `ceph nvme-gw listeners` طبق مستند در Tentacle افزوده شده است.
-- در main، NVMeofGwMap مفهوم **location** و حالت **disaster** برای یک location دارد (`cfg_set_location`، `cfg_location_disaster_set`). انتخاب جایگزین اول در همان location انجام می‌شود. این قابلیت را پیش از استفاده در نسخه‌ی خود بررسی کنید.
-- `NVMeofGwBeaconConstants.h` دو نسخه‌ی beacon تعریف می‌کند: 1 (قدیمی، بدون diff) و 2 (با diff). گزینه‌ی `cfg_enable_disable_beacon_diff` در mon آن را کنترل می‌کند.
-- در NVMEDevice، `register_ctrlr` فقط namespace شماره‌ی ۱ را استفاده می‌کند و `ceph_assert(shared_driver_datas.empty())` یعنی فقط یک دستگاه SPDK برای هر فرایند OSD.
+- The `ceph nvme-gw listeners` command was added in Tentacle, according to the documentation.
+- In main, NVMeofGwMap has the concept of a **location** and a **disaster** state for a location (`cfg_set_location`, `cfg_location_disaster_set`). The replacement is chosen first within the same location. Check this feature in your own version before using it.
+- `NVMeofGwBeaconConstants.h` defines two beacon versions: 1 (old, without diff) and 2 (with diff). The mon option `cfg_enable_disable_beacon_diff` controls it.
+- In NVMEDevice, `register_ctrlr` uses only namespace number 1, and `ceph_assert(shared_driver_datas.empty())` means only one SPDK device per OSD process.
 
-# تمرین عملی {#sec-31-7}
+# Hands-on exercise {#sec-31-7}
 
-1. برای q_depth=8 و DSTRD=2، آفست doorbellهای SQ و CQ صف 5 را حساب کنید. (پاسخ: 0x1000 + 10×16 = 0x10A0 و 0x10B0)
-2. SQE یک نوشتن 64 KiB در آفست 3 GiB با LBA پانصد و دوازده بایتی را بنویسید: slba، NLB و تعداد ورودی‌های فهرست PRP.
-3. نوشتن 1 MiB در NVMEDevice: تعداد Taskها، فرمان‌ها و بافرهای DMA را حساب کنید.
-4. با bpftrace روی tracepointهای nvme_setup_cmd و nvme_complete_rq، توزیع تأخیر دستگاه را برای یک OSD در حین `rados bench` بسازید.
-5. در یک گروه سه‌درگاهی، یکی را با `ceph orch daemon stop` متوقف و تغییر حالت ANA را در `nvme list-subsys` و `ceph nvme-gw show` دنبال کنید.
+1. For q_depth=8 and DSTRD=2, compute the offsets of the SQ and CQ doorbells of queue 5. (Answer: 0x1000 + 10×16 = 0x10A0 and 0x10B0)
+2. Write the SQE of a 64 KiB write at offset 3 GiB with a 512-byte LBA: slba, NLB and the number of PRP list entries.
+3. A 1 MiB write in NVMEDevice: compute the number of Tasks, commands and DMA buffers.
+4. With bpftrace on the nvme_setup_cmd and nvme_complete_rq tracepoints, build the device latency distribution for an OSD during `rados bench`.
+5. In a three-gateway group, stop one with `ceph orch daemon stop` and follow the ANA state change in `nvme list-subsys` and `ceph nvme-gw show`.
 
-# پرسش‌های مرور {#sec-31-8}
+# Review questions {#sec-31-8}
 
-1. SQ و CQ کجا قرار دارند و چه کسی در هرکدام می‌نویسد؟
-2. Phase Tag چگونه بدون خواندن ثبات دستگاه، CQE تازه را مشخص می‌کند؟
-3. چرا هسته نوشتن doorbell را تا پایان دسته به تعویق می‌اندازد؟
-4. فیلد length در فرمان Read چرا صفرمبناست و برای 8 بلوک چه مقداری دارد؟
-5. چرا NVMEDevice داده را در بافرهای DMA کپی می‌کند؟
-6. thread_local SharedDriverQueueData چه سودی و چه هزینه‌ای دارد؟
-7. aio_submit در NVMEDevice از نظر بلوکه شدن با KernelDevice چه تفاوتی دارد؟
-8. مسیر یک نوشتن از nvme_tcp میزبان تا OSD را با نام توابع bdev_rbd شرح دهید.
-9. چرا درگاه جایگزین پیش از ACTIVE شدن باید منتظر blocklist باشد؟
-10. الگوریتم انتخاب درگاه جایگزین چه زمانی -EBUSY و چه زمانی -ENOENT برمی‌گرداند؟
+1. Where are the SQ and CQ located, and who writes into each?
+2. How does the Phase Tag identify a new CQE without reading a device register?
+3. Why does the kernel defer the doorbell write until the end of a batch?
+4. Why is the length field of a Read command zero-based, and what is its value for 8 blocks?
+5. Why does NVMEDevice copy data into DMA buffers?
+6. What are the benefit and the cost of the thread_local SharedDriverQueueData?
+7. How does aio_submit in NVMEDevice differ from KernelDevice in terms of blocking?
+8. Describe the path of a write from the host's nvme_tcp to the OSD, using the names of the bdev_rbd functions.
+9. Why must the replacement gateway wait for the blocklist before becoming ACTIVE?
+10. When does the replacement-gateway algorithm return -EBUSY, and when -ENOENT?
 
-# منابع این فصل {#sec-31-9}
+# Sources for this chapter {#sec-31-9}
 
-- درگاه NVMe-oF در مستند Ceph: https://docs.ceph.com/en/latest/rbd/nvmeof-overview/
-- پیکربندی هدف NVMe-oF: https://docs.ceph.com/en/latest/rbd/nvmeof-target-configure/
-- پیش‌نیازهای درگاه: https://docs.ceph.com/en/latest/rbd/nvmeof-requirements/
-- استفاده از SPDK در BlueStore: https://docs.ceph.com/en/latest/rados/configuration/bluestore-config-ref/
-- کد NVMEDevice: https://github.com/ceph/ceph/blob/main/src/blk/spdk/NVMEDevice.cc
-- کد NVMeofGwMap: https://github.com/ceph/ceph/blob/main/src/mon/NVMeofGwMap.cc
-- پروژه‌ی ceph-nvmeof: https://github.com/ceph/ceph-nvmeof
-- درایور NVMe هسته‌ی لینوکس: https://github.com/torvalds/linux/blob/master/drivers/nvme/host/pci.c
-- ساختارهای NVMe و NVMe/TCP: https://github.com/torvalds/linux/blob/master/include/linux/nvme.h
-- ماژول bdev_rbd در SPDK: https://github.com/spdk/spdk/blob/master/module/bdev/rbd/bdev_rbd.c
-- مستند SPDK: https://spdk.io/doc/
-- مشخصات NVMe: https://nvmexpress.org/specifications/
+- The NVMe-oF gateway in the Ceph documentation: https://docs.ceph.com/en/latest/rbd/nvmeof-overview/
+- Configuring the NVMe-oF target: https://docs.ceph.com/en/latest/rbd/nvmeof-target-configure/
+- Gateway requirements: https://docs.ceph.com/en/latest/rbd/nvmeof-requirements/
+- Using SPDK in BlueStore: https://docs.ceph.com/en/latest/rados/configuration/bluestore-config-ref/
+- NVMEDevice code: https://github.com/ceph/ceph/blob/main/src/blk/spdk/NVMEDevice.cc
+- NVMeofGwMap code: https://github.com/ceph/ceph/blob/main/src/mon/NVMeofGwMap.cc
+- The ceph-nvmeof project: https://github.com/ceph/ceph-nvmeof
+- The Linux kernel NVMe driver: https://github.com/torvalds/linux/blob/master/drivers/nvme/host/pci.c
+- NVMe and NVMe/TCP structures: https://github.com/torvalds/linux/blob/master/include/linux/nvme.h
+- The bdev_rbd module in SPDK: https://github.com/spdk/spdk/blob/master/module/bdev/rbd/bdev_rbd.c
+- SPDK documentation: https://spdk.io/doc/
+- The NVMe specifications: https://nvmexpress.org/specifications/
