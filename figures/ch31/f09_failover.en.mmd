@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant A as Gateway A (owner of group 1)
+  participant M as mon: NVMeofGwMon
+  participant B as Gateway B
+  participant O as OSDMonitor
+  participant H as Host
+  A--xM: beacons stopped
+  Note over M: after mon_nvmeofgw_beacon_grace (7 seconds)<br/>A ⇒ UNAVAILABLE
+  M->>M: find_failover_candidate: least-loaded gateway in the same location
+  M->>O: blocklist A's addresses
+  M->>B: map: group 1 = WAIT_BLOCKLIST_CMPL (30-second timer)
+  O-->>B: OSDMap with epoch ≥ the blocklist epoch
+  B->>M: beacon with the new osd_epoch
+  M->>B: group 1 = ACTIVE
+  B->>H: ANA change: path B optimized for group 1
+  H->>B: I/O resumes

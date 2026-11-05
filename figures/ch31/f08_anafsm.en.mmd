@@ -1,0 +1,11 @@
+stateDiagram-v2
+  [*] --> STANDBY
+  STANDBY --> ACTIVE: owner of the ANA group and available
+  STANDBY --> WAIT_BLOCKLIST_CMPL: chosen as the least-loaded gateway for failover
+  WAIT_BLOCKLIST_CMPL --> ACTIVE: OSDMap with the blocklist reached the gateway
+  WAIT_BLOCKLIST_CMPL --> STANDBY: 30-second timer or failure
+  ACTIVE --> WAIT_FAILBACK_PREPARED: owner returned (failback)
+  WAIT_FAILBACK_PREPARED --> STANDBY: timer expired, owner became active
+  STANDBY --> OWNER_WAIT_FAILBACK_PREPARED: owner waiting for handover
+  OWNER_WAIT_FAILBACK_PREPARED --> ACTIVE: failback timer expired
+  ACTIVE --> STANDBY: gateway down (beacon_grace)

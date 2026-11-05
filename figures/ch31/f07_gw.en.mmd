@@ -1,0 +1,17 @@
+flowchart TB
+  subgraph I["Host"]
+    direction LR
+    I1["nvme-cli / kernel<br/>nvme_tcp"] --> I2["ANA multipath<br/>optimized path"]
+  end
+  subgraph G["NVMe-oF gateway (container)"]
+    direction LR
+    G1["SPDK nvmf_tgt<br/>TCP transport, reactors"] --> G2["bdev_rbd<br/>rbd_aio_readv / writev"] --> G3["librbd + librados<br/>(Ceph's own threads)"]
+    G4["gateway gRPC service<br/>configuration, state in omap"] --> G1
+    G5["NVMeofGwMonitorClient<br/>beacon to the mon"] --> G4
+  end
+  subgraph C["Cluster"]
+    direction LR
+    C1["NVMeofGwMon in the mon<br/>NVMeofGwMap: ANA and failover"] --> C2["OSDMap<br/>blocklist of the failed gateway"]
+    C3["OSDs<br/>RBD images"]
+  end
+  I --> G --> C

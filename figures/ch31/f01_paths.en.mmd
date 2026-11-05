@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph K["Kernel path: KernelDevice + libaio/io_uring"]
+    direction LR
+    K1["BlueStore<br/>aio_submit"] --> K2["syscall<br/>io_submit / io_uring_enter"] --> K3["blk-mq<br/>tag and hardware queue"] --> K4["nvme_queue_rq<br/>copy SQE + doorbell"] --> K5["MSI-X interrupt<br/>nvme_irq ⇒ nvme_poll_cq"]
+  end
+  subgraph S["SPDK path: NVMEDevice (user space, polling)"]
+    direction LR
+    S1["BlueStore<br/>aio_submit"] --> S2["write_split<br/>128 KiB pieces"] --> S3["copy into DMA buffer<br/>8 KiB × n"] --> S4["spdk_nvme_ns_cmd_writev<br/>SQE + doorbell from user space"] --> S5["polling<br/>spdk_nvme_qpair_process_completions"]
+  end
+  subgraph H["Shared hardware"]
+    direction LR
+    H1["SQ in host memory<br/>64 bytes per entry"] --> H2["NVMe controller<br/>DMA and execution"] --> H3["CQ<br/>16 bytes, phase tag"]
+  end
+  K ~~~ S ~~~ H

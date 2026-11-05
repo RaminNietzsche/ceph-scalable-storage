@@ -2020,109 +2020,89 @@ ch30/f09_record:
   تا 16 record در batch: up to 16 records per batch
   نقطه‌ی امن replay: safe replay point
 ch31/f01_paths:
-  مسیر هسته: null
-  تگ و صف سخت‌افزاری: null
-  کپی: null
-  وقفه‌ی: null
-  مسیر: null
-  کاربری،: null
-  تکه‌های: null
-  کپی به بافر: null
-  از فضای کاربر: null
-  سخت‌افزار مشترک: null
-  در حافظه‌ی میزبان: null
-  بایت در هر ورودی: null
-  کنترلر: null
-  و اجرا: null
-  بایت،: null
+  'مسیر هسته: KernelDevice + libaio/io_uring': 'Kernel path: KernelDevice + libaio/io_uring'
+  تگ و صف سخت‌افزاری: tag and hardware queue
+  کپی SQE + doorbell: copy SQE + doorbell
+  وقفه‌ی MSI-X: MSI-X interrupt
+  'مسیر SPDK: NVMEDevice (کاربری، polling)': 'SPDK path: NVMEDevice (user space, polling)'
+  تکه‌های 128 KiB: 128 KiB pieces
+  کپی به بافر DMA: copy into DMA buffer
+  SQE + doorbell از فضای کاربر: SQE + doorbell from user space
+  سخت‌افزار مشترک: Shared hardware
+  SQ در حافظه‌ی میزبان: SQ in host memory
+  64 بایت در هر ورودی: 64 bytes per entry
+  کنترلر NVMe<br/>DMA و اجرا: NVMe controller<br/>DMA and execution
+  16 بایت، phase tag: 16 bytes, phase tag
 ch31/f04_rings:
-  درایور: null
-  هسته یا: null
-  در حافظه: null
-  کنترلر: null
-  نوشتن: null
-  در خانه‌ی: null
-  بایت: null
-  به: null
-  آفست: null
-  واکشی: null
-  با: null
-  اجرای فرمان و: null
-  داده به: null
-  از: null
-  فعلی: null
-  وقفه‌ی: null
-  یا بدون وقفه در: null
-  تا وقتی: null
-  پردازش: null
-  ، در انتهای صف: null
-  و: null
+  participant D as درایور (هسته یا SPDK): participant D as Driver (kernel or SPDK)
+  participant SQ as SQ در حافظه: participant SQ as SQ in memory
+  participant C as کنترلر NVMe: participant C as NVMe controller
+  participant CQ as CQ در حافظه: participant CQ as CQ in memory
+  نوشتن SQE در خانه‌ی sq_tail (64 بایت): write the SQE into slot sq_tail (64 bytes)
+  writel(sq_tail) به SQ Tail Doorbell: writel(sq_tail) to the SQ Tail Doorbell
+  آفست 0x1000 + (2·qid)·(4 << DSTRD): offset 0x1000 + (2·qid)·(4 << DSTRD)
+  واکشی SQE با DMA: fetch the SQE by DMA
+  اجرای فرمان و DMA داده به/از PRP: execute the command and DMA data to/from the PRPs
+  نوشتن CQE با phase فعلی: write the CQE with the current phase
+  وقفه‌ی MSI-X (یا بدون وقفه در polling): MSI-X interrupt (or none when polling)
+  'تا وقتی status&1 == cq_phase: پردازش CQE': 'while status&1 == cq_phase: process the CQE'
+  'cq_head++، در انتهای صف: cq_head=0 و cq_phase ^= 1': 'cq_head++, at the end of the queue: cq_head=0 and cq_phase ^= 1'
+  writel(cq_head) به CQ Head Doorbell: writel(cq_head) to the CQ Head Doorbell
+  آفست 0x1000 + (2·qid+1)·(4 << DSTRD): offset 0x1000 + (2·qid+1)·(4 << DSTRD)
 ch31/f05_nvmedev:
-  باز کردن دستگاه: null
-  خواندن خط: null
-  از فایل: null
-  قفل: null
-  دی‌پی‌دی‌کی: null
-  فقط: null
-  نوشتن: null
-  تکه‌های: null
-  فهرست پیوندی: null
-  تکمیل: null
-  همان: null
-  بافرها به: null
-  وقتی: null
-  به: null
-  برسد: null
+  باز کردن دستگاه: Opening the device
+  'خواندن خط trid از فایل spdk:': 'read the trid line from the spdk: file'
+  قفل NVMEManager::lock: NVMEManager::lock
+  thread دی‌پی‌دی‌کی: DPDK thread
+  فقط namespace 1: namespace 1 only
+  نوشتن: Write
+  'write_split: تکه‌های 128 KiB': 'write_split: 128 KiB pieces'
+  فهرست پیوندی Task: linked list of Tasks
+  تکمیل: Completion
+  (همان thread، polling): (same thread, polling)
+  بافرها به data_buf_list: buffers back to data_buf_list
+  وقتی num_running به 0 برسد: when num_running reaches 0
 ch31/f07_gw:
-  میزبان: null
-  هسته: null
-  مسیر: null
-  درگاه: null
-  کانتینر: null
-  مربوط به: null
-  ها: null
-  های خود: null
-  سرویس: null
-  پیکربندی، وضعیت در: null
-  به: null
-  خوشه: null
-  در: null
-  و: null
-  درگاه خراب: null
-  تصاویر: null
+  میزبان: Host
+  nvme-cli / هسته: nvme-cli / kernel
+  مسیر optimized: optimized path
+  درگاه NVMe-oF (کانتینر): NVMe-oF gateway (container)
+  nvmf_tgt مربوط به SPDK: SPDK nvmf_tgt
+  TCP transport، reactorها: TCP transport, reactors
+  (threadهای خود Ceph): (Ceph's own threads)
+  سرویس gRPC درگاه: gateway gRPC service
+  پیکربندی، وضعیت در omap: configuration, state in omap
+  beacon به mon: beacon to the mon
+  خوشه: Cluster
+  NVMeofGwMon در mon: NVMeofGwMon in the mon
+  'NVMeofGwMap: ANA و failover': 'NVMeofGwMap: ANA and failover'
+  blocklist درگاه خراب: blocklist of the failed gateway
+  OSDها: OSDs
+  تصاویر RBD: RBD images
 ch31/f08_anafsm:
-  مالک گروه: null
-  و در دسترس: null
-  کم‌بارترین درگاه برای: null
-  انتخاب شد: null
-  با: null
-  به درگاه رسید: null
-  تایمر: null
-  ثانیه یا خرابی: null
-  مالک برگشت: null
-  تایمر تمام شد، مالک فعال شد: null
-  مالک منتظر تحویل: null
-  انقضای تایمر: null
-  درگاه: null
+  مالک گروه ANA و در دسترس: owner of the ANA group and available
+  کم‌بارترین درگاه برای failover انتخاب شد: chosen as the least-loaded gateway for failover
+  OSDMap با blocklist به درگاه رسید: OSDMap with the blocklist reached the gateway
+  تایمر 30 ثانیه یا خرابی: 30-second timer or failure
+  مالک برگشت (failback): owner returned (failback)
+  تایمر تمام شد، مالک فعال شد: timer expired, owner became active
+  مالک منتظر تحویل: owner waiting for handover
+  انقضای تایمر failback: failback timer expired
+  درگاه down (beacon_grace): gateway down (beacon_grace)
 ch31/f09_failover:
-  درگاه: null
-  مالک گروه: null
-  میزبان: null
-  ها قطع شد: null
-  پس از: null
-  ثانیه: null
-  کم‌بارترین درگاه در همان: null
-  نشانی‌های: null
-  نقشه: null
-  گروه: null
-  تایمر: null
-  با: null
-  مربوط به: null
-  تازه: null
-  تغییر: null
-  مسیر: null
-  برای گروه: null
-  ادامه‌ی: null
+  participant A as درگاه A (مالک گروه 1): participant A as Gateway A (owner of group 1)
+  participant B as درگاه B: participant B as Gateway B
+  participant H as میزبان: participant H as Host
+  beaconها قطع شد: beacons stopped
+  پس از mon_nvmeofgw_beacon_grace (7 ثانیه): after mon_nvmeofgw_beacon_grace (7 seconds)
+  'find_failover_candidate: کم‌بارترین درگاه در همان location': 'find_failover_candidate: least-loaded gateway in the same location'
+  blocklist نشانی‌های A: blocklist A's addresses
+  'نقشه: گروه 1 = WAIT_BLOCKLIST_CMPL (تایمر 30 ثانیه)': 'map: group 1 = WAIT_BLOCKLIST_CMPL (30-second timer)'
+  OSDMap با epoch ≥ epoch مربوط به blocklist: OSDMap with epoch ≥ the blocklist epoch
+  beacon با osd_epoch تازه: beacon with the new osd_epoch
+  گروه 1 = ACTIVE: group 1 = ACTIVE
+  'تغییر ANA: مسیر B برای گروه 1 optimized': 'ANA change: path B optimized for group 1'
+  ادامه‌ی I/O: I/O resumes
 ch32/f01_scrubfsm:
   سمت: null
   زمان‌بندی: null

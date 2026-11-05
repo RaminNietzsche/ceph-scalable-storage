@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph O["Opening the device"]
+    direction LR
+    O1["NVMEDevice::open<br/>read the trid line from the spdk: file"] --> O2["NVMEManager::try_get<br/>NVMEManager::lock"] --> O3["DPDK thread<br/>spdk_env_init + spdk_nvme_probe"] --> O4["register_ctrlr<br/>namespace 1 only"]
+  end
+  subgraph W["Write"]
+    direction LR
+    W1["aio_write<br/>write_split: 128 KiB pieces"] --> W2["ioc_append_task<br/>linked list of Tasks"] --> W3["aio_submit<br/>thread_local SharedDriverQueueData"] --> W4["_aio_handle<br/>alloc_buf_from_pool + writev"]
+  end
+  subgraph C["Completion"]
+    direction LR
+    C1["process_completions<br/>(same thread, polling)"] --> C2["io_complete<br/>--current_queue_depth"] --> C3["release_segs<br/>buffers back to data_buf_list"] --> C4["aio_callback<br/>when num_running reaches 0"]
+  end
+  O ~~~ W ~~~ C

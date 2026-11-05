@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant D as Driver (kernel or SPDK)
+  participant SQ as SQ in memory
+  participant C as NVMe controller
+  participant CQ as CQ in memory
+  D->>SQ: write the SQE into slot sq_tail (64 bytes)
+  D->>C: writel(sq_tail) to the SQ Tail Doorbell<br/>offset 0x1000 + (2·qid)·(4 << DSTRD)
+  C->>SQ: fetch the SQE by DMA
+  C->>C: execute the command and DMA data to/from the PRPs
+  C->>CQ: write the CQE with the current phase
+  C-->>D: MSI-X interrupt (or none when polling)
+  D->>CQ: while status&1 == cq_phase: process the CQE
+  Note over D: cq_head++, at the end of the queue: cq_head=0 and cq_phase ^= 1
+  D->>C: writel(cq_head) to the CQ Head Doorbell<br/>offset 0x1000 + (2·qid+1)·(4 << DSTRD)
