@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant P as primary OSD.1
+  participant LR as local_reserver (OSD.1)
+  participant RR as remote_reserver (OSD.7)
+  participant T as backfill target OSD.7
+  P->>LR: request_reservation(pg, prio=151)
+  Note over LR: in_progress 1 of osd_max_backfills=1 ⇒ queued
+  LR-->>P: grant after a slot is freed
+  P->>T: MBackfillReserve REQUEST (prio=151)
+  T->>RR: request_reservation(pg, prio=151, preempt)
+  RR-->>T: grant
+  T-->>P: MBackfillReserve GRANT
+  P->>P: Backfilling ⇒ recover_backfill
+  Note over RR: a request with prio=231 (inactive) arrives<br/>preempt_one: the 151 reservation is taken back
+  T-->>P: MBackfillReserve REVOKE
+  P->>P: WaitLocalBackfillReserved again

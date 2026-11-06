@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant O as Operator
+  participant P as primary
+  participant BE as ScrubBackend
+  participant R as Damaged replica
+  O->>P: ceph pg repair 2.1f
+  P->>P: operator_forced: urgency = must_repair
+  P->>BE: deep scrub of all chunks
+  BE->>BE: select_auth_object ⇒ healthy shard
+  BE->>P: repair_object(soid, ok_peer, bad_peers) ⇒ force_object_missing
+  P->>P: add to missing, and missing_loc with the healthy source only
+  P->>R: push from the authoritative copy
+  R-->>P: PushReply
+  P->>P: mark repaired, update stats

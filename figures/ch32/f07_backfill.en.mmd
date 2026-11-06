@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph L["primary: backfill_info (scan of 64 to 512 objects)"]
+    direction LR
+    l1["obj A v10"] --> l2["obj B v12"] --> l3["obj D v7"] --> l4["obj E v20"]
+  end
+  subgraph R["backfill target: peer_backfill_info"]
+    direction LR
+    r1["obj A v10"] --> r2["obj B v9"] --> r3["obj C v3"] --> r4["(last_backfill = D)"]
+  end
+  subgraph O["Output of the sorted merge (in hobject order)"]
+    direction LR
+    o1["A: equal version ⇒ keep"] --> o2["B: different version ⇒ push"] --> o3["C: only on the target ⇒ remove"] --> o4["D, E: after last_backfill ⇒ push (missing_targs)"]
+  end
+  L ~~~ R ~~~ O

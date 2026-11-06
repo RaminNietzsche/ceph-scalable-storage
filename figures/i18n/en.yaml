@@ -2104,100 +2104,75 @@ ch31/f09_failover:
   'تغییر ANA: مسیر B برای گروه 1 optimized': 'ANA change: path B optimized for group 1'
   ادامه‌ی I/O: I/O resumes
 ch32/f01_scrubfsm:
-  سمت: null
-  زمان‌بندی: null
-  منابع محلی: null
-  رزرو روی: null
-  ها: null
-  همه‌ی: null
-  ها پذیرفتند: null
-  چرخه‌ی هر: null
-  درون: null
-  منتظر: null
-  های در جریان: null
-  نوشتن‌های در جریان: null
-  نقشه‌ی محلی: null
-  ادامه‌ی: null
-  بعدی: null
-  پایان: null
-  به‌روزرسانی: null
-  و: null
-  محدوده قفل است: null
-  ارسال: null
+  ScrubMachine سمت primary (scrub_machine.h): ScrubMachine, primary side (scrub_machine.h)
+  زمان‌بندی + منابع محلی: scheduling + local resources
+  رزرو روی replicaها: reservation on the replicas
+  همه‌ی replicaها پذیرفتند: all replicas granted
+  چرخه‌ی هر chunk درون ActiveScrubbing: The per-chunk cycle inside ActiveScrubbing
+  منتظر pushهای در جریان: waiting for in-flight pushes
+  نوشتن‌های در جریان: in-flight writes
+  نقشه‌ی محلی: local map
+  ادامه‌ی chunk: Rest of the chunk
+  chunk بعدی: next chunk
+  پایان PG: end of PG
+  به‌روزرسانی digestها: update the digests
+  'پایان: stamps و stats': 'done: stamps and stats'
+  محدوده قفل است: the range is locked
+  سمت replica: Replica side
+  ارسال ScrubMap: send ScrubMap
 ch32/f02_chunkseq:
-  فهرست: null
-  ها و: null
-  جابه‌جایی: null
-  تا: null
-  و: null
-  در یک: null
-  باشند: null
-  ؟ در غیر این صورت: null
-  خواندن داده در گام‌های: null
-  در: null
-  اندازه،: null
-  داده و: null
-  برای هر شیء: null
-  ناسازگاری‌ها: null
-  اگر نوشتن مشتری در محدوده رسید: null
-  بیشینه‌ی: null
-  نصف می‌شود: null
+  فهرست hobjectها و candidate_end: list of hobjects and candidate_end
+  جابه‌جایی end تا head و clone در یک chunk باشند: move end so that head and clones are in one chunk
+  _range_available_for_scrub؟ در غیر این صورت RangeBlocked: _range_available_for_scrub? otherwise RangeBlocked
+  build_scrub_map_chunk (خواندن داده در گام‌های 4 MiB در deep): build_scrub_map_chunk (data read in 4 MiB steps in deep)
+  MOSDRepScrubMap (اندازه، attrs، digest داده و omap): MOSDRepScrubMap (size, attrs, data and omap digests)
+  select_auth_object برای هر شیء ⇒ ناسازگاری‌ها: select_auth_object for each object ⇒ inconsistencies
+  'اگر نوشتن مشتری در محدوده رسید: preemption': 'if a client write hits the range: preemption'
+  بیشینه‌ی chunk نصف می‌شود (chunk_divisor ×2): the maximum chunk is halved (chunk_divisor ×2)
 ch32/f04_auth:
-  ترتیب نامزدها: null
-  خود: null
-  اول: null
-  سپس: null
-  ها: null
-  به ترتیب: null
-  رد شدن: null
-  توقف بررسی: null
-  یا: null
-  ناموجود یا خراب: null
-  انتخاب از میان قابل‌استفاده‌ها: null
-  بزرگ‌تر برنده است: null
-  برابر بودن نسخه: null
-  بیشتر: null
-  برابر بودن همه: null
-  اولی: null
-  یعنی: null
+  ترتیب نامزدها: Candidate order
+  خود primary اول: the primary itself first
+  سپس replicaها: then the replicas
+  به ترتیب received_maps: in received_maps order
+  'possible_auth_shard: رد شدن': 'possible_auth_shard: rejection'
+  stat_error ⇒ توقف بررسی: stat_error ⇒ stop checking
+  snapset یا object_info: snapset or object_info
+  ناموجود یا خراب: missing or corrupt
+  انتخاب از میان قابل‌استفاده‌ها: Choosing among the usable ones
+  oi.version بزرگ‌تر برنده است: the larger oi.version wins
+  'برابر بودن نسخه:': 'equal versions:'
+  dcount بیشتر (data_digest + omap_digest): higher dcount (data_digest + omap_digest)
+  'برابر بودن همه: اولی': 'all equal: the first'
+  یعنی primary: that is, the primary
 ch32/f06_reserve:
-  از: null
-  صف: null
-  پس از آزاد شدن خانه: null
-  درخواست با: null
-  می‌رسد: null
-  رزرو: null
-  پس گرفته می‌شود: null
-  از نو: null
+  in_progress 1 از osd_max_backfills=1 ⇒ صف: in_progress 1 of osd_max_backfills=1 ⇒ queued
+  grant پس از آزاد شدن خانه: grant after a slot is freed
+  درخواست با prio=231 (inactive) می‌رسد: a request with prio=231 (inactive) arrives
+  'preempt_one: رزرو 151 پس گرفته می‌شود': 'preempt_one: the 151 reservation is taken back'
+  WaitLocalBackfillReserved از نو: WaitLocalBackfillReserved again
 ch32/f07_backfill:
-  اسکن: null
-  تا: null
-  شیء: null
-  هدف: null
-  خروجی ادغام مرتب: null
-  به ترتیب: null
-  نسخه برابر: null
-  نسخه متفاوت: null
-  فقط روی هدف: null
-  پس از: null
+  'primary: backfill_info (اسکن 64 تا 512 شیء)': 'primary: backfill_info (scan of 64 to 512 objects)'
+  'هدف backfill: peer_backfill_info': 'backfill target: peer_backfill_info'
+  خروجی ادغام مرتب (به ترتیب hobject): Output of the sorted merge (in hobject order)
+  'A: نسخه برابر ⇒ keep': 'A: equal version ⇒ keep'
+  'B: نسخه متفاوت ⇒ push': 'B: different version ⇒ push'
+  'C: فقط روی هدف ⇒ remove': 'C: only on the target ⇒ remove'
+  'D، E: پس از last_backfill ⇒ push (missing_targs)': 'D, E: after last_backfill ⇒ push (missing_targs)'
 ch32/f08_recstates:
-  مسیر: null
-  حالت‌های انتظار و خطا: null
-  رزرو رد شد یا: null
-  هدف پر است: null
-  تلاش دوباره پس از: null
+  مسیر recovery (log-based): recovery path (log-based)
+  مسیر backfill: backfill path
+  حالت‌های انتظار و خطا: Wait and error states
+  رزرو رد شد یا preempt: reservation refused or preempted
+  هدف پر است: the target is full
+  تلاش دوباره پس از: retry after
 ch32/f09_repair:
-  اپراتور: null
-  خراب: null
-  همه‌ی: null
-  ها: null
-  سالم: null
-  افزودن به: null
-  و: null
-  فقط با منبع سالم: null
-  از روی نسخه‌ی: null
-  علامت: null
-  ، به‌روزرسانی: null
+  participant O as اپراتور: participant O as Operator
+  participant R as replica خراب: participant R as Damaged replica
+  deep scrub همه‌ی chunkها: deep scrub of all chunks
+  select_auth_object ⇒ shard سالم: select_auth_object ⇒ healthy shard
+  افزودن به missing و missing_loc فقط با منبع سالم: add to missing, and missing_loc with the healthy source only
+  push از روی نسخه‌ی authoritative: push from the authoritative copy
+  علامت repaired، به‌روزرسانی stats: mark repaired, update stats
 ch33/f01_threads:
   شبکه: null
   تجزیه‌ی پیام،: null

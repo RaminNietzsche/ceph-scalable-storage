@@ -1,0 +1,20 @@
+flowchart TB
+  subgraph A["ScrubMachine, primary side (scrub_machine.h)"]
+    direction LR
+    A1["NotActive"] -->|"StartScrub"| A2["PrimaryActive / PrimaryIdle"] -->|"scheduling + local resources"| A3["Session / ReservingReplicas<br/>reservation on the replicas"] -->|"all replicas granted"| A4["ActiveScrubbing"]
+  end
+  subgraph B["The per-chunk cycle inside ActiveScrubbing"]
+    direction LR
+    B1["PendingTimer<br/>osd_scrub_sleep"] --> B2["NewChunk<br/>select_range"] --> B3["WaitPushes<br/>waiting for in-flight pushes"] --> B4["WaitLastUpdate<br/>in-flight writes"] --> B5["BuildMap<br/>local map"]
+  end
+  subgraph C["Rest of the chunk"]
+    direction LR
+    C1["WaitReplicas<br/>MOSDRepScrubMap"] --> C2["compare_smaps<br/>select_auth_object"] -->|"next chunk"| C3["PendingTimer"]
+    C2 -->|"end of PG"| C4["WaitDigestUpdate<br/>update the digests"] --> C5["done: stamps and stats"]
+    B2b["RangeBlocked<br/>the range is locked"] -.-> C3
+  end
+  subgraph D["Replica side"]
+    direction LR
+    D1["ReplicaActive / ReplicaIdle"] -->|"MOSDRepScrub"| D2["ReplicaWaitUpdates"] --> D3["ReplicaBuildingMap"] -->|"send ScrubMap"| D1
+  end
+  A ~~~ B ~~~ C ~~~ D

@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph S1["Candidate order"]
+    direction LR
+    a1["the primary itself first"] --> a2["then the replicas<br/>in received_maps order"]
+  end
+  subgraph S2["possible_auth_shard: rejection"]
+    direction LR
+    b1["read_error"] --> b2["stat_error ⇒ stop checking"] --> b3["ec_hash_mismatch<br/>ec_size_mismatch"] --> b4["snapset or object_info<br/>missing or corrupt"]
+  end
+  subgraph S3["Choosing among the usable ones"]
+    direction LR
+    c1["the larger oi.version wins"] --> c2["equal versions:<br/>higher dcount (data_digest + omap_digest)"] --> c3["all equal: the first<br/>that is, the primary"]
+  end
+  S1 ~~~ S2 ~~~ S3

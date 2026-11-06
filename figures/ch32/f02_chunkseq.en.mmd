@@ -1,0 +1,16 @@
+sequenceDiagram
+  participant P as primary PG
+  participant BE as PGBackend
+  participant R1 as replica 1
+  participant R2 as replica 2
+  P->>BE: objects_list_partial(start, min, max)
+  BE-->>P: list of hobjects and candidate_end
+  P->>P: move end so that head and clones are in one chunk
+  P->>P: _range_available_for_scrub? otherwise RangeBlocked
+  P->>R1: MOSDRepScrub(start, end, deep, scrub_to)
+  P->>R2: MOSDRepScrub(start, end, deep, scrub_to)
+  P->>BE: build_scrub_map_chunk (data read in 4 MiB steps in deep)
+  R1-->>P: MOSDRepScrubMap (size, attrs, data and omap digests)
+  R2-->>P: MOSDRepScrubMap
+  P->>P: select_auth_object for each object ⇒ inconsistencies
+  Note over P: if a client write hits the range: preemption<br/>the maximum chunk is halved (chunk_divisor ×2)
