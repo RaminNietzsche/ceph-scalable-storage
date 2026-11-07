@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph T["Thread level"]
+    direction LR
+    t1["malloc(n) in a thread"] --> t2["size class"] --> t3["thread cache or per-CPU cache<br/>lock-free"]
+  end
+  subgraph C["Central level"]
+    direction LR
+    c1["transfer cache"] --> c2["central free list<br/>per size class"] --> c3["page heap<br/>spans"]
+  end
+  subgraph O["Operating system"]
+    direction LR
+    o1["mmap / sbrk"] --> o2["madvise(DONTNEED)<br/>release_free_memory"] --> o3["pageheap_unmapped_bytes"]
+  end
+  T --> C --> O

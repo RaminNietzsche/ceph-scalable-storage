@@ -2174,52 +2174,49 @@ ch32/f09_repair:
   push از روی نسخه‌ی authoritative: push from the authoritative copy
   علامت repaired، به‌روزرسانی stats: mark repaired, update stats
 ch33/f01_threads:
-  شبکه: null
-  تجزیه‌ی پیام،: null
-  یا: null
-  صف: null
-  قفل: null
-  تکمیل: null
-  دسته‌ی: null
-  در: null
-  آزادسازی: null
-  پس‌زمینه: null
-  هر: null
-  ثانیه: null
-  و: null
+  شبکه: Network
+  تجزیه‌ی پیام، crc یا AES-GCM: message parsing, crc or AES-GCM
+  صف op: Op queue
+  'SSD: 8 shard × 2 thread': 'SSD: 8 shards × 2 threads'
+  قفل PG: PG lock
+  تکمیل libaio/io_uring: libaio/io_uring completion
+  دسته‌ی commit در RocksDB: commit batch in RocksDB
+  آزادسازی txc: release the txc
+  پس‌زمینه: Background
+  autotune هر 5 ثانیه: autotune every 5 seconds
+  compaction و flush: compaction and flush
 ch33/f05_shards:
-  های: null
-  روی: null
-  نتیجه: null
-  چهار: null
-  یک: null
-  های دیگر بی‌کار: null
+  PGهای primary روی osd.12 (pool 3، pg_num=256): Primary PGs on osd.12 (pool 3, pg_num=256)
+  نتیجه: Result
+  'shard 3: چهار PG<br/>۲ thread': 'shard 3: four PGs<br/>2 threads'
+  'shard 5: یک PG<br/>۲ thread': 'shard 5: one PG<br/>2 threads'
+  shardهای دیگر بی‌کار: other shards idle
 ch33/f06_numa:
-  هسته‌های: null
-  حافظه‌ی محلی: null
-  روی: null
-  و: null
-  تصمیم: null
-  برای: null
-  از: null
-  هر سه برابر؟: null
+  هسته‌های 0..31: cores 0..31
+  هسته‌های 32..63: cores 32..63
+  حافظه‌ی محلی: local memory
+  (PCIe روی node 0): (PCIe on node 0)
+  public و cluster: public and cluster
+  تصمیم set_numa_affinity برای osd.2 روی nvme2: The set_numa_affinity decision for osd.2 on nvme2
+  front_node و back_node: front_node and back_node
+  از iface: from the iface
+  هر سه برابر؟ ⇒ numa_node=1: all three equal? ⇒ numa_node=1
 ch33/f07_tcmalloc:
-  سطح: null
-  در: null
-  کلاس اندازه: null
-  یا: null
-  بدون قفل: null
-  سطح مرکزی: null
-  برای هر: null
-  ها: null
-  سیستم‌عامل: null
+  سطح thread: Thread level
+  malloc(n) در thread: malloc(n) in a thread
+  کلاس اندازه<br/>size class: size class
+  thread cache یا per-CPU cache: thread cache or per-CPU cache
+  بدون قفل: lock-free
+  سطح مرکزی: Central level
+  برای هر size class: per size class
+  spanها: spans
+  سیستم‌عامل: Operating system
 ch33/f08_tools:
-  درون: null
-  بایت هر: null
-  هسته و: null
-  نمونه‌برداری: null
-  توابع کاربر: null
-  با: null
-  یا: null
-  پشته‌ی همه‌ی: null
-  ها: null
+  درون Ceph: Inside Ceph
+  بایت هر pool: bytes per pool
+  هسته و CPU: Kernel and CPU
+  نمونه‌برداری: sampling
+  offcputime، tracepoint: offcputime, tracepoint
+  توابع کاربر: User functions
+  با -pg یا dynamic: with -pg or dynamic
+  پشته‌ی همه‌ی threadها: stacks of all threads

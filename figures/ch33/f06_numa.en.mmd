@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph N0["NUMA node 0"]
+    direction LR
+    c0["cores 0..31"] --> m0["local memory"] --> d0["nvme0, nvme1<br/>(PCIe on node 0)"] --> e0["NIC ens1f0<br/>public and cluster"]
+  end
+  subgraph N1["NUMA node 1"]
+    direction LR
+    c1["cores 32..63"] --> m1["local memory"] --> d1["nvme2, nvme3"] --> e1["NIC ens2f0"]
+  end
+  subgraph D["The set_numa_affinity decision for osd.2 on nvme2"]
+    direction LR
+    x1["store_node=1"] --> x2["front_node and back_node<br/>from the iface"] --> x3["all three equal? ⇒ numa_node=1<br/>(osd_numa_auto_affinity)"] --> x4["set_cpu_affinity_all_threads"]
+  end
+  N0 ~~~ N1 ~~~ D

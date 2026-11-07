@@ -1,0 +1,18 @@
+flowchart TB
+  subgraph N["Network"]
+    direction LR
+    n1["msgr-worker-0..2<br/>ms_async_op_threads=3"] --> n2["message parsing, crc or AES-GCM<br/>EventCenter (epoll)"]
+  end
+  subgraph Q["Op queue"]
+    direction LR
+    q1["ShardedOpWQ<br/>shard = ps mod num_shards"] --> q2["tp_osd_tp<br/>SSD: 8 shards × 2 threads"] --> q3["PG lock<br/>PrimaryLogPG::do_op"]
+  end
+  subgraph B["BlueStore"]
+    direction LR
+    b1["bstore_aio<br/>libaio/io_uring completion"] --> b2["bstore_kv_sync<br/>commit batch in RocksDB"] --> b3["bstore_kv_final<br/>release the txc"] --> b4["cfin<br/>commit_finisher"]
+  end
+  subgraph O["Background"]
+    direction LR
+    o1["bstore_mempool<br/>autotune every 5 seconds"] --> o2["rocksdb:low / high<br/>compaction and flush"] --> o3["osd_srv_heartbt<br/>heartbeat"] --> o4["safe_timer<br/>tick"]
+  end
+  N ~~~ Q ~~~ B ~~~ O

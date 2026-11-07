@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph A["Primary PGs on osd.12 (pool 3, pg_num=256)"]
+    direction LR
+    a1["3.3"] --> a2["3.b (11)"] --> a3["3.13 (19)"] --> a4["3.1b (27)"] --> a5["3.5"]
+  end
+  subgraph B["shard = ps mod 8"]
+    direction LR
+    b1["3 ⇒ shard 3"] --> b2["11 ⇒ shard 3"] --> b3["19 ⇒ shard 3"] --> b4["27 ⇒ shard 3"] --> b5["5 ⇒ shard 5"]
+  end
+  subgraph C["Result"]
+    direction LR
+    c1["shard 3: four PGs<br/>2 threads"] --> c2["shard 5: one PG<br/>2 threads"] --> c3["other shards idle"]
+  end
+  A ~~~ B ~~~ C

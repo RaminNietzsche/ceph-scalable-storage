@@ -1,0 +1,14 @@
+flowchart TB
+  subgraph A["Inside Ceph"]
+    direction LR
+    a1["dump_mempools<br/>bytes per pool"] --> a2["heap stats<br/>tcmalloc"] --> a3["perf dump<br/>prioritycache:*"] --> a4["dump_op_pq_state<br/>dump_historic_ops"]
+  end
+  subgraph B["Kernel and CPU"]
+    direction LR
+    b1["perf top -p PID<br/>sampling"] --> b2["perf record -g<br/>flame graph"] --> b3["bpftrace<br/>offcputime, tracepoint"]
+  end
+  subgraph C["User functions"]
+    direction LR
+    c1["uftrace<br/>with -pg or dynamic"] --> c2["gdb / eu-stack<br/>stacks of all threads"]
+  end
+  A ~~~ B ~~~ C
