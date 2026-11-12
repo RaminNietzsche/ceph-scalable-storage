@@ -4,54 +4,53 @@ id: ch35
 title: 'Specialist Part (2): RADOS — The PG Log, Intervals, Missing Sets, and How Recovery and Backfill Work'
 part: specialist
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-35-1}
+# Before we begin {#sec-35-1}
 
-فصل ۱۷ ماشین حالت peering و انتخاب info معتبر را نشان داد و فصل ۳۲ رزرو و زمان‌بندی recovery را. این فصل لایه‌ی میانی را باز می‌کند: PG چگونه می‌فهمد کدام OSDها را باید بپرسد (past intervals و prior set)، log دو OSD چگونه ادغام می‌شود، با ورودی‌های **divergent** چه می‌کند، missing set چگونه ساخته می‌شود، log چه زمانی و چقدر trim می‌شود، و recovery و backfill در عمل شیء به شیء چه کار می‌کنند. نام توابع و پیش‌فرض‌ها با شاخه‌ی main مخزن ceph/ceph (نوامبر ۲۰۲۶) تطبیق داده شده است.
+Chapter 17 showed the peering state machine and how the authoritative info is chosen, and chapter 32 showed recovery reservation and scheduling. This chapter opens the middle layer: how a PG works out which OSDs it must ask (past intervals and the prior set), how the logs of two OSDs are merged, what it does with **divergent** entries, how the missing set is built, when and by how much the log is trimmed, and what recovery and backfill actually do object by object. Function names and defaults have been checked against the main branch of the ceph/ceph repository (November 2026).
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-35-1-1}
+## What questions does this chapter answer? {#sec-35-1-1}
 
-- چه تغییری در OSDMap یک interval تازه می‌سازد و `maybe_went_rw` چگونه تعیین می‌شود؟
-- PG چرا گاهی `down` می‌شود و `blocked_by` در `ceph pg query` (فیلد `peering_blocked_by`) چه می‌گوید؟
-- `merge_log` با log جلوتر یا عقب‌تر یک peer چه می‌کند؟
-- ورودی divergent چیست و پنج حالت رسیدگی به آن کدام‌اند؟
-- طول pg log چگونه تعیین می‌شود و چه چیزی جلوی trim را می‌گیرد؟
-- چه زمانی recovery بر پایه‌ی log کافی است و چه زمانی backfill لازم می‌شود؟
-- backfill اشیا را چگونه مقایسه و منتقل می‌کند؟
+- What change in the OSDMap creates a new interval, and how is `maybe_went_rw` determined?
+- Why does a PG sometimes become `down`, and what does `blocked_by` in `ceph pg query` (the `peering_blocked_by` field) say?
+- What does `merge_log` do with a peer's log that is ahead or behind?
+- What is a divergent entry, and what are the five ways of handling it?
+- How is the length of the pg log determined, and what prevents trimming?
+- When is log-based recovery enough, and when is backfill needed?
+- How does backfill compare and transfer objects?
 
-## پیش‌نیاز {#sec-35-1-2}
+## Prerequisites {#sec-35-1-2}
 
-فصل ۱۷ (peering)، فصل ۳۲ (scrub و recovery) و فصل ۳۴ (pg log روی دیسک و نسخه‌ها).
+Chapter 17 (peering), chapter 32 (scrub and recovery) and chapter 34 (the pg log on disk and versions).
 
-# info و history یک PG {#sec-35-2}
+# The info and history of a PG {#sec-35-2}
 
-هر عضو PG یک `pg_info_t` دارد. فیلدهای کلیدی:
+Each member of a PG has a `pg_info_t`. The key fields:
 
-| فیلد | معنی |
+| Field | Meaning |
 |---|---|
-| `last_update` | آخرین نسخه‌ای که در log این عضو هست |
-| `last_complete` | تا این نسخه همه‌ی اشیا روی همین عضو کامل‌اند (هیچ missing قدیمی‌تری نیست) |
-| `log_tail` | قدیمی‌ترین ورودی log |
-| `last_backfill` | اشیای بزرگ‌تر از این (در ترتیب hobject_t) ممکن است روی این عضو نباشند؛ `MAX` یعنی backfill لازم نیست |
-| `last_epoch_started` | آخرین epochی که PG روی این عضو active شد |
-| `purged_snaps` | snapهایی که پاک‌سازی آن‌ها تمام شده است (فصل ۳۶) |
-| `history` | یک `pg_history_t` مشترک میان اعضا |
+| `last_update` | the last version present in this member's log |
+| `last_complete` | up to this version all objects are complete on this member (there is no older missing object) |
+| `log_tail` | the oldest log entry |
+| `last_backfill` | objects greater than this (in hobject_t order) may not be on this member; `MAX` means no backfill is needed |
+| `last_epoch_started` | the last epoch in which the PG became active on this member |
+| `purged_snaps` | snaps whose purge has finished (chapter 36) |
+| `history` | a `pg_history_t` shared among the members |
 
-`pg_history_t` تاریخچه‌ی PG را در سطح epoch نگه می‌دارد: `epoch_created`، `same_interval_since` (از کی up و acting تغییر نکرده)، `same_up_since`، `same_primary_since`، `last_epoch_started` و `last_interval_started` (آخرین باری که PG در هر جایی active شد)، `last_epoch_clean` و `last_interval_clean`، و زمان‌های scrub.
+`pg_history_t` keeps the PG's history at the epoch level: `epoch_created`, `same_interval_since` (since when up and acting have not changed), `same_up_since`, `same_primary_since`, `last_epoch_started` and `last_interval_started` (the last time the PG became active anywhere), `last_epoch_clean` and `last_interval_clean`, and the scrub times.
 
 ::: {.note}
-`last_update` و `last_complete` دو مفهوم جدا هستند. یک replica ممکن است log را تا `1462'93` داشته باشد (last_update) ولی شیء A که در `1462'80` نوشته شده هنوز روی دیسکش نباشد. در این حالت `last_complete` ‏`1462'79` است و A در missing set آن عضو است.
+`last_update` and `last_complete` are two separate concepts. A replica may have the log up to `1462'93` (last_update) while object A, written at `1462'80`, is not yet on its disk. In that case `last_complete` is `1462'79` and A is in that member's missing set.
 :::
 
-# past intervals و prior set {#sec-35-3}
+# Past intervals and the prior set {#sec-35-3}
 
-## interval تازه چه زمانی شروع می‌شود؟ {#sec-35-3-1}
+## When does a new interval start? {#sec-35-3-1}
 
-یک **interval** بازه‌ای از epochهاست که در آن نقشه‌ی PG ثابت بوده است. `PastIntervals::is_new_interval` در هر نقشه‌ی جدید بررسی می‌کند که آیا یکی از این‌ها تغییر کرده است یا نه: primary یا مجموعه‌ی acting، primary یا مجموعه‌ی up، `size` یا `min_size` pool، split یا merge (و حالت‌های pending آن‌ها)، `sort_bitwise`، `recovery_deletes`، پارامترهای stretch در CRUSH (`crush_count`، `crush_target`، `crush_barrier`، `crush_member`)، روشن شدن بهینه‌سازی‌های EC و در شاخه‌ی main ورود یا خروج PG از مهاجرت pool. پس عوض شدن `min_size` به‌تنهایی هم peering می‌آورد.
+An **interval** is a range of epochs during which the PG's mapping stayed constant. On every new map, `PastIntervals::is_new_interval` checks whether any of the following has changed: the primary or the acting set, the up primary or the up set, the pool's `size` or `min_size`, a split or merge (and their pending states), `sort_bitwise`, `recovery_deletes`, the CRUSH stretch parameters (`crush_count`, `crush_target`, `crush_barrier`, `crush_member`), EC optimizations being turned on, and in the main branch the PG entering or leaving a pool migration. So changing `min_size` alone also triggers peering.
 
-::: {.algo #alg-35-1 title="ثبت interval گذشته و تعیین maybe_went_rw" src="src/osd/osd_types.cc :: PastIntervals::is_new_interval، PastIntervals::check_new_interval" complexity="O(n) برای n عضو acting در هر نقشه‌ی جدید"}
+::: {.algo #alg-35-1 title="Recording a past interval and determining maybe_went_rw" src="src/osd/osd_types.cc :: PastIntervals::is_new_interval, PastIntervals::check_new_interval" complexity="O(n) for n acting members on each new map"}
 :::
 
 ```text
@@ -63,21 +62,21 @@ check_new_interval(old, new, same_interval_since, last_epoch_clean):
     if acting non-empty and primary != -1 and acting_set_writeable(old pool, old acting)
        and could_have_gone_active(acting shards):
         if up_thru[primary] >= i.first and up_from[primary] <= i.first:
-            i.maybe_went_rw = true                    # primary خبر up_thru را به mon رسانده بود
+            i.maybe_went_rw = true                    # the primary had reported up_thru to the mon
         elif i.first <= last_epoch_clean <= i.last:
-            i.maybe_went_rw = true                    # PG در این بازه clean شده، پس نوشتن داشته
+            i.maybe_went_rw = true                    # the PG went clean in this range, so it had writes
         else: i.maybe_went_rw = false
-    else: i.maybe_went_rw = false                     # acting کوچک‌تر از min_size
+    else: i.maybe_went_rw = false                     # acting smaller than min_size
     past_intervals.add_interval(i)
 ```
 
-نقش `up_thru` حیاتی است. primary پیش از active شدن با `MOSDAlive` از mon می‌خواهد `up_thru` او را دست‌کم تا epoch جاری بالا ببرد. اگر یک interval حتی آن‌قدر طول نکشیده باشد که up_thru ثبت شود، primary نمی‌توانسته active شود و هیچ نوشتنی در آن رخ نداده است. پس peering بعدی لازم نیست منتظر اعضای آن interval بماند.
+The role of `up_thru` is vital. Before going active, the primary asks the mon with `MOSDAlive` to raise its `up_thru` to at least the current epoch. If an interval did not last even long enough for up_thru to be recorded, the primary could not have gone active and no write happened in it. So the next peering does not need to wait for the members of that interval.
 
-## prior set و حالت down {#sec-35-3-2}
+## The prior set and the down state {#sec-35-3-2}
 
-`PastIntervals::PriorSet` فهرست OSDهایی است که primary باید از آن‌ها info و log بگیرد. همه‌ی اعضای up و acting فعلی و همه‌ی اعضای intervalهای گذشته که اکنون up هستند در `probe` قرار می‌گیرند. سپس برای هر interval با `maybe_went_rw` از `last_epoch_started` به این سو:
+`PastIntervals::PriorSet` is the list of OSDs from which the primary must get info and logs. All current up and acting members, and all members of past intervals that are up now, go into `probe`. Then, for each interval with `maybe_went_rw` from `last_epoch_started` onward:
 
-::: {.algo #alg-35-2 title="ساخت prior set و تشخیص pg down" src="src/osd/osd_types.h :: PastIntervals::PriorSet::PriorSet؛ src/osd/osd_types.cc :: PastIntervals::iterate_mayberw_back_to" complexity="O(I × n) برای I interval و n عضو"}
+::: {.algo #alg-35-2 title="Building the prior set and detecting a down PG" src="src/osd/osd_types.h :: PastIntervals::PriorSet::PriorSet; src/osd/osd_types.cc :: PastIntervals::iterate_mayberw_back_to" complexity="O(I × n) for I intervals and n members"}
 :::
 
 ```text
@@ -86,15 +85,15 @@ for interval in past_intervals where maybe_went_rw, newest → last_epoch_starte
     up_now = {osd in interval.acting | osd is UP now or marked LOST}
     candidate_blocked_by = {osd in interval.acting | osd is DOWN now}
     if not recoverable(up_now) and candidate_blocked_by not empty:
-        pg_down = true                               # ممکن است داده‌ای فقط روی آن‌ها باشد
+        pg_down = true                               # some data may exist only on them
         blocked_by += candidate_blocked_by
-# recoverable: replicated → دست‌کم یک عضو ; EC → دست‌کم k shard متمایز
+# recoverable: replicated → at least one member ; EC → at least k distinct shards
 ```
 
-**مثال عددی.** PG ‏3.1f با size=3 و min_size=2 در interval ‏[1400, 1449] روی [12,4,27] بوده است. در epoch ‏1450 هر دو OSD 4 و 27 از کار افتاده‌اند و acting به [12] رسید. چون یک عضو کمتر از min_size است، interval ‏[1450, 1460] نوشتنی نداشته است (`maybe_went_rw=false`). حالا در epoch ‏1461 خود osd.12 هم down شد و 4 و 27 برگشتند. interval ‏[1400, 1449] نوشتنی بوده و اعضای up آن 4 و 27 هستند؛ برای replicated یک عضو کافی است، پس PG down نمی‌شود. اما اگر فقط osd.12 از این interval زنده مانده بود و آن هم اکنون down بود، `pg_down=true` و `blocked_by: [12]` می‌شد. راه برون‌رفت یا برگرداندن osd.12 است یا اعلام `ceph osd lost 12` که پذیرش از دست رفتن داده‌های احتمالی است.
+**Numerical example.** PG 3.1f with size=3 and min_size=2 was on [12,4,27] in the interval [1400, 1449]. At epoch 1450 both OSD 4 and OSD 27 failed and acting dropped to [12]. Since one member is less than min_size, the interval [1450, 1460] had no writes (`maybe_went_rw=false`). Now at epoch 1461 osd.12 itself went down and 4 and 27 came back. The interval [1400, 1449] had writes and its up members are 4 and 27; for replicated, one member is enough, so the PG does not go down. But if only osd.12 had survived from that interval and it were now down, we would get `pg_down=true` and `blocked_by: [12]`. The way out is either to bring osd.12 back or to declare `ceph osd lost 12`, which means accepting the possible loss of data.
 
 ```text
-مثال (بخشی از ceph pg 3.1f query):
+example (part of ceph pg 3.1f query):
 "recovery_state": [ { "name": "Started/Primary/Peering/Down",
     "comment": "not enough up instances of this PG to go active" },
   { "name": "Started/Primary/Peering",
@@ -105,45 +104,45 @@ for interval in past_intervals where maybe_went_rw, newest → last_epoch_starte
         "comment": "starting or marking this osd lost may let us proceed" } ] } ]
 ```
 
-![زمان‌خط intervalهای یک PG. هر تغییر در up یا acting یا min_size یک interval تازه می‌سازد. فقط intervalهایی که primary در آن up_thru گرفته یا PG در آن clean شده maybe_went_rw هستند و در prior set حساب می‌شوند. intervalی که acting آن از min_size کوچک‌تر بوده نادیده گرفته می‌شود](figures/ch35/f01_intervals.png){#fig-35-f01_intervals}
+![The timeline of a PG's intervals. Every change in up, acting or min_size creates a new interval. Only intervals in which the primary obtained up_thru or the PG went clean are maybe_went_rw and count in the prior set. An interval whose acting set was smaller than min_size is ignored](figures/ch35/f01_intervals.png){#fig-35-f01_intervals}
 
-# ادغام log {#sec-35-4}
+# Merging logs {#sec-35-4}
 
-پس از اینکه primary با `find_best_info` (فصل ۱۷) عضوی را که معتبرترین log را دارد انتخاب کرد، log او را می‌گیرد و با `PGLog::merge_log` در log خودش ادغام می‌کند. برای replicaها هم `proc_replica_log` همین منطق را روی کپی log آن‌ها اجرا می‌کند تا missing هر replica محاسبه شود.
+After the primary has chosen, with `find_best_info` (chapter 17), the member with the most authoritative log, it gets that log and merges it into its own with `PGLog::merge_log`. For the replicas, `proc_replica_log` runs the same logic on a copy of their logs to compute each replica's missing set.
 
-::: {.algo #alg-35-3 title="merge_log: ادغام log معتبر در log محلی" src="src/osd/PGLog.cc :: PGLog::merge_log، PGLog::rewind_divergent_log" complexity="O(E) برای E ورودی جدید یا divergent؛ به‌روزرسانی missing برای هر شیء"}
+::: {.algo #alg-35-3 title="merge_log: merging the authoritative log into the local log" src="src/osd/PGLog.cc :: PGLog::merge_log, PGLog::rewind_divergent_log" complexity="O(E) for E new or divergent entries; a missing-set update per object"}
 :::
 
 ```text
 pseudocode
 merge_log(olog from authoritative peer):
     assert overlap: log.head >= olog.tail and olog.head >= log.tail
-    if olog.tail < log.tail:                      # گسترش دم
+    if olog.tail < log.tail:                      # extend the tail
         splice older entries of olog before log; log.tail = olog.tail
-    if olog.head < log.head:                      # ما جلوتر بودیم: ورودی‌های اضافه divergent هستند
+    if olog.head < log.head:                      # we were ahead: the extra entries are divergent
         rewind_divergent_log(olog.head)
-    if olog.head > log.head:                      # گسترش سر
+    if olog.head > log.head:                      # extend the head
         lower_bound = newest olog entry <= log.head
-        divergent = log.rewind_from_head(lower_bound)   # ورودی‌هایی که olog آن‌ها را ندارد
+        divergent = log.rewind_from_head(lower_bound)   # entries that olog does not have
         append olog entries after lower_bound; for each: missing.add_next_event(entry)
         _merge_divergent_entries(divergent)
         info.last_update = log.head = olog.head
         info.last_user_version = oinfo.last_user_version ; info.purged_snaps = oinfo.purged_snaps
 ```
 
-افزودن هر ورودی جدید به missing ساده است: اگر شیء قبلاً missing نبوده، `have` همان `prior_version` ورودی و `need` نسخه‌ی ورودی می‌شود. اگر بوده، فقط `need` جلو می‌رود. برای ورودی `DELETE`، پرچم `FLAG_DELETE` گذاشته می‌شود تا recovery به‌جای کپی، حذف کند.
+Adding each new entry to the missing set is simple: if the object was not missing before, `have` becomes the entry's `prior_version` and `need` the entry's version. If it was, only `need` moves forward. For a `DELETE` entry, the `FLAG_DELETE` flag is set so that recovery deletes instead of copying.
 
-## ورودی‌های divergent {#sec-35-4-1}
+## Divergent entries {#sec-35-4-1}
 
-ورودی **divergent** ورودی‌ای است که در log یک عضو هست ولی در log معتبر نیست؛ مثلاً primary قبلی نوشتنی را محلی ثبت کرد و پیش از رسیدن آن به بقیه از کار افتاد. چون کلاینت برای آن نوشتن هرگز پاسخ نگرفته (پاسخ فقط پس از commit همه‌ی acting داده می‌شود)، باید آن را **برگرداند**. `_merge_object_divergent_entries` ورودی‌ها را بر اساس شیء گروه می‌کند و برای هر شیء یکی از پنج حالت را اجرا می‌کند:
+A **divergent** entry is one that is in a member's log but not in the authoritative log; for example, the previous primary recorded a write locally and failed before it reached the others. Since the client never received a reply for that write (the reply is sent only after all of acting has committed), it must be **rolled back**. `_merge_object_divergent_entries` groups the entries by object and applies one of five cases to each object:
 
-::: {.algo #alg-35-4 title="پنج حالت رسیدگی به ورودی‌های divergent یک شیء" src="src/osd/PGLog.h :: PGLog::_merge_object_divergent_entries" complexity="O(e) برای e ورودی divergent آن شیء"}
+::: {.algo #alg-35-4 title="The five cases for handling an object's divergent entries" src="src/osd/PGLog.h :: PGLog::_merge_object_divergent_entries" complexity="O(e) for e divergent entries of that object"}
 :::
 
 ```text
 pseudocode
 for each object hoid with divergent entries (sorted by version):
-    if hoid > info.last_backfill: ignore                 # هنوز backfill نشده
+    if hoid > info.last_backfill: ignore                 # not backfilled yet
     prior = prior_version of first divergent entry
     1) if log (authoritative) has a newer entry for hoid:
            nothing to do — merge_log already set missing to that newer version
@@ -152,20 +151,20 @@ for each object hoid with divergent entries (sorted by version):
     3) elif hoid is already missing:
            if missing.have == prior: drop from missing ; else missing.need = prior
     4) elif every entry can_rollback() and version > olog.can_rollback_to:
-           rollback each entry (EC: از stashهای rollback)   # شیء missing نمی‌شود
+           rollback each entry (EC: from the rollback stashes)   # the object does not become missing
     5) else:
            remove object from store ; missing.add(hoid, need=prior, have=none)
 ```
 
-حالت ۴ بیشتر در EC رخ می‌دهد، چون backend مربوط به EC برای هر نوشتن اطلاعات rollback (مثلاً نسخه‌ی قبلی xattrها یا طول قبلی شیء) نگه می‌دارد. در replicated بیشتر نوشتن‌ها rollback ندارند و حالت ۵ اجرا می‌شود: شیء حذف و از عضو دیگری با نسخه‌ی `prior` بازیابی می‌شود.
+Case 4 happens mostly in EC, because the EC backend keeps rollback information for each write (for example the previous version of the xattrs or the previous length of the object). In replicated pools most writes have no rollback and case 5 applies: the object is removed and recovered from another member at version `prior`.
 
-![ادغام log با ورودی divergent. عضو A تا 1462'95 نوشته ولی log معتبر عضو B تا 1462'93 است و سپس در epoch جدید 1470'94 و 1470'95 دارد. ورودی‌های 1462'94 و 1462'95 روی A divergent هستند، برگردانده یا حذف می‌شوند و شیء مربوط با نسخه‌ی prior در missing می‌نشیند](figures/ch35/f02_divergent.png){#fig-35-f02_divergent}
+![Merging logs with a divergent entry. Member A wrote up to 1462'95, but the authoritative log of member B goes up to 1462'93 and then has 1470'94 and 1470'95 in the new epoch. The entries 1462'94 and 1462'95 on A are divergent; they are rolled back or removed, and the corresponding object goes into the missing set at the prior version](figures/ch35/f02_divergent.png){#fig-35-f02_divergent}
 
-# طول log و trim {#sec-35-5}
+# Log length and trimming {#sec-35-5}
 
-هر چه log طولانی‌تر باشد، OSDی که مدت بیشتری خاموش بوده باز هم می‌تواند با log برگردد (بدون backfill)، ولی حافظه و فضای omap بیشتری مصرف می‌شود.
+The longer the log, the longer an OSD can be down and still come back with the log (without backfill), but more memory and omap space are used.
 
-::: {.algo #alg-35-5 title="هدف طول log و محاسبه‌ی trim_to" src="src/osd/OSD.cc :: OSDService::get_target_pg_log_entries؛ src/osd/PeeringState.cc :: PeeringState::calc_trim_to" complexity="O(t) برای t ورودی‌ای که trim می‌شود"}
+::: {.algo #alg-35-5 title="The target log length and computing trim_to" src="src/osd/OSD.cc :: OSDService::get_target_pg_log_entries; src/osd/PeeringState.cc :: PeeringState::calc_trim_to" complexity="O(t) for t entries being trimmed"}
 :::
 
 ```text
@@ -175,11 +174,11 @@ target = clamp(osd_target_pg_log_entries_per_osd / num_pgs_on_osd,
 limit = min(min_last_complete_ondisk, can_rollback_to)
 if log.size > target:
     n = min(log.size - target, osd_pg_log_trim_max)
-    if n < osd_pg_log_trim_min: return                 # trim در دسته‌های بزرگ‌تر
+    if n < osd_pg_log_trim_min: return                 # trim in larger batches
     trim_to = version of the n-th oldest entry, but never beyond limit
 ```
 
-| گزینه | پیش‌فرض main |
+| Option | Default in main |
 |---|---|
 | `osd_target_pg_log_entries_per_osd` | 300000 |
 | `osd_min_pg_log_entries` | 250 |
@@ -188,46 +187,46 @@ if log.size > target:
 | `osd_pg_log_trim_max` | 10000 |
 | `osd_pg_log_dups_tracked` | 3000 |
 
-**مثال عددی.** OSDی با ۲۰۰ PG: ‏300000/200 = 1500، که بین 250 و 10000 است؛ پس هدف 1500 ورودی برای هر PG است. با ۱۵۰۰ PG روی همان OSD ‏(فرض: pool بزرگ با pg_num زیاد) هدف به 200 می‌رسد و به حداقل 250 گرد می‌شود. پیامد عملی: هر چه PG بیشتری روی یک OSD باشد، log هر PG کوتاه‌تر است و OSDی که چند دقیقه خاموش بوده زودتر به backfill می‌افتد.
+**Numerical example.** An OSD with 200 PGs: 300000/200 = 1500, which lies between 250 and 10000; so the target is 1500 entries per PG. With 1500 PGs on the same OSD (assumption: a large pool with a high pg_num) the target drops to 200 and is rounded up to the minimum of 250. The practical consequence: the more PGs an OSD has, the shorter each PG's log, and an OSD that was down for a few minutes falls back to backfill sooner.
 
-**چه چیزی جلوی trim را می‌گیرد؟** `min_last_complete_ondisk`، یعنی کمترین `last_complete` میان همه‌ی اعضای acting. اگر یک replica شیئی را missing داشته باشد، log از آن نقطه trim نمی‌شود، چون missing همان عضو به آن ورودی‌ها وابسته است. PGای که مدت طولانی degraded می‌ماند log بلندتری دارد و این در mempool ‏`osd_pglog` دیده می‌شود.
+**What prevents trimming?** `min_last_complete_ondisk`, that is, the lowest `last_complete` among all acting members. If a replica has an object missing, the log is not trimmed past that point, because that member's missing set depends on those entries. A PG that stays degraded for a long time has a longer log, and this shows up in the `osd_pglog` mempool.
 
-# recovery و backfill در عمل {#sec-35-6}
+# Recovery and backfill in practice {#sec-35-6}
 
-## log کافی است یا backfill؟ {#sec-35-6-1}
+## Is the log enough, or backfill? {#sec-35-6-1}
 
-در `PeeringState::activate` برای هر عضو acting یا backfill تصمیم گرفته می‌شود. اگر `pg_log.get_tail() > peer.last_update` باشد، یعنی log ما دیگر ورودی‌های بعد از آخرین نسخه‌ی peer را ندارد، یا اگر `peer.last_backfill` خالی باشد (عضو تازه)، آن عضو **backfill** می‌شود: `last_backfill` او به ابتدا (`hobject_t()`) برمی‌گردد و از اول شیء به شیء پر می‌شود. در غیر این صورت ورودی‌های بعد از `peer.last_update` برایش فرستاده می‌شوند و missing او از روی همین ورودی‌ها ساخته می‌شود.
+In `PeeringState::activate` a decision is made for each acting or backfill member. If `pg_log.get_tail() > peer.last_update`, meaning our log no longer has the entries after the peer's last version, or if `peer.last_backfill` is empty (a new member), that member is **backfilled**: its `last_backfill` is reset to the beginning (`hobject_t()`) and it is filled object by object from the start. Otherwise the entries after `peer.last_update` are sent to it and its missing set is built from those entries.
 
 ::: {.sim name="peering"}
 :::
 
-## ترتیب کار در start_recovery_ops {#sec-35-6-2}
+## The order of work in start_recovery_ops {#sec-35-6-2}
 
-::: {.algo #alg-35-6 title="ترتیب recovery در یک دور start_recovery_ops" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::start_recovery_ops، recover_primary، recover_replicas، recover_backfill" complexity="هر دور حداکثر max عملیات (بر پایه‌ی osd_recovery_max_active و mClock)"}
+::: {.algo #alg-35-6 title="The recovery order in one round of start_recovery_ops" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::start_recovery_ops, recover_primary, recover_replicas, recover_backfill" complexity="at most max operations per round (based on osd_recovery_max_active and mClock)"}
 :::
 
 ```text
 pseudocode
 start_recovery_ops(max):
     if primary has no missing or all its missing are unfound:
-        started = recover_replicas(max)                  # push به replicaهایی که missing دارند
+        started = recover_replicas(max)                  # push to the replicas that have missing objects
     if started == 0:
-        started += recover_primary(max)                  # pull برای missingهای خود primary
+        started += recover_primary(max)                  # pull for the primary's own missing objects
     if started == 0 and new unfound objects appeared:
         started = recover_replicas(max)
     if backfill targets exist and started < max and primary missing is empty
        and backfill reservation granted:
         started += recover_backfill(max - started)
-    # main: سپس recover_pool_migration برای مهاجرت pool
+    # main: then recover_pool_migration for pool migration
 ```
 
-recover_primary برای هر شیء missing منبعی از `missing_loc` (عضوی که آن نسخه را دارد) انتخاب و آن را **pull** می‌کند. recover_replicas شیء را از primary به replica **push** می‌کند. هر push حداکثر `osd_recovery_max_chunk` (پیش‌فرض 8 MiB) داده دارد و اشیای بزرگ‌تر در چند دور منتقل می‌شوند. اگر هیچ عضو up نسخه‌ی لازم را نداشته باشد، شیء **unfound** است (فصل ۱۷ و `ceph pg <pgid> list_unfound`).
+recover_primary picks, for each missing object, a source from `missing_loc` (a member that has that version) and **pulls** it. recover_replicas **pushes** the object from the primary to the replica. Each push carries at most `osd_recovery_max_chunk` (default 8 MiB) of data, and larger objects are transferred over several rounds. If no up member has the needed version, the object is **unfound** (chapter 17 and `ceph pg <pgid> list_unfound`).
 
-## backfill: مقایسه‌ی دو پیمایش مرتب {#sec-35-6-3}
+## Backfill: comparing two ordered scans {#sec-35-6-3}
 
-backfill از log استفاده نمی‌کند. primary و هر backfill target محتوای PG را به ترتیب hobject_t (فصل ۳۴) در **بازه‌های** کوچک پیمایش می‌کنند (`BackfillInterval`، با حداقل `osd_backfill_scan_min` ‏= 64 و حداکثر `osd_backfill_scan_max` ‏= 512 شیء در هر scan) و مثل ادغام دو فهرست مرتب، آن‌ها را مقایسه می‌کنند.
+Backfill does not use the log. The primary and each backfill target scan the PG's contents in hobject_t order (chapter 34) in small **intervals** (`BackfillInterval`, with a minimum of `osd_backfill_scan_min` = 64 and a maximum of `osd_backfill_scan_max` = 512 objects per scan) and compare them like merging two sorted lists.
 
-::: {.algo #alg-35-7 title="مقایسه‌ی بازه‌های backfill" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::recover_backfill، scan_range_primary، scan_range_replica" complexity="O(N) برای N شیء PG؛ هر scan حداکثر osd_backfill_scan_max شیء"}
+::: {.algo #alg-35-7 title="Comparing backfill intervals" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::recover_backfill, scan_range_primary, scan_range_replica" complexity="O(N) for N objects in the PG; each scan at most osd_backfill_scan_max objects"}
 :::
 
 ```text
@@ -245,25 +244,25 @@ loop while ops < max:
 send MOSDPGBackfill PROGRESS(last_backfill) ; at end FINISH (last_backfill = MAX)
 ```
 
-نوشتن‌های کلاینت در حین backfill هم ادامه دارند. اگر شیئی که نوشته می‌شود **پیش از** `last_backfill` هدف باشد، به‌طور عادی برای آن هدف تکثیر می‌شود. اگر بعد از آن باشد، فقط در log ثبت می‌شود و خود backfill بعداً نسخه‌ی تازه را منتقل می‌کند. شیئی که دقیقاً در حال backfill است برای نوشتن قفل می‌شود و op در `waiting_for_degraded_object` می‌ماند (فصل ۳۴).
+Client writes continue during backfill. If the object being written is **before** the target's `last_backfill`, it is replicated to that target as usual. If it is after it, it is only recorded in the log, and backfill itself later transfers the new version. An object that is being backfilled at that very moment is locked for writes, and the op waits in `waiting_for_degraded_object` (chapter 34).
 
-![backfill به‌صورت ادغام دو پیمایش مرتب. بازه‌ی primary و بازه‌ی هدف هم‌زمان جلو می‌روند. شیء موجود فقط در هدف حذف می‌شود، شیء فقط در primary یا با نسخه‌ی متفاوت push می‌شود، و last_backfill پس از هر دور جلو می‌رود](figures/ch35/f03_backfill.png){#fig-35-f03_backfill}
+![Backfill as the merge of two ordered scans. The primary's interval and the target's interval advance together. An object present only on the target is removed, an object present only on the primary or with a different version is pushed, and last_backfill advances after each round](figures/ch35/f03_backfill.png){#fig-35-f03_backfill}
 
-# دستورها و عیب‌یابی {#sec-35-7}
+# Commands and troubleshooting {#sec-35-7}
 
-| دستور | کاربرد |
+| Command | Use |
 |---|---|
-| `ceph pg <pgid> query` | info همه‌ی اعضا، past_intervals، probing_osds، peering_blocked_by و recovery_progress |
-| `ceph pg ls recovering` / `backfilling` / `down` / `incomplete` | فهرست PGها بر اساس حالت |
-| `ceph pg <pgid> list_unfound` | اشیای unfound و OSDهایی که بررسی شده‌اند |
-| `ceph pg <pgid> mark_unfound_lost revert` یا `delete` | آخرین راه برای unfound؛ داده از دست می‌رود |
-| `ceph osd lost <id> --yes-i-really-mean-it` | اعلام از دست رفتن یک OSD تا peering منتظرش نماند |
-| `ceph-objectstore-tool --op log --pgid <pgid>` | log، dups و missing یک PG روی OSD خاموش |
-| `ceph-objectstore-tool --op export` / `import` | نجات یک PG از OSD معیوب |
-| `ceph daemon osd.N dump_recovery_reservations` | رزروها (فصل ۳۲) |
+| `ceph pg <pgid> query` | the info of all members, past_intervals, probing_osds, peering_blocked_by and recovery_progress |
+| `ceph pg ls recovering` / `backfilling` / `down` / `incomplete` | listing PGs by state |
+| `ceph pg <pgid> list_unfound` | unfound objects and the OSDs that have been checked |
+| `ceph pg <pgid> mark_unfound_lost revert` or `delete` | the last resort for unfound objects; data is lost |
+| `ceph osd lost <id> --yes-i-really-mean-it` | declaring an OSD lost so peering does not wait for it |
+| `ceph-objectstore-tool --op log --pgid <pgid>` | a PG's log, dups and missing set on a stopped OSD |
+| `ceph-objectstore-tool --op export` / `import` | rescuing a PG from a faulty OSD |
+| `ceph daemon osd.N dump_recovery_reservations` | reservations (chapter 32) |
 
 ```text
-مثال (بخشی از ceph pg 3.1f query در حین backfill):
+example (part of ceph pg 3.1f query during backfill):
 "info": { "last_update": "1470'2210", "last_complete": "1470'2210",
           "log_tail": "1468'710", "last_backfill": "MAX" },
 "peer_info": [ { "peer": "31", "last_update": "1470'2210",
@@ -274,47 +273,47 @@ send MOSDPGBackfill PROGRESS(last_backfill) ; at end FINISH (last_backfill = MAX
         "backfill_info": { "begin": "3:fa21c9e8:::rbd_data...0c1a:head", "end": "3:fa2a...", "objects": [ "..." ] } } } ]
 ```
 
-`last_backfill` هدف 31 یک hobject_t با کلید بیتی `fa21c9e8` است. چون بازه‌ی این PG در pg_num=32 از `f8000000` تا `ffffffff` است، با یک تقسیم ساده پیشرفت تقریبی به دست می‌آید: (0xfa21c9e8 − 0xf8000000) / 0x08000000 ≈ ٪۲۷.
+The `last_backfill` of target 31 is an hobject_t with the bitwise key `fa21c9e8`. Since this PG's range at pg_num=32 runs from `f8000000` to `ffffffff`, a simple division gives the approximate progress: (0xfa21c9e8 − 0xf8000000) / 0x08000000 ≈ 27%.
 
-## نشانه‌ها و راه‌حل‌ها {#sec-35-7-1}
+## Symptoms and remedies {#sec-35-7-1}
 
-- **PG در `peering` می‌ماند و `peering_blocked_by` دارد:** یک OSD که در interval نوشتنی عضو بوده down است. اول آن را برگردانید؛ `ceph osd lost` آخرین گزینه است.
-- **PG ‏`incomplete`:** هیچ عضو زنده‌ای log کامل تا `last_epoch_started` ندارد. پیش از `osd_find_best_info_ignore_history_les` یا `export` و `import` با ceph-objectstore-tool، از OSDها پشتیبان بگیرید.
-- **OSD پس از چند دقیقه خاموشی به backfill افتاد:** log کوتاه بوده است. تعداد PG هر OSD را بررسی کنید یا در تعمیرات برنامه‌ریزی‌شده زمان خاموشی را کوتاه‌تر کنید.
-- **log بلند و حافظه‌ی زیاد:** PGهای degraded طولانی جلوی trim را گرفته‌اند. recovery را تمام کنید.
+- **The PG stays in `peering` and has `peering_blocked_by`:** an OSD that was a member in an interval with writes is down. Bring it back first; `ceph osd lost` is the last option.
+- **The PG is `incomplete`:** no live member has a complete log up to `last_epoch_started`. Before using `osd_find_best_info_ignore_history_les` or `export` and `import` with ceph-objectstore-tool, back up the OSDs.
+- **An OSD fell back to backfill after a few minutes of downtime:** the log was short. Check the number of PGs per OSD, or keep the downtime shorter during planned maintenance.
+- **A long log and high memory use:** long-degraded PGs are preventing trimming. Finish the recovery.
 
-# تکمیلی و به‌روز {#sec-35-8}
+# Supplementary and up to date {#sec-35-8}
 
-- در شاخه‌ی main، پشتیبانی از نوشتن‌های جزئی EC (`written_shards` در pg_log_entry_t و `partial_writes_last_complete`) منطق divergent و backfill را برای EC پیچیده‌تر کرده است؛ برخی ورودی‌ها روی بعضی shardها اصلاً اعمال نشده‌اند و نباید آن‌ها را missing دانست.
-- `recover_pool_migration` و `migrating_pgs` در شاخه‌ی main برای مهاجرت داده میان poolها اضافه شده‌اند. پیش از استفاده بررسی کنید در نسخه‌ی شما وجود دارند یا نه.
-- Crimson منطق PeeringState را مستقیم به اشتراک می‌گذارد، ولی backfill را با یک ماشین حالت جدا (`crimson/osd/backfill_state.cc`) پیاده کرده است.
+- In the main branch, support for EC partial writes (`written_shards` in pg_log_entry_t and `partial_writes_last_complete`) has made the divergent and backfill logic more complex for EC; some entries were never applied on some shards and must not be considered missing.
+- `recover_pool_migration` and `migrating_pgs` have been added in the main branch for migrating data between pools. Before using them, check whether they exist in your version.
+- Crimson shares the PeeringState logic directly, but implements backfill with a separate state machine (`crimson/osd/backfill_state.cc`).
 
-# تمرین عملی {#sec-35-9}
+# Hands-on exercise {#sec-35-9}
 
-1. روی یک pool آزمایشی `min_size` را عوض کنید و در `ceph pg <pgid> query` تغییر `same_interval_since` را ببینید.
-2. یک OSD را `noout` و خاموش کنید، چند هزار نوشتن انجام دهید و با `osd_max_pg_log_entries` کوچک آزمایش کنید که پس از بازگشت، OSD با log برمی‌گردد یا backfill می‌شود.
-3. با `ceph-objectstore-tool --op log` روی یک OSD خاموش، فیلدهای `pg_missing` را پیدا کنید و `need` و `have` را با ورودی‌های log تطبیق دهید.
-4. در حین backfill، `last_backfill` هدف را چند بار بخوانید و درصد پیشرفت را با روش کلید بیتی تخمین بزنید.
+1. On a test pool, change `min_size` and watch `same_interval_since` change in `ceph pg <pgid> query`.
+2. Set `noout` and stop one OSD, perform a few thousand writes and, with a small `osd_max_pg_log_entries`, test whether the OSD comes back with the log or is backfilled after it returns.
+3. With `ceph-objectstore-tool --op log` on a stopped OSD, find the `pg_missing` fields and match `need` and `have` against the log entries.
+4. During backfill, read the target's `last_backfill` a few times and estimate the percentage of progress with the bitwise-key method.
 
-# پرسش‌های مرور {#sec-35-10}
+# Review questions {#sec-35-10}
 
-1. چه تغییرهایی در OSDMap یک interval تازه می‌سازند؟ سه مورد غیر از up و acting نام ببرید.
-2. `maybe_went_rw` در چه شرایطی true است؟
-3. چرا up_thru برای ایمنی peering لازم است؟
-4. چه زمانی PG ‏down می‌شود و `blocked_by` چه کسی را نشان می‌دهد؟
-5. merge_log وقتی log معتبر جلوتر است چه کار می‌کند؟
-6. ورودی divergent چیست و چرا برگرداندن آن ایمن است؟
-7. حالت‌های ۴ و ۵ رسیدگی به divergent چه فرقی دارند؟
-8. هدف طول log برای OSDی با ۶۰۰ PG با پیش‌فرض‌ها چقدر است؟
-9. چه شرطی تعیین می‌کند یک عضو backfill شود؟
-10. backfill چگونه تشخیص می‌دهد شیئی باید از هدف حذف شود؟
+1. What changes in the OSDMap create a new interval? Name three other than up and acting.
+2. Under what conditions is `maybe_went_rw` true?
+3. Why is up_thru necessary for the safety of peering?
+4. When does a PG go down, and whom does `blocked_by` point to?
+5. What does merge_log do when the authoritative log is ahead?
+6. What is a divergent entry, and why is rolling it back safe?
+7. How do cases 4 and 5 of divergent handling differ?
+8. What is the target log length for an OSD with 600 PGs under the defaults?
+9. What condition determines that a member is backfilled?
+10. How does backfill determine that an object must be removed from the target?
 
-# منابع این فصل {#sec-35-11}
+# Sources for this chapter {#sec-35-11}
 
-- osd_types.cc و osd_types.h (PastIntervals، PriorSet، pg_info_t، pg_missing_item): https://github.com/ceph/ceph/blob/main/src/osd/osd_types.cc
-- PGLog.cc و PGLog.h (merge_log، divergent): https://github.com/ceph/ceph/blob/main/src/osd/PGLog.h
-- PeeringState.cc (activate، calc_trim_to): https://github.com/ceph/ceph/blob/main/src/osd/PeeringState.cc
-- PrimaryLogPG.cc (start_recovery_ops، recover_backfill): https://github.com/ceph/ceph/blob/main/src/osd/PrimaryLogPG.cc
-- مستند توسعه‌دهنده درباره‌ی peering: https://docs.ceph.com/en/latest/dev/peering/
-- مستند توسعه‌دهنده درباره‌ی log-based PG: https://docs.ceph.com/en/latest/dev/osd_internals/log_based_pg/
-- عیب‌یابی PG: https://docs.ceph.com/en/latest/rados/troubleshooting/troubleshooting-pg/
+- osd_types.cc and osd_types.h (PastIntervals, PriorSet, pg_info_t, pg_missing_item): https://github.com/ceph/ceph/blob/main/src/osd/osd_types.cc
+- PGLog.cc and PGLog.h (merge_log, divergent): https://github.com/ceph/ceph/blob/main/src/osd/PGLog.h
+- PeeringState.cc (activate, calc_trim_to): https://github.com/ceph/ceph/blob/main/src/osd/PeeringState.cc
+- PrimaryLogPG.cc (start_recovery_ops, recover_backfill): https://github.com/ceph/ceph/blob/main/src/osd/PrimaryLogPG.cc
+- Developer documentation on peering: https://docs.ceph.com/en/latest/dev/peering/
+- Developer documentation on the log-based PG: https://docs.ceph.com/en/latest/dev/osd_internals/log_based_pg/
+- PG troubleshooting: https://docs.ceph.com/en/latest/rados/troubleshooting/troubleshooting-pg/
