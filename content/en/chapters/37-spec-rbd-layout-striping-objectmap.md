@@ -4,101 +4,100 @@ id: ch37
 title: 'Specialist Part (4): RBD — Layout on RADOS, Striping, Object Map and Fast-Diff, and the rbd Reference'
 part: specialist
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-37-1}
+# Before we begin {#sec-37-1}
 
-فصل ۲ نشان داد یک image قالب 2 چه اشیایی دارد و شناسه‌ی آن چگونه ساخته می‌شود (الگوریتم ۲-۱). این فصل همان چیدمان را کلید به کلید باز می‌کند: header یک image دقیقاً چه کلیدهای omap دارد، اشیای سطح pool (`rbd_directory`، `rbd_trash`، `rbd_mirroring`، `rbd_namespace` و دیگران) چه چیزی نگه می‌دارند، striping با `stripe_unit` و `stripe_count` آفست را چگونه به شیء می‌برد، object map بیت‌ها را چگونه بسته‌بندی و ذخیره می‌کند، و fast-diff چگونه بدون خواندن داده تغییرات میان دو snapshot را می‌یابد. فصل با مرجع کامل دستور `rbd` و `rbd-nbd` تمام می‌شود. نام‌ها با شاخه‌ی main مخزن ceph/ceph (نوامبر ۲۰۲۶) تطبیق داده شده‌اند.
+Chapter 2 showed which objects a format 2 image has and how its id is generated (algorithm 2-1). This chapter opens that same layout key by key: exactly which omap keys an image header has, what the pool-level objects (`rbd_directory`, `rbd_trash`, `rbd_mirroring`, `rbd_namespace` and others) hold, how striping with `stripe_unit` and `stripe_count` maps an offset to an object, how the object map packs and stores its bits, and how fast-diff finds the changes between two snapshots without reading data. The chapter ends with a complete reference for the `rbd` command and `rbd-nbd`. Names have been checked against the main branch of the ceph/ceph repository (November 2026).
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-37-1-1}
+## What questions does this chapter answer? {#sec-37-1-1}
 
-- header یک image چه کلیدهایی دارد و هر کدام چه کسی آن را می‌نویسد؟
-- نام شیء داده با data pool جدا چه فرقی می‌کند؟
-- با `stripe_unit=64K` و `stripe_count=4`، آفست 1000000 در کدام شیء است؟
-- object map هر شیء را با چند بیت نگه می‌دارد و بایت‌ها روی دیسک چه ترتیبی دارند؟
-- `EXISTS_CLEAN` چه معنایی دارد و چه زمانی تنظیم می‌شود؟
-- fast-diff از کدام حالت‌ها برای تشخیص تغییر استفاده می‌کند؟
-- pool و namespace و trash و گروه‌ها در RADOS چگونه نمایه می‌شوند؟
+- What keys does an image header have, and who writes each of them?
+- How does the data object name differ with a separate data pool?
+- With `stripe_unit=64K` and `stripe_count=4`, which object holds offset 1000000?
+- How many bits does the object map keep per object, and in what order are the bytes on disk?
+- What does `EXISTS_CLEAN` mean, and when is it set?
+- Which states does fast-diff use to detect a change?
+- How are pools, namespaces, the trash and groups indexed in RADOS?
 
-## پیش‌نیاز {#sec-37-1-2}
+## Prerequisites {#sec-37-1-2}
 
-فصل ۲ (RBD)، فصل ۱۵ (cls)، فصل ۳۴ و ۳۶ (omap، SnapContext و clone).
+Chapter 2 (RBD), chapter 15 (cls), chapters 34 and 36 (omap, SnapContext and clones).
 
-# اشیای یک image {#sec-37-2}
+# The objects of an image {#sec-37-2}
 
-## header {#sec-37-2-1}
+## The header {#sec-37-2-1}
 
-همه‌ی فراداده‌ی یک image قالب 2 در omap شیء `rbd_header.<id>` است و فقط از طریق متدهای کلاس `rbd` (`src/cls/rbd/cls_rbd.cc`) تغییر می‌کند:
+All the metadata of a format 2 image is in the omap of the object `rbd_header.<id>` and changes only through the methods of the `rbd` class (`src/cls/rbd/cls_rbd.cc`):
 
-| کلید omap | نوع | محتوا |
+| omap key | Type | Content |
 |---|---|---|
-| `size` | u64 | اندازه‌ی image به بایت |
-| `order` | u8 | لگاریتم دودویی اندازه‌ی شیء (22 یعنی 4 MiB) |
-| `object_prefix` | string | پیشوند اشیای داده، مثلاً `rbd_data.5f3a2b8c1d4e` |
-| `features` | u64 | بیت‌های ویژگی (جدول بعد) |
-| `flags` | u64 | `OBJECT_MAP_INVALID` ‏(1) و `FAST_DIFF_INVALID` ‏(2) |
-| `op_features` | u64 | ویژگی‌های عملیاتی مثل clone-parent، clone-child، group، snap-trash |
-| `snap_seq` | u64 | بزرگ‌ترین snap id ساخته‌شده برای این image |
-| `snapshot_<id:016x>` | cls_rbd_snap | نام، اندازه، parent، پرچم‌ها و namespace هر snapshot |
-| `snap_children_<id:016x>` | set | فرزندان clone قالب 2 روی آن snapshot |
-| `parent` | cls_rbd_parent | pool، namespace، image و snap والد و overlap (برای clone) |
-| `stripe_unit`، `stripe_count` | u64 | فقط اگر striping سفارشی باشد |
-| `data_pool_id` | s64 | فقط اگر data pool جدا باشد |
-| `create_timestamp`، `access_timestamp`، `modify_timestamp` | utime | زمان‌ها |
-| `snap_limit` | u64 | سقف تعداد snapshot |
-| `metadata_<key>` | string | متادیتای image؛ مثلاً `conf_rbd_cache` برای تنظیمات هر image |
-| `migration` | cls_rbd_migration | وضعیت مهاجرت زنده |
+| `size` | u64 | the image size in bytes |
+| `order` | u8 | the binary logarithm of the object size (22 means 4 MiB) |
+| `object_prefix` | string | the prefix of the data objects, for example `rbd_data.5f3a2b8c1d4e` |
+| `features` | u64 | the feature bits (next table) |
+| `flags` | u64 | `OBJECT_MAP_INVALID` (1) and `FAST_DIFF_INVALID` (2) |
+| `op_features` | u64 | operational features such as clone-parent, clone-child, group, snap-trash |
+| `snap_seq` | u64 | the largest snap id created for this image |
+| `snapshot_<id:016x>` | cls_rbd_snap | the name, size, parent, flags and namespace of each snapshot |
+| `snap_children_<id:016x>` | set | the format 2 clone children on that snapshot |
+| `parent` | cls_rbd_parent | the parent's pool, namespace, image and snap, and the overlap (for a clone) |
+| `stripe_unit`, `stripe_count` | u64 | only if striping is custom |
+| `data_pool_id` | s64 | only if there is a separate data pool |
+| `create_timestamp`, `access_timestamp`, `modify_timestamp` | utime | timestamps |
+| `snap_limit` | u64 | the cap on the number of snapshots |
+| `metadata_<key>` | string | image metadata; for example `conf_rbd_cache` for per-image settings |
+| `migration` | cls_rbd_migration | the live-migration state |
 
-افزون بر omap، xattr ‏`lock.rbd_lock` (کلاس `lock`) قفل مشورتی را نگه می‌دارد که ManagedLock برای exclusive-lock از آن استفاده می‌کند (فصل ۳۸). همین شیء header هدف watch همه‌ی کلاینت‌های باز آن image است.
+Besides the omap, the xattr `lock.rbd_lock` (the `lock` class) holds the advisory lock that ManagedLock uses for exclusive-lock (chapter 38). This same header object is the watch target of all clients that have the image open.
 
-| ویژگی | بیت | پیش‌فرض |
+| Feature | Bit | Default |
 |---|---|---|
-| `layering` | 1 | بله |
-| `striping` | 2 | فقط اگر stripe سفارشی باشد |
-| `exclusive-lock` | 4 | بله |
-| `object-map` | 8 | بله |
-| `fast-diff` | 16 | بله |
-| `deep-flatten` | 32 | بله |
-| `journaling` | 64 | خیر |
-| `data-pool` | 128 | فقط اگر `--data-pool` داده شود |
-| `operations` | 256 | داخلی |
-| `migrating` | 512 | داخلی |
-| `non-primary` | 1024 | داخلی، برای image مقصد mirror |
-| `dirty-cache` | 2048 | داخلی، برای cache پایدار PWL |
+| `layering` | 1 | yes |
+| `striping` | 2 | only if the stripe is custom |
+| `exclusive-lock` | 4 | yes |
+| `object-map` | 8 | yes |
+| `fast-diff` | 16 | yes |
+| `deep-flatten` | 32 | yes |
+| `journaling` | 64 | no |
+| `data-pool` | 128 | only if `--data-pool` is given |
+| `operations` | 256 | internal |
+| `migrating` | 512 | internal |
+| `non-primary` | 1024 | internal, for a mirror destination image |
+| `dirty-cache` | 2048 | internal, for the PWL persistent cache |
 
-مجموع پیش‌فرض (`rbd_default_features`) برابر 1+4+8+16+32 = 61 است.
+The default sum (`rbd_default_features`) is 1+4+8+16+32 = 61.
 
-## اشیای داده و object map {#sec-37-2-2}
+## Data objects and the object map {#sec-37-2-2}
 
-اشیای داده `<object_prefix>.<objectno:016x>` نام دارند. اگر image با `--data-pool` ساخته شود، header و فراداده در pool اصلی می‌مانند (که باید replicated باشد) و داده در pool دوم (اغلب EC با `allow_ec_overwrites`) نوشته می‌شود. در این حالت پیشوند شامل شناسه‌ی pool اصلی است: `rbd_data.<metadata-pool-id>.<image-id>`، تا اشیای imageهای چند pool مختلف در یک data pool مشترک با هم برخورد نکنند.
+Data objects are named `<object_prefix>.<objectno:016x>`. If the image is created with `--data-pool`, the header and metadata stay in the main pool (which must be replicated) and the data is written to the second pool (often EC with `allow_ec_overwrites`). In this case the prefix includes the main pool's id: `rbd_data.<metadata-pool-id>.<image-id>`, so that objects of images from several different pools do not collide in a shared data pool.
 
-object map در شیء `rbd_object_map.<id>` برای head و `rbd_object_map.<id>.<snapid:016x>` برای هر snapshot ذخیره می‌شود.
+The object map is stored in the object `rbd_object_map.<id>` for the head and `rbd_object_map.<id>.<snapid:016x>` for each snapshot.
 
-## اشیای سطح pool {#sec-37-2-3}
+## Pool-level objects {#sec-37-2-3}
 
-| شیء | omap یا داده | کاربرد |
+| Object | omap or data | Use |
 |---|---|---|
-| `rbd_id.<name>` | داده: شناسه‌ی image | یافتن id از نام |
-| `rbd_directory` | `name_<name>` → id و `id_<id>` → name | فهرست imageهای pool یا namespace |
-| `rbd_trash` | `id_<id>` → نام، زمان حذف، زمان مجاز بازگرداندن، منبع | imageهای در سطل زباله |
-| `rbd_children` | کلید: parent spec، مقدار: فرزندان | فقط برای clone قالب 1 |
-| `rbd_info` | omap ‏`conf_<option>` و نشانگر اعتبارسنجی pool | تنظیمات سطح pool (`rbd config pool set`) و نتیجه‌ی بررسی قابلیت overwrite در data pool |
-| `rbd_namespace` | `name_<ns>` | فهرست namespaceهای pool |
-| `rbd_mirroring` | `mirror_mode`، `mirror_uuid`، `mirror_peer_<uuid>`، `image_<id>`، `global_<gid>`، `status_global_<gid>`، `instance_<id>`، `image_map_<gid>` | وضعیت mirroring (فصل ۳۹) |
-| `rbd_group_directory` و `rbd_group_header.<id>` | omap | گروه‌های consistency |
-| `rbd_task` | omap | صف کارهای پس‌زمینه‌ی mgr (‏`rbd task add flatten` و مانند آن) |
+| `rbd_id.<name>` | data: the image id | finding the id from the name |
+| `rbd_directory` | `name_<name>` → id and `id_<id>` → name | the list of images in the pool or namespace |
+| `rbd_trash` | `id_<id>` → name, deletion time, earliest restore time, source | images in the trash |
+| `rbd_children` | key: parent spec, value: children | only for format 1 clones |
+| `rbd_info` | the omap `conf_<option>` and a pool validation marker | pool-level settings (`rbd config pool set`) and the result of checking overwrite support in the data pool |
+| `rbd_namespace` | `name_<ns>` | the list of the pool's namespaces |
+| `rbd_mirroring` | `mirror_mode`, `mirror_uuid`, `mirror_peer_<uuid>`, `image_<id>`, `global_<gid>`, `status_global_<gid>`, `instance_<id>`, `image_map_<gid>` | the mirroring state (chapter 39) |
+| `rbd_group_directory` and `rbd_group_header.<id>` | omap | consistency groups |
+| `rbd_task` | omap | the mgr's background task queue (`rbd task add flatten` and the like) |
 
-**namespace** در RBD همان namespace در RADOS است (فصل ۳۴). همه‌ی اشیای فهرست‌شده در بالا جداگانه در هر namespace ساخته می‌شوند. با cap ‏`profile rbd pool=P namespace=N` می‌توان یک کلاینت را به یک namespace محدود کرد، بی‌آنکه برای هر مستاجر pool جدا ساخت.
+A **namespace** in RBD is the same as a namespace in RADOS (chapter 34). All the objects listed above are created separately in each namespace. With the cap `profile rbd pool=P namespace=N` a client can be restricted to one namespace without creating a separate pool for each tenant.
 
 ```bash
-# مثال: خواندن مستقیم header (فقط برای بررسی؛ هرگز با rados تغییرش ندهید)
+# example: reading the header directly (for inspection only; never change it with rados)
 rados -p rbd listomapkeys rbd_header.5f3a2b8c1d4e
 rados -p rbd getomapval rbd_header.5f3a2b8c1d4e object_prefix
 ```
 
 ```text
-مثال (خروجی):
+example (output):
 access_timestamp
 create_timestamp
 features
@@ -114,15 +113,15 @@ value (25 bytes) :
 00000010  61 32 62 38 63 31 64 34  65                       |a2b8c1d4e|
 ```
 
-چهار بایت اول (`15 00 00 00` یعنی 21) طول رشته به‌صورت little-endian است؛ همه‌ی رشته‌ها در کدگذاری Ceph همین قالب را دارند.
+The first four bytes (`15 00 00 00`, that is 21) are the string length in little-endian; all strings in Ceph's encoding have this format.
 
-![چیدمان یک image با data pool جدا. pool فراداده‌ی replicated شامل rbd_id، rbd_directory، header و object mapهاست و pool داده‌ی EC اشیای rbd_data با پیشوند شناسه‌ی pool فراداده را دارد. کلاینت‌ها روی header ‏watch می‌کنند و قفل exclusive روی xattr همان header است](figures/ch37/f01_layout.png){#fig-37-f01_layout}
+![The layout of an image with a separate data pool. The replicated metadata pool holds rbd_id, rbd_directory, the header and the object maps, and the EC data pool holds the rbd_data objects prefixed with the metadata pool's id. Clients watch the header, and the exclusive lock is on an xattr of that same header](figures/ch37/f01_layout.png){#fig-37-f01_layout}
 
-# striping {#sec-37-3}
+# Striping {#sec-37-3}
 
-به‌طور پیش‌فرض `stripe_unit` برابر اندازه‌ی شیء و `stripe_count` برابر 1 است، پس image به‌سادگی به قطعه‌های پشت‌سرهم 4 MiB تقسیم می‌شود. با striping سفارشی، داده به‌صورت **round-robin** میان `stripe_count` شیء پخش می‌شود تا نوشتن‌های ترتیبی کوچک هم‌زمان به چند OSD بروند.
+By default `stripe_unit` equals the object size and `stripe_count` is 1, so the image is simply divided into consecutive 4 MiB pieces. With custom striping, data is spread **round-robin** across `stripe_count` objects, so that small sequential writes go to several OSDs at once.
 
-::: {.algo #alg-37-1 title="نگاشت آفست image به (شیء، آفست درون شیء)" src="src/osdc/Striper.cc :: Striper::file_to_extents" complexity="O(len / stripe_unit) قطعه"}
+::: {.algo #alg-37-1 title="Mapping an image offset to (object, offset within the object)" src="src/osdc/Striper.cc :: Striper::file_to_extents" complexity="O(len / stripe_unit) pieces"}
 :::
 
 ```text
@@ -141,9 +140,9 @@ while left > 0:
     emit (objectno, x_offset, x_len) ; cur += x_len ; left -= x_len
 ```
 
-**مثال عددی.** `object_size = 4 MiB`، `stripe_unit = 64 KiB`، `stripe_count = 4`، نوشتن 300000 بایت از آفست 1000000. هر شیء 64 stripe دارد و یک «object set» از ۴ شیء 16 MiB را می‌پوشاند.
+**Numerical example.** `object_size = 4 MiB`, `stripe_unit = 64 KiB`, `stripe_count = 4`, a write of 300000 bytes from offset 1000000. Each object has 64 stripes and one "object set" of 4 objects covers 16 MiB.
 
-| block | stripe | stripepos | شیء | آفست درون شیء | طول |
+| block | stripe | stripepos | object | offset within object | length |
 |---|---|---|---|---|---|
 | 15 | 3 | 3 | 3 | 213568 | 48576 |
 | 16 | 4 | 0 | 0 | 262144 | 65536 |
@@ -151,50 +150,50 @@ while left > 0:
 | 18 | 4 | 2 | 2 | 262144 | 65536 |
 | 19 | 4 | 3 | 3 | 262144 | 54816 |
 
-نوشتن 300 KB به هر چهار شیء می‌رسد. با striping پیش‌فرض همین نوشتن فقط شیء 0 را (آفست 1000000 تا 1300000) لمس می‌کرد. striping برای بار ترتیبی تک‌جریانی با عمق صف کم سودمند است، ولی برای بار تصادفی 4K فقط تعداد اشیای درگیر را زیاد می‌کند. krbd از نسخه‌ی 4.17 هسته striping سفارشی را پشتیبانی می‌کند (فصل ۲۹).
+The 300 KB write reaches all four objects. With default striping, the same write would touch only object 0 (offsets 1000000 to 1300000). Striping helps a single-stream sequential load with a low queue depth, but for a random 4K load it only increases the number of objects involved. krbd supports custom striping from kernel 4.17 (chapter 29).
 
-![striping با stripe_unit=64K و stripe_count=4. هر سطر یک stripe است و چهار ستون چهار شیء یک object set. بلوک‌های 15 تا 19 که نوشتن مثال را می‌سازند رنگی شده‌اند](figures/ch37/f02_striping.png){#fig-37-f02_striping}
+![Striping with stripe_unit=64K and stripe_count=4. Each row is a stripe and the four columns are the four objects of an object set. Blocks 15 to 19, which make up the example write, are colored](figures/ch37/f02_striping.png){#fig-37-f02_striping}
 
 ::: {.sim name="striping"}
 :::
 
-# object map {#sec-37-4}
+# The object map {#sec-37-4}
 
-## حالت‌ها و بسته‌بندی بیت {#sec-37-4-1}
+## States and bit packing {#sec-37-4-1}
 
-object map برای هر شیء ۲ بیت دارد (`BitVector<2>`):
+The object map has 2 bits per object (`BitVector<2>`):
 
-| مقدار | ثابت | معنی |
+| Value | Constant | Meaning |
 |---|---|---|
-| 0 | `OBJECT_NONEXISTENT` | شیء وجود ندارد؛ خواندن صفر برمی‌گرداند و نیازی به رفتن به OSD نیست |
-| 1 | `OBJECT_EXISTS` | شیء وجود دارد و از آخرین snapshot تغییر کرده است |
-| 2 | `OBJECT_PENDING` | حذف در جریان است (discard یا resize) |
-| 3 | `OBJECT_EXISTS_CLEAN` | شیء وجود دارد و از آخرین snapshot تغییر **نکرده** است |
+| 0 | `OBJECT_NONEXISTENT` | the object does not exist; a read returns zeros and there is no need to go to the OSD |
+| 1 | `OBJECT_EXISTS` | the object exists and has changed since the last snapshot |
+| 2 | `OBJECT_PENDING` | a deletion is in progress (discard or resize) |
+| 3 | `OBJECT_EXISTS_CLEAN` | the object exists and has **not** changed since the last snapshot |
 
-هر بایت چهار شیء را نگه می‌دارد و **شیء با شماره‌ی کوچک‌تر در بیت‌های بالاتر** است: `shift = (3 − objectno % 4) × 2`. کدگذاری روی دیسک سه بخش دارد: header (طول، نسخه و تعداد عناصر)، داده‌ی خام، و footer شامل crc32c ‏header و یک crc32c برای هر بلوک 4096 بایتی داده. پس به‌روزرسانی یک شیء فقط یک بلوک 4 KiB و crc آن را بازنویسی می‌کند (متد `object_map_update` در cls_rbd).
+Each byte holds four objects, and **the object with the lower number is in the higher bits**: `shift = (3 − objectno % 4) × 2`. The on-disk encoding has three parts: a header (length, version and element count), the raw data, and a footer containing the crc32c of the header and one crc32c for each 4096-byte block of data. So updating one object rewrites only one 4 KiB block and its crc (the `object_map_update` method in cls_rbd).
 
-![کدگذاری object map یک image ده‌گیگابایتی با اشیای 4 MiB (2560 شیء)، بایت به بایت. header هجده‌بایتی شامل طول، struct_v و compat و تعداد عناصر است؛ سپس 640 بایت داده که هر بایت چهار شیء را با دو بیت نگه می‌دارد و در پایان footer با crcها](figures/ch37/f03_objectmap.png){#fig-37-f03_objectmap}
+![The object map encoding of a ten-gigabyte image with 4 MiB objects (2560 objects), byte by byte. The eighteen-byte header contains the length, struct_v and compat, and the element count; then 640 bytes of data, each byte holding four objects with two bits each, and finally the footer with the crcs](figures/ch37/f03_objectmap.png){#fig-37-f03_objectmap}
 
-## چه کسی حالت را عوض می‌کند؟ {#sec-37-4-2}
+## Who changes the state? {#sec-37-4-2}
 
-- **نوشتن** روی شیئی که NONEXISTENT یا EXISTS_CLEAN است، **پیش از** ارسال نوشتن، object map را به EXISTS به‌روز می‌کند (اول در حافظه، سپس با `object_map_update` روی RADOS). اگر شیء از قبل EXISTS باشد، هیچ هزینه‌ای ندارد.
-- **discard یا حذف** ابتدا حالت را PENDING می‌کند، شیء را حذف می‌کند و سپس NONEXISTENT.
-- **گرفتن snapshot** نقشه‌ی head را در `rbd_object_map.<id>.<snapid>` کپی و سپس همه‌ی EXISTSهای head را به EXISTS_CLEAN تبدیل می‌کند (`object_map_snap_add` در cls_rbd).
-- **حذف snapshot** بیت‌های EXISTS نقشه‌ی آن snapshot را با نقشه‌ی snapshot بعدی (یا head) ادغام می‌کند تا اطلاعات «تغییر کرده» از دست نرود (`object_map_snap_remove`).
+- **A write** to an object that is NONEXISTENT or EXISTS_CLEAN updates the object map to EXISTS **before** the write is sent (first in memory, then with `object_map_update` on RADOS). If the object is already EXISTS, it costs nothing.
+- **A discard or deletion** first sets the state to PENDING, deletes the object, and then sets NONEXISTENT.
+- **Taking a snapshot** copies the head map to `rbd_object_map.<id>.<snapid>` and then turns all EXISTS entries of the head into EXISTS_CLEAN (`object_map_snap_add` in cls_rbd).
+- **Deleting a snapshot** merges the EXISTS bits of that snapshot's map into the map of the next snapshot (or the head), so the "changed" information is not lost (`object_map_snap_remove`).
 
-object map فقط با **exclusive-lock** معتبر است، چون فقط مالک قفل حق تغییر آن را دارد. اگر کلاینت در میانه‌ی به‌روزرسانی از کار بیفتد، پرچم `OBJECT_MAP_INVALID` در `flags` می‌نشیند و `rbd object-map rebuild` باید اجرا شود.
+The object map is valid only with **exclusive-lock**, because only the lock owner may change it. If the client fails in the middle of an update, the `OBJECT_MAP_INVALID` flag is set in `flags` and `rbd object-map rebuild` must be run.
 
 ## fast-diff {#sec-37-4-3}
 
-::: {.algo #alg-37-2 title="محاسبه‌ی وضعیت تغییر هر شیء میان دو snapshot" src="src/librbd/object_map/DiffRequest.cc :: DiffRequest::handle_load_object_map" complexity="O(N × S) برای N شیء و S نقشه‌ی بارشده؛ بدون هیچ خواندن داده"}
+::: {.algo #alg-37-2 title="Computing each object's change state between two snapshots" src="src/librbd/object_map/DiffRequest.cc :: DiffRequest::handle_load_object_map" complexity="O(N × S) for N objects and S loaded maps; with no data reads at all"}
 :::
 
 ```text
 pseudocode
-# برای هر snapshot از from_snap تا end_snap (و head)، نقشه‌ی آن بارگذاری و با وضعیت قبلی ترکیب می‌شود
+# for each snapshot from from_snap to end_snap (and head), its map is loaded and combined with the previous state
 first map (from_snap):  state[o] = HOLE if NONEXISTENT else DATA (PENDING → DATA_UPDATED)
 each later map m:
-    HOLE:         if m[o] != NONEXISTENT → DATA_UPDATED     (diff-iterate: فقط در نقشه‌ی پایانی)
+    HOLE:         if m[o] != NONEXISTENT → DATA_UPDATED     (diff-iterate: only in the final map)
     DATA:         if m[o] == NONEXISTENT → HOLE_UPDATED
                   elif m[o] != EXISTS_CLEAN → DATA_UPDATED
     HOLE_UPDATED: if m[o] != NONEXISTENT → DATA_UPDATED
@@ -202,55 +201,55 @@ each later map m:
 objects beyond the previous size (image grew) → HOLE or DATA_UPDATED
 ```
 
-نکته‌ی کلیدی EXISTS_CLEAN است: اگر شیئی در from_snap وجود داشته و در همه‌ی نقشه‌های بعدی EXISTS_CLEAN مانده، یعنی پس از from_snap نوشتنی نداشته است و در diff نمی‌آید. `rbd diff --whole-object`، `rbd du` و `rbd export-diff` (و حالت snapshot در rbd-mirror) همه از همین محاسبه استفاده می‌کنند. اگر `FAST_DIFF_INVALID` روشن باشد، librbd به `list_snaps` روی تک‌تک اشیا برمی‌گردد که بسیار کندتر است.
+The key point is EXISTS_CLEAN: if an object existed at from_snap and stayed EXISTS_CLEAN in all later maps, it had no writes after from_snap and does not appear in the diff. `rbd diff --whole-object`, `rbd du` and `rbd export-diff` (and snapshot mode in rbd-mirror) all use this calculation. If `FAST_DIFF_INVALID` is set, librbd falls back to `list_snaps` on each individual object, which is much slower.
 
-**مثال عددی.** image ‏10 GiB با 2560 شیء. پس از snap1، بیست شیء نوشته شده و سه شیء discard شده است. با fast-diff، `rbd export-diff --from-snap snap1` فقط دو نقشه‌ی 640 بایتی (و header و footer) می‌خواند و 23 شیء را پیدا می‌کند. بدون آن، 2560 فراخوانی `list_snaps` لازم بود.
+**Numerical example.** A 10 GiB image with 2560 objects. After snap1, twenty objects have been written and three have been discarded. With fast-diff, `rbd export-diff --from-snap snap1` reads only two 640-byte maps (plus header and footer) and finds the 23 objects. Without it, 2560 `list_snaps` calls would be needed.
 
-# مرجع rbd {#sec-37-5}
+# rbd reference {#sec-37-5}
 
-## image و snapshot {#sec-37-5-1}
+## Images and snapshots {#sec-37-5-1}
 
-| دستور | کاربرد |
+| Command | Use |
 |---|---|
-| `rbd create P/I --size 10G [--object-size 4M] [--stripe-unit 64K --stripe-count 4] [--data-pool DP] [--image-feature F]` | ساخت image |
-| `rbd ls [-l] P[/NS]` / `rbd info P/I` / `rbd status P/I` | فهرست، جزئیات، watcherها |
-| `rbd resize P/I --size N [--allow-shrink]` | تغییر اندازه |
-| `rbd feature {enable,disable} P/I F` | روشن و خاموش کردن ویژگی |
-| `rbd object-map {rebuild,check} P/I[@S]` | بازسازی و بررسی object map |
-| `rbd du P/I` / `rbd diff [--from-snap S] [--whole-object] P/I` | مصرف و تغییرات |
-| `rbd snap {create,ls,rm,purge,rollback,rename,limit set}` | snapshot |
-| `rbd snap {protect,unprotect} P/I@S` | فقط برای clone قالب 1 |
-| `rbd clone P/I@S P2/C [--rbd-default-clone-format 2]` / `rbd children P/I@S` / `rbd flatten P2/C` | layering (فصل ۳۸) |
-| `rbd export P/I FILE` / `import` / `export-diff` / `import-diff` / `merge-diff` | پشتیبان |
-| `rbd deep cp P/I P2/I2` / `rbd cp` | کپی (deep با snapshotها) |
-| `rbd trash {mv,ls,restore,rm,purge}` | سطل زباله |
-| `rbd migration {prepare,execute,commit,abort}` | مهاجرت زنده |
-| `rbd image-meta {list,get,set,remove} P/I` | متادیتا و تنظیمات هر image |
-| `rbd config {pool,image,global} {get,set,list}` | تنظیمات سطح pool یا image |
-| `rbd namespace {create,ls,remove} P/NS` | namespace |
-| `rbd group {create,image add,snap create}` | گروه consistency |
-| `rbd lock {ls,add,rm}` | قفل مشورتی (نه exclusive-lock) |
-| `rbd bench P/I --io-type {read,write,readwrite} --io-size 4K --io-threads 16 --io-pattern rand` | آزمون کارایی |
-| `rbd perf image {iostat,iotop}` | آمار زنده از mgr |
-| `rbd pool init P` / `rbd pool stats P` | آماده‌سازی و آمار pool |
+| `rbd create P/I --size 10G [--object-size 4M] [--stripe-unit 64K --stripe-count 4] [--data-pool DP] [--image-feature F]` | creating an image |
+| `rbd ls [-l] P[/NS]` / `rbd info P/I` / `rbd status P/I` | listing, details, watchers |
+| `rbd resize P/I --size N [--allow-shrink]` | resizing |
+| `rbd feature {enable,disable} P/I F` | turning a feature on and off |
+| `rbd object-map {rebuild,check} P/I[@S]` | rebuilding and checking the object map |
+| `rbd du P/I` / `rbd diff [--from-snap S] [--whole-object] P/I` | usage and changes |
+| `rbd snap {create,ls,rm,purge,rollback,rename,limit set}` | snapshots |
+| `rbd snap {protect,unprotect} P/I@S` | only for format 1 clones |
+| `rbd clone P/I@S P2/C [--rbd-default-clone-format 2]` / `rbd children P/I@S` / `rbd flatten P2/C` | layering (chapter 38) |
+| `rbd export P/I FILE` / `import` / `export-diff` / `import-diff` / `merge-diff` | backup |
+| `rbd deep cp P/I P2/I2` / `rbd cp` | copying (deep, with snapshots) |
+| `rbd trash {mv,ls,restore,rm,purge}` | the trash |
+| `rbd migration {prepare,execute,commit,abort}` | live migration |
+| `rbd image-meta {list,get,set,remove} P/I` | per-image metadata and settings |
+| `rbd config {pool,image,global} {get,set,list}` | pool-level or image-level settings |
+| `rbd namespace {create,ls,remove} P/NS` | namespaces |
+| `rbd group {create,image add,snap create}` | consistency groups |
+| `rbd lock {ls,add,rm}` | advisory locks (not exclusive-lock) |
+| `rbd bench P/I --io-type {read,write,readwrite} --io-size 4K --io-threads 16 --io-pattern rand` | performance testing |
+| `rbd perf image {iostat,iotop}` | live statistics from the mgr |
+| `rbd pool init P` / `rbd pool stats P` | preparing a pool and its statistics |
 
-## map کردن {#sec-37-5-2}
+## Mapping {#sec-37-5-2}
 
-| دستور | کاربرد |
+| Command | Use |
 |---|---|
 | `rbd device map [-t krbd] P/I [-o OPTS]` / `rbd device unmap` / `rbd device list` | krbd |
-| `rbd device map -t nbd P/I` یا `rbd-nbd map P/I [--try-netlink] [--timeout N]` | rbd-nbd (librbd در فضای کاربر) |
-| `rbd-nbd list-mapped` / `rbd-nbd unmap /dev/nbdX` | فهرست و قطع |
-| `rbd device map -t ubbd P/I` | ubbd، اگر بسته‌ی آن نصب باشد |
+| `rbd device map -t nbd P/I` or `rbd-nbd map P/I [--try-netlink] [--timeout N]` | rbd-nbd (librbd in user space) |
+| `rbd-nbd list-mapped` / `rbd-nbd unmap /dev/nbdX` | listing and unmapping |
+| `rbd device map -t ubbd P/I` | ubbd, if its package is installed |
 
 ```bash
-# مثال: ساخت image با striping و data pool، و بررسی آن
+# example: creating an image with striping and a data pool, and inspecting it
 rbd create rbd/vm01 --size 10G --stripe-unit 64K --stripe-count 4 --data-pool rbd-ec
 rbd info rbd/vm01
 ```
 
 ```text
-مثال (خروجی):
+example (output):
 rbd image 'vm01':
 	size 10 GiB in 2560 objects
 	order 22 (4 MiB objects)
@@ -269,49 +268,49 @@ rbd image 'vm01':
 	stripe count: 4
 ```
 
-`block_name_prefix` همان `object_prefix` است و عدد 3 در آن شناسه‌ی pool ‏`rbd` است، چون data pool جدا داریم.
+`block_name_prefix` is the `object_prefix`, and the number 3 in it is the id of the `rbd` pool, because we have a separate data pool.
 
-# تنظیم و عیب‌یابی {#sec-37-6}
+# Tuning and troubleshooting {#sec-37-6}
 
-- **کندی نخستین نوشتن روی image تازه:** هر نخستین نوشتن روی یک شیء یک `object_map_update` هم دارد. پس از پر شدن image این هزینه از بین می‌رود. برای آزمون کارایی، image را اول پر کنید.
-- **`rbd du` یا export-diff کند است:** `rbd info` را ببینید؛ اگر `flags: object map invalid, fast diff invalid` است، `rbd object-map rebuild` اجرا کنید (روی snapshotها هم جداگانه).
-- **image با `--data-pool` روی EC ساخته نمی‌شود:** `allow_ec_overwrites` روی pool ‏EC و اجرای `rbd pool init` روی هر دو pool را بررسی کنید.
-- **حذف image بزرگ کند است:** حذف به تعداد اشیای **موجود** وابسته است؛ با object map فقط اشیای موجود حذف می‌شوند. برای کارهای بلند از `rbd trash mv` و سپس `rbd trash rm` یا `ceph rbd task add remove` استفاده کنید.
-- **هرگز header را با `rados setomapval` تغییر ندهید:** cls_rbd ناسازگاری‌ها را بررسی می‌کند ولی کلاینت‌های باز از تغییر خبر نمی‌گیرند (هیچ notify فرستاده نمی‌شود).
+- **Slow first writes on a new image:** each first write to an object also involves an `object_map_update`. Once the image is filled, this cost disappears. For performance testing, fill the image first.
+- **`rbd du` or export-diff is slow:** look at `rbd info`; if it shows `flags: object map invalid, fast diff invalid`, run `rbd object-map rebuild` (separately on the snapshots too).
+- **An image with `--data-pool` on EC cannot be created:** check `allow_ec_overwrites` on the EC pool and that `rbd pool init` has been run on both pools.
+- **Deleting a large image is slow:** deletion depends on the number of **existing** objects; with the object map only existing objects are deleted. For long jobs use `rbd trash mv` followed by `rbd trash rm` or `ceph rbd task add remove`.
+- **Never change the header with `rados setomapval`:** cls_rbd checks for inconsistencies, but open clients are not told about the change (no notify is sent).
 
-# تکمیلی و به‌روز {#sec-37-7}
+# Supplementary and up to date {#sec-37-7}
 
-- clone قالب 2 (پیش‌فرض `rbd_default_clone_format: auto`، که اگر همه‌ی کلاینت‌ها Mimic یا جدیدتر باشند قالب 2 را برمی‌گزیند) به protect نیازی ندارد و فرزندان را در `snap_children_*` همان header والد نگه می‌دارد.
-- مقدار `op_features` در نسخه‌های جدید بیت‌هایی برای snapshot در trash و گروه‌ها دارد؛ کلاینت قدیمی که op_feature ناشناخته ببیند، image را باز نمی‌کند.
-- در شاخه‌ی main، `rbd-nbd` با netlink و `--try-netlink` پایدارتر از روش ioctl است؛ پشتیبانی از ubbd به بسته‌بندی توزیع وابسته است.
+- Format 2 clones (the default `rbd_default_clone_format: auto` chooses format 2 if all clients are Mimic or newer) do not need protect and keep the children in `snap_children_*` of the parent's own header.
+- The `op_features` value in new versions has bits for snapshots in the trash and for groups; an old client that sees an unknown op_feature does not open the image.
+- In the main branch, `rbd-nbd` with netlink and `--try-netlink` is more stable than the ioctl method; ubbd support depends on the distribution's packaging.
 
-# تمرین عملی {#sec-37-8}
+# Hands-on exercise {#sec-37-8}
 
-1. یک image بسازید و با `rados listomapkeys` و `getomapval` همه‌ی کلیدهای header را بخوانید. سپس یک snapshot بگیرید و کلید تازه را پیدا کنید.
-2. یک image با `--stripe-unit 64K --stripe-count 4` بسازید، 300000 بایت در آفست 1000000 بنویسید (`rbd bench` یا `dd` روی rbd-nbd) و با `rados ls | grep` ببینید کدام اشیا ساخته شدند. با جدول مثال مقایسه کنید.
-3. `rados get rbd_object_map.<id> /tmp/om` بگیرید و با `xxd` چهار بایت اول داده (پس از header هجده‌بایتی) را با حالت اشیای 0 تا 15 تطبیق دهید.
-4. پس از یک snapshot، چند شیء بنویسید و `rbd diff --from-snap` را با و بدون fast-diff (پس از `rbd feature disable ... fast-diff`) زمان‌گیری کنید.
+1. Create an image and read all the header keys with `rados listomapkeys` and `getomapval`. Then take a snapshot and find the new key.
+2. Create an image with `--stripe-unit 64K --stripe-count 4`, write 300000 bytes at offset 1000000 (`rbd bench` or `dd` on rbd-nbd) and see with `rados ls | grep` which objects were created. Compare with the example table.
+3. Take `rados get rbd_object_map.<id> /tmp/om` and with `xxd` match the first four data bytes (after the eighteen-byte header) against the states of objects 0 to 15.
+4. After a snapshot, write a few objects and time `rbd diff --from-snap` with and without fast-diff (after `rbd feature disable ... fast-diff`).
 
-# پرسش‌های مرور {#sec-37-9}
+# Review questions {#sec-37-9}
 
-1. کدام کلیدهای header برای ساختن نام اشیای داده لازم‌اند؟
-2. با data pool جدا، نام اشیای داده چه تغییری می‌کند و چرا؟
-3. `rbd_directory` چه دو نوع کلیدی دارد؟
-4. در مثال striping، بایت آفست 1100000 در کدام شیء و کدام آفست است؟
-5. object map هر شیء را با چند بیت نگه می‌دارد و شیء 0 در کدام بیت‌های بایت اول است؟
-6. چرا footer object map برای هر بلوک 4 KiB یک crc جدا دارد؟
-7. EXISTS_CLEAN چه زمانی تنظیم و چه زمانی پاک می‌شود؟
-8. در fast-diff اگر شیء در from_snap ‏DATA و در head ‏EXISTS باشد، نتیجه چیست؟
-9. چرا object map به exclusive-lock وابسته است؟
-10. namespace در RBD چگونه پیاده شده و چه مزیتی دارد؟
+1. Which header keys are needed to build the names of the data objects?
+2. With a separate data pool, how do the data object names change, and why?
+3. What two kinds of key does `rbd_directory` have?
+4. In the striping example, which object and which offset hold the byte at offset 1100000?
+5. How many bits does the object map keep per object, and in which bits of the first byte is object 0?
+6. Why does the object map footer have a separate crc for each 4 KiB block?
+7. When is EXISTS_CLEAN set and when is it cleared?
+8. In fast-diff, if an object is DATA at from_snap and EXISTS in the head, what is the result?
+9. Why does the object map depend on exclusive-lock?
+10. How is a namespace implemented in RBD, and what advantage does it have?
 
-# منابع این فصل {#sec-37-10}
+# Sources for this chapter {#sec-37-10}
 
 - cls_rbd.cc: https://github.com/ceph/ceph/blob/main/src/cls/rbd/cls_rbd.cc
-- rbd_types.h و features.h: https://github.com/ceph/ceph/blob/main/src/include/rbd/features.h
+- rbd_types.h and features.h: https://github.com/ceph/ceph/blob/main/src/include/rbd/features.h
 - Striper.cc: https://github.com/ceph/ceph/blob/main/src/osdc/Striper.cc
 - bit_vector.hpp: https://github.com/ceph/ceph/blob/main/src/common/bit_vector.hpp
 - librbd/object_map/DiffRequest.cc: https://github.com/ceph/ceph/blob/main/src/librbd/object_map/DiffRequest.cc
-- مستند RBD layering و striping: https://docs.ceph.com/en/latest/dev/rbd-layering/
-- مرجع دستور rbd: https://docs.ceph.com/en/latest/man/8/rbd/
-- مرجع rbd-nbd: https://docs.ceph.com/en/latest/man/8/rbd-nbd/
+- RBD layering and striping documentation: https://docs.ceph.com/en/latest/dev/rbd-layering/
+- rbd command reference: https://docs.ceph.com/en/latest/man/8/rbd/
+- rbd-nbd reference: https://docs.ceph.com/en/latest/man/8/rbd-nbd/
