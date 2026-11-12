@@ -4,93 +4,92 @@ id: ch36
 title: 'Specialist Part (3): RADOS — Snapshots and Clones, Watch/Notify, OSD-Side cls, and the rados and pool Reference'
 part: specialist
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-36-1}
+# Before we begin {#sec-36-1}
 
-snapshot در RADOS پایه‌ی snapshot در RBD و CephFS است، watch/notify پایه‌ی هماهنگی میان کلاینت‌های RBD و RGW، و کلاس‌های شیء (cls) پایه‌ی بیشتر فراداده‌ی RBD و RGW. فصل ۱۴ این سازوکارها را از دید librados و فصل ۱۵ نوشتن یک کلاس را نشان داد. این فصل همان‌ها را **درون OSD** دنبال می‌کند: SnapSet چگونه تغییر می‌کند، clone چه زمانی ساخته می‌شود، خواندن از snapshot به کدام clone می‌رسد، snaptrim چگونه فضا را آزاد می‌کند، watch و notify چه حالتی در OSD دارند و فراخوانی کلاس چگونه درون همان تراکنش op اجرا می‌شود. فصل با مرجع کامل `rados` و `ceph osd pool` تمام می‌شود.
+Snapshots in RADOS are the basis of snapshots in RBD and CephFS, watch/notify is the basis of coordination between RBD and RGW clients, and object classes (cls) are the basis of most RBD and RGW metadata. Chapter 14 showed these mechanisms from the librados side and chapter 15 showed how to write a class. This chapter follows the same mechanisms **inside the OSD**: how the SnapSet changes, when a clone is created, which clone a read from a snapshot reaches, how snaptrim frees space, what state watch and notify have in the OSD, and how a class call runs inside the same op transaction. The chapter ends with a complete reference for `rados` and `ceph osd pool`.
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-36-1-1}
+## What questions does this chapter answer? {#sec-36-1-1}
 
-- snapshot نوع pool و self-managed چه فرقی دارند و چرا نمی‌توان هر دو را روی یک pool داشت؟
-- SnapContext چیست و چه کسی آن را می‌فرستد؟
-- `make_writeable` چه زمانی clone می‌سازد و `clone_overlap` چه چیزی را نشان می‌دهد؟
-- خواندن از snap شماره‌ی ۵ به کدام clone می‌رسد؟
-- snaptrim پس از حذف snapshot چه می‌کند و SnapMapper چه کلیدهایی دارد؟
-- watch در OSD چه زمانی منقضی می‌شود و notify کی کامل می‌شود؟
-- فراخوانی cls چگونه با بقیه‌ی opهای یک پیام در یک تراکنش اتمی می‌نشیند؟
+- How do pool snapshots and self-managed snapshots differ, and why can a pool not have both?
+- What is a SnapContext, and who sends it?
+- When does `make_writeable` create a clone, and what does `clone_overlap` show?
+- Which clone does a read from snap number 5 reach?
+- What does snaptrim do after a snapshot is deleted, and what keys does the SnapMapper have?
+- When does a watch expire in the OSD, and when does a notify complete?
+- How does a cls call sit in one atomic transaction with the rest of the ops in a message?
 
-## پیش‌نیاز {#sec-36-1-2}
+## Prerequisites {#sec-36-1-2}
 
-فصل ۱۴ (librados، watch/notify)، فصل ۱۵ (cls)، فصل ۳۴ (object_info_t، SnapSet، مسیر op).
+Chapter 14 (librados, watch/notify), chapter 15 (cls), chapter 34 (object_info_t, SnapSet, the op path).
 
-# دو نوع snapshot {#sec-36-2}
+# Two kinds of snapshot {#sec-36-2}
 
 | | pool snapshot | self-managed snapshot |
 |---|---|---|
-| ایجاد | `ceph osd pool mksnap` یا `rados mksnap` | `selfmanaged_snap_create` در librados (RBD و CephFS) |
-| SnapContext | OSD از روی pool می‌سازد (همه‌ی snapهای pool) | کلاینت در هر نوشتن می‌فرستد |
-| دامنه | همه‌ی اشیای pool | فقط اشیایی که کلاینت با آن SnapContext می‌نویسد |
-| پرچم pool | `FLAG_POOL_SNAPS` (`pool_snaps`) | `FLAG_SELFMANAGED_SNAPS` (`selfmanaged_snaps`) |
+| Creation | `ceph osd pool mksnap` or `rados mksnap` | `selfmanaged_snap_create` in librados (RBD and CephFS) |
+| SnapContext | built by the OSD from the pool (all of the pool's snaps) | sent by the client with each write |
+| Scope | all objects in the pool | only the objects the client writes with that SnapContext |
+| Pool flag | `FLAG_POOL_SNAPS` (`pool_snaps`) | `FLAG_SELFMANAGED_SNAPS` (`selfmanaged_snaps`) |
 
-هر دو نوع از یک شمارنده‌ی `snap_seq` در pool شماره می‌گیرند. اگر هر دو روی یک pool فعال باشند، مالکیت شماره‌ها نامعلوم می‌شود. به همین دلیل mon پس از اولین استفاده از یک نوع، نوع دیگر را رد می‌کند. pool‌ی که RBD از آن استفاده می‌کند نباید pool snapshot داشته باشد.
+Both kinds take their numbers from one `snap_seq` counter in the pool. If both were active on one pool, the ownership of the numbers would become unclear. For this reason, after the first use of one kind, the mon rejects the other. A pool that RBD uses must not have pool snapshots.
 
-**SnapContext** دو چیز دارد: `seq` (بزرگ‌ترین شماره‌ی snapshot که نویسنده از آن خبر دارد) و `snaps` (فهرست snapshotهای زنده، به ترتیب نزولی). RBD آن را در header تصویر نگه می‌دارد و librbd در هر نوشتن روی اشیای داده آن را می‌فرستد (فصل ۳۷).
+A **SnapContext** has two parts: `seq` (the largest snapshot number the writer knows about) and `snaps` (the list of live snapshots, in descending order). RBD keeps it in the image header and librbd sends it with every write to the data objects (chapter 37).
 
-# SnapSet و clone {#sec-36-3}
+# SnapSet and clones {#sec-36-3}
 
-## فیلدهای SnapSet {#sec-36-3-1}
+## The fields of SnapSet {#sec-36-3-1}
 
-`SnapSet` در xattr ‏`snapset` روی شیء head (فصل ۳۴) ذخیره می‌شود:
+The `SnapSet` is stored in the `snapset` xattr on the head object (chapter 34):
 
-| فیلد | معنی |
+| Field | Meaning |
 |---|---|
-| `seq` | بزرگ‌ترین seq از SnapContextهایی که این شیء دیده است |
-| `clones` | شماره‌ی cloneها به ترتیب صعودی؛ هر clone با شماره‌ی بزرگ‌ترین snap خود نام می‌گیرد |
-| `clone_snaps` | برای هر clone، snapهایی که این clone نماینده‌ی آن‌هاست (نزولی) |
-| `clone_size` | اندازه‌ی هر clone |
-| `clone_overlap` | بازه‌هایی از هر clone که هنوز با clone جدیدتر (یا head) یکسان است |
+| `seq` | the largest seq among the SnapContexts this object has seen |
+| `clones` | the clone numbers in ascending order; each clone is named after its largest snap |
+| `clone_snaps` | for each clone, the snaps this clone represents (descending) |
+| `clone_size` | the size of each clone |
+| `clone_overlap` | the ranges of each clone that are still identical to the newer clone (or head) |
 
-clone خودش یک شیء RADOS با همان نام و hash ولی `snap` برابر شماره‌ی clone است. در BlueStore این clone با **کپی منطقی** (clone کردن extentها با شمارنده‌ی ارجاع در shared blob، فصل ۲۴) ساخته می‌شود، پس ساختن آن ارزان است و فقط بخش‌هایی که بعداً بازنویسی می‌شوند فضای تازه می‌گیرند.
+A clone is itself a RADOS object with the same name and hash but with `snap` equal to the clone number. In BlueStore the clone is created by a **logical copy** (cloning the extents with a reference count in the shared blob, chapter 24), so creating it is cheap, and only the parts that are later overwritten take new space.
 
-## ساختن clone هنگام نوشتن {#sec-36-3-2}
+## Creating a clone on write {#sec-36-3-2}
 
-::: {.algo #alg-36-1 title="make_writeable: ساختن clone پیش از نخستین نوشتن پس از snapshot" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::make_writeable، _make_clone" complexity="O(s) برای s snap جدید؛ clone در BlueStore بدون کپی داده"}
+::: {.algo #alg-36-1 title="make_writeable: creating a clone before the first write after a snapshot" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::make_writeable, _make_clone" complexity="O(s) for s new snaps; the clone in BlueStore copies no data"}
 :::
 
 ```text
 pseudocode
 make_writeable(ctx, snapc):
-    if snapc.seq < snapset.seq: use snapset's newer context        # کلاینت قدیمی
+    if snapc.seq < snapset.seq: use snapset's newer context        # an old client
     if head exists and not whiteout and snapc.snaps not empty
-       and snapc.snaps[0] > snapset.seq:                           # snap تازه از آخرین نوشتن
-        snaps = [s in snapc.snaps where s > snapset.seq]           # نزولی
+       and snapc.snaps[0] > snapset.seq:                           # a new snap since the last write
+        snaps = [s in snapc.snaps where s > snapset.seq]           # descending
         coid = head with snap = snapc.seq
-        _make_clone(head → coid)                                   # clone در ObjectStore
+        _make_clone(head → coid)                                   # clone in the ObjectStore
         snapset.clones.push_back(coid.snap)
         snapset.clone_snaps[coid.snap] = snaps
         snapset.clone_size[coid.snap]  = head.size
         snapset.clone_overlap[coid.snap] = [0, head.size)
         log CLONE entry ; at_version.version++
     if snapset.clones not empty:
-        clone_overlap[newest clone] -= modified_ranges(ctx)        # بخش بازنویسی‌شده دیگر مشترک نیست
+        clone_overlap[newest clone] -= modified_ranges(ctx)        # the overwritten part is no longer shared
     snapset.seq = max(snapset.seq, snapc.seq)
 ```
 
-**مثال عددی.** شیء `rbd_data.5f3a.0000000000000000` با اندازه‌ی 4 MiB است و `snapset.seq = 0`.
+**Numerical example.** The object `rbd_data.5f3a.0000000000000000` is 4 MiB in size and `snapset.seq = 0`.
 
-1. snapshot شماره‌ی 4 گرفته می‌شود. librbd با SnapContext ‏`{seq: 4, snaps: [4]}` بازه‌ی `[0, 64K)` را می‌نویسد. چون 4 > 0، clone ‏`@4` ساخته می‌شود: `clone_snaps[4] = [4]`، `clone_size[4] = 4 MiB` و پس از نوشتن `clone_overlap[4] = [64K, 4M)`. ‏`seq` برابر 4 می‌شود.
-2. snapshotهای 5 و 6 گرفته می‌شوند. نوشتن `[1M, 1M+64K)` با `{seq: 6, snaps: [6,5,4]}` می‌آید. چون 6 > 4، clone ‏`@6` با `clone_snaps[6] = [6,5]` ساخته می‌شود و `clone_overlap[6] = [0,1M) ∪ [1M+64K, 4M)`.
-3. نوشتن بعدی با همان SnapContext دیگر clone نمی‌سازد (6 > 6 نیست) و فقط `clone_overlap[6]` را کوچک‌تر می‌کند.
+1. Snapshot number 4 is taken. librbd writes the range `[0, 64K)` with the SnapContext `{seq: 4, snaps: [4]}`. Since 4 > 0, the clone `@4` is created: `clone_snaps[4] = [4]`, `clone_size[4] = 4 MiB` and after the write `clone_overlap[4] = [64K, 4M)`. `seq` becomes 4.
+2. Snapshots 5 and 6 are taken. A write of `[1M, 1M+64K)` arrives with `{seq: 6, snaps: [6,5,4]}`. Since 6 > 4, the clone `@6` is created with `clone_snaps[6] = [6,5]` and `clone_overlap[6] = [0,1M) ∪ [1M+64K, 4M)`.
+3. The next write with the same SnapContext no longer creates a clone (6 is not > 6) and only shrinks `clone_overlap[6]`.
 
-فضای واقعی clone ‏`@4` برابر بخشی است که در head یا cloneهای جدیدتر بازنویسی شده، یعنی 4M منهای اندازه‌ی `clone_overlap[4]`؛ در این مثال 64 KiB. `ceph df` و `rbd du` همین حساب را انجام می‌دهند.
+The real space used by clone `@4` is the part that has been overwritten in the head or in newer clones, that is, 4M minus the size of `clone_overlap[4]`; in this example 64 KiB. `ceph df` and `rbd du` do the same calculation.
 
-![تحول SnapSet یک شیء در سه گام. هر نخستین نوشتن پس از یک یا چند snapshot تازه یک clone با نام بزرگ‌ترین snap جدید می‌سازد. clone_snaps نشان می‌دهد هر clone نماینده‌ی کدام snapهاست و clone_overlap بخش‌هایی را که هنوز با نسخه‌ی جدیدتر مشترک‌اند](figures/ch36/f01_snapset.png){#fig-36-f01_snapset}
+![The evolution of an object's SnapSet in three steps. Each first write after one or more new snapshots creates a clone named after the largest new snap. clone_snaps shows which snaps each clone represents, and clone_overlap shows the parts still shared with the newer version](figures/ch36/f01_snapset.png){#fig-36-f01_snapset}
 
-## خواندن از snapshot {#sec-36-3-3}
+## Reading from a snapshot {#sec-36-3-3}
 
-::: {.algo #alg-36-2 title="نگاشت snapid به clone هنگام خواندن" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::find_object_context" complexity="O(c) برای c clone (پیمایش خطی clones)"}
+::: {.algo #alg-36-2 title="Mapping a snapid to a clone on read" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::find_object_context" complexity="O(c) for c clones (a linear scan of clones)"}
 :::
 
 ```text
@@ -98,53 +97,53 @@ pseudocode
 find_object_context(oid with snap = s):
     if s == NOSNAP: return head
     ss = snapset of head
-    if s > ss.seq: return head                         # شیء پس از s تغییر نکرده
+    if s > ss.seq: return head                         # the object has not changed since s
     k = first index with ss.clones[k] >= s
-    if none: ENOENT                                    # شیء پس از s ساخته شده است
+    if none: ENOENT                                    # the object was created after s
     clone = ss.clones[k]
     if clone is missing: EAGAIN (wait for recovery)
-    if s not in ss.clone_snaps[clone]: ENOENT          # در زمان s شیء وجود نداشت
-    if s in removed_snaps_queue of pool: ENOENT        # snap در حال حذف
+    if s not in ss.clone_snaps[clone]: ENOENT          # the object did not exist at s
+    if s in removed_snaps_queue of pool: ENOENT        # the snap is being deleted
     return clone
 ```
 
-در مثال بالا: خواندن در snap 5 به `clones = [4, 6]` می‌رسد. اولین clone ‏≥ 5 ‏`@6` است و 5 در `clone_snaps[6] = [6,5]` هست، پس `@6` خوانده می‌شود. خواندن در snap 7 (بزرگ‌تر از seq=6) مستقیم head را برمی‌گرداند. خواندن در snap 3 به `@4` می‌رسد ولی 3 در `[4]` نیست، پس ENOENT می‌گیرد، چون شیء در snap 3 هنوز وجود نداشته است.
+In the example above: a read at snap 5 reaches `clones = [4, 6]`. The first clone ≥ 5 is `@6`, and 5 is in `clone_snaps[6] = [6,5]`, so `@6` is read. A read at snap 7 (greater than seq=6) returns the head directly. A read at snap 3 reaches `@4`, but 3 is not in `[4]`, so it gets ENOENT, because the object did not yet exist at snap 3.
 
-## حذف head و whiteout {#sec-36-3-4}
+## Deleting the head and whiteouts {#sec-36-3-4}
 
-اگر head حذف شود ولی cloneهایی داشته باشد، OSD نمی‌تواند SnapSet را دور بریزد. در این حالت head به‌صورت **whiteout** می‌ماند: شیئی با پرچم `whiteout` در object_info_t که برای کلاینت وجود ندارد (stat آن ENOENT می‌دهد) ولی SnapSet را نگه می‌دارد. پس از آنکه snaptrim آخرین clone را پاک کند، whiteout هم حذف می‌شود.
+If the head is deleted but has clones, the OSD cannot throw away the SnapSet. In this case the head remains as a **whiteout**: an object with the `whiteout` flag in object_info_t that does not exist for the client (its stat returns ENOENT) but keeps the SnapSet. After snaptrim removes the last clone, the whiteout is deleted too.
 
-# snaptrim و SnapMapper {#sec-36-4}
+# snaptrim and the SnapMapper {#sec-36-4}
 
-## حذف snapshot {#sec-36-4-1}
+## Deleting a snapshot {#sec-36-4-1}
 
-حذف یک snapshot در mon فقط شماره‌ی آن را به `removed_snaps_queue` pool اضافه می‌کند (و در OSDMap به `new_removed_snaps`). هر PG که نقشه‌ی تازه را می‌بیند، آن snap را به `snap_trimq` خود اضافه می‌کند و ماشین حالت **SnapTrimmer** شروع به کار می‌کند. وقتی همه‌ی PGها کار را تمام کردند، mon آن را در `purged_snaps` ثبت می‌کند.
+Deleting a snapshot in the mon only adds its number to the pool's `removed_snaps_queue` (and to `new_removed_snaps` in the OSDMap). Each PG that sees the new map adds that snap to its `snap_trimq`, and the **SnapTrimmer** state machine starts working. When all PGs have finished, the mon records it in `purged_snaps`.
 
-برای پیدا کردن cloneهایی که یک snap دارند، پیمایش همه‌ی اشیا گران است. **SnapMapper** یک نمایه‌ی معکوس در omap شیء `snapmapper` در مجموعه‌ی meta هر OSD نگه می‌دارد:
+Scanning all objects to find the clones that have a given snap is expensive. The **SnapMapper** keeps a reverse index in the omap of the `snapmapper` object in each OSD's meta collection:
 
-| پیشوند | قالب کلید | مقدار |
+| Prefix | Key format | Value |
 |---|---|---|
-| `SNA_` | `SNA_<pool>_<snap:016X>_<shard>` + `hobject.to_str()` | نام clone برای این snap |
-| `OBJ_` | `OBJ_<shard>` + `hobject.to_str()` | مجموعه‌ی snapهای این clone |
-| `PSN_` | `PSN__<pool>_<last:016x>` | بازه‌ی snapهای purge‌شده |
+| `SNA_` | `SNA_<pool>_<snap:016X>_<shard>` + `hobject.to_str()` | the clone's name for this snap |
+| `OBJ_` | `OBJ_<shard>` + `hobject.to_str()` | the set of snaps of this clone |
+| `PSN_` | `PSN__<pool>_<last:016x>` | a range of purged snaps |
 
-`hobject_t::to_str()` قالب `<pool:016X>.<nibble-reversed hash:08X>.<snap>.<name>.<key>.<nspace>` دارد. برای clone ‏`@6` شیء مثال ما در pool ‏3 با hash ‏`0x8c7e1b1f`، کلید SNA برای snap 5 چنین است:
+`hobject_t::to_str()` has the format `<pool:016X>.<nibble-reversed hash:08X>.<snap>.<name>.<key>.<nspace>`. For clone `@6` of our example object in pool 3 with hash `0x8c7e1b1f`, the SNA key for snap 5 is:
 
 ```text
-مثال:
+example:
 SNA_3_0000000000000005_0000000000000003.F1B1E7C8.6.rbd_data.5f3a.0000000000000000..
 ```
 
-کلید با پیشوند `SNA_3_0000000000000005_` شروع می‌شود، پس همه‌ی cloneهای snap 5 در pool ‏3 با یک اسکن بازه‌ای پیدا می‌شوند. برای EC، پیشوند shard (مثلاً `.2_`) هم اضافه می‌شود؛ برای replicated خالی است.
+The key starts with the prefix `SNA_3_0000000000000005_`, so all clones of snap 5 in pool 3 are found with one range scan. For EC, a shard prefix (for example `.2_`) is also added; for replicated it is empty.
 
-::: {.algo #alg-36-3 title="trim یک clone برای یک snap حذف‌شده" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::trim_object؛ src/osd/SnapMapper.cc :: SnapMapper::get_next_objects_to_trim" complexity="O(c) برای c clone شیء؛ هر trim یک تراکنش تکثیرشده"}
+::: {.algo #alg-36-3 title="Trimming a clone for a deleted snap" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::trim_object; src/osd/SnapMapper.cc :: SnapMapper::get_next_objects_to_trim" complexity="O(c) for c clones of the object; each trim is one replicated transaction"}
 :::
 
 ```text
 pseudocode
 for coid in snapmapper.get_next_objects_to_trim(snap, max):
     new_snaps = clone_snaps[coid] minus (snaps removed or queued for removal)
-    if new_snaps empty:                                  # clone دیگر لازم نیست
+    if new_snaps empty:                                  # the clone is no longer needed
         if coid is not the oldest clone:
             clone_overlap[older] = clone_overlap[older] ∩ clone_overlap[coid]
         delete coid ; log DELETE
@@ -155,32 +154,32 @@ for coid in snapmapper.get_next_objects_to_trim(snap, max):
     write new snapset to head
 ```
 
-| گزینه | پیش‌فرض main | معنی |
+| Option | Default in main | Meaning |
 |---|---|---|
-| `osd_pg_max_concurrent_snap_trims` | 2 | تعداد clone هم‌زمان در هر PG |
-| `osd_snap_trim_sleep_hdd` | 5 | توقف (ثانیه) میان دسته‌ها روی HDD، وقتی `osd_snap_trim_sleep` صفر است |
-| `osd_snap_trim_sleep_ssd` | 0 | همان روی SSD |
-| `osd_max_trimming_pgs` | 2 | حداکثر PG در حال trim روی هر OSD |
+| `osd_pg_max_concurrent_snap_trims` | 2 | the number of concurrent clones per PG |
+| `osd_snap_trim_sleep_hdd` | 5 | the pause (seconds) between batches on HDD, when `osd_snap_trim_sleep` is zero |
+| `osd_snap_trim_sleep_ssd` | 0 | the same on SSD |
+| `osd_max_trimming_pgs` | 2 | the maximum number of PGs trimming on each OSD |
 
-با mClock، snaptrim یکی از کلاس‌های پس‌زمینه است و اولویت آن از profile می‌آید (فصل ۲۱). حالت `snaptrim_wait` و `snaptrim` در `ceph pg ls` و پرچم `nosnaptrim` در `ceph osd set` برای کنترل آن به کار می‌روند.
+With mClock, snaptrim is one of the background classes and its priority comes from the profile (chapter 21). The `snaptrim_wait` and `snaptrim` states in `ceph pg ls` and the `nosnaptrim` flag in `ceph osd set` are used to control it.
 
-![جریان حذف snapshot. mon شماره را به removed_snaps_queue اضافه می‌کند، هر PG از روی SnapMapper cloneهای آن snap را پیدا و trim می‌کند و در پایان mon آن را purged می‌شمارد](figures/ch36/f02_snaptrim.png){#fig-36-f02_snaptrim}
+![The flow of deleting a snapshot. The mon adds the number to removed_snaps_queue, each PG finds and trims that snap's clones using the SnapMapper, and finally the mon counts it as purged](figures/ch36/f02_snaptrim.png){#fig-36-f02_snaptrim}
 
-# watch و notify در OSD {#sec-36-5}
+# Watch and notify in the OSD {#sec-36-5}
 
-watch یک حالت **روی شیء** است: در `object_info_t.watchers` ثبت می‌شود (پس با شیء تکثیر و پس از تغییر primary حفظ می‌شود)، و روی primary یک شیء `Watch` با اتصال کلاینت و تایمر دارد. زیرعملیات‌ها در `CEPH_OSD_OP_WATCH` با کدهای `WATCH` (3)، `RECONNECT` (5)، `PING` (7) و `UNWATCH` (0) مشخص می‌شوند.
+A watch is state **on the object**: it is recorded in `object_info_t.watchers` (so it is replicated with the object and survives a change of primary), and on the primary it has a `Watch` object with the client connection and a timer. The sub-operations in `CEPH_OSD_OP_WATCH` are identified by the codes `WATCH` (3), `RECONNECT` (5), `PING` (7) and `UNWATCH` (0).
 
-::: {.algo #alg-36-4 title="چرخه‌ی watch و تکمیل notify" src="src/osd/Watch.cc :: Watch::connect، Watch::got_ping، Notify::maybe_complete_notify، Notify::do_timeout" complexity="O(w) برای w watcher در هر notify"}
+::: {.algo #alg-36-4 title="The watch lifecycle and notify completion" src="src/osd/Watch.cc :: Watch::connect, Watch::got_ping, Notify::maybe_complete_notify, Notify::do_timeout" complexity="O(w) for w watchers per notify"}
 :::
 
 ```text
 pseudocode
-watch(cookie, timeout = osd_client_watch_timeout):     # پیش‌فرض 30 ثانیه
+watch(cookie, timeout = osd_client_watch_timeout):     # default 30 seconds
     oi.watchers[(client, cookie)] = watch_info ; persist with object
     Watch.connect(con) ; register timeout callback
 ping every few seconds → Watch.got_ping(now) → reset timer
-timer fires (no ping) → remove watch from oi.watchers (یک نوشتن روی شیء)
-notify(payload, timeout = osd_default_notify_timeout):  # پیش‌فرض 30 ثانیه
+timer fires (no ping) → remove watch from oi.watchers (a write on the object)
+notify(payload, timeout = osd_default_notify_timeout):  # default 30 seconds
     for each watch on object: send MWatchNotify(NOTIFY) ; Notify.start_watcher
     each watcher acks (notify_ack with reply payload) → complete_watcher
     if all acked or timed_out:
@@ -188,79 +187,79 @@ notify(payload, timeout = osd_default_notify_timeout):  # پیش‌فرض 30 ث�
         return_code = -ETIMEDOUT if timed_out
 ```
 
-نکته‌ی عملی: watch منقضی‌شده با یک **نوشتن** روی شیء حذف می‌شود، پس اگر شیء در PGای باشد که نوشتن را نمی‌پذیرد (PG فعال نیست، شیء degraded است یا scrub نوشتن را مسدود کرده)، حذف به تعویق می‌افتد و watch مرده تا آن زمان در فهرست می‌ماند. `rados listwatchers` و `rbd status` همین فهرست را از `object_info_t` می‌خوانند.
+A practical point: an expired watch is removed by a **write** on the object, so if the object is in a PG that is not accepting writes (the PG is not active, the object is degraded, or scrub is blocking writes), the removal is postponed and the dead watch stays in the list until then. `rados listwatchers` and `rbd status` read this same list from `object_info_t`.
 
 ```bash
-# مثال: دیدن watcherها و ارسال یک notify آزمایشی
+# example: viewing watchers and sending a test notify
 rados -p rbd listwatchers rbd_header.5f3a2b8c1d4e
 rados -p rbd notify rbd_header.5f3a2b8c1d4e hello
 ```
 
 ```text
-مثال (خروجی):
+example (output):
 watcher=10.20.0.31:0/2846217731 client.24183 cookie=94823571521536
 ```
 
-# فراخوانی cls در سمت OSD {#sec-36-6}
+# OSD-side cls calls {#sec-36-6}
 
-opی با کد `CEPH_OSD_OP_CALL` نام کلاس، نام متد و ورودی را دارد. `do_osd_ops` کلاس را از `ClassHandler` می‌گیرد (اگر لازم باشد، `libcls_<name>.so` را از `osd_class_dir` بارگذاری می‌کند) و متد را با یک `cls_method_context_t` صدا می‌زند که در واقع همان `OpContext` است.
+An op with the code `CEPH_OSD_OP_CALL` carries the class name, the method name and the input. `do_osd_ops` gets the class from `ClassHandler` (loading `libcls_<name>.so` from `osd_class_dir` if needed) and calls the method with a `cls_method_context_t`, which is in fact the `OpContext` itself.
 
-::: {.algo #alg-36-5 title="اجرای متد cls درون تراکنش op" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::do_osd_ops (case CEPH_OSD_OP_CALL)؛ src/osd/ClassHandler.cc؛ src/osd/objclass.cc :: cls_cxx_*" complexity="به اندازه‌ی کار متد؛ هر cls_cxx_* یک زیرعملیات روی همان ctx"}
+::: {.algo #alg-36-5 title="Running a cls method inside the op transaction" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::do_osd_ops (case CEPH_OSD_OP_CALL); src/osd/ClassHandler.cc; src/osd/objclass.cc :: cls_cxx_*" complexity="as much as the method's work; each cls_cxx_* is a sub-operation on the same ctx"}
 :::
 
 ```text
 pseudocode
 case CALL(class, method, indata):
-    cls = ClassHandler.open_class(class)         # بارگذاری فقط اگر در osd_class_load_list باشد
+    cls = ClassHandler.open_class(class)         # loaded only if it is in osd_class_load_list
     m = cls.get_method(method)
-    check caps: m.flags RD → نیاز به r یا class-read ; WR → w یا class-write
+    check caps: m.flags RD → needs r or class-read ; WR → w or class-write
     r = m.exec(ctx, indata, outdata)
-       # درون متد: cls_cxx_read / cls_cxx_write / cls_cxx_map_set_vals / ...
-       # هر کدام do_osd_ops(ctx, [one op]) را روی همان ctx صدا می‌زند
+       # inside the method: cls_cxx_read / cls_cxx_write / cls_cxx_map_set_vals / ...
+       # each one calls do_osd_ops(ctx, [one op]) on the same ctx
     if r < 0: whole message fails → no transaction applied
     outdata → reply
 ```
 
-چون متد روی همان `OpContext` کار می‌کند، همه‌ی تغییرهای آن با بقیه‌ی opهای همان پیام در **یک** تراکنش و **یک** ورودی log می‌نشینند و اتمی‌اند. به همین دلیل RBD و RGW منطق‌هایی مثل «اگر کلید وجود ندارد، بساز و شمارنده را افزایش بده» را در کلاس پیاده می‌کنند.
+Because the method works on the same `OpContext`, all its changes sit with the rest of the ops in the same message in **one** transaction and **one** log entry, and are atomic. That is why RBD and RGW implement logic such as "if the key does not exist, create it and increment the counter" in a class.
 
-| گزینه | پیش‌فرض main |
+| Option | Default in main |
 |---|---|
 | `osd_class_load_list` | `cephfs hello journal lock log numops otp rbd refcount rgw rgw_gc timeindex` |
-| `osd_class_default_list` | همان فهرست؛ کلاس‌هایی که بدون cap صریح ‏`class` قابل فراخوانی‌اند |
+| `osd_class_default_list` | the same list; classes that can be called without an explicit `class` cap |
 
-کلاس‌های دیگری مثل `cas` یا `2pc_queue` و `queue` (که RGW برای gc و اعلان‌ها استفاده می‌کند) با بسته‌ها نصب می‌شوند ولی در این فهرست‌ها نیستند. فهرست واقعی در توزیع شما ممکن است متفاوت باشد؛ با `ceph config get osd osd_class_load_list` بررسی کنید.
+Other classes such as `cas`, or `2pc_queue` and `queue` (which RGW uses for gc and notifications), are installed with the packages but are not in these lists. The actual list in your distribution may differ; check with `ceph config get osd osd_class_load_list`.
 
-# مرجع rados {#sec-36-7}
+# rados reference {#sec-36-7}
 
-## دستورهای pool و شیء {#sec-36-7-1}
+## Pool and object commands {#sec-36-7-1}
 
-در جدول‌های این فصل و فصل‌های بعد، `{a,b}` یعنی «یکی از a یا b» و `P`، `O` و `S` به‌ترتیب نام pool، شیء و snapshot هستند.
+In the tables of this chapter and the following chapters, `{a,b}` means "one of a or b", and `P`, `O` and `S` are the pool, object and snapshot names respectively.
 
-| دستور | کاربرد |
+| Command | Use |
 |---|---|
-| `rados lspools` / `rados df` | فهرست pool و مصرف هر pool |
-| `rados -p P ls [--all] [-N ns]` | فهرست اشیا (همه‌ی namespaceها با `--all`) |
-| `rados -p P put O FILE` / `get O FILE` / `append` / `truncate` / `create` / `rm` | عملیات پایه |
-| `rados -p P stat O` / `stat2 O` | اندازه و mtime (stat2 با دقت بالاتر) |
-| `rados -p P listxattr O` / `getxattr` / `setxattr` / `rmxattr` | xattrهای کاربر |
+| `rados lspools` / `rados df` | the list of pools and each pool's usage |
+| `rados -p P ls [--all] [-N ns]` | the list of objects (all namespaces with `--all`) |
+| `rados -p P put O FILE` / `get O FILE` / `append` / `truncate` / `create` / `rm` | basic operations |
+| `rados -p P stat O` / `stat2 O` | size and mtime (stat2 with higher precision) |
+| `rados -p P listxattr O` / `getxattr` / `setxattr` / `rmxattr` | user xattrs |
 | `rados -p P listomapkeys O` / `listomapvals` / `getomapval` / `setomapval` / `rmomapkey` / `clearomap` | omap |
-| `rados -p P getomapheader O` / `setomapheader` | سرآیند omap |
-| `rados -p P lssnap` / `mksnap S` / `rmsnap S` / `rollback O S` | pool snapshot |
-| `rados -p P -s S get O FILE` | خواندن از یک pool snapshot |
-| `rados -p P listsnaps O` | cloneها، snapها، اندازه و overlap یک شیء |
-| `rados -p P watch O` / `notify O MSG` / `listwatchers O` | watch و notify |
-| `rados -p P lock list O` / `lock info O NAME` / `lock break O NAME LOCKER` | قفل‌های مشورتی cls_lock |
-| `rados -p P set-alloc-hint O SIZE WSIZE` | راهنمای تخصیص برای BlueStore |
-| `rados -p P bench SECS {write,seq,rand} -t N [--no-cleanup]` / `cleanup` | آزمون کارایی (فصل ۱۰) |
-| `rados -p P export FILE` / `import FILE` | پشتیبان منطقی یک pool |
+| `rados -p P getomapheader O` / `setomapheader` | the omap header |
+| `rados -p P lssnap` / `mksnap S` / `rmsnap S` / `rollback O S` | pool snapshots |
+| `rados -p P -s S get O FILE` | reading from a pool snapshot |
+| `rados -p P listsnaps O` | an object's clones, snaps, size and overlap |
+| `rados -p P watch O` / `notify O MSG` / `listwatchers O` | watch and notify |
+| `rados -p P lock list O` / `lock info O NAME` / `lock break O NAME LOCKER` | cls_lock advisory locks |
+| `rados -p P set-alloc-hint O SIZE WSIZE` | an allocation hint for BlueStore |
+| `rados -p P bench SECS {write,seq,rand} -t N [--no-cleanup]` / `cleanup` | performance testing (chapter 10) |
+| `rados -p P export FILE` / `import FILE` | a logical backup of a pool |
 
 ```bash
-# مثال: cloneهای یک شیء RBD
+# example: the clones of an RBD object
 rados -p rbd listsnaps rbd_data.5f3a.0000000000000000
 ```
 
 ```text
-مثال (خروجی):
+example (output):
 rbd_data.5f3a.0000000000000000 (seq:6):
 cloneid	snaps	size	overlap
 4	4	4194304	[65536~4128768]
@@ -268,81 +267,81 @@ cloneid	snaps	size	overlap
 head	-	4194304
 ```
 
-overlap با قالب `[offset~length]` نشان داده می‌شود: `65536~4128768` همان `[64K, 4M)` است.
+The overlap is shown in the format `[offset~length]`: `65536~4128768` is the same as `[64K, 4M)`.
 
-# مرجع ceph osd pool {#sec-36-8}
+# ceph osd pool reference {#sec-36-8}
 
-| دستور | کاربرد |
+| Command | Use |
 |---|---|
-| `ceph osd pool create P [PG_NUM] [{replicated,erasure}] [{RULE,PROFILE}]` | ساخت pool |
-| `ceph osd pool application enable P {rbd,rgw,cephfs}` | برچسب برنامه (لازم برای HEALTH_OK) |
-| `ceph osd pool ls detail` | همه‌ی ویژگی‌ها، از جمله flags و snap_seq |
-| `ceph osd pool get P all` / `get P KEY` | خواندن ویژگی‌ها |
-| `ceph osd pool set P {size,min_size} N` | تعداد نسخه‌ها و حداقل برای نوشتن |
-| `ceph osd pool set P {pg_num,pgp_num} N` | تعداد PG (با autoscaler معمولاً خودکار) |
-| `ceph osd pool set P pg_autoscale_mode {on,warn,off}` / `bulk true` / `target_size_ratio R` | autoscaler |
-| `ceph osd pool set P crush_rule RULE` | قاعده‌ی CRUSH |
-| `ceph osd pool set P {compression_mode,compression_algorithm} ...` | فشرده‌سازی BlueStore |
-| `ceph osd pool set P {nodelete,nopgchange,nosizechange} true` | محافظت از pool |
-| `ceph osd pool set P {noscrub,nodeep-scrub} true` | توقف scrub برای یک pool |
-| `ceph osd pool set P allow_ec_overwrites true` | نوشتن جزئی روی EC (برای RBD و CephFS) |
-| `ceph osd pool set-quota P {max_objects,max_bytes} N` / `get-quota P` | سهمیه |
-| `ceph osd pool mksnap P S` / `rmsnap P S` | pool snapshot |
-| `ceph osd pool rename OLD NEW` | تغییر نام |
-| `ceph osd pool rm P P --yes-i-really-really-mean-it` | حذف (نیازمند `mon_allow_pool_delete`) |
-| `ceph osd pool stats [P]` / `ceph df detail` | نرخ I/O و مصرف |
-| `ceph osd pool autoscale-status` | پیشنهاد autoscaler |
+| `ceph osd pool create P [PG_NUM] [{replicated,erasure}] [{RULE,PROFILE}]` | creating a pool |
+| `ceph osd pool application enable P {rbd,rgw,cephfs}` | the application tag (required for HEALTH_OK) |
+| `ceph osd pool ls detail` | all properties, including flags and snap_seq |
+| `ceph osd pool get P all` / `get P KEY` | reading properties |
+| `ceph osd pool set P {size,min_size} N` | the number of copies and the minimum for writes |
+| `ceph osd pool set P {pg_num,pgp_num} N` | the number of PGs (usually automatic with the autoscaler) |
+| `ceph osd pool set P pg_autoscale_mode {on,warn,off}` / `bulk true` / `target_size_ratio R` | the autoscaler |
+| `ceph osd pool set P crush_rule RULE` | the CRUSH rule |
+| `ceph osd pool set P {compression_mode,compression_algorithm} ...` | BlueStore compression |
+| `ceph osd pool set P {nodelete,nopgchange,nosizechange} true` | protecting the pool |
+| `ceph osd pool set P {noscrub,nodeep-scrub} true` | stopping scrub for one pool |
+| `ceph osd pool set P allow_ec_overwrites true` | partial writes on EC (for RBD and CephFS) |
+| `ceph osd pool set-quota P {max_objects,max_bytes} N` / `get-quota P` | quotas |
+| `ceph osd pool mksnap P S` / `rmsnap P S` | pool snapshots |
+| `ceph osd pool rename OLD NEW` | renaming |
+| `ceph osd pool rm P P --yes-i-really-really-mean-it` | deleting (requires `mon_allow_pool_delete`) |
+| `ceph osd pool stats [P]` / `ceph df detail` | I/O rate and usage |
+| `ceph osd pool autoscale-status` | the autoscaler's recommendation |
 
 ```text
-مثال (بخشی از ceph osd pool ls detail):
+example (part of ceph osd pool ls detail):
 pool 3 'rbd' replicated size 3 min_size 2 crush_rule 0 object_hash rjenkins pg_num 32 pgp_num 32
   autoscale_mode on last_change 1462 lfor 0/0/980 flags hashpspool,selfmanaged_snaps stripe_width 0
   application rbd
 ```
 
-`min_size` پیش‌فرض صفر است که یعنی `size − size/2`؛ برای size=3 همان 2.
+The default `min_size` is zero, which means `size − size/2`; for size=3 that is 2.
 
-# تنظیم و عیب‌یابی {#sec-36-9}
+# Tuning and troubleshooting {#sec-36-9}
 
-- **snaptrim کند و فضای آزادنشده:** `ceph pg ls snaptrim_wait` را ببینید. روی HDD، `osd_snap_trim_sleep_hdd` را با احتیاط کم کنید یا profile mClock را برای مدتی به `high_recovery_ops` ببرید.
-- **کندی پس از گرفتن snapshot:** نخستین نوشتن روی هر شیء پس از snapshot یک clone می‌سازد و فراداده‌ی بیشتری می‌نویسد. گرفتن snapshot بسیار پرتکرار روی تصویر پرنوشتن باعث تعداد زیادی clone و SnapMapper بزرگ می‌شود.
-- **`rados ls` شیئی را نشان می‌دهد ولی stat آن ENOENT است:** احتمالاً head whiteout است و cloneها هنوز trim نشده‌اند.
-- **watch مرده روی header تصویر RBD:** `rbd status` و `rados listwatchers` را ببینید. اگر کلاینت واقعاً مرده است، پس از `osd_client_watch_timeout` خودبه‌خود حذف می‌شود. برای قطع فوری، `ceph osd blocklist add` آدرس آن کلاینت را مسدود می‌کند.
-- **`EOPNOTSUPP` در فراخوانی کلاس:** کلاس در `osd_class_load_list` نیست یا فایل `.so` آن نصب نشده است.
+- **Slow snaptrim and space not being freed:** look at `ceph pg ls snaptrim_wait`. On HDD, lower `osd_snap_trim_sleep_hdd` carefully, or switch the mClock profile to `high_recovery_ops` for a while.
+- **Slowness after taking a snapshot:** the first write to each object after a snapshot creates a clone and writes more metadata. Taking snapshots very frequently on a write-heavy image leads to many clones and a large SnapMapper.
+- **`rados ls` shows an object but its stat returns ENOENT:** the head is probably a whiteout and the clones have not been trimmed yet.
+- **A dead watch on an RBD image header:** look at `rbd status` and `rados listwatchers`. If the client is really dead, it is removed automatically after `osd_client_watch_timeout`. To cut it off immediately, `ceph osd blocklist add` blocks that client's address.
+- **`EOPNOTSUPP` on a class call:** the class is not in `osd_class_load_list`, or its `.so` file is not installed.
 
-# تکمیلی و به‌روز {#sec-36-10}
+# Supplementary and up to date {#sec-36-10}
 
-- از Octopus به بعد، OSDMap فهرست کامل `removed_snaps` را نگه نمی‌دارد و به‌جای آن `removed_snaps_queue` و `purged_snaps` (و کلیدهای `PSN_` در SnapMapper) به کار می‌روند. clusterهای قدیمی‌تر رفتار دیگری داشتند.
-- در شاخه‌ی main، کپی cloneها در مهاجرت pool (`pool_migration`) استثنای خودش را در به‌روزرسانی `clone_overlap` دارد.
-- Crimson snapshot و snaptrim را با همان SnapSet و SnapMapper پیاده کرده است (`crimson/osd/osd_operations/snaptrim_event.cc`).
+- Since Octopus, the OSDMap no longer keeps the full `removed_snaps` list; instead `removed_snaps_queue` and `purged_snaps` (and the `PSN_` keys in the SnapMapper) are used. Older clusters behaved differently.
+- In the main branch, copying clones during pool migration (`pool_migration`) has its own exception in updating `clone_overlap`.
+- Crimson implements snapshots and snaptrim with the same SnapSet and SnapMapper (`crimson/osd/osd_operations/snaptrim_event.cc`).
 
-# تمرین عملی {#sec-36-11}
+# Hands-on exercise {#sec-36-11}
 
-1. روی یک pool آزمایشی (نه pool ‏RBD) یک شیء بنویسید، `rados mksnap s1` بگیرید، بخشی از شیء را بازنویسی کنید و `listsnaps` را بخوانید. سپس `rados -s s1 get` را با نسخه‌ی جاری مقایسه کنید.
-2. یک تصویر RBD بسازید، سه snapshot بگیرید و میان آن‌ها بنویسید؛ با `rados listsnaps` روی یکی از اشیای داده، clone_snaps و overlap را با محاسبه‌ی دستی تطبیق دهید.
-3. snapshot میانی را حذف کنید و در `ceph pg ls snaptrim` و دوباره در `listsnaps` اثر آن را ببینید.
-4. در دو ترمینال `rados watch` و `rados notify` را اجرا کنید؛ سپس فرایند watch را با `kill -STOP` متوقف و زمان حذف شدنش از `listwatchers` را اندازه بگیرید.
+1. On a test pool (not the RBD pool) write an object, take `rados mksnap s1`, overwrite part of the object and read `listsnaps`. Then compare `rados -s s1 get` with the current version.
+2. Create an RBD image, take three snapshots and write between them; with `rados listsnaps` on one of the data objects, match clone_snaps and the overlap against your own calculation.
+3. Delete the middle snapshot and watch its effect in `ceph pg ls snaptrim` and again in `listsnaps`.
+4. Run `rados watch` and `rados notify` in two terminals; then stop the watch process with `kill -STOP` and measure how long it takes to disappear from `listwatchers`.
 
-# پرسش‌های مرور {#sec-36-12}
+# Review questions {#sec-36-12}
 
-1. چرا یک pool نمی‌تواند هم pool snapshot و هم self-managed snapshot داشته باشد؟
-2. SnapContext چه فیلدهایی دارد و در RBD چه کسی آن را می‌فرستد؟
-3. شرط ساختن clone در make_writeable چیست؟
-4. clone با چه شماره‌ای نام‌گذاری می‌شود؟
-5. در مثال فصل، خواندن در snap 5 و snap 3 به چه نتیجه‌ای می‌رسد؟
-6. whiteout چیست و چه زمانی حذف می‌شود؟
-7. کلید `SNA_` در SnapMapper چه ساختاری دارد و چرا به این شکل است؟
-8. وقتی clone دیگر هیچ snapی ندارد، با clone_overlap چه می‌شود؟
-9. watch منقضی‌شده چگونه حذف می‌شود و چرا ممکن است تا مدتی بماند؟
-10. چرا فراخوانی cls با بقیه‌ی opهای یک پیام اتمی است؟
+1. Why can a pool not have both pool snapshots and self-managed snapshots?
+2. What fields does a SnapContext have, and who sends it in RBD?
+3. What is the condition for creating a clone in make_writeable?
+4. What number is a clone named with?
+5. In the chapter's example, what are the results of reading at snap 5 and at snap 3?
+6. What is a whiteout, and when is it deleted?
+7. What structure does the `SNA_` key in the SnapMapper have, and why is it shaped this way?
+8. When a clone no longer has any snaps, what happens to clone_overlap?
+9. How is an expired watch removed, and why may it linger for a while?
+10. Why is a cls call atomic with the rest of the ops in a message?
 
-# منابع این فصل {#sec-36-13}
+# Sources for this chapter {#sec-36-13}
 
-- PrimaryLogPG.cc (make_writeable، find_object_context، trim_object، CALL): https://github.com/ceph/ceph/blob/main/src/osd/PrimaryLogPG.cc
+- PrimaryLogPG.cc (make_writeable, find_object_context, trim_object, CALL): https://github.com/ceph/ceph/blob/main/src/osd/PrimaryLogPG.cc
 - SnapMapper.cc: https://github.com/ceph/ceph/blob/main/src/osd/SnapMapper.cc
 - Watch.cc: https://github.com/ceph/ceph/blob/main/src/osd/Watch.cc
 - osd_types.h (SnapSet): https://github.com/ceph/ceph/blob/main/src/osd/osd_types.h
-- rados.cc (فهرست دستورهای rados): https://github.com/ceph/ceph/blob/main/src/tools/rados/rados.cc
-- مستند توسعه‌دهنده درباره‌ی snapshot: https://docs.ceph.com/en/latest/dev/osd_internals/snaps/
-- مستند watch/notify: https://docs.ceph.com/en/latest/dev/osd_internals/watch_notify/
-- مرجع pool: https://docs.ceph.com/en/latest/rados/operations/pools/
+- rados.cc (the list of rados commands): https://github.com/ceph/ceph/blob/main/src/tools/rados/rados.cc
+- Developer documentation on snapshots: https://docs.ceph.com/en/latest/dev/osd_internals/snaps/
+- watch/notify documentation: https://docs.ceph.com/en/latest/dev/osd_internals/watch_notify/
+- Pool reference: https://docs.ceph.com/en/latest/rados/operations/pools/
