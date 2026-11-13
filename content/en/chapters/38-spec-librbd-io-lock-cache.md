@@ -4,53 +4,52 @@ id: ch38
 title: 'Specialist Part (5): RBD — The librbd I/O Path, Layering and Copyup, Exclusive Lock, Caches and QoS'
 part: specialist
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-38-1}
+# Before we begin {#sec-38-1}
 
-librbd یک کتابخانه‌ی سنگین است: هر درخواست از چند لایه‌ی **dispatch** در سطح image و سپس در سطح شیء عبور می‌کند، و ویژگی‌هایی مثل exclusive-lock، journaling، cache، رمزنگاری و QoS هر کدام یک لایه‌اند. این فصل آن لایه‌ها را به ترتیب واقعی‌شان نشان می‌دهد، سپس سه سازوکار پرکاربرد را در جزئیات باز می‌کند: copyup در clone و flatten، گرفتن و شکستن exclusive-lock با blocklist، و cache پیش‌فرض writearound. در پایان krbd، librbd و rbd-nbd را از نظر ویژگی و کارایی مقایسه می‌کند. نام‌ها و پیش‌فرض‌ها با شاخه‌ی main مخزن ceph/ceph (نوامبر ۲۰۲۶) تطبیق داده شده‌اند.
+librbd is a heavy library: each request passes through several **dispatch** layers at the image level and then at the object level, and features such as exclusive-lock, journaling, caching, encryption and QoS are each a layer. This chapter shows those layers in their real order, then opens three widely used mechanisms in detail: copyup in clones and flatten, acquiring and breaking the exclusive-lock with blocklisting, and the default writearound cache. Finally it compares krbd, librbd and rbd-nbd in terms of features and performance. Names and defaults have been checked against the main branch of the ceph/ceph repository (November 2026).
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-38-1-1}
+## What questions does this chapter answer? {#sec-38-1-1}
 
-- یک `rbd_aio_write` از کدام لایه‌ها عبور می‌کند؟
-- نوشتن روی شیئی از clone که هنوز وجود ندارد چگونه انجام می‌شود؟
-- deep-flatten چه فرقی با flatten معمولی دارد؟
-- دو کلاینت که هم‌زمان یک image را باز می‌کنند چگونه قفل را دست‌به‌دست می‌کنند؟
-- چه زمانی librbd کلاینت دیگری را blocklist می‌کند؟
-- cache پیش‌فرض librbd چه کار می‌کند و چه کار نمی‌کند؟
-- QoS در librbd چگونه کار می‌کند و چه محدودیتی دارد؟
+- Which layers does an `rbd_aio_write` pass through?
+- How is a write to an object of a clone that does not exist yet carried out?
+- How does deep-flatten differ from ordinary flatten?
+- How do two clients that open an image at the same time pass the lock back and forth?
+- When does librbd blocklist another client?
+- What does the default librbd cache do, and what does it not do?
+- How does QoS in librbd work, and what are its limits?
 
-## پیش‌نیاز {#sec-38-1-2}
+## Prerequisites {#sec-38-1-2}
 
-فصل ۲ (RBD)، فصل ۲۹ (krbd)، فصل ۳۶ (SnapContext و clone در RADOS)، فصل ۳۷ (header و object map).
+Chapter 2 (RBD), chapter 29 (krbd), chapter 36 (SnapContext and clones in RADOS), chapter 37 (the header and the object map).
 
-# لایه‌های dispatch {#sec-38-2}
+# The dispatch layers {#sec-38-2}
 
-`ImageDispatcher` و `ObjectDispatcher` دو زنجیره از لایه‌ها هستند. هر لایه می‌تواند درخواست را بگیرد و تمام کند، تغییر دهد و به لایه‌ی بعد بسپارد، یا تا رفع شرطی نگه دارد. ترتیب از `librbd/io/Types.h`:
+`ImageDispatcher` and `ObjectDispatcher` are two chains of layers. Each layer can take the request and finish it, modify it and pass it to the next layer, or hold it until a condition is cleared. The order, from `librbd/io/Types.h`:
 
-| ترتیب | لایه‌ی image | نقش |
+| Order | Image layer | Role |
 |---|---|---|
-| 1 | `QUEUE` | صف ورودی و انتقال به thread pool (‏`rbd_op_threads`) |
-| 2 | `QOS` | محدودیت IOPS و پهنای باند (token bucket) |
-| 3 | `EXCLUSIVE_LOCK` | نگه داشتن نوشتن‌ها تا گرفتن قفل |
-| 4 | `REFRESH` | به‌روزرسانی ImageCtx اگر header تغییر کرده باشد |
-| 5 | `MIGRATION` | هدایت به image مبدأ در مهاجرت زنده |
-| 6 | `JOURNAL` | ثبت رویداد در journal پیش از نوشتن (فصل ۳۹) |
-| 7 | `WRITE_BLOCK` | توقف موقت نوشتن‌ها در عملیاتی مثل snapshot |
-| 8 | `WRITEBACK_CACHE` | cache پایدار PWL، اگر فعال باشد |
-| 9 | `CORE` | تبدیل extent تصویر به extent شیء با Striper (فصل ۳۷) |
+| 1 | `QUEUE` | the input queue and hand-off to the thread pool (`rbd_op_threads`) |
+| 2 | `QOS` | IOPS and bandwidth limits (token bucket) |
+| 3 | `EXCLUSIVE_LOCK` | holding writes until the lock is acquired |
+| 4 | `REFRESH` | refreshing the ImageCtx if the header has changed |
+| 5 | `MIGRATION` | redirecting to the source image during live migration |
+| 6 | `JOURNAL` | recording the event in the journal before the write (chapter 39) |
+| 7 | `WRITE_BLOCK` | temporarily stopping writes during operations such as a snapshot |
+| 8 | `WRITEBACK_CACHE` | the PWL persistent cache, if enabled |
+| 9 | `CORE` | turning image extents into object extents with the Striper (chapter 37) |
 
-| ترتیب | لایه‌ی شیء | نقش |
+| Order | Object layer | Role |
 |---|---|---|
-| 1 | `CACHE` | writearound یا ObjectCacher (writeback و writethrough) |
-| 2 | `CRYPTO` | رمزنگاری LUKS در سطح بلوک |
-| 3 | `JOURNAL` | تأخیر نوشتن شیء تا commit رویداد journal |
-| 4 | `PARENT_CACHE` | cache فقط‌خواندنی والد از طریق ceph-immutable-object-cache |
-| 5 | `SCHEDULER` | ادغام نوشتن‌های کوچک پشت‌سرهم (`rbd_io_scheduler`) |
-| 6 | `CORE` | ساختن `ObjectRequest` و ارسال op به RADOS |
+| 1 | `CACHE` | writearound or ObjectCacher (writeback and writethrough) |
+| 2 | `CRYPTO` | LUKS encryption at the block level |
+| 3 | `JOURNAL` | delaying the object write until the journal event commits |
+| 4 | `PARENT_CACHE` | a read-only cache of the parent through ceph-immutable-object-cache |
+| 5 | `SCHEDULER` | merging small back-to-back writes (`rbd_io_scheduler`) |
+| 6 | `CORE` | building the `ObjectRequest` and sending the op to RADOS |
 
-::: {.algo #alg-38-1 title="عبور یک نوشتن از زنجیره‌ی dispatch" src="src/librbd/io/ImageDispatcher.cc؛ src/librbd/io/ObjectDispatcher.cc؛ src/librbd/io/ImageRequest.cc :: ImageWriteRequest؛ src/librbd/io/ObjectRequest.cc :: ObjectWriteRequest" complexity="O(L) لایه برای هر درخواست، به‌علاوه‌ی O(k) شیء پس از striping"}
+::: {.algo #alg-38-1 title="A write passing through the dispatch chain" src="src/librbd/io/ImageDispatcher.cc; src/librbd/io/ObjectDispatcher.cc; src/librbd/io/ImageRequest.cc :: ImageWriteRequest; src/librbd/io/ObjectRequest.cc :: ObjectWriteRequest" complexity="O(L) layers per request, plus O(k) objects after striping"}
 :::
 
 ```text
@@ -65,33 +64,33 @@ CORE: Striper.file_to_extents → for each object extent:
     ObjectDispatcher.send(write(objectno, off, data, snapc = image snapc))
         CACHE → CRYPTO → JOURNAL → PARENT_CACHE → SCHEDULER → CORE
 CORE: ObjectWriteRequest:
-    if object_map says may not exist and has parent overlap → copyup (الگوریتم ۳۸-۲)
+    if object_map says may not exist and has parent overlap → copyup (algorithm 38-2)
     else object_map_update(EXISTS) if needed → RADOS write op with snapc
 ```
 
-![لایه‌های dispatch در librbd. درخواست تصویر از نُه لایه‌ی image عبور و در CORE با Striper به extentهای شیء شکسته می‌شود؛ هر extent سپس از شش لایه‌ی شیء عبور می‌کند تا به‌صورت op به RADOS برسد. لایه‌های غیرفعال (مثلاً journal یا crypto) در زنجیره نیستند](figures/ch38/f01_dispatch.png){#fig-38-f01_dispatch}
+![The dispatch layers in librbd. An image request passes through nine image layers and is split into object extents by the Striper in CORE; each extent then passes through six object layers until it reaches RADOS as an op. Inactive layers (for example journal or crypto) are not in the chain](figures/ch38/f01_dispatch.png){#fig-38-f01_dispatch}
 
-# layering: clone، copyup و flatten {#sec-38-3}
+# Layering: clone, copyup and flatten {#sec-38-3}
 
-clone یک image است که در header خود کلید `parent` (pool، namespace، image و snap والد و **overlap**) دارد. overlap بخشی از فضای آدرس است که هنوز می‌تواند از والد خوانده شود؛ اگر clone کوچک شود، overlap هم کم می‌شود و دیگر بزرگ نمی‌شود.
+A clone is an image whose header has a `parent` key (the parent's pool, namespace, image and snap, and the **overlap**). The overlap is the part of the address space that can still be read from the parent; if the clone shrinks, the overlap shrinks too and never grows again.
 
-- **خواندن:** اگر شیء در clone وجود نداشته باشد (ENOENT یا object map ‏NONEXISTENT) و extent در overlap باشد، همان extent از والد خوانده می‌شود. با `rbd_clone_copy_on_read` همان داده بلافاصله در clone هم نوشته می‌شود.
-- **نوشتن:** نوشتن جزئی روی شیئی که هنوز در clone نیست ابتدا باید بقیه‌ی شیء را از والد بیاورد، وگرنه بخش‌های نخوانده صفر خواهند شد. این کار **copyup** است.
+- **Read:** if the object does not exist in the clone (ENOENT or object map NONEXISTENT) and the extent is within the overlap, that extent is read from the parent. With `rbd_clone_copy_on_read` the same data is immediately written into the clone too.
+- **Write:** a partial write to an object that is not yet in the clone must first bring the rest of the object from the parent, otherwise the unread parts would be zeros. This is **copyup**.
 
-::: {.algo #alg-38-2 title="copyup: پر کردن شیء clone از والد پیش از نخستین نوشتن" src="src/librbd/io/ObjectRequest.cc :: AbstractObjectWriteRequest::compute_parent_info، send_write، handle_write_object؛ src/librbd/io/CopyupRequest.cc؛ src/cls/rbd/cls_rbd.cc :: copyup" complexity="یک خواندن از والد (تا اندازه‌ی شیء) و یک op مرکب روی شیء clone"}
+::: {.algo #alg-38-2 title="copyup: filling a clone object from the parent before the first write" src="src/librbd/io/ObjectRequest.cc :: AbstractObjectWriteRequest::compute_parent_info, send_write, handle_write_object; src/librbd/io/CopyupRequest.cc; src/cls/rbd/cls_rbd.cc :: copyup" complexity="one read from the parent (up to the object size) and one compound op on the clone object"}
 :::
 
 ```text
 pseudocode
 write to child object o:
     copyup_enabled = has_parent and extent of o within overlap
-    if object map says o does not exist and copyup_enabled: goto copyup     # بهینه‌سازی
+    if object map says o does not exist and copyup_enabled: goto copyup     # an optimization
     send write with assert_exists guard
     on -ENOENT and copyup_enabled: goto copyup
 copyup (one CopyupRequest per object; later writes append to it):
     read parent extents of o (sparse read)
     if snapshots exist on child (deep_copyup): first send copyup alone with EMPTY snapc
-        # تا cloneهای RADOS برای snapshotهای child هم داده‌ی والد را ببینند
+        # so that the RADOS clones for the child's snapshots also see the parent's data
     op = cls rbd.copyup(data) or rbd.sparse_copyup(extent_map, data)
     append all pending writes of this object to the same op (if not deep_copyup)
     update object maps (head, and snapshots if deep-flatten) → EXISTS
@@ -99,21 +98,21 @@ copyup (one CopyupRequest per object; later writes append to it):
 cls rbd.copyup on OSD: if object exists → return 0 ; else write data at offset 0
 ```
 
-نکته‌ی ظریف در cls: اگر دو کلاینت هم‌زمان copyup کنند، دومی می‌بیند شیء وجود دارد و داده‌ی والد را **نمی‌نویسد**، ولی نوشتن خودش (که در همان op است) اعمال می‌شود. چون copyup و نوشتن در یک op اتمی‌اند، هیچ‌کس نیمه‌ی پر شیء را نمی‌بیند.
+A subtle point in the cls: if two clients copy up at the same time, the second sees that the object exists and does **not** write the parent's data, but its own write (which is in the same op) is applied. Because copyup and the write are in one atomic op, nobody ever sees a half-filled object.
 
-![copyup برای نخستین نوشتن روی شیء 1280 یک clone. librbd از object map می‌فهمد شیء وجود ندارد، شیء والد را با خواندن پراکنده می‌آورد، object map را به EXISTS می‌برد و copyup و نوشتن کاربر را در یک op اتمی به شیء clone می‌فرستد](figures/ch38/f02_copyup.png){#fig-38-f02_copyup}
+![Copyup for the first write to object 1280 of a clone. librbd learns from the object map that the object does not exist, fetches the parent object with a sparse read, moves the object map to EXISTS, and sends the copyup and the user's write to the clone object in one atomic op](figures/ch38/f02_copyup.png){#fig-38-f02_copyup}
 
-**flatten** همه‌ی اشیای درون overlap را با یک copyup بدون داده‌ی کاربر پر می‌کند (`FlattenRequest` برای هر شیء یک نوشتن خالی می‌فرستد که copyup را برمی‌انگیزد) و سپس پیوند والد را حذف می‌کند (`child_detach` در header والد و حذف کلید `parent`). **deep-flatten** یعنی copyup به snapshotهای clone هم برسد؛ بدون آن، snapshotهای clone هنوز به والد وابسته می‌مانند و والد را نمی‌توان حذف کرد.
+**flatten** fills all objects within the overlap with a copyup carrying no user data (`FlattenRequest` sends an empty write for each object, which triggers copyup) and then removes the parent link (`child_detach` in the parent's header and removal of the `parent` key). **deep-flatten** means copyup also reaches the clone's snapshots; without it, the clone's snapshots still depend on the parent and the parent cannot be deleted.
 
-**مثال عددی.** یک clone از تصویر سیستم‌عامل 20 GiB با 5120 شیء. VM ‏4 KiB در آفست 5 GiB + 8 KiB می‌نویسد. شیء 1280 در clone وجود ندارد. librbd شیء 1280 والد را (فرض: کاملاً پر، 4 MiB) می‌خواند و op مرکب `[rbd.copyup(4 MiB), write(8 KiB, 4 KiB)]` را می‌فرستد. پس نخستین نوشتن 4 KiB روی هر شیء clone در واقع 4 MiB خواندن و 4 MiB نوشتن است. به همین دلیل VMهای تازه‌ی clone در دقایق اول کندترند و `rbd du` روی clone به‌سرعت بالا می‌رود.
+**Numerical example.** A clone of a 20 GiB operating-system image with 5120 objects. The VM writes 4 KiB at offset 5 GiB + 8 KiB. Object 1280 does not exist in the clone. librbd reads object 1280 of the parent (assumption: completely full, 4 MiB) and sends the compound op `[rbd.copyup(4 MiB), write(8 KiB, 4 KiB)]`. So the first 4 KiB write to each clone object is really a 4 MiB read and a 4 MiB write. That is why freshly cloned VMs are slower in their first minutes and `rbd du` on the clone climbs quickly.
 
 # exclusive-lock {#sec-38-4}
 
-exclusive-lock تضمین می‌کند در هر لحظه فقط یک کلاینت روی image می‌نویسد، تا object map، journal و cache سازگار بمانند. این قفل **همکارانه** است: اگر کلاینت دیگری بخواهد بنویسد، از مالک می‌خواهد قفل را رها کند.
+exclusive-lock guarantees that only one client writes to the image at any moment, so that the object map, journal and cache stay consistent. This lock is **cooperative**: if another client wants to write, it asks the owner to release the lock.
 
-قفل یک قفل `cls_lock` با نام `rbd_lock`، نوع exclusive، tag ‏`internal` و cookie ‏`auto <watch handle>` روی شیء header است. cookie شامل handle همان watch است، پس دیگران می‌توانند با `list_watchers` بفهمند صاحب قفل هنوز زنده است یا نه.
+The lock is a `cls_lock` lock named `rbd_lock`, of exclusive type, with the tag `internal` and the cookie `auto <watch handle>`, on the header object. The cookie contains the handle of that same watch, so others can use `list_watchers` to find out whether the lock owner is still alive.
 
-::: {.algo #alg-38-3 title="گرفتن exclusive-lock و شکستن قفل مالک مرده" src="src/librbd/ManagedLock.cc؛ src/librbd/managed_lock/AcquireRequest.cc، BreakRequest.cc، Utils.cc :: encode_lock_cookie؛ src/librbd/ExclusiveLock.cc" complexity="چند رفت‌وبرگشت RADOS؛ در بدترین حالت به‌علاوه‌ی یک به‌روزرسانی OSDMap برای blocklist"}
+::: {.algo #alg-38-3 title="Acquiring exclusive-lock and breaking a dead owner's lock" src="src/librbd/ManagedLock.cc; src/librbd/managed_lock/AcquireRequest.cc, BreakRequest.cc, Utils.cc :: encode_lock_cookie; src/librbd/ExclusiveLock.cc" complexity="a few RADOS round trips; in the worst case plus one OSDMap update for the blocklist"}
 :::
 
 ```text
@@ -126,26 +125,26 @@ acquire():
         if locker has a live watch on header (same address and cookie handle):
             notify RequestLock to owner ; wait (owner releases if it allows)
             retry acquire later
-        else:                                   # مالک مرده یا جدا شده
-            if rbd_blocklist_on_break_lock:     # پیش‌فرض true
-                mon: osd blocklist add <locker addr> expire = rbd_blocklist_expire_seconds (0 → پیش‌فرض mon)
+        else:                                   # the owner is dead or detached
+            if rbd_blocklist_on_break_lock:     # default true
+                mon: osd blocklist add <locker addr> expire = rbd_blocklist_expire_seconds (0 → the mon default)
                 wait until our OSDMap epoch >= blocklist epoch
             break_lock(locker) ; retry lock
 ```
 
-**چرا blocklist؟** مالکی که «مرده» به نظر می‌رسد ممکن است فقط از شبکه جدا شده و هنوز نوشتن‌هایی در مسیر داشته باشد. اگر قفل بدون blocklist شکسته شود، آن نوشتن‌ها بعداً روی داده‌ی مالک جدید فرود می‌آیند. blocklist در OSDMap تضمین می‌کند همه‌ی OSDها opهای آن آدرس را رد کنند. این همان مکانیزم fencing در کلاستر است.
+**Why blocklist?** An owner that seems "dead" may only be cut off from the network and still have writes in flight. If the lock is broken without a blocklist, those writes later land on the new owner's data. A blocklist in the OSDMap guarantees that all OSDs reject ops from that address. This is the fencing mechanism of the cluster.
 
-![گرفتن exclusive-lock. اگر قفل گرفته شده باشد، کلاینت B بررسی می‌کند مالک هنوز watch زنده دارد یا نه. در حالت زنده، با notify درخواست رها کردن می‌فرستد؛ در غیر این صورت ابتدا مالک را blocklist و سپس قفل را می‌شکند](figures/ch38/f03_lock.png){#fig-38-f03_lock}
+![Acquiring exclusive-lock. If the lock is held, client B checks whether the owner still has a live watch. If it is alive, B sends a release request with notify; otherwise it first blocklists the owner and then breaks the lock](figures/ch38/f03_lock.png){#fig-38-f03_lock}
 
 ```bash
-# مثال: دیدن قفل و watcherهای یک image
+# example: viewing an image's lock and watchers
 rbd lock ls rbd/vm01
 rbd status rbd/vm01
 ceph osd blocklist ls
 ```
 
 ```text
-مثال (خروجی):
+example (output):
 There is 1 exclusive lock on this image.
 Locker         ID                     Address
 client.24183   auto 94823571521536    10.20.0.31:0/2846217731
@@ -157,19 +156,19 @@ Watchers:
 listed 1 entries
 ```
 
-cookie قفل (`auto 94823571521536`) با cookie ‏watcher برابر است، پس مالک زنده است. خط blocklist نشان می‌دهد کلاینت دیگری (آدرس ‏…44) پیش‌تر fence شده است.
+The lock cookie (`auto 94823571521536`) equals the watcher cookie, so the owner is alive. The blocklist line shows that another client (address …44) was fenced earlier.
 
 ::: {.warn}
-اگر دو VM ‏یک image را با exclusive-lock باز کنند، هیچ خطایی نمی‌بینند: قفل مدام میان آن‌ها دست‌به‌دست می‌شود و هر دو می‌نویسند (با کارایی بسیار بد). exclusive-lock جلوی **دسترسی هم‌زمان** را نمی‌گیرد. برای جلوگیری واقعی، image را با `rbd device map -o exclusive` (krbd) یا گزینه‌ی `RBD_LOCK_MODE_EXCLUSIVE` در `rbd_lock_acquire` باز کنید تا قفل به درخواست دیگران رها نشود.
+If two VMs open one image with exclusive-lock, they see no error: the lock keeps passing between them and both write (with very bad performance). exclusive-lock does not prevent **concurrent access**. To really prevent it, open the image with `rbd device map -o exclusive` (krbd) or the `RBD_LOCK_MODE_EXCLUSIVE` option in `rbd_lock_acquire`, so the lock is not released at others' request.
 :::
 
-# cache {#sec-38-5}
+# Caches {#sec-38-5}
 
-## writearound (پیش‌فرض) {#sec-38-5-1}
+## writearound (default) {#sec-38-5-1}
 
-در شاخه‌ی main ‏`rbd_cache = true` و `rbd_cache_policy = writearound` است. این cache **داده را نگه نمی‌دارد**؛ فقط نوشتن را پیش از رسیدن به OSD تأیید می‌کند تا تأخیر از دید برنامه کم شود.
+In the main branch `rbd_cache = true` and `rbd_cache_policy = writearound`. This cache **does not keep data**; it only acknowledges the write before it reaches the OSD, so that latency is lower from the application's point of view.
 
-::: {.algo #alg-38-4 title="لایه‌ی writearound" src="src/librbd/cache/WriteAroundObjectDispatch.cc :: dispatch_io، block_overlapping_io، flush" complexity="O(log n) برای بررسی هم‌پوشانی در extentهای در جریان"}
+::: {.algo #alg-38-4 title="The writearound layer" src="src/librbd/cache/WriteAroundObjectDispatch.cc :: dispatch_io, block_overlapping_io, flush" complexity="O(log n) for checking overlap among in-flight extents"}
 :::
 
 ```text
@@ -185,27 +184,27 @@ read: not cached → straight to RADOS
 rbd_cache_writethrough_until_flush: until the guest sends its first flush, behave as writethrough
 ```
 
-`rbd_cache_writethrough_until_flush = true` از سیستم‌عامل‌های قدیمی که flush نمی‌فرستند محافظت می‌کند: تا نخستین flush دیده نشود، همه‌ی نوشتن‌ها همگام‌اند.
+`rbd_cache_writethrough_until_flush = true` protects old operating systems that do not send flushes: until the first flush is seen, all writes are synchronous.
 
-## writeback و writethrough (ObjectCacher) {#sec-38-5-2}
+## writeback and writethrough (ObjectCacher) {#sec-38-5-2}
 
-با `rbd_cache_policy = writeback` لایه‌ی CACHE همان ObjectCacher قدیمی است: داده‌ی خوانده‌شده و نوشته‌شده را تا `rbd_cache_size` (پیش‌فرض 32 MiB) نگه می‌دارد و dirty را تا `rbd_cache_max_dirty` (‏24 MiB) جمع می‌کند. این cache **فرّار** است و فقط با flush مهمان پایدار می‌شود.
+With `rbd_cache_policy = writeback`, the CACHE layer is the old ObjectCacher: it keeps read and written data up to `rbd_cache_size` (default 32 MiB) and accumulates dirty data up to `rbd_cache_max_dirty` (24 MiB). This cache is **volatile** and becomes durable only with a guest flush.
 
-## cache پایدار (PWL) {#sec-38-5-3}
+## The persistent cache (PWL) {#sec-38-5-3}
 
-`rbd_persistent_cache_mode` (پیش‌فرض `disabled`) با مقدار `ssd` یا `rwl` یک log پایدار روی SSD محلی یا PMEM می‌سازد. نوشتن پس از ثبت در log محلی تأیید می‌شود و بعداً به RADOS می‌رود. بیت `dirty-cache` در features نشان می‌دهد image داده‌ی ننوشته در یک میزبان دارد؛ باز کردن آن در میزبان دیگر تا flush شدن cache مجاز نیست. این cache تأخیر نوشتن را بسیار کم می‌کند، ولی میزبان را به **نقطه‌ی شکست** داده تبدیل می‌کند.
+`rbd_persistent_cache_mode` (default `disabled`) with the value `ssd` or `rwl` builds a persistent log on a local SSD or PMEM. A write is acknowledged after it is recorded in the local log and goes to RADOS later. The `dirty-cache` bit in features shows that the image has unwritten data on one host; opening it on another host is not allowed until the cache is flushed. This cache greatly reduces write latency, but turns the host into a data **point of failure**.
 
 # QoS {#sec-38-6}
 
-لایه‌ی QOS برای هر نوع محدودیت (`iops`، `bps`، `read_iops`، `write_iops`، `read_bps`، `write_bps`) یک `TokenBucketThrottle` دارد. تایمر هر `rbd_qos_schedule_tick_min` میلی‌ثانیه (پیش‌فرض 50) توکن اضافه می‌کند.
+The QOS layer has a `TokenBucketThrottle` for each kind of limit (`iops`, `bps`, `read_iops`, `write_iops`, `read_bps`, `write_bps`). A timer adds tokens every `rbd_qos_schedule_tick_min` milliseconds (default 50).
 
-::: {.algo #alg-38-5 title="token bucket در QoS ‏librbd" src="src/common/Throttle.cc :: TokenBucketThrottle::add_tokens، get؛ src/librbd/io/QosImageDispatch.cc" complexity="O(b) برای b درخواست منتظر در هر tick"}
+::: {.algo #alg-38-5 title="The token bucket in librbd QoS" src="src/common/Throttle.cc :: TokenBucketThrottle::add_tokens, get; src/librbd/io/QosImageDispatch.cc" complexity="O(b) for b waiting requests per tick"}
 :::
 
 ```text
 pseudocode
 every tick (>= rbd_qos_schedule_tick_min ms):
-    bucket.put(avg * tick / 1000, burst_ratio = max(burst, avg) / avg)   # سقف سطل = burst × burst_seconds
+    bucket.put(avg * tick / 1000, burst_ratio = max(burst, avg) / avg)   # bucket cap = burst × burst_seconds
     while blockers not empty:
         b = front ; got = bucket.get(b.tokens)
         if got == b.tokens: release b
@@ -214,64 +213,64 @@ request(tokens = 1 for iops, bytes for bps):
     if bucket has tokens: proceed ; else enqueue as blocker
 ```
 
-**مثال عددی.** `rbd_qos_iops_limit = 500` و burst خاموش. در هر tick ‏50 ms، ‏25 توکن اضافه می‌شود. VM با عمق صف 32 درخواست 4K می‌فرستد؛ 25 درخواست در هر tick آزاد و بقیه منتظر می‌مانند، پس تأخیر میانگین از دید VM حدود 32/500 = 64 ms است. QoS در librbd **برای هر image و هر کلاینت** جداست. دو کلاینتی که یک image را باز کنند هر کدام 500 IOPS می‌گیرند و هیچ هماهنگی سراسری وجود ندارد. برای سقف سطح کلاستر باید از mClock در OSD (فصل ۲۱) کمک گرفت.
+**Numerical example.** `rbd_qos_iops_limit = 500` with burst off. Every 50 ms tick adds 25 tokens. A VM sends 4K requests with a queue depth of 32; 25 requests are released per tick and the rest wait, so the average latency seen by the VM is about 32/500 = 64 ms. QoS in librbd is separate **for each image and each client**. Two clients that open one image each get 500 IOPS, and there is no global coordination. For a cluster-level cap you need mClock in the OSD (chapter 21).
 
-# krbd، librbd و rbd-nbd {#sec-38-7}
+# krbd, librbd and rbd-nbd {#sec-38-7}
 
 | | krbd | librbd (QEMU) | rbd-nbd |
 |---|---|---|---|
-| محل اجرا | هسته | فرایند QEMU | فرایند rbd-nbd + nbd هسته |
-| journaling و mirroring حالت journal | خیر | بله | بله |
-| object-map و fast-diff | از هسته‌ی 5.3 | بله | بله |
-| cache ‏librbd و PWL | خیر (page cache هسته) | بله | بله |
-| QoS در librbd | خیر | بله | بله |
-| رمزنگاری LUKS ‏librbd | خیر (dm-crypt جدا) | بله | بله |
-| کپی‌های اضافه‌ی داده | کمترین | کم | بیشتر (هسته ↔ فضای کاربر) |
-| ارتقا | با هسته | با بسته‌ی Ceph | با بسته‌ی Ceph |
+| Runs in | the kernel | the QEMU process | the rbd-nbd process + the kernel nbd |
+| journaling and journal-mode mirroring | no | yes | yes |
+| object-map and fast-diff | from kernel 5.3 | yes | yes |
+| librbd cache and PWL | no (the kernel page cache) | yes | yes |
+| QoS in librbd | no | yes | yes |
+| librbd LUKS encryption | no (separate dm-crypt) | yes | yes |
+| Extra data copies | fewest | few | more (kernel ↔ user space) |
+| Upgrades | with the kernel | with the Ceph package | with the Ceph package |
 
-پشتیبانی ویژگی‌ها در krbd به نسخه‌ی هسته وابسته است (striping سفارشی از 4.17، deep-flatten از 5.1، object-map و fast-diff از 5.3، طبق مستند rbd(8)). اگر image ویژگی ناشناخته‌ای برای هسته داشته باشد، `rbd device map` با «image uses unsupported features» شکست می‌خورد و باید آن ویژگی را خاموش کرد یا rbd-nbd را به کار برد.
+Feature support in krbd depends on the kernel version (custom striping from 4.17, deep-flatten from 5.1, object-map and fast-diff from 5.3, according to the rbd(8) documentation). If the image has a feature unknown to the kernel, `rbd device map` fails with "image uses unsupported features", and you must turn that feature off or use rbd-nbd.
 
-# تنظیم و عیب‌یابی {#sec-38-8}
+# Tuning and troubleshooting {#sec-38-8}
 
-- **کندی شدید با دو کلاینت:** `rbd status` را ببینید؛ اگر دو watcher دارد و قفل مدام جابه‌جا می‌شود (در لاگ librbd پیام‌های request lock)، یکی از کلاینت‌ها نباید image را باز کرده باشد.
-- **VM پس از failover میزبان «read-only» می‌شود:** میزبان قبلی blocklist شده و نوشتن‌های آن رد می‌شوند. این رفتار درست است؛ پس از بازگشت، فرایند QEMU قدیمی را متوقف کنید و `ceph osd blocklist rm` فقط پس از اطمینان از توقف آن.
-- **کندی clone تازه:** هزینه‌ی copyup است. `rbd flatten` را در زمان خلوت اجرا کنید یا parent cache (‏`rbd_parent_cache_enabled` با ceph-immutable-object-cache) را برای خواندن‌ها روشن کنید.
-- **`rbd_op_threads`:** پیش‌فرض 1 است. برای یک فرایند با تعداد زیادی image یا IOPS بسیار بالا، افزایش آن تا 2 یا 4 می‌تواند کمک کند، ولی ترتیب callbackها را تضمین نمی‌کند.
-- **مهلت درخواست:** `rbd_request_timed_out_seconds` (‏30) فقط برای پیام‌های notify میان کلاینت‌هاست، نه برای I/O.
+- **Severe slowness with two clients:** look at `rbd status`; if it has two watchers and the lock keeps moving (request lock messages in the librbd log), one of the clients should not have the image open.
+- **A VM becomes "read-only" after a host failover:** the previous host was blocklisted and its writes are rejected. This behavior is correct; after it comes back, stop the old QEMU process, and run `ceph osd blocklist rm` only after you are sure it has stopped.
+- **A slow new clone:** this is the cost of copyup. Run `rbd flatten` at a quiet time, or turn on the parent cache (`rbd_parent_cache_enabled` with ceph-immutable-object-cache) for reads.
+- **`rbd_op_threads`:** the default is 1. For a process with many images or very high IOPS, raising it to 2 or 4 can help, but it does not guarantee the order of callbacks.
+- **Request timeout:** `rbd_request_timed_out_seconds` (30) applies only to notify messages between clients, not to I/O.
 
-# تکمیلی و به‌روز {#sec-38-9}
+# Supplementary and up to date {#sec-38-9}
 
-- در نسخه‌های قدیمی‌تر پیش‌فرض `rbd_cache_policy` همان writeback بود. هنگام ارتقای clusterهای قدیمی، تنظیمات صریح در `ceph.conf` میزبان‌های QEMU را بررسی کنید.
-- لایه‌ی `SCHEDULER` (‏`rbd_io_scheduler = simple`) نوشتن‌های کوچک پشت‌سرهم روی یک شیء را ادغام می‌کند. اثر آن روی بارهای ترتیبی کوچک مثبت و روی بارهای تصادفی ناچیز است.
-- `rbd_read_from_replica_policy` با مقدار `balance` یا `localize` خواندن را به replicaها هم می‌فرستد؛ این کار فقط روی clusterهایی با `require_osd_release` جدید و برای imageهایی که نوشتن هم‌زمان ندارند ایمن است.
+- In older versions the default `rbd_cache_policy` was writeback. When upgrading old clusters, check for explicit settings in the `ceph.conf` of the QEMU hosts.
+- The `SCHEDULER` layer (`rbd_io_scheduler = simple`) merges small back-to-back writes to one object. Its effect is positive on small sequential loads and negligible on random loads.
+- `rbd_read_from_replica_policy` with the value `balance` or `localize` also sends reads to the replicas; this is safe only on clusters with a recent `require_osd_release` and for images that have no concurrent writes.
 
-# تمرین عملی {#sec-38-10}
+# Hands-on exercise {#sec-38-10}
 
-1. با `debug_rbd=20` یک نوشتن 4K بفرستید و نام لایه‌هایی را که در لاگ دیده می‌شوند به ترتیب یادداشت کنید.
-2. یک clone بسازید، روی یک شیء خالی آن 4 KiB بنویسید و با `rados stat` اندازه‌ی شیء clone را ببینید. سپس `rbd du` را پیش و پس مقایسه کنید.
-3. image را در دو فرایند `rbd bench` هم‌زمان باز کنید و IOPS هر کدام را با حالت تک‌فرایندی مقایسه کنید.
-4. `rbd config image set rbd/vm01 rbd_qos_iops_limit 500` را تنظیم و با `rbd bench --io-threads 32` تأخیر را اندازه بگیرید. با محاسبه‌ی مثال فصل مقایسه کنید.
+1. Send a 4K write with `debug_rbd=20` and note, in order, the names of the layers that appear in the log.
+2. Create a clone, write 4 KiB to one of its empty objects and look at the clone object's size with `rados stat`. Then compare `rbd du` before and after.
+3. Open the image in two `rbd bench` processes at the same time and compare each one's IOPS with the single-process case.
+4. Set `rbd config image set rbd/vm01 rbd_qos_iops_limit 500` and measure the latency with `rbd bench --io-threads 32`. Compare with the calculation in the chapter's example.
 
-# پرسش‌های مرور {#sec-38-11}
+# Review questions {#sec-38-11}
 
-1. لایه‌ی EXCLUSIVE_LOCK پیش از کدام لایه‌ها اجرا می‌شود و چرا؟
-2. چه زمانی copyup بدون فرستادن نخستین نوشتن انجام می‌شود؟
-3. چرا متد cls ‏`copyup` اگر شیء وجود داشته باشد کاری نمی‌کند؟
-4. deep-flatten چه چیزی را اضافه می‌کند؟
-5. cookie قفل `rbd_lock` چه ساختاری دارد و به چه کاری می‌آید؟
-6. چرا شکستن قفل بدون blocklist خطرناک است؟
-7. writearound چه زمانی نوشتن را بلافاصله تأیید نمی‌کند؟
-8. `rbd_cache_writethrough_until_flush` از چه چیزی محافظت می‌کند؟
-9. با `rbd_qos_iops_limit = 1000` و tick ‏50 ms، در هر tick چند توکن اضافه می‌شود؟
-10. دو دلیل برای استفاده از rbd-nbd به‌جای krbd نام ببرید.
+1. Which layers does the EXCLUSIVE_LOCK layer run before, and why?
+2. When is copyup done without sending the first write?
+3. Why does the cls `copyup` method do nothing if the object exists?
+4. What does deep-flatten add?
+5. What structure does the cookie of the `rbd_lock` lock have, and what is it used for?
+6. Why is breaking the lock without a blocklist dangerous?
+7. When does writearound not acknowledge a write immediately?
+8. What does `rbd_cache_writethrough_until_flush` protect against?
+9. With `rbd_qos_iops_limit = 1000` and a 50 ms tick, how many tokens are added per tick?
+10. Name two reasons to use rbd-nbd instead of krbd.
 
-# منابع این فصل {#sec-38-12}
+# Sources for this chapter {#sec-38-12}
 
-- librbd/io (Types.h، ImageDispatcher، ObjectRequest، CopyupRequest): https://github.com/ceph/ceph/tree/main/src/librbd/io
-- librbd/managed_lock و ExclusiveLock.cc: https://github.com/ceph/ceph/tree/main/src/librbd/managed_lock
+- librbd/io (Types.h, ImageDispatcher, ObjectRequest, CopyupRequest): https://github.com/ceph/ceph/tree/main/src/librbd/io
+- librbd/managed_lock and ExclusiveLock.cc: https://github.com/ceph/ceph/tree/main/src/librbd/managed_lock
 - WriteAroundObjectDispatch.cc: https://github.com/ceph/ceph/blob/main/src/librbd/cache/WriteAroundObjectDispatch.cc
 - Throttle.cc (TokenBucketThrottle): https://github.com/ceph/ceph/blob/main/src/common/Throttle.cc
-- گزینه‌های RBD: https://docs.ceph.com/en/latest/rbd/rbd-config-ref/
-- cache پایدار: https://docs.ceph.com/en/latest/rbd/rbd-persistent-write-log-cache/
-- مستند exclusive lock: https://docs.ceph.com/en/latest/rbd/rbd-exclusive-locks/
-- rbd(8) و ویژگی‌های krbd: https://docs.ceph.com/en/latest/man/8/rbd/
+- RBD options: https://docs.ceph.com/en/latest/rbd/rbd-config-ref/
+- Persistent cache: https://docs.ceph.com/en/latest/rbd/rbd-persistent-write-log-cache/
+- Exclusive lock documentation: https://docs.ceph.com/en/latest/rbd/rbd-exclusive-locks/
+- rbd(8) and krbd features: https://docs.ceph.com/en/latest/man/8/rbd/
