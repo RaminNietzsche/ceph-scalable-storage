@@ -4,41 +4,40 @@ id: ch39
 title: 'Specialist Part (6): RBD — Inside rbd-mirror: Journal versus Snapshot'
 part: specialist
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-39-1}
+# Before we begin {#sec-39-1}
 
-فصل ۲ نشان داد mirroring چگونه پیکربندی و برای failover و failback استفاده می‌شود. این فصل به درون آن می‌رود: journal یک image روی RADOS چه شکلی دارد و هر رویداد بایت به بایت چگونه نوشته می‌شود، librbd چه ترتیبی میان journal و داده نگه می‌دارد، rbd-mirror در حالت journal چگونه رویدادها را replay و commit می‌کند، حالت snapshot چه snapshotهایی می‌سازد و چگونه فقط تفاوت‌ها را کپی می‌کند، و چند daemon ‏rbd-mirror کار را چگونه میان خود تقسیم می‌کنند. نام‌ها و پیش‌فرض‌ها با شاخه‌ی main مخزن ceph/ceph (نوامبر ۲۰۲۶) تطبیق داده شده‌اند.
+Chapter 2 showed how mirroring is configured and used for failover and failback. This chapter goes inside it: what an image's journal looks like on RADOS and how each event is written byte by byte, what order librbd keeps between the journal and the data, how rbd-mirror replays and commits events in journal mode, which snapshots snapshot mode creates and how it copies only the differences, and how several rbd-mirror daemons divide the work among themselves. Names and defaults have been checked against the main branch of the ceph/ceph repository (November 2026).
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-39-1-1}
+## What questions does this chapter answer? {#sec-39-1-1}
 
-- journal یک image در کدام اشیا ذخیره می‌شود و یک رویداد چه قالبی دارد؟
-- چرا هر نوشتن با journaling دو بار نوشته می‌شود و ترتیب آن دو چیست؟
-- commit position چیست و journal چه زمانی کوتاه می‌شود؟
-- rbd-mirror در حالت snapshot از کجا می‌داند کدام اشیا را کپی کند؟
-- snapshotهای mirror چه حالت‌هایی دارند و demote و promote چگونه با آن‌ها نشان داده می‌شوند؟
-- چند rbd-mirror چگونه leader انتخاب و imageها را تقسیم می‌کنند؟
-- کدام حالت را برای کدام بار انتخاب کنیم؟
+- In which objects is an image's journal stored, and what format does an event have?
+- Why is each write written twice with journaling, and in what order?
+- What is the commit position, and when is the journal trimmed?
+- In snapshot mode, how does rbd-mirror know which objects to copy?
+- What states do mirror snapshots have, and how are demote and promote expressed with them?
+- How do several rbd-mirror daemons elect a leader and divide the images?
+- Which mode should we choose for which load?
 
-## پیش‌نیاز {#sec-39-1-2}
+## Prerequisites {#sec-39-1-2}
 
-فصل ۲ (mirroring)، فصل ۳۷ (header، object map و fast-diff)، فصل ۳۸ (لایه‌های dispatch و exclusive-lock).
+Chapter 2 (mirroring), chapter 37 (the header, object map and fast-diff), chapter 38 (the dispatch layers and exclusive-lock).
 
-# journal روی RADOS {#sec-39-2}
+# The journal on RADOS {#sec-39-2}
 
-## اشیای journal {#sec-39-2-1}
+## The journal objects {#sec-39-2-1}
 
-با فعال شدن ویژگی `journaling`، librbd یک journal برای image می‌سازد (کتابخانه‌ی عمومی `src/journal` و کلاس `cls_journal`):
+When the `journaling` feature is enabled, librbd creates a journal for the image (the generic library `src/journal` and the `cls_journal` class):
 
-| شیء | محتوا |
+| Object | Content |
 |---|---|
-| `journal.<image-id>` | header در omap: `order`، `splay_width`، `pool_id`، `minimum_set`، `active_set`، `next_tag_tid`، `next_tag_class`، `client_<id>` (هر مصرف‌کننده و commit position آن)، `tag_<tid>` |
-| `journal_data.<pool-id>.<image-id>.<n>` | داده‌ی journal؛ n شماره‌ی شیء |
+| `journal.<image-id>` | the header in omap: `order`, `splay_width`, `pool_id`, `minimum_set`, `active_set`, `next_tag_tid`, `next_tag_class`, `client_<id>` (each consumer and its commit position), `tag_<tid>` |
+| `journal_data.<pool-id>.<image-id>.<n>` | journal data; n is the object number |
 
-journal مثل یک image striped کار می‌کند: `splay_width` شیء (پیش‌فرض `rbd_journal_splay_width` ‏= 4) یک **object set** می‌سازند و هر شیء تا `2^order` بایت (`rbd_journal_order` ‏= 24، یعنی 16 MiB) رشد می‌کند. وقتی اشیای set فعال پر شوند، `active_set` یکی بالا می‌رود. `rbd_journal_pool` اجازه می‌دهد journal در pool دیگری (مثلاً SSD) باشد.
+The journal works like a striped image: `splay_width` objects (default `rbd_journal_splay_width` = 4) form an **object set**, and each object grows up to `2^order` bytes (`rbd_journal_order` = 24, that is 16 MiB). When the objects of the active set fill up, `active_set` goes up by one. `rbd_journal_pool` lets the journal live in another pool (for example on SSD).
 
-::: {.algo #alg-39-1 title="افزودن رویداد به journal و انتخاب شیء" src="src/journal/JournalRecorder.cc :: JournalRecorder::append، get_object؛ src/journal/Entry.cc :: Entry::encode" complexity="O(1) برای هر رویداد؛ نوشتن‌ها در هر شیء دسته‌بندی می‌شوند"}
+::: {.algo #alg-39-1 title="Appending an event to the journal and choosing the object" src="src/journal/JournalRecorder.cc :: JournalRecorder::append, get_object; src/journal/Entry.cc :: Entry::encode" complexity="O(1) per event; writes are batched per object"}
 :::
 
 ```text
@@ -48,21 +47,21 @@ append(tag_tid, payload):
     splay_offset = entry_tid % splay_width
     object_number = active_set * splay_width + splay_offset
     bytes = Entry{preamble 0x3141592653589793, version 1, entry_tid, tag_tid, data}.encode() + crc32c
-    ObjectRecorder[splay_offset].append(bytes)      # دسته‌ای با flush interval/bytes/age
+    ObjectRecorder[splay_offset].append(bytes)      # batched by flush interval/bytes/age
     if object reaches 2^order: close set ; active_set++ (update header)
 ```
 
-![یک رویداد journal، بایت به بایت. پیش‌درآمد ثابت هشت‌بایتی برای بازیابی مرز رویدادها، نسخه، شناسه‌ی رویداد و tag، طول داده، داده‌ی رمزگذاری‌شده‌ی EventEntry در librbd و crc32c کل بخش قبلی](figures/ch39/f01_entry.png){#fig-39-f01_entry}
+![A journal event, byte by byte. A fixed eight-byte preamble for recovering event boundaries, the version, the entry and tag ids, the data length, the encoded librbd EventEntry data, and a crc32c over everything before it](figures/ch39/f01_entry.png){#fig-39-f01_entry}
 
-`HEADER_FIXED_SIZE` ‏25 بایت (preamble، version، entry tid و tag tid) و `REMAINDER_FIXED_SIZE` ‏8 بایت (طول داده و crc) است، پس هر رویداد 33 بایت سربار دارد. پیش‌درآمد ثابت به خواننده اجازه می‌دهد در صورت خرابی یا padding صفر، شروع رویداد بعدی را پیدا کند.
+`HEADER_FIXED_SIZE` is 25 bytes (preamble, version, entry tid and tag tid) and `REMAINDER_FIXED_SIZE` is 8 bytes (data length and crc), so each event has 33 bytes of overhead. The fixed preamble lets a reader find the start of the next event after corruption or zero padding.
 
-## رویدادهای librbd {#sec-39-2-2}
+## librbd events {#sec-39-2-2}
 
-داده‌ی هر رویداد یک `EventEntry` است با یکی از انواع `EVENT_TYPE_*`: ‏`AIO_WRITE` ‏(1)، `AIO_DISCARD` ‏(0)، `AIO_FLUSH` ‏(2)، `AIO_WRITESAME` ‏(18)، `AIO_COMPARE_AND_WRITE` ‏(19)، و رویدادهای عملیاتی مثل `SNAP_CREATE` ‏(4)، `RESIZE` ‏(11)، `FLATTEN` ‏(12)، `DEMOTE_PROMOTE` ‏(13)، `UPDATE_FEATURES` ‏(15) و `OP_FINISH` ‏(3). رویداد نوشتن **داده‌ی کامل** نوشتن را دارد. نوشتن‌های بزرگ‌تر از `rbd_journal_max_payload_bytes` (پیش‌فرض 16 KiB) به چند رویداد شکسته می‌شوند.
+The data of each event is an `EventEntry` with one of the `EVENT_TYPE_*` types: `AIO_WRITE` (1), `AIO_DISCARD` (0), `AIO_FLUSH` (2), `AIO_WRITESAME` (18), `AIO_COMPARE_AND_WRITE` (19), and operational events such as `SNAP_CREATE` (4), `RESIZE` (11), `FLATTEN` (12), `DEMOTE_PROMOTE` (13), `UPDATE_FEATURES` (15) and `OP_FINISH` (3). A write event carries the **full data** of the write. Writes larger than `rbd_journal_max_payload_bytes` (default 16 KiB) are split into several events.
 
-## ترتیب journal و داده {#sec-39-2-3}
+## The order of journal and data {#sec-39-2-3}
 
-::: {.algo #alg-39-2 title="نوشتن با journaling: اول رویداد، بعد داده" src="src/librbd/Journal.cc :: append_write_event، append_io_event، commit_io_event؛ src/librbd/journal/ObjectDispatch.cc" complexity="دو نوشتن RADOS برای هر نوشتن کاربر؛ تأخیر = journal append + data write"}
+::: {.algo #alg-39-2 title="Writing with journaling: event first, then data" src="src/librbd/Journal.cc :: append_write_event, append_io_event, commit_io_event; src/librbd/journal/ObjectDispatch.cc" complexity="two RADOS writes per user write; latency = journal append + data write"}
 :::
 
 ```text
@@ -74,23 +73,23 @@ object write (JOURNAL object layer):
     wait until event tid is SAFE (persisted in journal_data objects)
     send data write to rbd_data object
 on data write complete:
-    journal.commit_io_event(tid)        # پس از آن رویداد قابل trim است (از دید مصرف‌کننده‌ی محلی)
+    journal.commit_io_event(tid)        # after this the event can be trimmed (from the local consumer's view)
 client registration:
     master client "" (local librbd) and one client per mirror peer (mirror uuid)
     each client commit_position = last committed (tag_tid, entry_tid) per splay offset
 trim: objects of sets < min(commit sets of all clients) are removed ; minimum_set advances
 ```
 
-پیامد عملی: با journaling هر نوشتن **دو بار** نوشته می‌شود، یک بار در journal و یک بار در داده، و تأخیر هر دو پشت‌سرهم است. اگر peer از دسترس خارج شود، journal تا جایی که commit position آن peer عقب است trim نمی‌شود و رشد می‌کند. `rbd_journal_max_concurrent_object_sets` (پیش‌فرض 0 یعنی بی‌سقف) می‌تواند یک peer عقب‌مانده را **disconnect** کند تا journal بی‌نهایت رشد نکند؛ peer جداشده باید دوباره کامل همگام شود.
+The practical consequence: with journaling each write is written **twice**, once in the journal and once in the data, and the latencies of the two add up. If a peer becomes unreachable, the journal is not trimmed past that peer's commit position and keeps growing. `rbd_journal_max_concurrent_object_sets` (default 0, meaning unlimited) can **disconnect** a lagging peer so the journal does not grow without bound; a disconnected peer must then fully resynchronize.
 
 ```bash
-# مثال: بررسی journal یک image
+# example: inspecting an image's journal
 rbd journal info --pool rbd --image vm01
 rbd journal status --pool rbd --image vm01
 ```
 
 ```text
-مثال (خروجی):
+example (output):
 rbd journal '5f3a2b8c1d4e':
 	header_oid: journal.5f3a2b8c1d4e
 	object_oid_prefix: journal_data.3.5f3a2b8c1d4e.
@@ -103,13 +102,13 @@ active_set: 9
 	[id=b6e4…remote-uuid, commit_position=[positions=[[object_number=30, tag_tid=3, entry_tid=88310], ...]], state=connected]
 ```
 
-client دوم (peer) شیء 30 (در set ‏7) را commit کرده و client محلی شیء 36 (set ‏9) را؛ پس setهای 7 و 8 به خاطر peer نگه داشته شده‌اند.
+The second client (the peer) has committed object 30 (in set 7) and the local client object 36 (set 9); so sets 7 and 8 are being kept because of the peer.
 
-# replay در حالت journal {#sec-39-3}
+# Replay in journal mode {#sec-39-3}
 
-rbd-mirror در کلاستر مقصد اجرا می‌شود، به‌عنوان یک client در journal ‏image مبدأ ثبت می‌شود و رویدادها را می‌خواند.
+rbd-mirror runs in the destination cluster, registers as a client in the source image's journal and reads the events.
 
-::: {.algo #alg-39-3 title="replay رویدادهای journal در rbd-mirror" src="src/tools/rbd_mirror/image_replayer/journal/Replayer.cc؛ EventPreprocessor.cc؛ src/librbd/journal/Replay.cc" complexity="O(E) برای E رویداد؛ پهنای باند ≈ نرخ نوشتن مبدأ + سربار رویدادها"}
+::: {.algo #alg-39-3 title="Replaying journal events in rbd-mirror" src="src/tools/rbd_mirror/image_replayer/journal/Replayer.cc; EventPreprocessor.cc; src/librbd/journal/Replay.cc" complexity="O(E) for E events; bandwidth ≈ the source write rate + event overhead"}
 :::
 
 ```text
@@ -119,32 +118,32 @@ loop:
     entries = remote_journaler.fetch(rbd_mirror_journal_max_fetch_bytes)
     for e in entries:
         if e.tag changes owner (promote/demote): handle tag, maybe stop
-        ev = decode EventEntry ; EventPreprocessor.map_snap_ids(ev)   # snap id محلی ≠ مبدأ
+        ev = decode EventEntry ; EventPreprocessor.map_snap_ids(ev)   # the local snap id ≠ the source one
         librbd::journal::Replay.process(ev) on local image             # local image is non-primary
         on safe: remote_journaler.committed(e) → periodically update commit_position
 status: entries_behind_primary, bytes_per_second, seconds_until_synced
 ```
 
-image مقصد ویژگی `non-primary` دارد و فقط rbd-mirror حق نوشتن در آن را دارد. ترتیب رویدادها و نقاط flush حفظ می‌شود، پس مقصد همیشه **crash-consistent** است: در هر لحظه، همان حالتی را دارد که مبدأ در یک نقطه‌ی زمانی گذشته داشته است.
+The destination image has the `non-primary` feature and only rbd-mirror may write to it. The order of events and the flush points are preserved, so the destination is always **crash-consistent**: at any moment it is in a state the source had at some past point in time.
 
-# حالت snapshot {#sec-39-4}
+# Snapshot mode {#sec-39-4}
 
-در این حالت journal وجود ندارد. librbd یا زمان‌بند mgr (‏`rbd mirror snapshot schedule`) روی image اصلی یک **snapshot از namespace ‏mirror** می‌سازد و rbd-mirror تفاوت میان دو snapshot متوالی را کپی می‌کند.
+In this mode there is no journal. librbd or the mgr scheduler (`rbd mirror snapshot schedule`) creates a **snapshot in the mirror namespace** on the primary image, and rbd-mirror copies the difference between two consecutive snapshots.
 
-## namespace snapshot ‏mirror {#sec-39-4-1}
+## The mirror snapshot namespace {#sec-39-4-1}
 
-| فیلد `MirrorSnapshotNamespace` | معنی |
+| `MirrorSnapshotNamespace` field | Meaning |
 |---|---|
-| `state` | `PRIMARY` ‏(0)، `PRIMARY_DEMOTED` ‏(1)، `NON_PRIMARY` ‏(2)، `NON_PRIMARY_DEMOTED` ‏(3) |
-| `complete` | روی مقصد: کپی این snapshot تمام شده است |
-| `mirror_peer_uuids` | peerهایی که هنوز به این snapshot نیاز دارند |
-| `primary_mirror_uuid`، `primary_snap_id` | روی مقصد: snapshot متناظر در مبدأ |
-| `last_copied_object_number` | پیشرفت کپی برای ادامه پس از قطع |
-| `snap_seqs` | نگاشت snap idهای مبدأ به مقصد |
+| `state` | `PRIMARY` (0), `PRIMARY_DEMOTED` (1), `NON_PRIMARY` (2), `NON_PRIMARY_DEMOTED` (3) |
+| `complete` | on the destination: copying this snapshot has finished |
+| `mirror_peer_uuids` | the peers that still need this snapshot |
+| `primary_mirror_uuid`, `primary_snap_id` | on the destination: the corresponding snapshot on the source |
+| `last_copied_object_number` | copy progress, for resuming after an interruption |
+| `snap_seqs` | the mapping of source snap ids to destination ones |
 
-demote یک snapshot با حالت `PRIMARY_DEMOTED` می‌سازد و promote در طرف دیگر پس از رسیدن آن، تصویر را primary می‌کند. به همین دلیل failover برنامه‌ریزی‌شده بدون از دست رفتن داده است: demote آخرین تغییرات را در یک snapshot می‌گذارد و promote منتظر کامل شدن آن می‌ماند. `rbd_mirroring_max_mirroring_snapshots` (پیش‌فرض 5) تعداد snapshotهای mirror نگه‌داشته‌شده را محدود می‌کند.
+Demote creates a snapshot with the state `PRIMARY_DEMOTED`, and promote on the other side makes the image primary once that snapshot has arrived. That is why a planned failover loses no data: demote puts the last changes into a snapshot and promote waits for it to be complete. `rbd_mirroring_max_mirroring_snapshots` (default 5) limits the number of mirror snapshots kept.
 
-::: {.algo #alg-39-4 title="یک دور replay در حالت snapshot" src="src/tools/rbd_mirror/image_replayer/snapshot/Replayer.cc :: scan_local_mirror_snapshots، scan_remote_mirror_snapshots، copy_snapshots، create_non_primary_snapshot، copy_image، update_non_primary_snapshot، unlink_peer" complexity="O(تغییرات میان دو snapshot)؛ فهرست اشیا با fast-diff، بدون خواندن کل image"}
+::: {.algo #alg-39-4 title="One replay round in snapshot mode" src="src/tools/rbd_mirror/image_replayer/snapshot/Replayer.cc :: scan_local_mirror_snapshots, scan_remote_mirror_snapshots, copy_snapshots, create_non_primary_snapshot, copy_image, update_non_primary_snapshot, unlink_peer" complexity="O(the changes between two snapshots); the object list comes from fast-diff, without reading the whole image"}
 :::
 
 ```text
@@ -166,23 +165,23 @@ on image update notify (or periodic check):
     prune older local mirror snapshots
 ```
 
-**مثال عددی.** image ‏2 TiB (524288 شیء 4 MiB) با زمان‌بند هر ۱۵ دقیقه. اگر در ۱۵ دقیقه 3000 شیء تغییر کنند، fast-diff همین 3000 شیء را پیدا می‌کند و rbd-mirror حدود 12 GiB منتقل می‌کند، حتی اگر روی هر شیء صدها نوشتن کوچک انجام شده باشد. در حالت journal همان بار، اگر 200 MiB/s نوشتن کوچک باشد، حدود 180 GB در ۱۵ دقیقه رویداد تولید می‌کند. برعکس، اگر در ۱۵ دقیقه فقط یک بایت در هر یک از 3000 شیء نوشته شود، حالت snapshot باز هم 12 GiB می‌فرستد. پس انتخاب حالت به **الگوی نوشتن** و **RPO** بستگی دارد.
+**Numerical example.** A 2 TiB image (524288 objects of 4 MiB) with a scheduler every 15 minutes. If 3000 objects change in 15 minutes, fast-diff finds exactly those 3000 objects and rbd-mirror transfers about 12 GiB, even if hundreds of small writes were made to each object. In journal mode the same load, if it is 200 MiB/s of small writes, produces about 180 GB of events in 15 minutes. Conversely, if only one byte is written to each of the 3000 objects in 15 minutes, snapshot mode still sends 12 GiB. So the choice of mode depends on the **write pattern** and the **RPO**.
 
-![دو حالت mirroring در کنار هم. در حالت journal هر نوشتن اول در journal مبدأ ثبت و rbd-mirror رویدادها را پیوسته روی مقصد replay می‌کند. در حالت snapshot زمان‌بند snapshot mirror می‌سازد و rbd-mirror فقط اشیای تغییرکرده میان دو snapshot را با fast-diff کپی می‌کند](figures/ch39/f02_modes.png){#fig-39-f02_modes}
+![The two mirroring modes side by side. In journal mode each write is first recorded in the source journal and rbd-mirror continuously replays the events on the destination. In snapshot mode the scheduler creates mirror snapshots and rbd-mirror copies only the objects changed between two snapshots, using fast-diff](figures/ch39/f02_modes.png){#fig-39-f02_modes}
 
 | | journal | snapshot |
 |---|---|---|
-| RPO | ثانیه‌ها | فاصله‌ی زمان‌بند (دقیقه‌ها) |
-| سربار نوشتن در مبدأ | دو برابر نوشتن و تأخیر بیشتر | تقریباً صفر (فقط snapshot و clone اشیا) |
-| کلاینت‌ها | فقط librbd (krbd پشتیبانی نمی‌کند) | librbd و krbd |
-| پهنای باند | متناسب با حجم نوشتن | متناسب با تعداد اشیای تغییرکرده |
-| ریسک | رشد journal اگر peer عقب بماند | snapshotهای زیاد و clone در RADOS |
+| RPO | seconds | the scheduler interval (minutes) |
+| Write overhead on the source | double writes and higher latency | almost zero (only the snapshot and object clones) |
+| Clients | librbd only (krbd does not support it) | librbd and krbd |
+| Bandwidth | proportional to the write volume | proportional to the number of changed objects |
+| Risk | journal growth if a peer falls behind | many snapshots and clones in RADOS |
 
-# daemonها: leader، instance و تقسیم imageها {#sec-39-5}
+# Daemons: leader, instances and dividing the images {#sec-39-5}
 
-چند daemon ‏rbd-mirror می‌توانند برای یک pool اجرا شوند (active-active). هماهنگی با watch/notify روی اشیای همان pool انجام می‌شود.
+Several rbd-mirror daemons can run for one pool (active-active). Coordination is done with watch/notify on objects in that same pool.
 
-::: {.algo #alg-39-5 title="انتخاب leader و تخصیص imageها به instanceها" src="src/tools/rbd_mirror/LeaderWatcher.cc، InstanceWatcher.cc، ImageMap.cc، image_map/SimplePolicy.cc" complexity="O(I) برای I image در هر بازتخصیص"}
+::: {.algo #alg-39-5 title="Leader election and assigning images to instances" src="src/tools/rbd_mirror/LeaderWatcher.cc, InstanceWatcher.cc, ImageMap.cc, image_map/SimplePolicy.cc" complexity="O(I) for I images per reassignment"}
 :::
 
 ```text
@@ -197,27 +196,27 @@ leader: ImageMap with policy rbd_mirror_image_policy_type (simple)
 instance: InstanceReplayer starts/stops ImageReplayer per assigned image
 ```
 
-**مثال عددی.** با سه daemon و 300 image، هر daemon حدود 100 image می‌گیرد. اگر یکی از کار بیفتد، leader پس از دو heartbeat از دست‌رفته (حدود 10 ثانیه، به‌علاوه‌ی زمان watch timeout) آن را حذف و 100 image را میان دو daemon باقی‌مانده پخش می‌کند. هر image تا آن زمان همگام نمی‌شود؛ در حالت journal یعنی journal مبدأ به همین اندازه رشد می‌کند.
+**Numerical example.** With three daemons and 300 images, each daemon gets about 100 images. If one fails, the leader removes it after two missed heartbeats (about 10 seconds, plus the watch timeout) and spreads its 100 images between the two remaining daemons. Until then those images are not synchronized; in journal mode that means the source journal grows by that much.
 
-# مرجع دستورها {#sec-39-6}
+# Command reference {#sec-39-6}
 
-| دستور | کاربرد |
+| Command | Use |
 |---|---|
-| `rbd mirror pool enable P {image,pool} [--site-name N]` / `disable` | روشن کردن mirroring در pool |
-| `rbd mirror pool peer bootstrap create P` / `bootstrap import P TOKEN [--direction {rx-only,rx-tx}]` | پیوند دو کلاستر |
-| `rbd mirror pool peer {add,remove,set}` | مدیریت دستی peer |
-| `rbd mirror pool info P` / `status P [--verbose]` | پیکربندی و وضعیت همه‌ی imageها |
-| `rbd mirror image enable P/I {journal,snapshot}` / `disable` | روشن کردن برای یک image |
-| `rbd mirror image {promote [--force],demote,resync} P/I` | failover، failback و همگام‌سازی دوباره |
-| `rbd mirror image status P/I` | وضعیت دقیق یک image |
-| `rbd mirror image snapshot P/I` | snapshot دستی mirror |
-| `rbd mirror snapshot schedule {add,ls,status,remove} [--pool P] [--image I] INTERVAL [START]` | زمان‌بند snapshot |
-| `rbd journal {info,status,inspect,export,import,reset}` | journal یک image |
-| `ceph orch apply rbd-mirror --placement=N` | استقرار daemonها با cephadm |
-| `ceph daemon /var/run/ceph/ceph-client.rbd-mirror.*.asok rbd mirror status` | وضعیت داخلی daemon |
+| `rbd mirror pool enable P {image,pool} [--site-name N]` / `disable` | turning mirroring on in a pool |
+| `rbd mirror pool peer bootstrap create P` / `bootstrap import P TOKEN [--direction {rx-only,rx-tx}]` | linking two clusters |
+| `rbd mirror pool peer {add,remove,set}` | managing peers by hand |
+| `rbd mirror pool info P` / `status P [--verbose]` | the configuration and the status of all images |
+| `rbd mirror image enable P/I {journal,snapshot}` / `disable` | turning it on for one image |
+| `rbd mirror image {promote [--force],demote,resync} P/I` | failover, failback and resynchronization |
+| `rbd mirror image status P/I` | the detailed status of one image |
+| `rbd mirror image snapshot P/I` | a manual mirror snapshot |
+| `rbd mirror snapshot schedule {add,ls,status,remove} [--pool P] [--image I] INTERVAL [START]` | the snapshot scheduler |
+| `rbd journal {info,status,inspect,export,import,reset}` | an image's journal |
+| `ceph orch apply rbd-mirror --placement=N` | deploying the daemons with cephadm |
+| `ceph daemon /var/run/ceph/ceph-client.rbd-mirror.*.asok rbd mirror status` | the internal status of a daemon |
 
 ```text
-مثال (rbd mirror image status rbd/vm01 در حالت snapshot):
+example (rbd mirror image status rbd/vm01 in snapshot mode):
 vm01:
   global_id:   8c1e0a7d-3b52-4f0e-9d2a-6f1b3c4d5e6f
   state:       up+replaying
@@ -228,48 +227,48 @@ vm01:
   last_update: 2026-11-15 10:56:31
 ```
 
-فاصله‌ی `remote_snapshot_timestamp` و `local_snapshot_timestamp` (‏900 ثانیه) همان تأخیر فعلی مقصد، یعنی RPO واقعی در این لحظه است.
+The gap between `remote_snapshot_timestamp` and `local_snapshot_timestamp` (900 seconds) is the destination's current lag, that is, the actual RPO at this moment.
 
-# تنظیم و عیب‌یابی {#sec-39-7}
+# Tuning and troubleshooting {#sec-39-7}
 
-- **`up+stopped` در مقصد:** معمولاً یعنی image در مقصد primary است یا دو طرف primary شده‌اند (split-brain). `rbd mirror image status` و `rbd info` (پرچم `mirroring primary`) را در هر دو طرف ببینید؛ طرف نادرست را `demote` و سپس `resync` کنید.
-- **journal مبدأ بزرگ می‌شود:** `rbd journal status` را ببینید؛ اگر peer عقب است، rbd-mirror کند است یا قطع شده است. پهنای باند، `rbd_mirror_memory_target` و تعداد daemonها را بررسی کنید.
-- **همگام‌سازی کامل طولانی:** `rbd_mirror_concurrent_image_syncs` (پیش‌فرض 5) را با احتیاط افزایش دهید؛ هر sync خواندن سنگینی روی مبدأ دارد.
-- **snapshotهای mirror انباشته می‌شوند:** peer قدیمی حذف‌نشده هنوز در `mirror_peer_uuids` است. `rbd mirror pool info` را بررسی و peer مرده را حذف کنید.
-- **RPO حالت snapshot زیاد است:** فاصله‌ی زمان‌بند را کم کنید، ولی نه کمتر از زمانی که هر دور کپی واقعاً طول می‌کشد (‏`syncing_percent` را دنبال کنید).
+- **`up+stopped` on the destination:** usually means the image is primary on the destination, or both sides have become primary (split-brain). Look at `rbd mirror image status` and `rbd info` (the `mirroring primary` flag) on both sides; `demote` the wrong side and then `resync` it.
+- **The source journal is growing:** look at `rbd journal status`; if the peer is behind, rbd-mirror is slow or disconnected. Check the bandwidth, `rbd_mirror_memory_target` and the number of daemons.
+- **A long full sync:** raise `rbd_mirror_concurrent_image_syncs` (default 5) carefully; each sync puts a heavy read load on the source.
+- **Mirror snapshots pile up:** an old peer that was not removed is still in `mirror_peer_uuids`. Check `rbd mirror pool info` and remove the dead peer.
+- **The RPO in snapshot mode is high:** shorten the scheduler interval, but not below the time each copy round actually takes (watch `syncing_percent`).
 
-# تکمیلی و به‌روز {#sec-39-8}
+# Supplementary and up to date {#sec-39-8}
 
-- mirroring گروه‌های consistency (چند image با snapshot هم‌زمان) در شاخه‌ی main در حال توسعه است؛ پیش از استفاده بررسی کنید نسخه‌ی شما آن را دارد.
-- پیام‌های وضعیت در `status_global_<gid>` و `remote_status_global_<gid>` در `rbd_mirroring` نگه داشته می‌شوند تا هر طرف وضعیت طرف دیگر را هم ببیند.
-- از Octopus، حالت snapshot در دسترس است و برای بیشتر کاربردها پیشنهاد می‌شود؛ حالت journal برای RPO بسیار کم با کلاینت librbd باقی مانده است.
+- Mirroring of consistency groups (several images with simultaneous snapshots) is under development in the main branch; before using it, check whether your version has it.
+- Status messages are kept in `status_global_<gid>` and `remote_status_global_<gid>` in `rbd_mirroring`, so that each side also sees the other side's status.
+- Since Octopus, snapshot mode is available and is recommended for most uses; journal mode remains for very low RPO with librbd clients.
 
-# تمرین عملی {#sec-39-9}
+# Hands-on exercise {#sec-39-9}
 
-1. روی یک image آزمایشی journaling را فعال کنید، با `rbd bench` بنویسید و رشد `journal_data.*` را با `rados ls` دنبال کنید. سپس `rbd journal inspect --verbose` چند رویداد را نشان دهد.
-2. یک شیء journal را با `rados get` بخوانید و با `xxd` پیش‌درآمد `93 97 58 53 26 59 41 31` و فیلدهای پس از آن را پیدا کنید.
-3. در حالت snapshot زمان‌بند ۵ دقیقه‌ای بگذارید، بار نوشتن تصادفی و ترتیبی را جداگانه اجرا کنید و `bytes_per_snapshot` را مقایسه کنید.
-4. یکی از دو daemon ‏rbd-mirror را متوقف و زمان انتقال imageهای آن به daemon دیگر را اندازه بگیرید.
+1. Enable journaling on a test image, write with `rbd bench` and follow the growth of `journal_data.*` with `rados ls`. Then have `rbd journal inspect --verbose` show a few events.
+2. Read a journal object with `rados get` and, with `xxd`, find the preamble `93 97 58 53 26 59 41 31` and the fields after it.
+3. In snapshot mode set a 5-minute schedule, run random and sequential write loads separately and compare `bytes_per_snapshot`.
+4. Stop one of two rbd-mirror daemons and measure how long it takes for its images to move to the other daemon.
 
-# پرسش‌های مرور {#sec-39-10}
+# Review questions {#sec-39-10}
 
-1. نام اشیای header و داده‌ی journal چیست؟
-2. رویداد با entry_tid ‏1234 در journal با splay_width ‏4 و active_set ‏9 در کدام شیء نوشته می‌شود؟
-3. سربار ثابت هر رویداد journal چند بایت است و از چه فیلدهایی تشکیل می‌شود؟
-4. چرا نوشتن داده باید منتظر SAFE شدن رویداد بماند؟
-5. چه چیزی جلوی trim شدن journal را می‌گیرد؟
-6. چرا مقصد در حالت journal همیشه crash-consistent است؟
-7. چهار حالت snapshot ‏mirror کدام‌اند؟
-8. rbd-mirror در حالت snapshot چگونه اشیای تغییرکرده را پیدا می‌کند؟
-9. چه زمانی حالت snapshot پهنای باند بیشتری از حالت journal مصرف می‌کند؟
-10. leader در rbd-mirror چگونه انتخاب می‌شود و پس از چه مدتی جایگزین می‌شود؟
+1. What are the names of the journal's header and data objects?
+2. In which object is the event with entry_tid 1234 written, in a journal with splay_width 4 and active_set 9?
+3. How many bytes of fixed overhead does each journal event have, and which fields make it up?
+4. Why must the data write wait for the event to become SAFE?
+5. What prevents the journal from being trimmed?
+6. Why is the destination always crash-consistent in journal mode?
+7. What are the four mirror snapshot states?
+8. How does rbd-mirror find the changed objects in snapshot mode?
+9. When does snapshot mode use more bandwidth than journal mode?
+10. How is the leader chosen in rbd-mirror, and after how long is it replaced?
 
-# منابع این فصل {#sec-39-11}
+# Sources for this chapter {#sec-39-11}
 
-- کتابخانه‌ی journal (Entry.cc، JournalRecorder.cc، Journaler.cc): https://github.com/ceph/ceph/tree/main/src/journal
+- The journal library (Entry.cc, JournalRecorder.cc, Journaler.cc): https://github.com/ceph/ceph/tree/main/src/journal
 - cls_journal.cc: https://github.com/ceph/ceph/blob/main/src/cls/journal/cls_journal.cc
-- librbd/journal و Types.h: https://github.com/ceph/ceph/tree/main/src/librbd/journal
+- librbd/journal and Types.h: https://github.com/ceph/ceph/tree/main/src/librbd/journal
 - rbd-mirror: https://github.com/ceph/ceph/tree/main/src/tools/rbd_mirror
 - cls_rbd_types.h (MirrorSnapshotNamespace): https://github.com/ceph/ceph/blob/main/src/cls/rbd/cls_rbd_types.h
-- مستند mirroring: https://docs.ceph.com/en/latest/rbd/rbd-mirroring/
-- گزینه‌های rbd-mirror: https://docs.ceph.com/en/latest/rbd/rbd-config-ref/
+- Mirroring documentation: https://docs.ceph.com/en/latest/rbd/rbd-mirroring/
+- rbd-mirror options: https://docs.ceph.com/en/latest/rbd/rbd-config-ref/
