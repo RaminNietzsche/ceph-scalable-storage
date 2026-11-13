@@ -5,6 +5,7 @@
 #   make html            # multi-page web book for LANG (build/site/LANG)
 #   make all             # pdf + web book + single HTML + epub + docx for fa and en
 #   make check           # lint, spell, refs, links (offline), parity
+#   make site SITE_URL=https://example.org/ceph   # web book with canonical and absolute OG/sitemap URLs
 #   make help            # list targets
 #
 # LANG selects the edition and must be fa or en. A locale value inherited from
@@ -47,7 +48,8 @@ EPUB        := $(B)/$(NAME)-$(L).epub
 DOCX        := $(B)/$(NAME)-$(L).docx
 SITE        := build/site
 SITE_STAMP  := $(SITE)/$(L)/.stamp
-SITE_SRC    := tools/build_site.py tools/sim_fallback.js $(wildcard templates/site/*) $(wildcard templates/site/sims/*)
+SITE_URL    ?=
+SITE_SRC    := tools/build_site.py tools/booklib/seo.py tools/sim_fallback.js $(wildcard templates/site/*) $(wildcard templates/site/sims/*)
 WEBFIG_STAMP := build/webfig/.stamp
 
 .PHONY: help all pdf html epub docx book figures cover lint markdownlint spell \
@@ -105,11 +107,12 @@ $(WEBFIG_STAMP): $(FIG_STAMP) tools/render_web_figures.py $(wildcard figures/scr
 	@mkdir -p $(@D) && touch $@
 
 $(SITE_STAMP): $(BOOK_HTML) $(SITE_SRC) $(WEBFIG_STAMP) | fonts
-	$(PYTHON) tools/build_site.py --lang $(L) --book $(B) --out $(SITE)
+	$(PYTHON) tools/build_site.py --lang $(L) --book $(B) --out $(SITE) --site-url '$(SITE_URL)'
 	@touch $@
 
-check-site: ## links, anchors and offline-only resources of the built web book
+check-site: ## links, anchors, offline-only resources and SEO metadata of the built web book
 	$(PYTHON) tools/check_site.py --site $(SITE)
+	$(PYTHON) tools/check_seo.py --site $(SITE)
 
 shoot-site: ## headless-Chrome smoke test + screenshots of the web book (needs playwright)
 	$(PYTHON) tools/shoot_site.py --site $(SITE) --out build/site-shots

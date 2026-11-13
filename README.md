@@ -30,6 +30,7 @@ npm install                                  # markdownlint-cli2, mermaid-cli (o
 make html                                    # web book for LANG; fetches missing fonts on first run (make fonts)
 make pdf                                     # build/fa/ceph-scalable-storage-fa.pdf
 make site                                    # web book, fa and en: build/site/index.html
+make site SITE_URL=https://example.org/ceph  # the same, with canonical links and absolute OG/sitemap URLs
 make all                                     # pdf + web book + html-single + epub + docx, fa and en
 make check                                   # lint, spell, refs, links, parity
 ```
@@ -61,7 +62,7 @@ edition is `fa`.
 | `site` | `html` for both editions; open `build/site/index.html` |
 | `fonts` | Install Vazirmatn, Inter, JetBrains Mono and Source Serif with `tools/install_fonts.sh`, only if fontconfig cannot find them (Linux `~/.local/share/fonts`, macOS `~/Library/Fonts`, no root). `pdf`, `html` and `site` depend on it, so a fresh clone needs only `make html`; on macOS install fontconfig first (`brew install fontconfig`) |
 | `webfig` | Render high-resolution web figures (3x mermaid / 2x byte-layout WebP, SVG plots) into `build/webfig/`; `make html` runs it |
-| `check-site` / `shoot-site` | Check every link, anchor and offline resource of the web book / headless-Chrome smoke test with screenshots |
+| `check-site` / `shoot-site` | Check every link, anchor and offline resource of the web book, then the SEO audit (`tools/check_seo.py`) / headless-Chrome smoke test with screenshots |
 | `html-single` / `epub` / `docx` | Pandoc exports for `LANG`; `html-single` is one self-contained file |
 | `all` | Every format for both editions |
 | `figures` | Re-render changed Mermaid / byte-layout figures and English label variants |

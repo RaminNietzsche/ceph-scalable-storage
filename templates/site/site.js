@@ -402,6 +402,8 @@
     $('[data-close-search]', dlg).addEventListener('click', closeSearch);
     dlg.addEventListener('click', function (e) { if (e.target === dlg) closeSearch(); });
     input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { if (docs) runSearch(); }, 90); });
+    /* index.html?q=term opens the search with that term (the WebSite SearchAction in the JSON-LD points here) */
+    try { var q0 = new URLSearchParams(location.search).get('q'); if (q0) { input.value = q0; openSearch(); } } catch (e) { /* old browser */ }
     input.addEventListener('keydown', function (e) {
       if (e.key === 'ArrowDown') { e.preventDefault(); select(sel + 1); }
       else if (e.key === 'ArrowUp') { e.preventDefault(); select(sel - 1); }

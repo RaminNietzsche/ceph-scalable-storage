@@ -42,12 +42,15 @@ from pygments.util import ClassNotFound
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 from booklib.mdlower import split_front_matter, parse_div  # noqa: E402
+from booklib import seo  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--lang', default='fa', choices=['fa', 'en'])
 ap.add_argument('--book')
 ap.add_argument('--out')
+ap.add_argument('--site-url', default=os.environ.get('SITE_URL', ''), help='public base URL, e.g. https://example.org/ceph; enables canonical links and absolute URLs')
 args = ap.parse_args()
+U = seo.Urls(args.site_url)
 LANG = args.lang
 OTHER = 'en' if LANG == 'fa' else 'fa'
 BOOKDIR = os.path.abspath(args.book or os.path.join(ROOT, 'build', LANG))
@@ -458,7 +461,7 @@ for term in sorted(IX, key=lambda t: t.lower()):
             first[ch] = aid
     if not first:
         continue
-    links = UI['list_sep'].join(f'<a href="{chap_slug[ch]}.html#{aid}">{loc(ch)}</a>' for ch, aid in sorted(first.items()))
+    links = UI['list_sep'].join(f'<a href="{chap_slug[ch]}.html#{aid}" aria-label="{esc(term)} — {esc(UI["chapter_word"])} {loc(ch)}">{loc(ch)}</a>' for ch, aid in sorted(first.items()))
     items.append(f'<li><span class="term" lang="en" dir="ltr">{esc(term)}</span> <span class="chs">{esc(UI["chapter_word"])} {links}</span></li>')
 ib = frag(f'<div><p class="lead">{esc(S["index_intro"])}</p><ul class="ixlist">{"".join(items)}</ul></div>').find('div')
 Page('book-index', 'list', esc(UI['index']), esc(UI['index']), 'lists', ib)
@@ -559,6 +562,9 @@ im = Image.open(cover_src).convert('RGB')
 im.thumbnail((720, 1100))
 im.save(os.path.join(ASSETS, f'cover.{LANG}.webp'), quality=86)
 COVER_WH = im.size
+seo.og_image(cover_src, os.path.join(ASSETS, f'og.{LANG}.png'), LANG, BOOK, META.get('subtitle', ''), META.get('author', ''))
+seo.icons(os.path.join(ASSETS, 'icons'))
+seo.manifest(os.path.join(LOUT, 'manifest.webmanifest'), BOOK, 'Ceph', LANG, DIR, seo.describe(META.get('subtitle', '')), '../assets/icons/')
 
 # ---------------------------------------------------------------- chrome
 ICON = {
@@ -753,7 +759,7 @@ def header(cur):
             f'<button type="button" class="search-btn" id="search-btn" aria-haspopup="dialog" aria-label="{esc(S["search"])}">{ICON["search"]}<span class="sb-txt">{esc(S["search_placeholder"])}</span><kbd>/</kbd></button>'
             f'<a class="icon-btn toc-btn" href="contents.html" aria-label="{esc(S["contents"])}" title="{esc(S["contents"])}">{ICON["list"]}</a>'
             f'<a class="icon-btn lang-btn" href="{other}" hreflang="{OTHER}" lang="{OTHER}" title="{esc(SO["lang_name"])}">{ICON["globe"]}<span>{esc(SO["lang_name"])}</span></a>'
-            f'<a class="g-chip game" id="g-chip" href="progress.html" hidden>{ICON["flame"]}<span class="g-s"></span><span class="g-l"></span></a>'
+            f'<a class="g-chip game" id="g-chip" href="progress.html" aria-label="{esc(GM["s"]["my_progress"])}" hidden>{ICON["flame"]}<span class="g-s"></span><span class="g-l"></span></a>'
             f'<button type="button" class="icon-btn mk-btn" id="my-btn" aria-haspopup="dialog" aria-controls="my-dlg" aria-label="{esc(S["my_reading"])}" title="{esc(S["my_reading"])}">{ICON["bookmark"]}<span class="mk-n" aria-hidden="true"></span></button>'
             f'<button type="button" class="icon-btn" id="theme-btn" aria-label="{esc(S["theme"])}" aria-pressed="false">{ICON["sun"]}{ICON["moon"]}</button>'
             f'<a class="tb-cta" href="index.html#get-started">{ICON["spark"]}<span>{esc(S["get_started"])}</span></a>'
@@ -806,7 +812,39 @@ SITE_DATA = json.dumps({k: S[k] for k in ('search', 'search_placeholder', 'searc
                                            'zoom_in', 'zoom_out', 'zoom_reset', 'close', 'copied', 'copy', 'zoom') + PROG_KEYS} | {'lang': LANG, 'rtl': RTL, 'pages': TRACK}, ensure_ascii=False)
 
 
-def emit(cur, main_html, title_text):
+EMITTED, DESC_SEEN = [], set()
+OG_ALT = f'{BOOK} — {META.get("author", "")}'
+
+
+def page_desc(cur, title_text):
+    body = getattr(cur, 'body', None)
+    d = seo.describe(seo.first_paragraph(body)) if body is not None else ''
+    if not d:
+        d = seo.describe(f'{title_text} — {META.get("subtitle", "")}')
+    if len(d) < 70:
+        d = seo.describe(f'{d} — {title_text} · {BOOK}' if title_text not in d else f'{d} — {BOOK}: {META.get("subtitle", "")}')
+    if d in DESC_SEEN:
+        d = seo.describe(f'{title_text}: {d}')
+    return d
+
+
+def page_ld(cur, title_text):
+    home = (S['home'], 'index')
+    if isinstance(cur, AppPage):
+        if cur.slug.startswith('lab-'):
+            trail = [home, (SIMY['lab_title'], 'lab'), (cur.title_text, cur.slug)]
+        else:
+            trail = [home, (cur.title_text, cur.slug)]
+        return seo.crumbs_ld(U, LANG, trail)
+    extra = None
+    if cur.kind == 'chapter':
+        extra = {'@type': 'Chapter', 'name': cur.title_text, 'position': cur.chap, 'inLanguage': LANG,
+                 'url': U.rel(f'{LANG}/{cur.slug}.html'), 'author': {'@type': 'Person', 'name': seo.AUTHOR},
+                 'license': seo.LICENSE_URL, 'isPartOf': {'@type': 'Book', '@id': U.rel(f'{LANG}/index.html') + '#book', 'name': BOOK}}
+    return seo.crumbs_ld(U, LANG, [home, (S['contents'], 'contents'), (cur.crumb, cur.slug)], extra)
+
+
+def emit(cur, main_html, title_text, desc=None, ld=None):
     side, inline = page_toc(cur)
     i = order.index(cur) if not isinstance(cur, AppPage) else -1
     links = []
@@ -818,7 +856,12 @@ def emit(cur, main_html, title_text):
     has_sims = bool(getattr(cur, 'sims', None))
     head_extra = '<link rel="stylesheet" href="../assets/sims.css">' if has_sims or cur is None or slug == 'lab' else ''
     scripts_extra = '<script src="sim-data.js" defer></script>\n<script src="../assets/sims.js" defer></script>' if has_sims else ''
-    doc = PAGE_TPL.substitute(head_extra=head_extra, scripts_extra=scripts_extra,
+    desc = desc or page_desc(cur, title_text)
+    DESC_SEEN.add(desc)
+    og_type = 'book' if cur is None else ('article' if getattr(cur, 'kind', '') in ('chapter', 'appendix') else 'website')
+    seo_head = seo.head(U, LANG, OTHER, slug, title_text, desc, og_type, OG_ALT, BOOK, ld or page_ld(cur, title_text),
+                        font_href='../assets/fonts/' + seo.PRELOAD_FONT[LANG])
+    doc = PAGE_TPL.substitute(head_extra=head_extra, scripts_extra=scripts_extra, seo=seo_head,
         lang=LANG, dir=DIR, other=OTHER, slug=slug, title=esc(title_text), book=esc(BOOK),
         links='\n'.join(links), site_data=SITE_DATA.replace('</', '<\\/'),
         skip=esc(S['skip']), header=header(cur), sidebar=sidebar(cur), crumbs=crumbs(cur),
@@ -827,7 +870,8 @@ def emit(cur, main_html, title_text):
         search_title=esc(S['search']), search_placeholder=esc(S['search_placeholder']), close=esc(S['close']),
         search_hint=esc(S['search_hint']), lic=esc('© 2026 Ramin Najarbashi · CC BY-NC-SA 4.0'), version=esc(META['version_display']),
         date=esc(META['date_display']))
-    open(os.path.join(LOUT, f'{slug}.html'), 'w', encoding='utf-8').write(doc)
+    open(os.path.join(LOUT, f'{slug}.html'), 'w', encoding='utf-8').write(seo.fingerprint(doc, ASSETS))
+    EMITTED.append(slug)
 
 
 # ---------------------------------------------------------------- hyphenation
@@ -897,7 +941,8 @@ for p in pages:
                   f'<p>{esc(GM["s"]["ch_quiz_sub"].format(n=loc(CARDS_BY_CH[p.chap])))}</p></div>'
                   f'<a class="btn primary" href="review.html?ch={p.chap}">{esc(GM["s"]["rv_start"])} {ICON["arrow"]}</a></aside>')
     main = f'<article class="content" id="top"><header class="page-head">{eyebrow}<h1>{p.title_html}</h1>{meta}</header>{"".join(str(c) for c in p.body.contents)}{extra}</article>'
-    tt = (f'{p.eyebrow}: ' if p.kind in ('chapter', 'appendix') else '') + p.title_text + ' · ' + BOOK
+    tt = (f'{p.eyebrow}: ' if p.kind in ('chapter', 'appendix') else '') + p.title_text
+    tt = tt if len(tt) + len(BOOK) > 67 else f'{tt} · {BOOK}'   # keep titles short; long chapter titles stand alone
     emit(p, main, tt)
 
 # home ----------------------------------------------------------------------
@@ -944,7 +989,7 @@ PARTS_HOME = [('book', S['p1_word'], S['p1_title'], S['p1_range'], S['p1_desc'],
               ('layers', UI['part_spec_word'], UI['part_spec_title'], S['p4_range'], UI['part_spec_md'], 34, 42, 'part-4.html' if 'part-4' in PG else ch_href(34), True)]
 part_cards = []
 for i, (icon, word, title, rng, desc, lo, hi, href, new_) in enumerate(PARTS_HOME, 1):
-    chips = ''.join(f'<a class="chip" href="{ch_href(n)}" data-slug="{CH[n].slug}" title="{esc(text_of(frag(CH[n].title_html)))}">{loc(n)}</a>' for n in range(lo, hi + 1) if n in CH)
+    chips = ''.join(f'<a class="chip" href="{ch_href(n)}" data-slug="{CH[n].slug}" title="{esc(text_of(frag(CH[n].title_html)))}" aria-label="{esc(UI["chapter_word"])} {loc(n)}: {esc(text_of(frag(CH[n].title_html)))}">{loc(n)}</a>' for n in range(lo, hi + 1) if n in CH)
     badge = f'<span class="hc-new">{esc(S["new"])}</span>' if new_ else ''
     part_cards.append(f'<div class="pcard p{i}"><div class="pc-top"><span class="hc-ic">{ICON[icon]}</span><span class="hc-tag">{esc(word)} · {esc(rng)}</span>{badge}'
                       f'<span class="pc-prog" data-lo="{lo}" data-hi="{hi}" hidden>{ring()}<span class="pc-pt"></span></span></div>'
@@ -956,7 +1001,7 @@ stats = ('<div class="stats">' + ''.join(f'<div><b data-n="{n}">{loc(n)}</b><spa
 rp = (f'<div class="rp" id="rp" hidden><div class="ring-wrap">{ring("big")}<b class="rp-pct"></b></div><div class="rp-body"><div class="rp-t">{esc(S["progress_title"])}</div>'
       f'<p class="rp-line"></p><div class="rp-acts"><a class="btn primary rp-cont" href="{first.slug}.html" hidden>{ICON["book"]}<span class="rp-ct">{esc(S["continue"])}</span> {ICON["arrow"]}</a>'
       f'<button type="button" class="btn" data-open-my>{ICON["bookmark"]}{esc(S["my_reading"])}</button></div>'
-      f'<a class="rp-game game" href="progress.html" hidden></a></div></div>')
+      f'<a class="rp-game game" href="progress.html" aria-label="{esc(GM["s"]["my_progress"])}" hidden></a></div></div>')
 term = ('<div class="term" dir="ltr" aria-hidden="true"><div class="term-bar"><i></i><i></i><i></i><span>' + esc(S['term_label']) + '</span></div>'
         '<pre><span class="tp">$</span> ceph -s\n  cluster:\n    health: <span class="tok">HEALTH_OK</span>\n  services:\n    mon: 3 daemons, quorum a,b,c\n'
         '    osd: 36 osds: 36 up, 36 in\n    rgw: 3 daemons active\n  data:\n    pgs: <span class="tok">1024 active+clean</span></pre></div>')
@@ -970,16 +1015,21 @@ home = f'''<article class="content home" id="top">
 {stats}
 {rp}
 <p class="byline">{esc(S["written_by"])}</p><p class="meta">{esc(S["version"])} {esc(loc(META["version_display"]))} · {esc(META["date_display"])}<br>{esc(S["basis"])}: <span dir="auto">{esc(META["technical_basis"])}</span></p></div>
-<div class="hero-art"><div class="glow" aria-hidden="true"></div><img class="cover" src="../assets/cover.{LANG}.webp" width="{COVER_WH[0]}" height="{COVER_WH[1]}" alt="{esc(BOOK)}">{term}</div></section>
+<div class="hero-art"><div class="glow" aria-hidden="true"></div><img class="cover" src="../assets/cover.{LANG}.webp" width="{COVER_WH[0]}" height="{COVER_WH[1]}" fetchpriority="high" alt="{esc(S['cover_alt'].format(book=BOOK))}">{term}</div></section>
 <section class="hsec" id="get-started" aria-labelledby="gs-h"><div class="hsec-head"><h2 id="gs-h">{esc(S["gs_title"])}</h2><p>{esc(S["gs_sub"])}</p></div><div class="hgrid roles">{"".join(gs_cards)}</div></section>
 <section class="hsec" id="lab" aria-labelledby="lab-h"><div class="hsec-head"><h2 id="lab-h">{esc(SIMY["lab_title"])}</h2><p>{esc(SIMY["lab_intro"])}</p></div><div class="lab-grid">{LAB_CARDS}</div><p><a class="btn" href="lab.html">{ICON["flask"]}{esc(SIMY["lab_title"])} {ICON["arrow"]}</a></p></section>
 <section class="hsec" id="parts" aria-labelledby="parts-h"><div class="hsec-head"><h2 id="parts-h">{esc(S["parts_title"])}</h2><p>{esc(S["parts_sub"])}</p></div><div class="hgrid parts">{"".join(part_cards)}</div></section>
 <section class="hsec" id="contents" aria-labelledby="contents-h"><div class="hsec-head"><h2 id="contents-h">{esc(S["contents"])}</h2><p>{esc(S["contents_home"])}</p></div><p><a class="btn primary" href="contents.html">{ICON["list"]}{esc(S["contents_cta"])} {ICON["arrow"]}</a></p></section>
 <section class="about" aria-labelledby="about-h"><h2 id="about-h">{esc(S["about"])}</h2>{about}</section></article>'''
-emit(None, home, BOOK)
+HOME_DESC = seo.describe(f'{META.get("subtitle", "")}. {S["hero_lead"]}')
+HOME_LD = seo.book_ld(U, LANG, OTHER, BOOK, yaml.safe_load(open(os.path.join(ROOT, 'content', OTHER, 'ui.yaml'), encoding='utf-8'))['book'],
+                      HOME_DESC, str(META['version']), str(META['date']),
+                      [(n, CH[n].title_text, CH[n].slug) for n in sorted(CH)], U.rel(f'assets/og.{LANG}.png'))
+emit(None, home, f'{BOOK} — {S["study_guide"]} · {META.get("author", "")}', HOME_DESC, HOME_LD)
 CONTENTS = AppPage('contents', S['contents'])
 emit(CONTENTS, f'<article class="content toc-page" id="top"><header class="page-head"><h1>{esc(S["contents"])}</h1></header>'
-               f'<p class="lead">{esc(S["contents_intro"])}</p>{"".join(grp)}</article>', f'{S["contents"]} · {BOOK}')
+               f'<p class="lead">{esc(S["contents_intro"])}</p>{"".join(grp)}</article>', f'{S["contents"]} · {BOOK}',
+     seo.describe(f'{S["contents"]} — {BOOK}: {S["contents_intro"]}'))
 
 # gamification: app pages and data ---------------------------------------------
 GS = GM['s']
@@ -1005,14 +1055,16 @@ LAB = AppPage('lab', SIMY['lab_title'])
 _cards = ''.join(lab_card(n, f'<small>{esc(SIMY["lab_in"])} {esc(UI["list_sep"].join((f"{UI["chapter_word"]} {loc(pg.chap)}" if pg.chap else pg.nav_text) for pg, _, _ in SIM_WHERE[n]))}</small>')
                  for n in SIM_NAMES)
 emit(LAB, f'<article class="content app app-lab" id="top"><header class="page-head"><h1>{esc(LAB.title_text)}</h1></header>'
-          f'<p class="lead">{esc(SIMY["lab_intro"])}</p><div class="lab-grid">{_cards}</div></article>', f'{LAB.title_text} · {BOOK}')
+          f'<p class="lead">{esc(SIMY["lab_intro"])}</p><div class="lab-grid">{_cards}</div></article>', f'{LAB.title_text} · {BOOK}',
+     seo.describe(SIMY['lab_intro']))
 for n in SIM_NAMES:
     _ap = AppPage(f'lab-{n}', SIMY[n + '_t'])
     _ap.sims = [n]
     _ap.crumb = _ap.title_text
     emit(_ap, f'<article class="content app app-sim" id="top"><header class="page-head"><div class="eyebrow"><a href="lab.html">{esc(SIMY["lab_title"])}</a></div>'
               f'<h1>{esc(_ap.title_text)}</h1></header><p class="lab-in">{lab_where(n)}</p>{sim_slot_html(n)}'
-              f'<noscript><p class="call note">{esc(SIMY["noscript"])}</p></noscript></article>', f'{_ap.title_text} · {SIMY["lab_title"]} · {BOOK}')
+              f'<noscript><p class="call note">{esc(SIMY["noscript"])}</p></noscript></article>', f'{_ap.title_text} · {SIMY["lab_title"]} · {BOOK}',
+         seo.describe(f'{_ap.title_text}: {SIMY[n + "_d"]}'))
 PATHS = [(1, [1, 2, 4, 6, 7, 8]), (2, [1, 11, 12, 13, 20]), (3, [7, 19, 20, 17, 18, 21]), (4, [17, 8, 32, 18, 20]),
          (5, [22, 14, 15, 23, 26]), (6, list(range(34, 43)))]
 PARTS_G = {1: range(1, 22), 2: range(22, 23), 3: range(23, 34), 4: range(34, 43)}
@@ -1037,16 +1089,51 @@ open(os.path.join(LOUT, 'search-index.js'), 'w', encoding='utf-8').write(
 STR_FA, STR_EN = STR['fa'], STR['en']
 ui_other = yaml.safe_load(open(os.path.join(ROOT, 'content', OTHER, 'ui.yaml'), encoding='utf-8'))
 books = {LANG: BOOK, OTHER: ui_other['book']}
-chooser = f'''<!doctype html>
-<html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{esc(books["en"])} · {esc(books["fa"])}</title><link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="assets/site.css">
+CH_DESC = 'Choose an edition of the bilingual book on Ceph storage by Ramin Najarbashi: the original Persian text or the English translation. · ' + STR_FA['choose']
+_alt = {l: (STR[l]['cover_alt'].format(book=books[l])) for l in ('fa', 'en')}
+_cw = Image.open(os.path.join(ASSETS, f'cover.{LANG}.webp')).size
+_ch = round(240 * _cw[1] / _cw[0])
+_ld = {'@context': 'https://schema.org', '@type': 'WebSite', 'name': f'{books["en"]} · {books["fa"]}', 'url': U.root('index.html'),
+       'inLanguage': ['fa', 'en'], 'author': {'@type': 'Person', 'name': seo.AUTHOR}, 'license': seo.LICENSE_URL}
+chooser = f"""<!doctype html>
+<html lang="en" dir="ltr" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{esc(books["en"])} · {esc(books["fa"])}</title>
+<meta name="description" content="{esc(seo.describe(CH_DESC))}">
+{f'<link rel="canonical" href="{U.abs("index.html")}">' if U.base else ''}
+<link rel="alternate" hreflang="fa" href="{U.root('fa/index.html')}"><link rel="alternate" hreflang="en" href="{U.root('en/index.html')}"><link rel="alternate" hreflang="x-default" href="{U.root('index.html')}">
+<meta name="theme-color" content="{seo.THEME}"><link rel="icon" href="assets/icons/favicon.ico" sizes="48x48"><link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">
+{seo.preload('assets/fonts/inter-var.woff2')}
+<meta property="og:type" content="website"><meta property="og:site_name" content="{esc(books["en"])}"><meta property="og:title" content="{esc(books["en"])} · {esc(books["fa"])}"><meta property="og:description" content="{esc(seo.describe(CH_DESC))}">
+<meta property="og:locale" content="en_US"><meta property="og:locale:alternate" content="fa_IR"><meta property="og:image" content="{U.root('assets/og.en.png')}"><meta property="og:image:width" content="{seo.OG_W}"><meta property="og:image:height" content="{seo.OG_H}"><meta property="og:image:alt" content="{esc(_alt['en'])}">{f'<meta property="og:url" content="{U.abs("index.html")}">' if U.base else ''}
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{esc(books["en"])} · {esc(books["fa"])}"><meta name="twitter:description" content="{esc(seo.describe(CH_DESC))}"><meta name="twitter:image" content="{U.root('assets/og.en.png')}"><meta name="twitter:image:alt" content="{esc(_alt['en'])}">
+<script type="application/ld+json">{json.dumps(_ld, ensure_ascii=False)}</script>
+<link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="assets/site.css">
 <script>try{{var t=localStorage.getItem('book-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=t}}catch(e){{}}</script></head>
 <body class="chooser"><main><h1><span lang="fa" dir="rtl">{esc(STR_FA["choose"])}</span> · {esc(STR_EN["choose"])}</h1><div class="choose-grid">
-<a class="choose-card" href="fa/index.html" lang="fa" dir="rtl"><img src="assets/cover.fa.webp" alt="" width="240"><span>{esc(books["fa"])}</span><small>فارسی (متن اصلی)</small></a>
-<a class="choose-card" href="en/index.html" lang="en"><img src="assets/cover.en.webp" alt="" width="240"><span>{esc(books["en"])}</span><small>English (translation)</small></a>
+<a class="choose-card" href="fa/index.html" lang="fa" dir="rtl"><img src="assets/cover.fa.webp" alt="{esc(_alt['fa'])}" width="240" height="{_ch}"><span>{esc(books["fa"])}</span><small>فارسی (متن اصلی)</small></a>
+<a class="choose-card" href="en/index.html" lang="en"><img src="assets/cover.en.webp" alt="{esc(_alt['en'])}" width="240" height="{_ch}"><span>{esc(books["en"])}</span><small>English (translation)</small></a>
 </div><p class="lic">© 2026 Ramin Najarbashi · CC BY-NC-SA 4.0</p></main></body></html>
-'''
-open(os.path.join(OUT, 'index.html'), 'w', encoding='utf-8').write(chooser)
+"""
+open(os.path.join(OUT, 'index.html'), 'w', encoding='utf-8').write(seo.fingerprint(chooser, ASSETS))
+seo.manifest(os.path.join(OUT, 'manifest.webmanifest'), f'{books["en"]} · {books["fa"]}', 'Ceph', 'en', 'ltr', seo.describe(CH_DESC), 'assets/icons/')
+# 404 page (served from the site root by most static hosts; <base> keeps its links working at any depth when SITE_URL is set)
+nf = f"""<!doctype html>
+<html lang="fa" dir="rtl" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+{f'<base href="{U.base}/">' if U.base else ''}<title>{esc(STR_FA["nf_title"])} · {esc(STR_EN["nf_title"])} — {esc(books["fa"])}</title>
+<meta name="description" content="{esc(STR_FA["nf_text"])} {esc(STR_EN["nf_text"])}"><meta name="robots" content="noindex">
+<link rel="icon" href="assets/icons/favicon.ico" sizes="48x48"><link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="assets/site.css"></head>
+<body class="chooser"><main><h1>{esc(STR_FA["nf_title"])} · <span lang="en" dir="ltr">{esc(STR_EN["nf_title"])}</span></h1>
+<p>{esc(STR_FA["nf_text"])}</p><p lang="en" dir="ltr">{esc(STR_EN["nf_text"])}</p>
+<p><a class="btn primary" href="fa/index.html">{esc(STR_FA["home"])}: {esc(books["fa"])}</a> <a class="btn" href="fa/contents.html">{esc(STR_FA["contents"])}</a></p>
+<p lang="en" dir="ltr"><a class="btn primary" href="en/index.html">{esc(STR_EN["home"])}: {esc(books["en"])}</a> <a class="btn" href="en/contents.html">{esc(STR_EN["contents"])}</a></p>
+</main></body></html>
+"""
+open(os.path.join(OUT, '404.html'), 'w', encoding='utf-8').write(seo.fingerprint(nf, ASSETS))
+seo.sitemap(os.path.join(OUT, 'sitemap.xml'), U, EMITTED, str(META['date']))
+seo.robots(os.path.join(OUT, 'robots.txt'), U)
+seo.host_files(OUT)
+json.dump({'site_url': U.base, 'pages': EMITTED}, open(os.path.join(OUT, 'seo.json'), 'w'))
 if not os.path.exists(os.path.join(ASSETS, f'cover.{OTHER}.webp')):
     im = Image.open(os.path.join(ROOT, 'assets', f'cover.{OTHER}.png')).convert('RGB')
     im.thumbnail((720, 1100))

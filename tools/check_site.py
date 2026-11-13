@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import collections
 import glob
+import json
 import os
 import sys
 from html.parser import HTMLParser
@@ -21,6 +22,8 @@ ap.add_argument('--site', default=os.path.join(ROOT, 'build', 'site'))
 ap.add_argument('--lang', default='all', choices=['fa', 'en', 'all'])
 a = ap.parse_args()
 SITE = os.path.abspath(a.site)
+_cfg = os.path.join(SITE, 'seo.json')
+BASE = (json.load(open(_cfg)).get('site_url') or '') if os.path.exists(_cfg) else ''
 
 
 class P(HTMLParser):
@@ -67,6 +70,11 @@ for f in files:
             errors.append(f'{rel}: duplicate id "{i}" ({n}x)')
     for attr, val, tag, relattr in p.refs:
         u = urlsplit(val)
+        if u.scheme in ('http', 'https') and tag == 'link' and relattr in ('canonical', 'alternate'):
+            # page URLs (not resources); with SITE_URL they must map onto a built page
+            if BASE and val.startswith(BASE + '/') and not os.path.exists(os.path.join(SITE, val[len(BASE) + 1:])):
+                errors.append(f'{rel}: {relattr} link to a page that was not built: {val}')
+            continue
         if u.scheme in ('http', 'https'):
             if tag != 'a':
                 errors.append(f'{rel}: external resource <{tag} {attr}="{val}"> (site must work offline)')
