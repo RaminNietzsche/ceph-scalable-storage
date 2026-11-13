@@ -302,7 +302,7 @@ html[data-theme="dark"] .hc-new { color: #04202a; }
 .p4 { border-color: color-mix(in srgb, var(--accent) 40%, var(--card-line)); }
 .home .about { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 16px; padding: 4px 22px 10px; font-size: .9rem; }
 .home .about h2 { margin-top: .8em; font-size: 1.2rem; }
-.home h3 { margin-top: 1.6em; font-size: 1.05rem; color: var(--fg-mute); }
+.home h3, .toc-page h3 { margin-top: 1.6em; font-size: 1.05rem; color: var(--fg-mute); }
 .home-toc { list-style: none; padding: 0 !important; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
 .home-toc li { margin: 0; }
 .home-toc a { display: block; height: 100%; border: 1px solid var(--card-line); border-radius: 12px; padding: 10px 14px; text-decoration: none; color: var(--fg); background: var(--card); transition: border-color .15s, box-shadow .15s; }

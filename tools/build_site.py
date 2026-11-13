@@ -463,7 +463,7 @@ for term in sorted(IX, key=lambda t: t.lower()):
 ib = frag(f'<div><p class="lead">{esc(S["index_intro"])}</p><ul class="ixlist">{"".join(items)}</ul></div>').find('div')
 Page('book-index', 'list', esc(UI['index']), esc(UI['index']), 'lists', ib)
 ids['index'] = ('book-index', '')
-ids['toc'] = ('index', 'contents')
+ids['toc'] = ('contents', '')
 ids['preface'] = ('preface', '')
 
 # ---------------------------------------------------------------- links
@@ -591,6 +591,7 @@ ICON = {
     'flame': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2.2-4.8.2 1.6 1 2.6 2 3 0-3 .3-5.6.8-8.2z"/></svg>',
     'book': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z"/><path d="M4 19a2 2 0 0 1 2-2h13"/></svg>',
 }
+ICON['list'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>'
 ICON['flask'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6l-5.6 9.6A1.6 1.6 0 0 0 5.8 21h12.4a1.6 1.6 0 0 0 1.4-2.4L14 9V3M7.2 15h9.6"/></svg>'
 GROUPS = [('front', S['front']), ('chapters', S['chapters']), ('appendices', S['appendices']), ('lists', S['lists'])]
 order = [None] + pages  # None = home
@@ -714,6 +715,7 @@ def sidebar(cur):
     homecur = ' aria-current="page"' if cur is None else ''
     acur = lambda k: ' aria-current="page"' if getattr(cur, 'slug', None) == k else ''  # noqa: E731
     out.append(f'<ul class="sb-list"><li><a class="sb-link" href="index.html"{homecur}>{esc(S["home"])}</a></li>'
+               f'<li><a class="sb-link app" href="contents.html"{acur("contents")}>{ICON["list"]}<span>{esc(S["contents"])}</span></a></li>'
                f'<li><a class="sb-link app" href="progress.html"{acur("progress")}>{ICON["trophy"]}<span>{esc(GM["s"]["my_progress"])}</span></a></li>'
                f'<li><a class="sb-link app" href="review.html"{acur("review")}>{ICON["cards"]}<span>{esc(GM["s"]["review_today"])}</span><span class="sb-due" data-due hidden></span></a></li>'
                f'<li><a class="sb-link app" href="lab.html"{acur("lab")}>{ICON["flask"]}<span>{esc(SIMY["lab_title"])}</span></a></li></ul>')
@@ -749,6 +751,7 @@ def header(cur):
             f'<button type="button" class="icon-btn" id="menu-btn" aria-controls="sidebar" aria-expanded="false" aria-label="{esc(S["toggle_sidebar"])}">{ICON["menu"]}</button>'
             f'<a class="brand" href="index.html"><span class="logo" aria-hidden="true"></span>{esc(BOOK)}</a></div><div class="tb-end">'
             f'<button type="button" class="search-btn" id="search-btn" aria-haspopup="dialog" aria-label="{esc(S["search"])}">{ICON["search"]}<span class="sb-txt">{esc(S["search_placeholder"])}</span><kbd>/</kbd></button>'
+            f'<a class="icon-btn toc-btn" href="contents.html" aria-label="{esc(S["contents"])}" title="{esc(S["contents"])}">{ICON["list"]}</a>'
             f'<a class="icon-btn lang-btn" href="{other}" hreflang="{OTHER}" lang="{OTHER}" title="{esc(SO["lang_name"])}">{ICON["globe"]}<span>{esc(SO["lang_name"])}</span></a>'
             f'<a class="g-chip game" id="g-chip" href="progress.html" hidden>{ICON["flame"]}<span class="g-s"></span><span class="g-l"></span></a>'
             f'<button type="button" class="icon-btn mk-btn" id="my-btn" aria-haspopup="dialog" aria-controls="my-dlg" aria-label="{esc(S["my_reading"])}" title="{esc(S["my_reading"])}">{ICON["bookmark"]}<span class="mk-n" aria-hidden="true"></span></button>'
@@ -971,9 +974,12 @@ home = f'''<article class="content home" id="top">
 <section class="hsec" id="get-started" aria-labelledby="gs-h"><div class="hsec-head"><h2 id="gs-h">{esc(S["gs_title"])}</h2><p>{esc(S["gs_sub"])}</p></div><div class="hgrid roles">{"".join(gs_cards)}</div></section>
 <section class="hsec" id="lab" aria-labelledby="lab-h"><div class="hsec-head"><h2 id="lab-h">{esc(SIMY["lab_title"])}</h2><p>{esc(SIMY["lab_intro"])}</p></div><div class="lab-grid">{LAB_CARDS}</div><p><a class="btn" href="lab.html">{ICON["flask"]}{esc(SIMY["lab_title"])} {ICON["arrow"]}</a></p></section>
 <section class="hsec" id="parts" aria-labelledby="parts-h"><div class="hsec-head"><h2 id="parts-h">{esc(S["parts_title"])}</h2><p>{esc(S["parts_sub"])}</p></div><div class="hgrid parts">{"".join(part_cards)}</div></section>
-<section class="hsec" aria-labelledby="contents"><div class="hsec-head"><h2 id="contents">{esc(S["contents"])}</h2></div>{"".join(grp)}</section>
+<section class="hsec" id="contents" aria-labelledby="contents-h"><div class="hsec-head"><h2 id="contents-h">{esc(S["contents"])}</h2><p>{esc(S["contents_home"])}</p></div><p><a class="btn primary" href="contents.html">{ICON["list"]}{esc(S["contents_cta"])} {ICON["arrow"]}</a></p></section>
 <section class="about" aria-labelledby="about-h"><h2 id="about-h">{esc(S["about"])}</h2>{about}</section></article>'''
 emit(None, home, BOOK)
+CONTENTS = AppPage('contents', S['contents'])
+emit(CONTENTS, f'<article class="content toc-page" id="top"><header class="page-head"><h1>{esc(S["contents"])}</h1></header>'
+               f'<p class="lead">{esc(S["contents_intro"])}</p>{"".join(grp)}</article>', f'{S["contents"]} · {BOOK}')
 
 # gamification: app pages and data ---------------------------------------------
 GS = GM['s']
@@ -1023,6 +1029,7 @@ open(os.path.join(LOUT, 'game-data.js'), 'w', encoding='utf-8').write(
 open(os.path.join(LOUT, 'learn-data.js'), 'w', encoding='utf-8').write(
     'window.__LEARN__=' + json.dumps({'cards': CARDS, 'gloss': GLOSS}, ensure_ascii=False, separators=(',', ':')) + ';\n')
 docs.insert(0, ['index.html', BOOK, '', text_of(frag(about))])
+docs.insert(1, ['contents.html', S['contents'], '', S['contents_intro'] + ' ' + ' · '.join(p.nav_text for p in pages)])
 open(os.path.join(LOUT, 'search-index.js'), 'w', encoding='utf-8').write(
     'window.__SEARCH_DOCS__=' + json.dumps(docs, ensure_ascii=False, separators=(',', ':')) + ';\n')
 
