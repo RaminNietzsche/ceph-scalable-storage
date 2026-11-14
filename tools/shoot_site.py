@@ -28,6 +28,7 @@ ap.add_argument('--out', default=os.path.join(ROOT, 'build', 'site-shots'))
 ap.add_argument('--chapter-fa', default='12-bluestore')
 ap.add_argument('--chapter-en', default='11-deployment')
 ap.add_argument('--sims-only', action='store_true', help='only the interactive lab section')
+ap.add_argument('--bookmarks-only', action='store_true', help='only the heading-bookmark section (file:// and http)')
 ap.add_argument('--ui-only', action='store_true', help='only the UI consistency section (fonts, equal cards)')
 a = ap.parse_args()
 SITE = os.path.abspath(a.site)
@@ -171,6 +172,100 @@ def ui_section(browser):
             ctx.close()
 
 
+BM_PROBE = r"""() => [...document.querySelectorAll('article.content h2[id]:not(.qz-h), article.content h3[id]')]
+    .filter(h => !h.closest('.page-head')).map(h => {
+        const b = h.querySelector(':scope > .hbm');
+        if (!b) return {id: h.id, why: 'no button'};
+        const cs = getComputedStyle(b), r = b.getBoundingClientRect();
+        if (cs.display === 'none' || cs.visibility !== 'visible') return {id: h.id, why: 'hidden'};
+        if (+cs.opacity < 0.8) return {id: h.id, why: 'opacity ' + cs.opacity};
+        if (r.width < 24 || r.height < 24) return {id: h.id, why: 'too small ' + r.width + 'x' + r.height};
+        if (!b.getAttribute('aria-label')) return {id: h.id, why: 'no aria-label'};
+        return null;
+    }).filter(Boolean)"""
+
+
+def bookmark_section(browser):
+    """Every h2/h3 of every chapter has a visible (not hover-only) bookmark button, in fa and en,
+    light and dark, desktop (mouse) and touch; clicking one (mouse and keyboard) adds a bookmark
+    that the bookmarks panel lists on another page. Run over file:// and over http."""
+    import functools
+    import http.server
+    import threading
+    class Quiet(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+    handler = functools.partial(Quiet, directory=SITE)
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    http_base = f'http://127.0.0.1:{srv.server_address[1]}'
+    try:
+        for scheme in ('file', 'http'):
+            def u(lang, slug):
+                return url(lang, slug) if scheme == 'file' else f'{http_base}/{lang}/{slug}.html'
+            for lang in ('fa', 'en'):
+                slugs = sorted(f[:-5] for f in os.listdir(os.path.join(SITE, lang)) if f[:2].isdigit() and f.endswith('.html'))
+                for color, touch in (('light', False), ('dark', False), ('light', True)):
+                    tag = f'bookmarks {scheme} {lang} {color}{" touch" if touch else ""}'
+                    ctx = browser.new_context(viewport={'width': 390, 'height': 844} if touch else {'width': 1440, 'height': 900},
+                                              has_touch=touch, is_mobile=touch, color_scheme=color, reduced_motion='reduce')
+                    ctx.route('http*://**', lambda r: r.continue_() if r.request.url.startswith(http_base)
+                              else (problems.append(f'network request {r.request.url}'), r.abort()))
+                    page = ctx.new_page()
+                    page.on('console', lambda m, t=tag: m.type == 'error' and problems.append(f'[{t}] console: {m.text}'))
+                    page.on('pageerror', lambda e, t=tag: problems.append(f'[{t}] pageerror: {e}'))
+                    # every heading of every chapter (once per scheme/lang, in the light desktop pass; one chapter otherwise)
+                    for slug in (slugs if (color, touch) == ('light', False) else slugs[:1]):
+                        page.goto(u(lang, slug))
+                        bad = page.evaluate(BM_PROBE)
+                        if bad:
+                            problems.append(f'[{tag}] {slug}: {len(bad)} heading(s) without a visible bookmark button, e.g. {bad[:3]}')
+                        if page.locator('article.content h2[id] .hbm').count() < 1:
+                            problems.append(f'[{tag}] {slug}: no bookmark buttons at all')
+                    slug = slugs[0]
+                    page.goto(u(lang, slug))
+                    page.evaluate(f"localStorage.removeItem('book-progress:{lang}')")
+                    page.reload()
+                    hb = page.locator('article.content h2[id] .hbm')
+                    h = page.locator('article.content h2[id]').nth(1)
+                    h.scroll_into_view_if_needed()
+                    want = page.evaluate("document.querySelectorAll('article.content h2[id]')[1].id")
+                    if touch:
+                        hb.nth(1).tap()
+                    else:
+                        hb.nth(1).click()
+                    if hb.nth(1).get_attribute('aria-pressed') != 'true':
+                        problems.append(f'[{tag}] clicking the bookmark button did not mark the heading')
+                    if not touch and color == 'light':
+                        # keyboard: focus the third heading's button and press Enter
+                        hb.nth(2).focus()
+                        page.keyboard.press('Enter')
+                        if hb.nth(2).get_attribute('aria-pressed') != 'true':
+                            problems.append(f'[{tag}] Enter on a focused bookmark button did not mark the heading')
+                        h.scroll_into_view_if_needed()
+                        p = os.path.join(OUT, f'{lang}-{scheme}-bookmark-buttons.png')
+                        page.screenshot(path=p); shots.append(p)
+                    if color == 'dark' and scheme == 'file':
+                        h.scroll_into_view_if_needed()
+                        p = os.path.join(OUT, f'{lang}-dark-bookmark-buttons.png')
+                        page.screenshot(path=p); shots.append(p)
+                    # the bookmarks panel on another page lists it
+                    page.goto(u(lang, 'contents'))
+                    page.locator('#my-btn').click()
+                    page.wait_for_timeout(200)
+                    hrefs = page.eval_on_selector_all('#mk-list li a', 'as => as.map(a => a.getAttribute("href"))')
+                    if f'{slug}.html#{want}' not in hrefs:
+                        problems.append(f'[{tag}] bookmark {slug}#{want} not listed in the bookmarks panel ({hrefs})')
+                    if page.locator('.mk-empty').is_visible():
+                        problems.append(f'[{tag}] bookmarks panel still says there are no bookmarks')
+                    if not touch and color == 'light':
+                        p = os.path.join(OUT, f'{lang}-{scheme}-bookmarks-panel.png')
+                        page.screenshot(path=p); shots.append(p)
+                    ctx.close()
+    finally:
+        srv.shutdown()
+
+
 def finish():
     json.dump({'screenshots': shots, 'problems': problems, 'notes': notes}, open(os.path.join(OUT, 'report.json'), 'w'), indent=1, ensure_ascii=False)
     for p in problems:
@@ -182,6 +277,12 @@ def finish():
 
 with sync_playwright() as pw:
     browser = pw.chromium.launch(executable_path=chrome, args=['--no-sandbox'])
+    if a.bookmarks_only:
+        bookmark_section(browser)
+        browser.close()
+        finish()
+    if not (a.ui_only or a.sims_only):
+        bookmark_section(browser)
     if a.ui_only:
         ui_section(browser)
         browser.close()
