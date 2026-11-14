@@ -4,55 +4,54 @@ id: ch40
 title: 'Specialist Part (7): RGW — The Data Model on RADOS: Metadata, Bucket Index, Versioning, Manifest and Multipart'
 part: specialist
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-40-1}
+# Before we begin {#sec-40-1}
 
-فصل ۴ نشان داد RGW هر شیء S3 را در دو جا نگه می‌دارد (ایندکس bucket و داده) و الگوریتم‌های انتخاب shard، reshard، فهرست‌گیری و نام اشیای head و tail را آورد. این فصل یک لایه پایین‌تر می‌رود: فراداده‌ی کاربر و bucket دقیقاً در کدام pool و namespace است، یک ورودی ایندکس چه فیلدهایی دارد و کلیدهایش در omap چگونه ساخته می‌شوند، به‌روزرسانی دومرحله‌ای ایندکس چگونه با شکست کنار می‌آید، نسخه‌بندی با OLH چگونه پیاده شده، manifest چگونه head و tail را در placement و storage class می‌چیند، و multipart چگونه بدون کپی داده کامل می‌شود. فصل با مرجع `radosgw-admin` تمام می‌شود. نام‌ها و پیش‌فرض‌ها با شاخه‌ی main مخزن ceph/ceph (نوامبر ۲۰۲۶) تطبیق داده شده‌اند.
+Chapter 4 showed that RGW keeps each S3 object in two places (the bucket index and the data) and presented the algorithms for choosing the shard, resharding, listing, and naming the head and tail objects. This chapter goes one layer down: exactly which pool and namespace hold user and bucket metadata, what fields an index entry has and how its omap keys are built, how the two-phase index update copes with failure, how versioning is implemented with the OLH, how the manifest lays out the head and tail across placement and storage classes, and how multipart completes without copying data. The chapter ends with a `radosgw-admin` reference. Names and defaults have been checked against the main branch of the ceph/ceph repository (November 2026).
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-40-1-1}
+## What questions does this chapter answer? {#sec-40-1-1}
 
-- اطلاعات کاربر، کلیدها و bucketها در کدام اشیای RADOS است؟
-- ورودی ایندکس یک شیء چه فیلدهایی دارد و کلیدهای `0x80` در omap ایندکس چه هستند؟
-- اگر RGW بین نوشتن داده و به‌روزرسانی ایندکس از کار بیفتد چه می‌شود؟
-- نسخه‌ی «جاری» یک شیء در bucket نسخه‌دار چگونه انتخاب می‌شود؟
-- head یک شیء در کدام pool نوشته می‌شود اگر storage class آن COLD باشد؟
-- ETag یک شیء چندبخشی چگونه محاسبه می‌شود؟
+- In which RADOS objects are the users, keys and buckets?
+- What fields does an object's index entry have, and what are the `0x80` keys in the index omap?
+- What happens if RGW fails between writing the data and updating the index?
+- How is the "current" version of an object chosen in a versioned bucket?
+- In which pool is an object's head written if its storage class is COLD?
+- How is the ETag of a multipart object computed?
 
-## پیش‌نیاز {#sec-40-1-2}
+## Prerequisites {#sec-40-1-2}
 
-فصل ۴ (RGW)، فصل ۱۵ (cls)، فصل ۳۴ (omap و xattr) و فصل ۳۶ (اتمی بودن cls).
+Chapter 4 (RGW), chapter 15 (cls), chapter 34 (omap and xattrs) and chapter 36 (the atomicity of cls).
 
-# فراداده: poolها و namespaceها {#sec-40-2}
+# Metadata: pools and namespaces {#sec-40-2}
 
-هر zone مجموعه‌ای از pool دارد که بیشترشان با **namespace** درون چند pool مشترک پیاده می‌شوند (`rgw::init_zone_pool_names` در `rgw_zone.cc`). نام کامل با پیشوند zone ساخته می‌شود؛ برای zone ‏`default`:
+Each zone has a set of pools, most of which are implemented as **namespaces** inside a few shared pools (`rgw::init_zone_pool_names` in `rgw_zone.cc`). The full name is built with the zone prefix; for the zone `default`:
 
-| کاربرد | pool:namespace |
+| Use | pool:namespace |
 |---|---|
-| bucket entrypoint و bucket instance | `default.rgw.meta:root` |
-| کاربر بر اساس uid | `default.rgw.meta:users.uid` |
-| نگاشت access key به کاربر | `default.rgw.meta:users.keys` |
-| نگاشت email و Swift | `default.rgw.meta:users.email`، `users.swift` |
-| نقش‌ها، account و group، OIDC | `default.rgw.meta:roles`، `accounts`، `groups`، `oidc` |
-| gc، lc، reshard، usage، notif، logging | `default.rgw.log:gc`، `:lc`، `:reshard`، `:usage`، `:notif`، `:logging` |
-| datalog، mdlog و bilog trim | `default.rgw.log` |
-| watch/notify میان RGWها | `default.rgw.control` |
-| ایندکس bucketها | `default.rgw.buckets.index` (از placement) |
-| داده | `default.rgw.buckets.data` (از storage class) |
-| فراداده‌ی multipart | `default.rgw.buckets.non-ec` (`data_extra_pool` از placement) |
+| bucket entrypoint and bucket instance | `default.rgw.meta:root` |
+| users by uid | `default.rgw.meta:users.uid` |
+| mapping an access key to a user | `default.rgw.meta:users.keys` |
+| email and Swift mappings | `default.rgw.meta:users.email`, `users.swift` |
+| roles, accounts and groups, OIDC | `default.rgw.meta:roles`, `accounts`, `groups`, `oidc` |
+| gc, lc, reshard, usage, notif, logging | `default.rgw.log:gc`, `:lc`, `:reshard`, `:usage`, `:notif`, `:logging` |
+| datalog, mdlog and bilog trim | `default.rgw.log` |
+| watch/notify between RGWs | `default.rgw.control` |
+| bucket indexes | `default.rgw.buckets.index` (from the placement) |
+| data | `default.rgw.buckets.data` (from the storage class) |
+| multipart metadata | `default.rgw.buckets.non-ec` (`data_extra_pool` from the placement) |
 
-**bucket** دو شیء فراداده دارد. **entrypoint** با نام خود bucket (یا `<tenant>/<bucket>`) در `root` فقط به instance فعلی اشاره می‌کند. **instance** با نام `.bucket.meta.<bucket>:<bucket-id>` همه‌ی ویژگی‌ها را دارد: placement، تعداد shard و layout ایندکس، مالک، پرچم versioning و object lock، و xattrهایی مثل policy، lifecycle و CORS. reshard یک instance تازه با bucket-id جدید می‌سازد و فقط entrypoint را جابه‌جا می‌کند.
+A **bucket** has two metadata objects. The **entrypoint**, named after the bucket itself (or `<tenant>/<bucket>`) in `root`, only points to the current instance. The **instance**, named `.bucket.meta.<bucket>:<bucket-id>`, has all the properties: placement, the number of shards and the index layout, the owner, the versioning and object lock flags, and xattrs such as policy, lifecycle and CORS. Resharding creates a new instance with a new bucket-id and only moves the entrypoint.
 
 ```bash
-# مثال: دیدن فراداده‌ی یک bucket و کاربر
+# example: viewing a bucket's and a user's metadata
 radosgw-admin metadata get bucket:photos
 radosgw-admin metadata get bucket.instance:photos:a1b2c3d4-0000-4000-8000-1234567890ab.4123.7
 rados -p default.rgw.meta -N users.keys ls | head -3
 ```
 
 ```text
-مثال (خروجی کوتاه‌شده):
+example (shortened output):
 { "key": "bucket:photos",
   "data": { "bucket": { "name": "photos", "marker": "a1b2c3d4-...4123.7", "bucket_id": "a1b2c3d4-...4123.7" },
             "owner": "alice", "creation_time": "2026-11-02T08:14:33.120Z" } }
@@ -61,37 +60,37 @@ AKIAEXAMPLEM9K1D0B
 AKIAEXAMPLEP5T8H4N
 ```
 
-`marker` همان پیشوندی است که نام اشیای داده و ایندکس از آن ساخته می‌شود (فصل ۴) و پس از reshard تغییر **نمی‌کند**، درحالی‌که `bucket_id` تغییر می‌کند. فهرست `users.keys` فقط شناسه‌ی access key است؛ کلید محرمانه درون رکورد کاربر است و هرگز نباید در لاگ یا گزارش آورده شود.
+The `marker` is the prefix from which the names of the data and index objects are built (chapter 4), and it does **not** change after a reshard, whereas `bucket_id` does. The `users.keys` list holds only the access key ids; the secret key is inside the user record and must never appear in a log or report.
 
-# bucket index {#sec-40-3}
+# The bucket index {#sec-40-3}
 
-## اشیا و کلیدها {#sec-40-3-1}
+## Objects and keys {#sec-40-3-1}
 
-ایندکس هر bucket در اشیای `.dir.<marker>.<shard>` (یا برای نسل‌های پس از reshard ‏`.dir.<marker>.<gen>.<shard>`) در pool ایندکس است. هر شیء ایندکس فقط omap دارد. header ‏omap آمار shard (تعداد، حجم، حجم واقعی هر category) و نسخه‌ی ایندکس را نگه می‌دارد. کلیدهای omap چند **فضای کلید** دارند (`cls_rgw.cc`):
+Each bucket's index is in the objects `.dir.<marker>.<shard>` (or, for generations after a reshard, `.dir.<marker>.<gen>.<shard>`) in the index pool. Each index object has only omap. The omap header keeps the shard's statistics (count, size and actual size per category) and the index version. The omap keys have several **key spaces** (`cls_rgw.cc`):
 
-| فضا | قالب کلید | محتوا |
+| Space | Key format | Content |
 |---|---|---|
-| ورودی معمولی | `<name>` | `rgw_bucket_dir_entry` نسخه‌ی جاری (یا شیء نسخه‌نشده) |
-| bilog (حالت InIndex) | `0x80` + `0_` + `<index_ver:%011llu>.<osd ver>.<subop>` | ورودی bilog برای multisite (فصل ۴۲) |
-| instance | `0x80` + `1000_` + `<name>` + `\0i` + `<instance>` | یک نسخه از شیء در bucket نسخه‌دار |
-| OLH | `0x80` + `1001_` + `<name>` | `rgw_bucket_olh_entry`: نسخه‌ی جاری و log تغییرات |
-| reshard log | `0x80` + `2001_` + … | تغییرهای حین reshard |
+| ordinary entry | `<name>` | the `rgw_bucket_dir_entry` of the current version (or of an unversioned object) |
+| bilog (InIndex mode) | `0x80` + `0_` + `<index_ver:%011llu>.<osd ver>.<subop>` | a bilog entry for multisite (chapter 42) |
+| instance | `0x80` + `1000_` + `<name>` + `\0i` + `<instance>` | one version of an object in a versioned bucket |
+| OLH | `0x80` + `1001_` + `<name>` | `rgw_bucket_olh_entry`: the current version and the change log |
+| reshard log | `0x80` + `2001_` + … | changes made during a reshard |
 
-چون در UTF-8 هیچ نامی با بایت `0x80` شروع نمی‌شود (این بایت فقط بایت ادامه‌ی یک نویسه‌ی چندبایتی است)، تابع `bi_entry_type` در cls ‏rgw با نگاه به بایت اول کلید معمولی را از ویژه جدا می‌کند. کلیدهای ویژه پس از همه‌ی نام‌های ASCII و پیش از نام‌هایی که با نویسه‌های غیر ASCII (بایت اول `0xC2` به بعد) شروع می‌شوند مرتب می‌شوند؛ ازاین‌رو فهرست‌گیری (`get_obj_vals`) باید بازه‌ی `0x80`ها را صریحاً رد کند و فقط «یک اسکن تا 0x80» کافی نیست.
+Since in UTF-8 no name starts with the byte `0x80` (that byte is only a continuation byte of a multi-byte character), the `bi_entry_type` function in cls rgw tells ordinary keys from special ones by looking at the first byte. Special keys sort after all ASCII names and before names that start with non-ASCII characters (first byte `0xC2` and up); hence listing (`get_obj_vals`) must explicitly skip the `0x80` range, and "a scan up to 0x80" alone is not enough.
 
-![کلیدهای ویژه در omap یک shard ایندکس. کلید instance از 0x80، پیشوند ‏1000_، نام، بایت صفر، حرف i و شناسه‌ی نسخه ساخته می‌شود؛ OLH فقط پیشوند ‏1001_ و نام دارد؛ bilog شماره‌ی ‏index_ver صفرپرشده‌ی یازده‌رقمی دارد تا ترتیب واژگانی همان ترتیب عددی باشد](figures/ch40/f01_index.png){#fig-40-f01_index}
+![The special keys in the omap of an index shard. The instance key is built from 0x80, the prefix 1000_, the name, a zero byte, the letter i and the version id; the OLH key has only the prefix 1001_ and the name; the bilog key has an eleven-digit zero-padded index_ver so that lexical order equals numeric order](figures/ch40/f01_index.png){#fig-40-f01_index}
 
-## ورودی ایندکس {#sec-40-3-2}
+## The index entry {#sec-40-3-2}
 
-`rgw_bucket_dir_entry` این فیلدها را دارد: `key` (name و instance)، `ver` (pool و epoch، یعنی نسخه‌ی RADOS شیء head)، `locator`، `exists`، `meta` (category، size، mtime، etag، owner، owner_display_name، content_type، accounted_size، user_data، storage_class، appendable و وضعیت restore)، `pending_map` (عملیات نیمه‌تمام)، `index_ver`، `tag`، `flags` (`VER`، `CURRENT`، `DELETE_MARKER`، `VER_MARKER`) و `versioned_epoch`.
+`rgw_bucket_dir_entry` has these fields: `key` (name and instance), `ver` (pool and epoch, that is the RADOS version of the head object), `locator`, `exists`, `meta` (category, size, mtime, etag, owner, owner_display_name, content_type, accounted_size, user_data, storage_class, appendable and the restore status), `pending_map` (unfinished operations), `index_ver`, `tag`, `flags` (`VER`, `CURRENT`, `DELETE_MARKER`, `VER_MARKER`) and `versioned_epoch`.
 
-`accounted_size` اندازه‌ای است که کاربر دیده (پیش از فشرده‌سازی یا رمزنگاری) و `size` اندازه‌ی واقعی ذخیره‌شده؛ سهمیه و آمار bucket بر پایه‌ی `accounted_size` حساب می‌شوند.
+`accounted_size` is the size the user saw (before compression or encryption) and `size` is the actual stored size; quotas and bucket statistics are computed from `accounted_size`.
 
-## به‌روزرسانی دومرحله‌ای {#sec-40-3-3}
+## The two-phase update {#sec-40-3-3}
 
-نوشتن داده و به‌روزرسانی ایندکس در دو شیء جدا (و معمولاً دو OSD جدا) است و RADOS تراکنش میان‌شیئی ندارد. RGW این دو را با یک پروتکل دومرحله‌ای هماهنگ می‌کند.
+Writing the data and updating the index happen in two separate objects (and usually on two separate OSDs), and RADOS has no cross-object transactions. RGW coordinates the two with a two-phase protocol.
 
-::: {.algo #alg-40-1 title="prepare و complete در bucket index" src="src/cls/rgw/cls_rgw.cc :: rgw_bucket_prepare_op، rgw_bucket_complete_op، rgw_dir_suggest_changes؛ src/rgw/driver/rados/rgw_rados.cc :: RGWRados::Bucket::UpdateIndex" complexity="دو فراخوانی cls روی shard ایندکس به‌ازای هر PUT یا DELETE"}
+::: {.algo #alg-40-1 title="prepare and complete in the bucket index" src="src/cls/rgw/cls_rgw.cc :: rgw_bucket_prepare_op, rgw_bucket_complete_op, rgw_dir_suggest_changes; src/rgw/driver/rados/rgw_rados.cc :: RGWRados::Bucket::UpdateIndex" complexity="two cls calls on the index shard per PUT or DELETE"}
 :::
 
 ```text
@@ -113,15 +112,15 @@ crash between prepare and complete:
     → cls rgw.dir_suggest_changes(UPDATE or REMOVE) fixes the entry
 ```
 
-![توالی به‌روزرسانی دومرحله‌ای: prepare برچسب عملیات را در ‏pending_map می‌گذارد، داده نوشته می‌شود، complete برچسب را برمی‌دارد و ورودی، آمار و bilog را به‌روز می‌کند. اگر complete نرسد، فهرست‌گیری بعدی وضعیت head را بررسی و با dir_suggest_changes ورودی را اصلاح می‌کند](figures/ch40/f03_twophase.png){#fig-40-f03_twophase}
+![The sequence of the two-phase update: prepare puts the operation tag in pending_map, the data is written, and complete removes the tag and updates the entry, the statistics and the bilog. If complete never arrives, the next listing checks the head's state and fixes the entry with dir_suggest_changes](figures/ch40/f03_twophase.png){#fig-40-f03_twophase}
 
-پیامد عملی: ایندکس ممکن است برای مدتی کوتاه با داده ناسازگار باشد (شیء نوشته شده ولی هنوز در فهرست نیست، یا برعکس)، ولی **فهرست‌گیری خودش را ترمیم می‌کند**. `radosgw-admin bucket check --fix --check-objects` همین بررسی را برای همه‌ی ورودی‌ها انجام می‌دهد.
+The practical consequence: the index may be inconsistent with the data for a short time (the object is written but not yet listed, or the other way round), but **listing repairs itself**. `radosgw-admin bucket check --fix --check-objects` performs the same check for all entries.
 
-# نسخه‌بندی و OLH {#sec-40-4}
+# Versioning and the OLH {#sec-40-4}
 
-در bucket نسخه‌دار هر نسخه یک شیء head جدا با `instance` تصادفی (مثلاً `3sL4kqtJlcpXroDTDmJ+rmSpXd3dIbrHY`) دارد. نسخه‌ی جاری با یک **OLH** ‏(object logical head) مشخص می‌شود: یک ورودی `1001_` در ایندکس و یک شیء head بدون داده با نام اصلی، که در xattrهای `user.rgw.olh.info`، `user.rgw.olh.ver`، `user.rgw.olh.idtag` و `user.rgw.olh.pending.*` به instance جاری اشاره می‌کند.
+In a versioned bucket each version has a separate head object with a random `instance` (for example `3sL4kqtJlcpXroDTDmJ+rmSpXd3dIbrHY`). The current version is identified by an **OLH** (object logical head): a `1001_` entry in the index and a data-less head object with the original name, which points to the current instance in the xattrs `user.rgw.olh.info`, `user.rgw.olh.ver`, `user.rgw.olh.idtag` and `user.rgw.olh.pending.*`.
 
-::: {.algo #alg-40-2 title="link_olh: افزودن نسخه و تعیین نسخه‌ی جاری" src="src/cls/rgw/cls_rgw.cc :: rgw_bucket_link_olh؛ src/rgw/driver/rados/rgw_rados.cc :: RGWRados::set_olh، apply_olh_log" complexity="چند خواندن و نوشتن omap روی یک shard؛ سپس یک به‌روزرسانی xattr روی head ‏OLH"}
+::: {.algo #alg-40-2 title="link_olh: adding a version and setting the current version" src="src/cls/rgw/cls_rgw.cc :: rgw_bucket_link_olh; src/rgw/driver/rados/rgw_rados.cc :: RGWRados::set_olh, apply_olh_log" complexity="a few omap reads and writes on one shard; then one xattr update on the OLH head"}
 :::
 
 ```text
@@ -142,19 +141,19 @@ DELETE without versionId: link_olh with delete_marker = true (new instance, no d
 DELETE with versionId: unlink_instance ; if it was current → promote next newest
 ```
 
-**مثال.** شیء `report.pdf` سه بار آپلود و سپس بدون versionId حذف شده است. ایندکس چهار ورودی instance (سه نسخه و یک delete marker با پرچم `DELETE_MARKER|CURRENT`)، یک ورودی OLH و یک ورودی معمولی دارد. `GET report.pdf` به OLH نگاه می‌کند، می‌بیند نسخه‌ی جاری delete marker است و 404 برمی‌گرداند. `GET report.pdf?versionId=<v2>` مستقیم head نسخه‌ی دوم را می‌خواند.
+**Example.** The object `report.pdf` was uploaded three times and then deleted without a versionId. The index has four instance entries (three versions and one delete marker with the flags `DELETE_MARKER|CURRENT`), one OLH entry and one ordinary entry. `GET report.pdf` looks at the OLH, sees that the current version is a delete marker and returns 404. `GET report.pdf?versionId=<v2>` reads the head of the second version directly.
 
 ::: {.note}
-شیئی که پیش از روشن کردن versioning نوشته شده، instance خالی دارد و در API به‌صورت `versionId=null` دیده می‌شود. نوشتن دوباره در حالت `Suspended` هم همان null را بازنویسی می‌کند.
+An object written before versioning was turned on has an empty instance and appears in the API as `versionId=null`. Writing again in the `Suspended` state also overwrites that same null version.
 :::
 
-# manifest، placement و storage class {#sec-40-5}
+# Manifest, placement and storage classes {#sec-40-5}
 
-## قواعد چیدمان {#sec-40-5-1}
+## Layout rules {#sec-40-5-1}
 
-هر bucket یک **placement target** دارد (از zonegroup) که در zone به سه pool نگاشت می‌شود: `index_pool`، `data_extra_pool` و برای هر **storage class** یک `data_pool` (با فشرده‌سازی اختیاری). head همیشه در pool ‏storage class پیش‌فرض (`STANDARD`) placement ‏bucket است؛ اگر شیء storage class دیگری داشته باشد، head فقط فراداده (manifest و xattrها) دارد و همه‌ی داده در tail در pool همان class است.
+Each bucket has a **placement target** (from the zonegroup), which the zone maps to three pools: `index_pool`, `data_extra_pool` and, for each **storage class**, a `data_pool` (with optional compression). The head is always in the pool of the default storage class (`STANDARD`) of the bucket's placement; if the object has a different storage class, the head holds only metadata (the manifest and xattrs) and all the data is in tails in that class's pool.
 
-::: {.algo #alg-40-3 title="تعیین اندازه‌ی head، chunk و stripe برای یک PUT" src="src/rgw/driver/rados/rgw_putobj_processor.cc :: AtomicObjectProcessor::prepare؛ src/rgw/rgw_obj_manifest.cc :: set_trivial_rule" complexity="O(1) برای ساخت قاعده؛ O(size / stripe) شیء tail"}
+::: {.algo #alg-40-3 title="Setting the head, chunk and stripe sizes for a PUT" src="src/rgw/driver/rados/rgw_putobj_processor.cc :: AtomicObjectProcessor::prepare; src/rgw/rgw_obj_manifest.cc :: set_trivial_rule" complexity="O(1) to build the rule; O(size / stripe) tail objects"}
 :::
 
 ```text
@@ -172,13 +171,13 @@ data: first head_max_size bytes → head ; rest → tail objects of `stripe` byt
 xattrs on head: user.rgw.manifest, user.rgw.etag, user.rgw.acl, user.rgw.idtag, user.rgw.tail_tag, user.rgw.storage_class, ...
 ```
 
-**مثال عددی.** یک PUT ‏10 MiB در کلاس STANDARD: head ‏4 MiB داده دارد و دو tail ‏4 MiB و 2 MiB ساخته می‌شوند (سه شیء RADOS). همان PUT با `x-amz-storage-class: COLD`: head بدون داده در pool ‏STANDARD و سه tail ‏4، 4 و 2 MiB در pool ‏COLD. پس حتی برای کلاس سرد، pool ‏STANDARD به ازای هر شیء یک head کوچک دارد؛ این نکته در طراحی ظرفیت pool ‏SSD اهمیت دارد. انتقال lifecycle (فصل ۴۱) هم همین الگو را می‌سازد: tail جدید در pool مقصد و manifest تازه روی همان head.
+**Numerical example.** A 10 MiB PUT in the STANDARD class: the head holds 4 MiB of data and two tails of 4 MiB and 2 MiB are created (three RADOS objects). The same PUT with `x-amz-storage-class: COLD`: a data-less head in the STANDARD pool and three tails of 4, 4 and 2 MiB in the COLD pool. So even for a cold class, the STANDARD pool has one small head per object; this matters when sizing an SSD pool. A lifecycle transition (chapter 41) produces the same pattern: new tails in the destination pool and a new manifest on the same head.
 
-![چیدمان یک شیء 10 MiB در دو حالت. در STANDARD، head چهار مگابایت اول را دارد و دو tail بقیه را. در COLD، head فقط manifest و xattrها را در pool ‏STANDARD نگه می‌دارد و همه‌ی داده در سه tail در pool ‏COLD است](figures/ch40/f02_manifest.png){#fig-40-f02_manifest}
+![The layout of a 10 MiB object in two cases. In STANDARD, the head holds the first four megabytes and two tails the rest. In COLD, the head keeps only the manifest and xattrs in the STANDARD pool, and all the data is in three tails in the COLD pool](figures/ch40/f02_manifest.png){#fig-40-f02_manifest}
 
-# multipart {#sec-40-6}
+# Multipart {#sec-40-6}
 
-::: {.algo #alg-40-4 title="آپلود چندبخشی: init، part و complete" src="src/rgw/driver/rados/rgw_sal_rados.cc :: RadosMultipartUpload::init، complete؛ src/rgw/driver/rados/rgw_putobj_processor.cc :: MultipartObjectProcessor::complete؛ src/rgw/rgw_multi.h" complexity="complete ‏O(P) برای P بخش؛ بدون کپی داده"}
+::: {.algo #alg-40-4 title="Multipart upload: init, part and complete" src="src/rgw/driver/rados/rgw_sal_rados.cc :: RadosMultipartUpload::init, complete; src/rgw/driver/rados/rgw_putobj_processor.cc :: MultipartObjectProcessor::complete; src/rgw/rgw_multi.h" complexity="complete is O(P) for P parts; with no data copy"}
 :::
 
 ```text
@@ -196,41 +195,41 @@ complete(list of (n, etag)):
     remove meta object and its index entry ; parts not listed → gc
 ```
 
-**مثال عددی.** سه بخش 5، 5 و 2 MiB که به‌ترتیب با `A`، `B` و `C` پر شده‌اند ETagهای `b8fc857a25e7958868c2f003d5e0952d`، `ba8c3fac0e224c9b79a8e74bebd54654` و `bf52955b454974e73c3e2694bd7207c4` دارند. ETag نهایی md5 الحاق ۴۸ بایت دودویی آن‌هاست: `eacd2737fa049d51213f10cdc5732ece-3`. این مقدار با md5 کل فایل یکی **نیست**؛ ابزاری که ETag را با md5 فایل مقایسه می‌کند باید پسوند `-N` را بشناسد.
+**Numerical example.** Three parts of 5, 5 and 2 MiB, filled with `A`, `B` and `C` respectively, have the ETags `b8fc857a25e7958868c2f003d5e0952d`, `ba8c3fac0e224c9b79a8e74bebd54654` and `bf52955b454974e73c3e2694bd7207c4`. The final ETag is the md5 of the concatenation of their 48 binary bytes: `eacd2737fa049d51213f10cdc5732ece-3`. This value is **not** the md5 of the whole file; a tool that compares the ETag with the file's md5 must recognize the `-N` suffix.
 
-پیشوند `2~` در upload_id نشان می‌دهد کلیدهای بخش‌ها با `%08d` و مرتب ذخیره شده‌اند. uploadهای قدیمی (پیشوند `2/`) بخش‌ها را بدون صفر ابتدایی ذخیره می‌کردند و complete باید آن‌ها را عددی مرتب می‌کرد.
+The `2~` prefix in the upload_id shows that the part keys are stored sorted with `%08d`. Old uploads (prefix `2/`) stored parts without leading zeros, and complete had to sort them numerically.
 
-# مرجع radosgw-admin {#sec-40-7}
+# radosgw-admin reference {#sec-40-7}
 
-| دستور | کاربرد |
+| Command | Use |
 |---|---|
-| `radosgw-admin user {create,info,modify,suspend,enable,rm,list}` | کاربران |
-| `radosgw-admin key {create,rm}` / `subuser {create,modify,rm}` | کلیدها و subuserها |
-| `radosgw-admin account {create,get,modify,rm}` | accountها (IAM) |
-| `radosgw-admin bucket {list,stats,link,unlink,chown,rm}` | bucketها |
-| `radosgw-admin bucket check [--fix] [--check-objects]` | بررسی و ترمیم ایندکس |
-| `radosgw-admin bucket reshard --bucket B --num-shards N` / `reshard {add,list,status,process,cancel}` | reshard |
-| `radosgw-admin bucket limit check` | shardهای پرشده |
-| `radosgw-admin bi {get,list,put,purge}` | ورودی‌های خام ایندکس (با احتیاط) |
-| `radosgw-admin object stat --bucket B --object K` | manifest و xattrهای یک شیء |
-| `radosgw-admin object {rm,unlink,rewrite}` | عملیات روی یک شیء |
-| `radosgw-admin quota {set,enable,disable} --quota-scope {user,bucket}` / `user stats --sync-stats` | سهمیه |
-| `radosgw-admin ratelimit {set,get,enable,disable} --ratelimit-scope {user,bucket,anonymous}` | محدودیت نرخ |
+| `radosgw-admin user {create,info,modify,suspend,enable,rm,list}` | users |
+| `radosgw-admin key {create,rm}` / `subuser {create,modify,rm}` | keys and subusers |
+| `radosgw-admin account {create,get,modify,rm}` | accounts (IAM) |
+| `radosgw-admin bucket {list,stats,link,unlink,chown,rm}` | buckets |
+| `radosgw-admin bucket check [--fix] [--check-objects]` | checking and repairing the index |
+| `radosgw-admin bucket reshard --bucket B --num-shards N` / `reshard {add,list,status,process,cancel}` | resharding |
+| `radosgw-admin bucket limit check` | over-full shards |
+| `radosgw-admin bi {get,list,put,purge}` | raw index entries (with care) |
+| `radosgw-admin object stat --bucket B --object K` | an object's manifest and xattrs |
+| `radosgw-admin object {rm,unlink,rewrite}` | operations on one object |
+| `radosgw-admin quota {set,enable,disable} --quota-scope {user,bucket}` / `user stats --sync-stats` | quotas |
+| `radosgw-admin ratelimit {set,get,enable,disable} --ratelimit-scope {user,bucket,anonymous}` | rate limits |
 | `radosgw-admin gc {list,process} [--include-all]` | garbage collection |
 | `radosgw-admin lc {list,get,process,reshard fix}` | lifecycle |
-| `radosgw-admin usage {show,trim}` | گزارش مصرف (اگر روشن باشد) |
-| `radosgw-admin metadata {list,get,put,rm} SECTION[:KEY]` | فراداده‌ی خام |
-| `radosgw-admin zonegroup placement {list,add,modify}` / `zone placement {list,add,modify}` | placement و storage class |
-| `radosgw-admin {realm,zonegroup,zone,period} ...` / `sync status` | multisite (فصل ۴۲) |
-| `radosgw-admin orphans` / `rgw-orphan-list` | یافتن اشیای یتیم در pool داده |
+| `radosgw-admin usage {show,trim}` | usage reports (if enabled) |
+| `radosgw-admin metadata {list,get,put,rm} SECTION[:KEY]` | raw metadata |
+| `radosgw-admin zonegroup placement {list,add,modify}` / `zone placement {list,add,modify}` | placement and storage classes |
+| `radosgw-admin {realm,zonegroup,zone,period} ...` / `sync status` | multisite (chapter 42) |
+| `radosgw-admin orphans` / `rgw-orphan-list` | finding orphaned objects in the data pool |
 
 ```bash
-# مثال: manifest یک شیء 10 MiB در STANDARD
+# example: the manifest of a 10 MiB object in STANDARD
 radosgw-admin object stat --bucket photos --object big.bin | jq '.manifest | {obj_size, head_size, max_head_size, rules}'
 ```
 
 ```text
-مثال (خروجی):
+example (output):
 {
   "obj_size": 10485760,
   "head_size": 4194304,
@@ -240,47 +239,47 @@ radosgw-admin object stat --bucket photos --object big.bin | jq '.manifest | {ob
 }
 ```
 
-# تنظیم و عیب‌یابی {#sec-40-8}
+# Tuning and troubleshooting {#sec-40-8}
 
-- **فهرست‌گیری کند و `bucket stats` نادرست:** ورودی‌های pending قدیمی زیادند. `radosgw-admin bucket check --check-objects --fix` را در زمان خلوت اجرا کنید.
-- **large omap در pool ایندکس:** shard بیش از `rgw_max_objs_per_shard` ‏(100000) ورودی دارد یا (در حالت InIndex) bilog trim نشده است. `bucket limit check` و `bilog list` را ببینید (فصل ۴۲).
-- **pool ‏STANDARD با وجود کلاس سرد پر می‌شود:** هر شیء یک head در STANDARD دارد؛ برای میلیاردها شیء کوچک این خودش حجم و تعداد شیء زیادی است.
-- **فضای pool داده آزاد نمی‌شود:** tailهای حذف‌شده منتظر gc هستند (پیش‌فرض دست‌کم 2 ساعت؛ فصل ۴۱). `gc list --include-all` را ببینید.
-- **multipartهای رهاشده:** فقط lifecycle با `AbortIncompleteMultipartUpload` یا `radosgw-admin bucket rm --purge-objects` آن‌ها را پاک می‌کند؛ `rados ls` روی `data_extra_pool` تعدادشان را نشان می‌دهد.
+- **Slow listing and wrong `bucket stats`:** there are many old pending entries. Run `radosgw-admin bucket check --check-objects --fix` at a quiet time.
+- **Large omap in the index pool:** a shard has more than `rgw_max_objs_per_shard` (100000) entries, or (in InIndex mode) the bilog has not been trimmed. Look at `bucket limit check` and `bilog list` (chapter 42).
+- **The STANDARD pool fills up despite a cold class:** each object has one head in STANDARD; for billions of small objects this alone is a lot of space and objects.
+- **Space in the data pool is not freed:** deleted tails are waiting for gc (by default at least 2 hours; chapter 41). Look at `gc list --include-all`.
+- **Abandoned multipart uploads:** only lifecycle with `AbortIncompleteMultipartUpload` or `radosgw-admin bucket rm --purge-objects` removes them; `rados ls` on `data_extra_pool` shows how many there are.
 
-# تکمیلی و به‌روز {#sec-40-9}
+# Supplementary and up to date {#sec-40-9}
 
-- در شاخه‌ی main، `epoch` نسخه‌ها در link_olh از زمان جاری به نانوثانیه گرفته می‌شود (مگر از multisite بیاید). نسخه‌های قدیمی‌تر رفتار دیگری داشتند و همین در مقایسه‌ی نسخه‌ها میان zoneها اهمیت دارد.
-- گزینه‌ی `inline_data` در placement (پیش‌فرض روشن) تعیین می‌کند head داده داشته باشد یا نه؛ خاموش کردن آن برای poolهای EC که head کوچک را بد نگه می‌دارند سودمند است.
-- در شاخه‌ی main، bucketهای جدید به‌طور پیش‌فرض bilog را به‌جای omap ایندکس در FIFO جدا نگه می‌دارند (`rgw_default_bucket_bilog_type = fifo`)؛ کلیدهای `0_` فقط در حالت `inindex` و bucketهای قدیمی دیده می‌شوند.
-- poolهای `:accounts`، `:groups` و `:vector` و `dedup_pool` در نسخه‌های جدید اضافه شده‌اند؛ پیش از تکیه بر آن‌ها نسخه‌ی خود را بررسی کنید.
+- In the main branch, the `epoch` of versions in link_olh is taken from the current time in nanoseconds (unless it comes from multisite). Older versions behaved differently, and this matters when versions are compared across zones.
+- The `inline_data` option in the placement (on by default) determines whether the head holds data; turning it off helps EC pools that store small heads poorly.
+- In the main branch, new buckets keep the bilog by default in a separate FIFO instead of the index omap (`rgw_default_bucket_bilog_type = fifo`); `0_` keys appear only in `inindex` mode and in old buckets.
+- The `:accounts`, `:groups` and `:vector` pools and `dedup_pool` have been added in new versions; check your version before relying on them.
 
-# تمرین عملی {#sec-40-10}
+# Hands-on exercise {#sec-40-10}
 
-1. یک bucket بسازید و با `rados -p default.rgw.meta -N root ls` entrypoint و instance آن را پیدا کنید. پس از `bucket reshard` دوباره نگاه کنید.
-2. با `rados -p default.rgw.buckets.index listomapkeys .dir.<marker>.0 | xxd | head` کلیدهای `0x80` را در یک bucket نسخه‌دار ببینید.
-3. یک شیء 10 MiB را یک بار در STANDARD و یک بار در COLD آپلود کنید و با `object stat` و `rados ls` جای head و tailها را مقایسه کنید.
-4. یک آپلود سه‌بخشی انجام دهید، ETag نهایی را با محاسبه‌ی دستی (md5 الحاق md5ها) تطبیق دهید.
+1. Create a bucket and find its entrypoint and instance with `rados -p default.rgw.meta -N root ls`. Look again after `bucket reshard`.
+2. With `rados -p default.rgw.buckets.index listomapkeys .dir.<marker>.0 | xxd | head`, look at the `0x80` keys in a versioned bucket.
+3. Upload a 10 MiB object once in STANDARD and once in COLD, and compare where the head and tails are with `object stat` and `rados ls`.
+4. Do a three-part upload and match the final ETag against a manual calculation (the md5 of the concatenated md5s).
 
-# پرسش‌های مرور {#sec-40-11}
+# Review questions {#sec-40-11}
 
-1. entrypoint و instance یک bucket چه فرقی دارند و reshard کدام را عوض می‌کند؟
-2. کلید ورودی bilog در omap ایندکس چه ساختاری دارد؟
-3. چرا کلیدهای ویژه با بایت 0x80 شروع می‌شوند؟
-4. `size` و `accounted_size` در ورودی ایندکس چه فرقی دارند؟
-5. اگر RGW پس از prepare و نوشتن داده ولی پیش از complete از کار بیفتد، ورودی چگونه ترمیم می‌شود؟
-6. OLH چیست و در کجا ذخیره می‌شود؟
-7. حذف بدون versionId در bucket نسخه‌دار چه می‌کند؟
-8. head یک شیء COLD در کدام pool است و چه دارد؟
-9. ETag آپلود سه‌بخشی چگونه ساخته می‌شود؟
-10. پیشوند `2~` در upload_id چه چیزی را نشان می‌دهد؟
+1. How do a bucket's entrypoint and instance differ, and which one does a reshard change?
+2. What structure does the key of a bilog entry in the index omap have?
+3. Why do the special keys start with the byte 0x80?
+4. How do `size` and `accounted_size` in an index entry differ?
+5. If RGW fails after prepare and the data write but before complete, how is the entry repaired?
+6. What is the OLH, and where is it stored?
+7. What does a delete without a versionId do in a versioned bucket?
+8. In which pool is the head of a COLD object, and what does it hold?
+9. How is the ETag of a three-part upload built?
+10. What does the `2~` prefix in the upload_id indicate?
 
-# منابع این فصل {#sec-40-12}
+# Sources for this chapter {#sec-40-12}
 
-- cls_rgw.cc و cls_rgw_types.h: https://github.com/ceph/ceph/blob/main/src/cls/rgw/cls_rgw.cc
-- rgw_zone.cc (نام poolها): https://github.com/ceph/ceph/blob/main/src/rgw/rgw_zone.cc
+- cls_rgw.cc and cls_rgw_types.h: https://github.com/ceph/ceph/blob/main/src/cls/rgw/cls_rgw.cc
+- rgw_zone.cc (pool names): https://github.com/ceph/ceph/blob/main/src/rgw/rgw_zone.cc
 - rgw_putobj_processor.cc: https://github.com/ceph/ceph/blob/main/src/rgw/driver/rados/rgw_putobj_processor.cc
 - rgw_sal_rados.cc (multipart): https://github.com/ceph/ceph/blob/main/src/rgw/driver/rados/rgw_sal_rados.cc
-- مستند bucket index و layout: https://docs.ceph.com/en/latest/dev/radosgw/bucket_index/
-- مستند placement و storage class: https://docs.ceph.com/en/latest/radosgw/placement/
+- Bucket index and layout documentation: https://docs.ceph.com/en/latest/dev/radosgw/bucket_index/
+- Placement and storage class documentation: https://docs.ceph.com/en/latest/radosgw/placement/
 - radosgw-admin: https://docs.ceph.com/en/latest/man/8/radosgw-admin/
