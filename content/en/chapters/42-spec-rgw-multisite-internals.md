@@ -4,31 +4,30 @@ id: ch42
 title: 'Specialist Part (9): RGW — Inside Multisite: Periods, Log Formats, Bucket Generations and the Sync Engine'
 part: specialist
 lang: en
-translation: pending
 ---
 
-# پیش از شروع {#sec-42-1}
+# Before we begin {#sec-42-1}
 
-فصل ۵ multisite را از دید راه‌اندازی و بهره‌برداری آورد: سلسله‌مراتب realm، zonegroup و zone، سه لاگ، ماشین حالت data sync، انتخاب shard ‏datalog و mdlog، پنجره‌ی ادغام و trim. این فصل آخرِ بخش تخصصی، درون همان موتور را باز می‌کند: commit یک period دقیقاً چه بررسی‌هایی دارد و چه زمانی period جدید می‌سازد، رکوردهای bilog، datalog و mdlog چه فیلدهایی دارند، وضعیت همگام‌سازی در کدام اشیای RADOS است، reshard چگونه با «نسل»های لاگ با همگام‌سازی کنار می‌آید، خطاها کجا صف می‌شوند و تعارض نوشتن هم‌زمان در دو zone چگونه حل می‌شود. نام‌ها با شاخه‌ی main (نوامبر ۲۰۲۶) تطبیق داده شده‌اند.
+Chapter 5 covered multisite from the point of view of setup and operation: the realm, zonegroup and zone hierarchy, the three logs, the data sync state machine, choosing the datalog and mdlog shard, the coalescing window and trim. This last chapter of the specialist part opens up the inside of that same engine: exactly what checks committing a period involves and when it creates a new period, what fields the bilog, datalog and mdlog records have, which RADOS objects hold the sync status, how reshard copes with sync through log "generations", where errors are queued, and how a conflict from concurrent writes in two zones is resolved. Names have been matched against the main branch (November 2026).
 
-## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-42-1-1}
+## What questions does this chapter answer? {#sec-42-1-1}
 
-- چرا `period update --commit` گاهی epoch را بالا می‌برد و گاهی شناسه‌ی period را عوض می‌کند؟
-- یک ورودی bilog و یک ورودی datalog چه اطلاعاتی حمل می‌کنند؟
-- وضعیت همگام‌سازی یک bucket shard در کدام شیء و با چه نامی ذخیره می‌شود؟
-- پس از reshard در zone مبدأ، zone مقصد چگونه بدون از دست دادن تغییرات ادامه می‌دهد؟
-- اگر همگام‌سازی یک bucket شکست بخورد، کجا ثبت و کی دوباره امتحان می‌شود؟
-- اگر یک شیء هم‌زمان در دو zone نوشته شود، کدام نسخه می‌ماند؟
+- Why does `period update --commit` sometimes raise the epoch and sometimes change the period id?
+- What information do a bilog entry and a datalog entry carry?
+- In which object, and under what name, is the sync status of a bucket shard stored?
+- After a reshard in the source zone, how does the destination zone continue without losing changes?
+- If syncing a bucket fails, where is it recorded and when is it retried?
+- If an object is written in two zones at the same time, which version stays?
 
-## پیش‌نیاز {#sec-42-1-2}
+## Prerequisites {#sec-42-1-2}
 
-فصل ۵ (multisite)، فصل ۴۰ (bucket index و bilog) و فصل ۴۱ (مسیر درخواست).
+Chapter 5 (multisite), chapter 40 (the bucket index and bilog) and chapter 41 (the request path).
 
-# period و commit {#sec-42-2}
+# Periods and commit {#sec-42-2}
 
-پیکربندی multisite در یک **period** ثبت می‌شود: شناسه، `epoch`، `realm_epoch`، `predecessor_uuid`، master zonegroup و master zone و نقشه‌ی کامل zonegroupها. تغییرها ابتدا در period «staging» (شناسه‌ی `<realm-id>:staging`) جمع می‌شوند و `radosgw-admin period update --commit` آن را بر پایه‌ی period جاری می‌سازد.
+The multisite configuration is recorded in a **period**: an id, `epoch`, `realm_epoch`, `predecessor_uuid`, the master zonegroup and master zone, and the full map of zonegroups. Changes are first collected in the "staging" period (id `<realm-id>:staging`), and `radosgw-admin period update --commit` builds it on top of the current period.
 
-::: {.algo #alg-42-1 title="commit یک period" src="src/rgw/rgw_zone.cc :: commit_period؛ src/rgw/rgw_period.cc" complexity="O(اندازه‌ی نقشه‌ی period)؛ سپس انتشار به همه‌ی zoneها"}
+::: {.algo #alg-42-1 title="Committing a period" src="src/rgw/rgw_zone.cc :: commit_period; src/rgw/rgw_period.cc" complexity="O(size of the period map); then propagation to all zones"}
 :::
 
 ```text
@@ -47,55 +46,55 @@ commit_period(staging, current):
     store period ; notify all zones (push to their /admin/realm/period)
 ```
 
-نتیجه: تغییرهای معمولی (افزودن zone، endpoint، placement) فقط epoch را بالا می‌برند و mdlog ادامه می‌یابد. اما تغییر master zone یک period جدید و در نتیجه **mdlog جدید** می‌سازد؛ وضعیت همگام‌سازی فراداده در period قبلی ذخیره می‌شود تا zoneها بتوانند ابتدا لاگ period قدیمی را تا انتها بخوانند و سپس به period جدید بروند. پیام «does not come directly after current realm epoch. Use 'realm pull'» یعنی این zone period جاری را ندارد.
+The result: ordinary changes (adding a zone, an endpoint, a placement) only raise the epoch, and the mdlog continues. But changing the master zone creates a new period and therefore a **new mdlog**; the metadata sync status is stored in the previous period so that the zones can first read the old period's log to its end and then move to the new period. The message "does not come directly after current realm epoch. Use 'realm pull'" means this zone does not have the current period.
 
 ```bash
-# مثال: دیدن period جاری
+# example: viewing the current period
 radosgw-admin period get-current
 radosgw-admin period get | jq '{id, epoch, realm_epoch, predecessor_uuid, master_zone}'
 ```
 
 ```text
-مثال (خروجی):
+example (output):
 { "current_period": "7c1f2b9e-5d1a-4c2e-9a0f-3b8d6e4f1a20" }
 { "id": "7c1f2b9e-5d1a-4c2e-9a0f-3b8d6e4f1a20", "epoch": 4, "realm_epoch": 2,
   "predecessor_uuid": "0e9a4d33-1b6c-4f7e-8a25-c5d2f8b7e911", "master_zone": "b3a9e1c4-...-zone-a" }
 ```
 
-# قالب رکوردهای لاگ {#sec-42-3}
+# The format of log records {#sec-42-3}
 
-| لاگ | محل | رکورد | فیلدهای اصلی |
+| Log | Location | Record | Main fields |
 |---|---|---|---|
-| bilog | در حالت InIndex در omap هر shard ایندکس با کلید `0x80 0_<index_ver>…` (فصل ۴۰)؛ در حالت FIFO در اشیای FIFO جدا | `rgw_bi_log_entry` | id، object، instance، timestamp، ver، op، state، index_ver، tag، bilog_flags، owner (برای delete marker)، zones_trace |
-| datalog | `data_log.<N>` در pool لاگ (FIFO یا omap) | `rgw_data_change` | entity_type، key (`bucket:instance:shard`)، timestamp، gen |
-| mdlog | `meta.log.<period>.<N>` در pool لاگ | ورودی cls_log با section و name (مثلاً `bucket` و `photos`) و داده‌ی `RGWMetadataLogData` | read_version، write_version، status |
+| bilog | in InIndex mode, in the omap of each index shard with the key `0x80 0_<index_ver>…` (chapter 40); in FIFO mode, in separate FIFO objects | `rgw_bi_log_entry` | id, object, instance, timestamp, ver, op, state, index_ver, tag, bilog_flags, owner (for a delete marker), zones_trace |
+| datalog | `data_log.<N>` in the log pool (FIFO or omap) | `rgw_data_change` | entity_type, key (`bucket:instance:shard`), timestamp, gen |
+| mdlog | `meta.log.<period>.<N>` in the log pool | a cls_log entry with a section and name (for example `bucket` and `photos`) and `RGWMetadataLogData` data | read_version, write_version, status |
 
-**zones_trace** فهرست zoneهایی است که یک تغییر از آن‌ها گذشته؛ وقتی zone مقصد شیء را از مبدأ می‌گیرد و خودش یک ورودی bilog می‌نویسد، zone مبدأ در trace است و هنگام همگام‌سازی معکوس دوباره برگردانده نمی‌شود. بدون آن در توپولوژی active-active هر نوشتن در یک حلقه‌ی بی‌پایان رفت‌وبرگشت می‌کرد.
+**zones_trace** is the list of zones a change has passed through; when the destination zone fetches an object from the source and writes a bilog entry of its own, the source zone is in the trace, and the change is not sent back during reverse sync. Without it, in an active-active topology every write would bounce back and forth in an endless loop.
 
-فیلد **gen** در datalog (و پسوند نسل در نام وضعیت‌ها) فقط پس از reshardهایی معنا دارد که نسل جدید ساخته‌اند؛ رمزگذاری `rgw_data_change` وقتی gen صفر است compat ‏1 دارد و در غیر این صورت 2، پس RGWهای قدیمی ورودی‌های بدون نسل را همچنان می‌خوانند.
+The **gen** field in the datalog (and the generation suffix in the names of status objects) only has meaning after reshards that have created a new generation; the encoding of `rgw_data_change` has compat 1 when gen is zero and 2 otherwise, so old RGWs can still read entries without a generation.
 
-![زنجیره‌ی سه لاگ برای یک PUT در zone مبدأ. complete در ایندکس یک ورودی bilog می‌نویسد، RGW کلید bucket shard را در datalog ثبت می‌کند و zone مقصد datalog را می‌خواند، bilog همان shard را از marker خود به بعد می‌گیرد و شیء را با fetch_remote_obj کپی می‌کند. تغییرهای فراداده جداگانه از mdlog ‏period جاری خوانده می‌شوند](figures/ch42/f01_logs.png){#fig-42-f01_logs}
+![The chain of three logs for a PUT in the source zone. complete in the index writes a bilog entry, RGW records the bucket shard key in the datalog, and the destination zone reads the datalog, fetches the bilog of that shard from its marker onward and copies the object with fetch_remote_obj. Metadata changes are read separately from the mdlog of the current period](figures/ch42/f01_logs.png){#fig-42-f01_logs}
 
-# وضعیت همگام‌سازی روی RADOS {#sec-42-4}
+# Sync status on RADOS {#sec-42-4}
 
-همه‌ی وضعیت‌ها در pool لاگ zone **مقصد** (`<zone>.rgw.log`) و بر پایه‌ی شناسه‌ی zone مبدأ نام‌گذاری می‌شوند (`rgw_data_sync.cc` و `rgw_sync.cc`):
+All status objects are in the log pool of the **destination** zone (`<zone>.rgw.log`) and are named after the source zone's id (`rgw_data_sync.cc` and `rgw_sync.cc`):
 
-| شیء | محتوا |
+| Object | Content |
 |---|---|
-| `datalog.sync-status.<src-zone>` | `rgw_data_sync_info`: حالت کلی (Init، BuildingFullSyncMaps، Sync) و تعداد shard |
-| `datalog.sync-status.shard.<src-zone>.<N>` | `rgw_data_sync_marker`: حالت shard، marker، next_step_marker، total_entries، pos، timestamp |
-| `datalog.sync-status.shard.<src-zone>.<N>.retry` | **error repo**: کلید bucket shardهای شکست‌خورده در omap |
-| `data.full-sync.index.<src-zone>.<N>` | فهرست bucketهای این shard برای full sync |
-| `bucket.full-sync-status.<src-zone>:<bucket>` | `rgw_bucket_sync_status`: state، full، incremental_gen، shards_done_with_gen |
-| `bucket.sync-status.<src-zone>:<bucket>:<shard>[:<gen>]` | `rgw_bucket_shard_sync_info`: حالت (Init، FullSync، IncrementalSync، Stopped) و inc_marker |
-| `mdlog.sync-status` و `mdlog.sync-status.shard.<N>` | وضعیت همگام‌سازی فراداده |
-| `data-sync-bids` و `meta-sync-bids` | پیشنهادهای RGWها برای مالکیت shardها |
+| `datalog.sync-status.<src-zone>` | `rgw_data_sync_info`: the overall state (Init, BuildingFullSyncMaps, Sync) and the number of shards |
+| `datalog.sync-status.shard.<src-zone>.<N>` | `rgw_data_sync_marker`: the shard state, marker, next_step_marker, total_entries, pos, timestamp |
+| `datalog.sync-status.shard.<src-zone>.<N>.retry` | **error repo**: the keys of failed bucket shards in omap |
+| `data.full-sync.index.<src-zone>.<N>` | the list of this shard's buckets for full sync |
+| `bucket.full-sync-status.<src-zone>:<bucket>` | `rgw_bucket_sync_status`: state, full, incremental_gen, shards_done_with_gen |
+| `bucket.sync-status.<src-zone>:<bucket>:<shard>[:<gen>]` | `rgw_bucket_shard_sync_info`: the state (Init, FullSync, IncrementalSync, Stopped) and inc_marker |
+| `mdlog.sync-status` and `mdlog.sync-status.shard.<N>` | metadata sync status |
+| `data-sync-bids` and `meta-sync-bids` | the RGWs' bids for owning shards |
 
-هر shard ‏datalog در هر لحظه فقط توسط یک RGW در zone مقصد پردازش می‌شود. این کار با یک **lease** (قفل cls با `rgw_sync_lease_period` ‏2 دقیقه که تمدید می‌شود) و در نسخه‌های جدید با سازوکار **bid** انجام می‌شود که shardها را میان RGWهای در دسترس پخش می‌کند؛ RGWی که bid را ببازد shard را رها می‌کند.
+Each datalog shard is processed by only one RGW in the destination zone at any moment. This is done with a **lease** (a cls lock with `rgw_sync_lease_period` of 2 minutes that is renewed) and, in new versions, with a **bid** mechanism that spreads the shards among the available RGWs; an RGW that loses a bid releases the shard.
 
-# موتور همگام‌سازی داده {#sec-42-5}
+# The data sync engine {#sec-42-5}
 
-::: {.algo #alg-42-2 title="همگام‌سازی افزایشی یک shard ‏datalog" src="src/rgw/driver/rados/rgw_data_sync.cc :: RGWDataSyncShardCR، RGWDataIncSyncShardCR، RGWDataSyncSingleEntryCR، RGWDataFullSyncShardCR" complexity="O(ورودی‌های جدید datalog)؛ حداکثر rgw_data_sync_spawn_window ‏(20) bucket shard هم‌زمان"}
+::: {.algo #alg-42-2 title="Incremental sync of a datalog shard" src="src/rgw/driver/rados/rgw_data_sync.cc :: RGWDataSyncShardCR, RGWDataIncSyncShardCR, RGWDataSyncSingleEntryCR, RGWDataFullSyncShardCR" complexity="O(new datalog entries); at most rgw_data_sync_spawn_window (20) concurrent bucket shards"}
 :::
 
 ```text
@@ -113,9 +112,9 @@ for each datalog shard N owned by this RGW (lease or bid):
         every pass: retry keys from error repo with backoff ; remove on success
 ```
 
-نکته‌ی اساسی این است که **marker shard با وجود شکست جلو می‌رود**؛ وگرنه یک bucket خراب کل shard را متوقف می‌کرد. شکست‌ها در error repo می‌مانند و جداگانه تکرار می‌شوند. `radosgw-admin sync error list` شکست‌های قطعی ثبت‌شده را نشان می‌دهد و `data sync status --shard-id N --source-zone Z` جزئیات یک shard را.
+The essential point is that **the shard marker advances despite failures**; otherwise one broken bucket would stall the whole shard. Failures stay in the error repo and are retried separately. `radosgw-admin sync error list` shows the recorded permanent failures, and `data sync status --shard-id N --source-zone Z` the details of one shard.
 
-::: {.algo #alg-42-3 title="همگام‌سازی یک bucket shard و یک شیء" src="src/rgw/driver/rados/rgw_data_sync.cc :: RGWSyncBucketCR، RGWBucketFullSyncCR، RGWBucketShardIncrementalSyncCR، RGWObjFetchCR؛ src/rgw/driver/rados/rgw_rados.cc :: fetch_remote_obj، obj_time_weight" complexity="full: O(اشیای bucket)؛ incremental: O(ورودی‌های bilog پس از marker)"}
+::: {.algo #alg-42-3 title="Syncing a bucket shard and an object" src="src/rgw/driver/rados/rgw_data_sync.cc :: RGWSyncBucketCR, RGWBucketFullSyncCR, RGWBucketShardIncrementalSyncCR, RGWObjFetchCR; src/rgw/driver/rados/rgw_rados.cc :: fetch_remote_obj, obj_time_weight" complexity="full: O(objects in the bucket); incremental: O(bilog entries after the marker)"}
 :::
 
 ```text
@@ -136,15 +135,15 @@ fetch_remote_obj(copy_if_newer):
     if destination copy is not older → skip ; else write locally, zones_trace += source
 ```
 
-**نسل‌ها و reshard.** در مدل قدیمی reshard در یک zone، bilogهای shardهای قدیمی را از بین می‌برد و zone مقصد مجبور می‌شد آن bucket را از نو full sync کند. با layout نسل‌دار، reshard نسل `gen+1` را با تعداد shard تازه می‌سازد و **bilogهای نسل قبلی را تا زمانی نگه می‌دارد** که همه‌ی peerها `shards_done_with_gen` آن نسل را کامل کرده باشند. مقصد نسل قدیم را تا انتها می‌خواند، سپس به نسل جدید می‌رود؛ وضعیت هر shard با پسوند `:<gen>` جدا ذخیره می‌شود. trim خودکار لاگ نسل قدیمی (`rgw_sync_log_trim_interval` ‏20 دقیقه) پس از آن انجام می‌شود.
+**Generations and reshard.** In the old model, a reshard in one zone destroyed the bilogs of the old shards, and the destination zone had to full sync that bucket from scratch. With the generational layout, a reshard creates generation `gen+1` with the new number of shards and **keeps the previous generation's bilogs until** all peers have completed `shards_done_with_gen` for that generation. The destination reads the old generation to its end, then moves to the new generation; each shard's status is stored separately with the `:<gen>` suffix. Automatic trimming of the old generation's log (`rgw_sync_log_trim_interval` 20 minutes) happens after that.
 
-![انتقال میان نسل‌های bilog پس از reshard: نسل 0 با 11 shard و نسل 1 با 23 shard. zone مقصد همه‌ی shardهای نسل 0 را تا انتها همگام و در shards_done_with_gen علامت می‌زند و سپس incremental_gen را به 1 می‌برد؛ لاگ نسل 0 فقط پس از اتمام همه‌ی peerها trim می‌شود](figures/ch42/f02_gens.png){#fig-42-f02_gens}
+![The transition between bilog generations after a reshard: generation 0 with 11 shards and generation 1 with 23 shards. The destination zone syncs all shards of generation 0 to their end and marks them in shards_done_with_gen, then moves incremental_gen to 1; the generation 0 log is trimmed only after all peers have finished](figures/ch42/f02_gens.png){#fig-42-f02_gens}
 
-**مثال تعارض.** شیء `k` در zone A ساعت 07:15:00.400 و در zone B ساعت 07:15:00.900 نوشته می‌شود (همان ثانیه). با دقت ثانیه mtimeها برابرند و تصمیم با `zone_short_id` گرفته می‌شود: نسخه‌ی zone با شناسه‌ی کوتاه بزرگ‌تر برنده است و هر دو zone در پایان همان نسخه را خواهند داشت. یعنی multisite **آخرین نوشتن** را به معنای دقیق زمانی تضمین نمی‌کند؛ برنامه‌هایی که به ترتیب نوشتن حساس‌اند باید هر کلید را فقط در یک zone بنویسند یا از versioning استفاده کنند.
+**A conflict example.** Object `k` is written in zone A at 07:15:00.400 and in zone B at 07:15:00.900 (the same second). At one-second precision the mtimes are equal and the decision is made by `zone_short_id`: the version from the zone with the larger short id wins, and both zones end up with that same version. That is, multisite does not guarantee **last writer wins** in the strict temporal sense; applications that are sensitive to write order should write each key in only one zone or use versioning.
 
-# همگام‌سازی فراداده {#sec-42-6}
+# Metadata sync {#sec-42-6}
 
-::: {.algo #alg-42-4 title="metadata sync از master zone" src="src/rgw/driver/rados/rgw_sync.cc :: RGWMetaSyncCR، RGWMetaSyncShardCR، RGWMetaSyncSingleEntryCR" complexity="O(ورودی‌های جدید mdlog)؛ rgw_meta_sync_spawn_window ‏(20) هم‌زمان"}
+::: {.algo #alg-42-4 title="metadata sync from the master zone" src="src/rgw/driver/rados/rgw_sync.cc :: RGWMetaSyncCR, RGWMetaSyncShardCR, RGWMetaSyncSingleEntryCR" complexity="O(new mdlog entries); rgw_meta_sync_spawn_window (20) concurrent"}
 :::
 
 ```text
@@ -157,34 +156,34 @@ non-master zone, for each mdlog shard N of the current period (lease or bid):
 writes of metadata (create user, bucket) on non-master: forwarded to master zone first
 ```
 
-به همین دلیل ساخت bucket یا کاربر در zone غیر master وقتی master در دسترس نیست شکست می‌خورد، ولی نوشتن شیء در bucketهای موجود ادامه می‌یابد. (failover و ارتقای master در فصل ۵ آمده است.)
+That is why creating a bucket or a user in a non-master zone fails when the master is unavailable, while writing objects to existing buckets continues. (Failover and promoting the master are covered in chapter 5.)
 
-# مرجع دستورهای multisite {#sec-42-7}
+# Multisite command reference {#sec-42-7}
 
-| دستور | کاربرد |
+| Command | Use |
 |---|---|
-| `radosgw-admin sync status` | خلاصه‌ی metadata و data sync در برابر هر مبدأ |
-| `radosgw-admin data sync status --source-zone Z [--shard-id N]` | وضعیت shardهای data sync |
-| `radosgw-admin metadata sync status` / `metadata sync run` | وضعیت و اجرای دستی metadata sync |
-| `radosgw-admin bucket sync status --bucket B [--source-zone Z]` | وضعیت یک bucket و نسل‌ها |
-| `radosgw-admin bucket sync markers --bucket B --source-zone Z` | markerهای shardهای bucket |
-| `radosgw-admin bucket sync run --bucket B --source-zone Z` | همگام‌سازی دستی یک bucket |
-| `radosgw-admin bucket sync {disable,enable} --bucket B` | توقف و ازسرگیری برای یک bucket |
-| `radosgw-admin bilog {list,status,trim,autotrim} --bucket B` | bilog یک bucket |
+| `radosgw-admin sync status` | a summary of metadata and data sync against each source |
+| `radosgw-admin data sync status --source-zone Z [--shard-id N]` | the status of the data sync shards |
+| `radosgw-admin metadata sync status` / `metadata sync run` | the status and manual run of metadata sync |
+| `radosgw-admin bucket sync status --bucket B [--source-zone Z]` | the status of one bucket and its generations |
+| `radosgw-admin bucket sync markers --bucket B --source-zone Z` | the markers of the bucket's shards |
+| `radosgw-admin bucket sync run --bucket B --source-zone Z` | manually syncing one bucket |
+| `radosgw-admin bucket sync {disable,enable} --bucket B` | stopping and resuming for one bucket |
+| `radosgw-admin bilog {list,status,trim,autotrim} --bucket B` | a bucket's bilog |
 | `radosgw-admin datalog {list,status,trim} [--shard-id N]` | datalog |
 | `radosgw-admin mdlog {list,status,trim} [--period P]` | mdlog |
-| `radosgw-admin sync error {list,trim}` | خطاهای همگام‌سازی |
-| `radosgw-admin data sync init --source-zone Z` | بازگرداندن data sync به full sync (پرهزینه) |
+| `radosgw-admin sync error {list,trim}` | sync errors |
+| `radosgw-admin data sync init --source-zone Z` | returning data sync to full sync (expensive) |
 | `radosgw-admin period {get,get-current,pull,update --commit}` | period |
-| `radosgw-admin sync group ...` (با زیرفرمان‌های flow و pipe) | sync policy (فصل ۵) |
+| `radosgw-admin sync group ...` (with the flow and pipe subcommands) | sync policy (chapter 5) |
 
 ```bash
-# مثال: یک bucket که پس از reshard در نسل 1 است
+# example: a bucket that is in generation 1 after a reshard
 radosgw-admin bucket sync status --bucket logs --source-zone zone-a
 ```
 
 ```text
-مثال (خروجی):
+example (output):
           realm 2f61a0c4-... (prod)
       zonegroup 9b07d2e1-... (eu)
            zone 5c3e8a77-... (zone-b)
@@ -198,46 +197,46 @@ radosgw-admin bucket sync status --bucket logs --source-zone zone-a
                 behind shards: [4,17]
 ```
 
-# تنظیم و عیب‌یابی {#sec-42-8}
+# Tuning and troubleshooting {#sec-42-8}
 
-- **shardهای عقب‌مانده که جلو نمی‌روند:** `sync error list` و `data sync status --shard-id N` را ببینید؛ اگر یک bucket مدام خطا می‌دهد، `bucket sync run` برای همان bucket مشکل را جدا و قابل دیدن می‌کند.
-- **رشد بی‌پایان datalog یا bilog:** یک peer قدیمی یا حذف‌شده در zonegroup هنوز تعریف شده و trim منتظر marker اوست (فصل ۵)؛ zone مرده را از zonegroup حذف و period را commit کنید.
-- **همگام‌سازی کند با تعداد زیاد bucket کوچک:** `rgw_data_sync_spawn_window` و `rgw_bucket_sync_spawn_window` (هر دو 20) را با احتیاط افزایش دهید و تعداد RGWهای همگام‌ساز را بالا ببرید تا bidها پخش شوند. RGWهای سرویس‌دهنده به کاربر را می‌توان با `rgw_run_sync_thread = false` از همگام‌سازی جدا کرد.
-- **پس از تغییر master:** اگر zoneها روی period قدیمی مانده‌اند، `period pull` و راه‌اندازی دوباره‌ی RGW لازم است.
-- **تفاوت محتوا با وجود «caught up»:** `rgw_sync_obj_etag_verify` (پیش‌فرض false) را موقتاً روشن کنید تا ETag هر شیء کپی‌شده بررسی شود.
+- **Lagging shards that do not advance:** look at `sync error list` and `data sync status --shard-id N`; if one bucket keeps failing, `bucket sync run` for that bucket isolates the problem and makes it visible.
+- **Unbounded growth of the datalog or bilog:** an old or removed peer is still defined in the zonegroup and trim is waiting for its marker (chapter 5); remove the dead zone from the zonegroup and commit the period.
+- **Slow sync with many small buckets:** carefully increase `rgw_data_sync_spawn_window` and `rgw_bucket_sync_spawn_window` (both 20), and raise the number of syncing RGWs so the bids spread out. RGWs that serve users can be separated from sync with `rgw_run_sync_thread = false`.
+- **After a master change:** if zones are stuck on the old period, `period pull` and an RGW restart are needed.
+- **Content differences despite "caught up":** temporarily turn on `rgw_sync_obj_etag_verify` (default false) so that the ETag of each copied object is checked.
 
-# تکمیلی و به‌روز {#sec-42-9}
+# Supplementary and up to date {#sec-42-9}
 
-- layout نسل‌دار bilog و همگام‌سازی پس از reshard در multisite از نسخه‌های اخیر پشتیبانی می‌شود و پیش‌نیاز آن ویژگی zonegroup ‏`resharding` است؛ پیش از reshard در multisite، `radosgw-admin zonegroup get` و فهرست `enabled_features` را بررسی کنید.
-- سازوکار bid برای پخش shardها در شاخه‌ی main هست؛ در نسخه‌های قدیمی‌تر فقط lease وجود داشت و یک RGW می‌توانست بیشتر shardها را بگیرد.
-- در شاخه‌ی main گزینه‌ی `rgw_default_bucket_bilog_type` (پیش‌فرض `fifo`) تعیین می‌کند bilog bucketهای جدید در ایندکس (`inindex`) باشد یا در FIFO جدا؛ bucketهای InIndex موجود در reshard بعدی مهاجرت می‌کنند. این رفتار در نسخه‌های منتشرشده‌ی قدیمی‌تر وجود ندارد؛ پیش از تکیه بر آن نسخه‌ی خود را بررسی کنید.
+- The generational bilog layout and sync after a reshard in multisite are supported in recent versions, and they require the zonegroup feature `resharding`; before resharding in multisite, check `radosgw-admin zonegroup get` and the `enabled_features` list.
+- The bid mechanism for spreading shards is in the main branch; older versions had only the lease, and one RGW could take most of the shards.
+- In the main branch the option `rgw_default_bucket_bilog_type` (default `fifo`) determines whether new buckets keep their bilog in the index (`inindex`) or in a separate FIFO; existing InIndex buckets migrate at their next reshard. This behavior does not exist in older released versions; check your version before relying on it.
 
-# تمرین عملی {#sec-42-10}
+# Hands-on exercise {#sec-42-10}
 
-1. در یک محیط دو zone، یک endpoint به zonegroup اضافه و commit کنید و تغییر epoch را ببینید. سپس master را عوض کنید و تغییر id و realm_epoch را ببینید.
-2. یک PUT انجام دهید و ورودی آن را در `bilog list`، `datalog list` و سپس در `bucket sync markers` در zone مقصد دنبال کنید.
-3. یک شیء را در یک ثانیه در هر دو zone بنویسید و ببینید کدام نسخه برنده می‌شود؛ نتیجه را با `zone_short_id` دو zone (در `zonegroup get`) مقایسه کنید.
-4. در zone مبدأ یک bucket را reshard کنید و `bucket sync status` مقصد را تا رفتن به نسل جدید دنبال کنید.
+1. In a two-zone environment, add an endpoint to the zonegroup, commit, and see the epoch change. Then change the master and see the id and realm_epoch change.
+2. Do a PUT and follow its entry in `bilog list`, `datalog list` and then in `bucket sync markers` in the destination zone.
+3. Write one object in the same second in both zones and see which version wins; compare the result with the two zones' `zone_short_id` (in `zonegroup get`).
+4. Reshard a bucket in the source zone and follow the destination's `bucket sync status` until it moves to the new generation.
 
-# پرسش‌های مرور {#sec-42-11}
+# Review questions {#sec-42-11}
 
-1. commit یک period چه سه شرطی را پیش از هر چیز بررسی می‌کند؟
-2. چه زمانی commit شناسه‌ی period را عوض می‌کند و پیامدش برای mdlog چیست؟
-3. zones_trace در bilog چه مشکلی را حل می‌کند؟
-4. کلید یک ورودی datalog چه چیزی را مشخص می‌کند؟
-5. وضعیت همگام‌سازی یک bucket shard در کدام شیء و کدام pool است؟
-6. چرا marker shard ‏datalog با وجود شکست یک bucket جلو می‌رود و شکست کجا ثبت می‌شود؟
-7. lease و bid در همگام‌سازی چه نقشی دارند؟
-8. پس از reshard در zone مبدأ، zone مقصد چگونه بدون full sync ادامه می‌دهد؟
-9. تعارض نوشتن هم‌زمان با چه ترتیبی از معیارها حل می‌شود؟
-10. چرا ساختن bucket در zone غیر master به در دسترس بودن master وابسته است؟
+1. What three conditions does committing a period check before anything else?
+2. When does a commit change the period id, and what is the consequence for the mdlog?
+3. What problem does zones_trace in the bilog solve?
+4. What does the key of a datalog entry identify?
+5. In which object and which pool is the sync status of a bucket shard?
+6. Why does the datalog shard marker advance despite a bucket's failure, and where is the failure recorded?
+7. What roles do the lease and the bid play in sync?
+8. After a reshard in the source zone, how does the destination zone continue without a full sync?
+9. In what order of criteria is a concurrent-write conflict resolved?
+10. Why does creating a bucket in a non-master zone depend on the master being available?
 
-# منابع این فصل {#sec-42-12}
+# Sources for this chapter {#sec-42-12}
 
 - rgw_zone.cc (commit_period): https://github.com/ceph/ceph/blob/main/src/rgw/rgw_zone.cc
-- rgw_data_sync.cc و rgw_data_sync.h: https://github.com/ceph/ceph/blob/main/src/rgw/driver/rados/rgw_data_sync.cc
+- rgw_data_sync.cc and rgw_data_sync.h: https://github.com/ceph/ceph/blob/main/src/rgw/driver/rados/rgw_data_sync.cc
 - rgw_sync.cc (metadata sync): https://github.com/ceph/ceph/blob/main/src/rgw/driver/rados/rgw_sync.cc
 - rgw_datalog.h: https://github.com/ceph/ceph/blob/main/src/rgw/driver/rados/rgw_datalog.h
 - cls_rgw_types.h (rgw_bi_log_entry): https://github.com/ceph/ceph/blob/main/src/cls/rgw/cls_rgw_types.h
-- مستند multisite: https://docs.ceph.com/en/latest/radosgw/multisite/
-- مستند reshard پویا (شامل multisite): https://docs.ceph.com/en/latest/radosgw/dynamicresharding/
+- Multisite documentation: https://docs.ceph.com/en/latest/radosgw/multisite/
+- Dynamic resharding documentation (including multisite): https://docs.ceph.com/en/latest/radosgw/dynamicresharding/
