@@ -418,7 +418,7 @@ Benchmarking on a production cluster disrupts real user load, and `rados bench` 
 # Supplementary and up to date {#sec-21-11}
 
 - WPQ is no longer the default; since Quincy, mClock is the default scheduler, and most old tuning guides (recovery sleeps, osd_max_backfills) do not work with it.
-- The default HDD shards changed in Tentacle from 5×1 to 1×5.
+- The default HDD shards changed from 5×1 to 1×5 in Squid point release 19.2.1 (issue 66289); Tentacle and Umbrella keep it.
 - The starvation-prevention mechanism for mClock's immediate queue (tracker 69078) appears in the latest documentation.
 - FileStore is not supported in Reef; all settings in this chapter are for BlueStore.
 - **Crimson/SeaStore**: a rewrite of the OSD based on Seastar is under development; check its support status for your version in the documentation, and do not use it in production without being sure of official support.
@@ -436,7 +436,7 @@ Benchmarking on a production cluster disrupts real user load, and `rados bench` 
 
 1. Why should performance tuning be done with a baseline and one change at a time?
 2. How is each PG's shard determined, and why are all operations of a PG in one shard?
-3. What is the change to the default HDD shards in Tentacle, and why is it sensible?
+3. What change did Squid 19.2.1 make to the default HDD shards, and why is it sensible?
 4. Define the three mClock parameters.
 5. How is the R tag computed in dmclock, and what role does max(now, ...) play?
 6. How does the high_client_ops profile differ from balanced?

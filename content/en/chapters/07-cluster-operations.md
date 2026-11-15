@@ -591,7 +591,7 @@ ceph health detail | grep -i scrub
 
 - **ceph-deploy** is retired, and ceph-ansible is no longer the recommended path either; cephadm and Rook are the two supported methods of deployment and operation.
 - **Centralised configuration** (Mimic) replaced editing `ceph.conf`.
-- **mClock** (default since Quincy) handed recovery control over to profiles; Squid changed the HDD shard defaults.
+- **mClock** (default since Quincy) handed recovery control over to profiles; Squid point release 19.2.1 changed the HDD shard defaults to 1 shard × 5 threads (issue 66289).
 - **Umbrella**: OSD upgrades in CRUSH bucket order and the `ceph osd ok-to-upgrade` command; the x86-64-v3 CPU prerequisite and el10 images; and higher defaults of 200 for `mon_target_pg_per_osd` and 500 for `mon_max_pg_per_osd`, which affect PG planning in upgraded clusters.
 - **Tentacle**: the restful and zabbix modules were removed from the MGR; if your operational scripts depend on restful, move them to the dashboard API before upgrading.
 

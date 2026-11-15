@@ -2,8 +2,8 @@
 # Rendered as the appendix "Changes in Reef, Squid and Tentacle" (tools/build_book.py,
 # tools/export_pandoc.py) in both editions; checked by tools/check_versions.py.
 #
-# status: confirmed = stated in the official release notes of that release's x.2.0
-#                     version (the `notes` URL, read November 2026);
+# status: confirmed = stated in the official release notes of that release (the x.2.0
+#                     version, or the point release named in the text; `notes` URL, read November 2026);
 #         review    = taken from this book's chapters or a later point release / changelog,
 #                     not verified line by line against the x.2.0 release notes; shown with
 #                     a "for review" mark until checked.
@@ -173,6 +173,12 @@ changes:
     status: review
     en: "The NVMe-oF gateway with gateway groups is the official way to serve RBD over NVMe/TCP (group argument of `ceph orch apply nvmeof`)."
     fa: "gateway NVMe-oF با gateway group راه رسمی ارائه‌ی RBD روی NVMe/TCP است (آرگومان group در `ceph orch apply nvmeof`)."
+  - rel: squid
+    area: RADOS
+    ch: [21, 7]
+    status: confirmed
+    en: "Point release 19.2.1 changed the HDD OSD shard defaults to `osd_op_num_shards_hdd` 1 (was 5) and `osd_op_num_threads_per_shard_hdd` 5 (was 1), for steadier mClock client and recovery throughput (issue 66289); Tentacle and Umbrella keep it."
+    fa: "نسخه‌ی نقطه‌ای ۱۹.۲.۱ پیش‌فرض شارد OSDهای HDD را به `osd_op_num_shards_hdd` برابر ۱ (پیش‌تر ۵) و `osd_op_num_threads_per_shard_hdd` برابر ۵ (پیش‌تر ۱) تغییر داد تا گذردهی کلاینت و recovery زیر mClock پایدارتر شود (issue 66289)؛ Tentacle و Umbrella هم همین را نگه داشته‌اند."
   # ---------------------------------------------------------------- Tentacle
   - rel: tentacle
     area: RADOS
@@ -259,12 +265,6 @@ changes:
     en: "The `ceph nvmeof` CLI for gateway configuration and the `ceph nvme-gw listeners` command (Tentacle documentation and point-release notes)."
     fa: "رابط خط فرمان `ceph nvmeof` برای پیکربندی gateway و فرمان `ceph nvme-gw listeners` (بر پایه‌ی مستندات و یادداشت‌های نسخه‌های نقطه‌ای Tentacle)."
   # ---------------------------------------------------------------- Umbrella
-  - rel: umbrella
-    area: RADOS
-    ch: [21, 7]
-    status: review
-    en: "Default HDD OSD shard settings changed: `osd_op_num_shards_hdd` 5 → 1 and `osd_op_num_threads_per_shard_hdd` 1 → 5 (issue 66289), stated in the Umbrella notes. Chapter 7 attributes it to Squid, chapter 21 and appendix D to Tentacle; to be reconciled."
-    fa: "پیش‌فرض شارد OSDهای HDD تغییر کرد: `osd_op_num_shards_hdd` از ۵ به ۱ و `osd_op_num_threads_per_shard_hdd` از ۱ به ۵ (issue 66289)؛ این در یادداشت‌های Umbrella آمده است. فصل ۷ آن را به Squid و فصل ۲۱ و پیوست د به Tentacle نسبت می‌دهند و باید یکدست شوند."
   - rel: umbrella
     area: cephadm
     ch: [7]

@@ -12,8 +12,8 @@ The table below shows the major Ceph releases from 2019 to today. Dates for acti
 | Pacific | 16.2 | Archived | `bluestore_min_alloc_size_hdd` reduced to 4K; sharded RocksDB in BlueStore |
 | Quincy | 17.2 | Archived | mClock as the default OSD scheduler |
 | Reef | 18.2 | Archived | Cache tiering deprecated; RGW multisite improvements |
-| Squid | 19.2 | Active; started 2024-09-26, estimated end 2026-12-02 | One of the bases of this book |
-| Tentacle | 20.2 | Active; started 2025-11-18, estimated end 2027-06-01 | New default mClock shard and thread count for HDD (1 shard, 5 threads) |
+| Squid | 19.2 | Active; started 2024-09-26, estimated end 2026-12-02 | One of the bases of this book; from point release 19.2.1 the HDD default is 1 mClock shard with 5 threads (issue 66289) |
+| Tentacle | 20.2 | Active; started 2025-11-18, estimated end 2027-06-01 | FastEC (`allow_ec_optimizations`); ISA-L default plugin for new clusters; SMB manager module |
 | Umbrella | 21.2 | Active; started 2026-10-28, estimated end 2028-06-01 | `mon_target_pg_per_osd` set to 200; typed cls API |
 
 ::: {.note}

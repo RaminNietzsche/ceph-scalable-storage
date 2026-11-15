@@ -591,7 +591,7 @@ ceph health detail | grep -i scrub
 
 - **ceph-deploy** بازنشسته شده و ceph-ansible هم دیگر مسیر توصیه‌شده نیست؛ cephadm و Rook دو روش پشتیبانی‌شده‌ی استقرار و راهبری هستند.
 - **پیکربندی متمرکز** (Mimic) جای ویرایش `ceph.conf` را گرفت.
-- **mClock** (پیش‌فرض از Quincy) کنترل بازیابی را به پروفایل‌ها سپرد؛ Squid پیش‌فرض‌های shard HDD را تغییر داد.
+- **mClock** (پیش‌فرض از Quincy) کنترل بازیابی را به پروفایل‌ها سپرد؛ نسخه‌ی نقطه‌ای ۱۹.۲.۱ از Squid پیش‌فرض‌های shard HDD را به ۱ شارد × ۵ thread تغییر داد (issue 66289).
 - **Umbrella**: ارتقای OSD به ترتیب bucketهای CRUSH و دستور `ceph osd ok-to-upgrade`؛ پیش‌نیاز CPU x86-64-v3 و image‌های el10؛ و افزایش پیش‌فرض‌های `mon_target_pg_per_osd` به ۲۰۰ و `mon_max_pg_per_osd` به ۵۰۰ که بر برنامه‌ریزی PG در کلاسترهای ارتقایافته اثر دارد.
 - **Tentacle**: ماژول‌های restful و zabbix از MGR حذف شدند؛ اگر اسکریپت‌های عملیاتی شما به restful وابسته‌اند، پیش از ارتقا آن‌ها را به API داشبورد منتقل کنید.
 

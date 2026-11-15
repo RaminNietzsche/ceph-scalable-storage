@@ -7,6 +7,10 @@ restructures the book.
 
 ## [Unreleased]
 
+### Corrected
+
+- HDD OSD shard defaults (1 shard × 5 threads instead of 5 × 1, issue 66289): chapter 7, the chapter 21 summary and review question, and appendix D said Squid or Tentacle; the official notes date the change to Squid point release 19.2.1 (kept in Tentacle and Umbrella), as the chapter 21 table already said. Appendix H lists it under Squid as confirmed.
+
 ### Publishing
 
 - CI (`.github/workflows/ci.yml`, replacing `build.yml`): `make check`, the web edition built for `https://book.ceph-s3.ir` (analytics token from the repository variable `CF_BEACON_TOKEN`, `CNAME` in the output) and deployed to GitHub Pages with `actions/deploy-pages`, plus PDF/EPUB/DOCX artifacts.
