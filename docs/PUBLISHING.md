@@ -111,3 +111,35 @@ export default {
   `git rev-list --objects --all | git cat-file --batch-check='%(objecttype) %(objectname) %(objectsize) %(rest)' | sort -k3 -n | tail`.
 - Commits use the GitHub no-reply address; for commits to link to the GitHub account it should
   be the `<id>+RaminNietzsche@users.noreply.github.com` form shown under Settings → Emails.
+
+## Newsletter email
+
+Double opt-in confirmation and “new edition” notices are sent by the `book-feedback`
+Worker (`POST /v1/subscribe`, `GET /v1/confirm`, `POST /v1/notify-release`) through
+Cloudflare Email Sending, from `book@ceph-s3.ir`. The release workflow calls
+`/v1/notify-release` when `MAIL_HOOK_KEY` is set as a repository secret (and as a
+Worker secret of the same name).
+
+Until that service is fully enabled, confirmation mail is not sent and
+`MAIL_LIVE` stays off, so the Worker will only send to the test allowlist
+(`ramin.najarbashi@gmail.com`). Sending to arbitrary confirmed subscribers needs:
+
+1. Dashboard → Compute → Email Service → Email Sending → Onboard Domain → `ceph-s3.ir`.
+   Cloudflare adds MX/SPF/DKIM on the `cf-bounce` subdomain and `_dmarc.ceph-s3.ir`.
+   There are no existing mail records on this zone; do not change other DNS
+   (book, blog, policygen, feedback).
+2. A **Workers Paid** plan, required to send to addresses that are not verified
+   Email Routing destinations. Verified destinations are free on the Workers Free
+   plan and are enough for a test to `ramin.najarbashi@gmail.com` (add and confirm
+   that address under Email Routing → Destination addresses).
+3. After onboarding, add a `send_email` binding named `EMAIL` to the
+   `book-feedback` Worker. Set Worker secret `MAIL_HOOK_KEY` (already used by
+   `release.yml`) and only then set `MAIL_LIVE=1` to mail the real confirmed list.
+
+## Feedback alerts
+
+`GET https://feedback.ceph-s3.ir/stats/alerts.json?since=<ISO-8601>` (default: last 24 hours)
+is protected by the same `STATS_KEY` as `/stats` (Bearer, `X-Stats-Key`, or `?key=`).
+The JSON lists `helpful=no` votes grouped by page, section and language, and the
+new newsletter signups in that window. A daily routine can poll this together
+with GitHub issues labelled `feedback`.

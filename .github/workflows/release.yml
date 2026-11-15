@@ -126,3 +126,24 @@ jobs:
           else
             gh release create "$TAG" $files SHA256SUMS.txt --title "$TAG" --notes-file notes.md --verify-tag
           fi
+      - name: Notify confirmed newsletter subscribers
+        env:
+          MAIL_HOOK_KEY: ${{ secrets.MAIL_HOOK_KEY }}
+          RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/${{ env.TAG }}
+        run: |
+          if [ -z "$MAIL_HOOK_KEY" ]; then
+            echo "MAIL_HOOK_KEY is not set; skipping newsletter notify."
+            exit 0
+          fi
+          python3 -c 'import json,os; print(json.dumps({"version":os.environ["TAG"],"url":os.environ["RELEASE_URL"]}))' > /tmp/mail-notify-payload.json
+          code=$(curl -sS -o /tmp/mail-notify.json -w '%{http_code}' -X POST \
+            https://feedback.ceph-s3.ir/v1/notify-release \
+            -H "Authorization: Bearer $MAIL_HOOK_KEY" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/mail-notify-payload.json) || true
+          echo "notify HTTP $code"
+          python3 -c 'import pathlib; print(pathlib.Path("/tmp/mail-notify.json").read_text()[:500])' || true
+          # Do not fail the release if mail is not yet enabled.
+          if [ "$code" != "200" ]; then
+            echo "newsletter notify did not return 200 (mail may be unconfigured); continuing."
+          fi
