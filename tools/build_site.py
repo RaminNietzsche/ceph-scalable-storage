@@ -1126,6 +1126,9 @@ term = ('<div class="term" dir="ltr" aria-hidden="true"><div class="term-bar"><i
 LAB_CARDS = ''.join(lab_card(n) for n in SIM_NAMES)
 if CFG['newsletter']:
     nl_body = (f'<form class="nl-form" action="{esc(CFG["newsletter"])}" method="post" target="_blank">'
+               f'<input type="hidden" name="lang" value="{esc(LANG)}">'
+               f'<label class="sr-only" for="nl-website">Leave this field empty</label>'
+               f'<input type="text" id="nl-website" name="website" value="" class="sr-only" tabindex="-1" autocomplete="off" aria-hidden="true">'
                f'<label class="sr-only" for="nl-email">{esc(S["nl_email"])}</label>'
                f'<input type="email" id="nl-email" name="email" required autocomplete="email" placeholder="{esc(S["nl_email"])}" dir="ltr">'
                f'<button type="submit" class="btn primary">{esc(S["nl_submit"])}</button></form>'

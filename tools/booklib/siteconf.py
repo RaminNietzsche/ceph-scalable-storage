@@ -11,7 +11,7 @@ no feedback endpoint.
     FEEDBACK_ENDPOINT  optional https URL; "Was this section helpful?" votes are POSTed
                        to it with navigator.sendBeacon as a small JSON text body
     FEEDBACK_ISSUES    1 (default) offers a prefilled GitHub issue after a "No" vote; 0 turns it off
-    NEWSLETTER_ACTION  optional https URL of a newsletter signup form (POST, field "email");
+    NEWSLETTER_ACTION  optional https URL of a newsletter signup form (POST; fields "email", hidden "lang", honeypot "website");
                        without it the site offers "Watch releases on GitHub" and releases.xml
     ANALYTICS          cloudflare | plausible | none (default: cloudflare when CF_BEACON_TOKEN is set)
     CF_BEACON_TOKEN    Cloudflare Web Analytics site token (cookie-less beacon)

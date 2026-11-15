@@ -97,9 +97,10 @@ changes:
   - rel: reef
     area: RGW
     ch: [5]
-    status: review
-    en: "The `rgw` mgr module automates multisite setup (`ceph rgw realm bootstrap`)."
-    fa: "ماژول `rgw` در mgr راه‌اندازی multisite را خودکار می‌کند (`ceph rgw realm bootstrap`)."
+    status: confirmed
+    # Command is in official Reef mgr/rgw docs, not named in the v18.2.0 highlights.
+    en: "The `rgw` mgr module automates multisite setup (`ceph rgw realm bootstrap`), as documented in the official Reef `mgr/rgw` module documentation."
+    fa: "ماژول `rgw` در mgr راه‌اندازی multisite را خودکار می‌کند (`ceph rgw realm bootstrap`)، همان‌طور که در مستندات رسمی ماژول `mgr/rgw` نسخه‌ی Reef آمده است."
   # ---------------------------------------------------------------- Squid
   - rel: squid
     area: RADOS
@@ -170,9 +171,9 @@ changes:
   - rel: squid
     area: RBD
     ch: [2, 31]
-    status: review
-    en: "The NVMe-oF gateway with gateway groups is the official way to serve RBD over NVMe/TCP (group argument of `ceph orch apply nvmeof`)."
-    fa: "gateway NVMe-oF با gateway group راه رسمی ارائه‌ی RBD روی NVMe/TCP است (آرگومان group در `ceph orch apply nvmeof`)."
+    status: confirmed
+    en: "Point release 19.2.4 added the group argument of `ceph orch apply nvmeof`, so the NVMe-oF gateway with gateway groups is the official way to serve RBD over NVMe/TCP."
+    fa: "نسخه‌ی نقطه‌ای ۱۹.۲.۴ آرگومان group را به `ceph orch apply nvmeof` افزود؛ از آن پس gateway NVMe-oF با gateway group راه رسمی ارائه‌ی RBD روی NVMe/TCP است."
   - rel: squid
     area: RADOS
     ch: [21, 7]
@@ -261,13 +262,13 @@ changes:
   - rel: tentacle
     area: RBD
     ch: [31]
-    status: review
-    en: "The `ceph nvmeof` CLI for gateway configuration and the `ceph nvme-gw listeners` command (Tentacle documentation and point-release notes)."
-    fa: "رابط خط فرمان `ceph nvmeof` برای پیکربندی gateway و فرمان `ceph nvme-gw listeners` (بر پایه‌ی مستندات و یادداشت‌های نسخه‌های نقطه‌ای Tentacle)."
+    status: confirmed
+    en: "Point release 20.2.1 added the `ceph nvme-gw listeners` command; the `ceph nvmeof` CLI for gateway configuration is documented in 20.2.5."
+    fa: "نسخه‌ی نقطه‌ای ۲۰.۲.۱ فرمان `ceph nvme-gw listeners` را افزود؛ رابط خط فرمان `ceph nvmeof` برای پیکربندی gateway در ۲۰.۲.۵ مستند شد."
   # ---------------------------------------------------------------- Umbrella
   - rel: umbrella
     area: cephadm
     ch: [7]
-    status: review
-    en: "CRUSH-bucket-aware OSD upgrades (`ok-to-upgrade`, upgrades scoped to a CRUSH bucket) are in the Umbrella notes; the exact `--crush_bucket_type` / `--crush_bucket_name` flag names used in chapter 7 are not spelled out there."
-    fa: "ارتقای OSD با آگاهی از bucketهای CRUSH (فرمان `ok-to-upgrade` و ارتقای محدود به یک bucket) در یادداشت‌های Umbrella آمده است؛ نام دقیق گزینه‌های `--crush_bucket_type` و `--crush_bucket_name` که فصل ۷ به کار می‌برد آنجا ذکر نشده است."
+    status: confirmed
+    en: "CRUSH-bucket-aware OSD upgrades: `ok-to-upgrade` now aggregates OSDs, and upgrades can be scoped to a CRUSH bucket."
+    fa: "ارتقای OSD با آگاهی از bucketهای CRUSH: فرمان `ok-to-upgrade` حالا OSDها را تجمیع می‌کند و ارتقا می‌تواند به یک bucket از CRUSH محدود شود."
