@@ -4,6 +4,9 @@
 * No soft hyphen (U+00AD) in any page: copied text must not contain them.
 * Math: no raw $...$ TeX or build placeholders left in prose; every page with
   KaTeX output links the bundled katex.min.css; formulas are LTR-isolated.
+* List of figures (fa, en): one entry per figure of the book; each
+  entry shows the figure number and the FULL caption of that figure (as on the
+  chapter page) and links to the figure.
 
 Usage: tools/check_lists.py [--site build/site]
 """
@@ -73,6 +76,41 @@ for lang in ('fa', 'en'):
             problems.append(f'{lang}/{fn}: bare ^ exponent in text: …{t[max(0, m.start() - 15):m.end() + 10]}…')
             break
 summary.append(f'{n_pages} pages')
+
+# ---- list of figures
+FIGN = {}
+for lang in ('fa', 'en'):
+    lof = page(lang, 'figures')
+    rows = lof.select('main td.tt a') if lof else []
+    nums = lof.select('main td.tn') if lof else []
+    figs_seen = 0
+    for a, tn in zip(rows, nums):
+        href = a['href']
+        slug, _, fid = href.partition('.html#')
+        tgt = page(lang, slug)
+        fig = tgt.find(id=fid) if tgt else None
+        if fig is None or fig.name != 'figure':
+            problems.append(f'{lang}/figures: {href} does not point to a figure')
+            continue
+        figs_seen += 1
+        cap = fig.find('figcaption')
+        b = cap.find('b')
+        label = text(b) if b else ''
+        cap_txt = BeautifulSoup(str(cap), 'html.parser')
+        bb = cap_txt.find('b')
+        if bb:
+            bb.decompose()
+        full = text(cap_txt)
+        if text(a) != full:
+            problems.append(f'{lang}/figures: {href}: entry is not the figure caption: {text(a)[:50]!r} vs {full[:50]!r}')
+        if norm(tn.get_text()) not in label:
+            problems.append(f'{lang}/figures: {href}: number {norm(tn.get_text())} does not match {label!r}')
+    n_book = sum(len(page(lang, f[:-5]).select('main figure[id^="fig-"]')) for f in os.listdir(os.path.join(SITE, lang))
+                 if f[:2].isdigit() and f.endswith('.html'))
+    FIGN[lang] = figs_seen
+    if len(rows) != n_book or figs_seen != n_book:
+        problems.append(f'{lang}/figures: {len(rows)} entries, {figs_seen} valid, but the chapters have {n_book} figures')
+summary.append(f'figures list fa/en: {FIGN}')
 
 for p in problems[:60]:
     print('check_lists:', p)

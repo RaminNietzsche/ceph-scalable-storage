@@ -578,12 +578,17 @@ for aid, key in [('appA', 'glossary'), ('appB', 'cheatsheet'), ('appC', 'trouble
 
 
 def short(c, n=78):
+    """Print list-of-figures label: the caption's first sentence (never the text before a colon,
+    which for captions like "Left: ..." left a single word), cut at a word if still long."""
     c = re.sub(r'\*\*|`', '', c)
-    c = c.split(':')[0] if len(c) > n and ':' in c[:n] else c
+    m = re.match(r'(.+?[.!?؟])(\s|$)', c)
+    if m and len(m.group(1)) >= 12:
+        c = m.group(1).rstrip('.')
     return c if len(c) <= n else c[:n].rsplit(' ', 1)[0] + '…'
 
 
-lof = ''.join(f'<tr><td class="tn">{num}</td><td class="tt"><a href="#{fid}">{inline(short(cap))}</a></td><td class="pg"><a class="pgn" href="#{fid}"></a></td></tr>' for fid, num, cap in figs)
+# the web list of figures shows the full caption (cap-full); print shows the short label
+lof = ''.join(f'<tr><td class="tn">{num}</td><td class="tt"><a href="#{fid}"><span class="cap-short">{inline(short(cap))}</span><span class="cap-full">{inline(cap)}</span></a></td><td class="pg"><a class="pgn" href="#{fid}"></a></td></tr>' for fid, num, cap in figs)
 ASSETS = os.path.join(ROOT, 'assets')
 cover = os.path.join(OUT, f'cover.png') if os.path.exists(os.path.join(OUT, 'cover.png')) else os.path.join(ASSETS, f'cover.{LANG}.png')
 backimg = os.path.join(OUT, f'back.png') if os.path.exists(os.path.join(OUT, 'back.png')) else os.path.join(ASSETS, f'back.{LANG}.png')
@@ -593,6 +598,7 @@ front = tmpl.substitute(cover='file://' + cover, book=BOOK, preface=pref, toc=''
                         technical_basis=META['technical_basis'])
 back = f'<div class="backpg"><img src="file://{backimg}"/></div>'
 css = open(os.path.join(ROOT, 'templates', 'css', f'book.{LANG}.css'), encoding='utf-8').read()
+css += '\n.cap-full { display: none; }\n'
 if MATHS:  # KaTeX styles and fonts (vendored, offline) for the inline formulas
     KX = os.path.join(ROOT, 'templates', 'vendor', 'katex')
     css += '\n' + open(os.path.join(KX, 'katex.min.css'), encoding='utf-8').read().replace('url(fonts/', f'url(file://{KX}/fonts/')

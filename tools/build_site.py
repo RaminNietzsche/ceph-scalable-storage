@@ -451,6 +451,11 @@ lof = soup.select_one('section#lof')
 lb = body_of(lof, ['h1'])
 pre_p = frag(f'<p class="lead">{esc(S["figures_intro"])}</p>')
 lb.insert(0, pre_p)
+for _a in lb.select('td.tt a'):  # full chapter caption, not the print short label
+    for _x in _a.select('.cap-short'):
+        _x.decompose()
+    for _x in _a.select('.cap-full'):
+        _x.unwrap()
 Page('figures', 'list', esc(UI['lof']), esc(UI['lof']), 'lists', lb)
 decorate(lb, pages[-1])
 ids['lof'] = ('figures', '')
