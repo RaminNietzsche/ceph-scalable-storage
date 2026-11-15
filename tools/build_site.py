@@ -120,6 +120,10 @@ LEX = {'text': None, '': None, 'console': 'console', 'sh': 'bash', 'shell': 'bas
 
 
 def text_of(node):
+    if isinstance(node, Tag) and node.select_one('.math[data-plain]'):
+        node = BeautifulSoup(str(node), 'html.parser')  # formulas read as their plain form (alt, labels)
+        for m in node.select('.math[data-plain]'):
+            m.replace_with(m['data-plain'])
     t = node.get_text(' ') if isinstance(node, Tag) else str(node)
     return re.sub(r'\s+', ' ', t.replace('\u200f', '').replace('\u200e', '')).strip()
 
@@ -545,6 +549,9 @@ open(os.path.join(ASSETS, 'fonts', 'README.txt'), 'w', encoding='utf-8').write(
     '(openfontlicense.org). They are not covered by the book\'s CC BY-NC-SA 4.0 licence.\n')
 for f in ('site.css', 'site.js', 'game.js'):
     shutil.copy2(os.path.join(TPL, f), os.path.join(ASSETS, f))
+# KaTeX (MIT) styles + woff2 fonts for the formulas that build_book.py pre-renders; no runtime JS, no CDN
+_kx = os.path.join(ROOT, 'templates', 'vendor', 'katex')
+shutil.copytree(_kx, os.path.join(ASSETS, 'katex'), dirs_exist_ok=True)
 shutil.copy2(os.path.join(SIMDIR, 'sims.css'), os.path.join(ASSETS, 'sims.css'))
 with open(os.path.join(ASSETS, 'sims.js'), 'w', encoding='utf-8') as _f:
     _f.write('/* The interactive lab of "Ceph: Scalable Storage", concatenated from templates/site/sims by tools/build_site.py.\n'
@@ -855,6 +862,8 @@ def emit(cur, main_html, title_text, desc=None, ld=None):
     slug = cur.slug if cur else 'index'
     has_sims = bool(getattr(cur, 'sims', None))
     head_extra = '<link rel="stylesheet" href="../assets/sims.css">' if has_sims or cur is None or slug == 'lab' else ''
+    if 'class="katex"' in main_html:
+        head_extra += '<link rel="stylesheet" href="../assets/katex/katex.min.css">'
     scripts_extra = '<script src="sim-data.js" defer></script>\n<script src="../assets/sims.js" defer></script>' if has_sims else ''
     desc = desc or page_desc(cur, title_text)
     DESC_SEEN.add(desc)
@@ -915,6 +924,8 @@ def index_docs(p):
             continue
         if type(el) is not NavigableString:
             continue
+        if el.find_parent(class_='katex-html') or el.find_parent('annotation'):
+            continue  # math: index the MathML text once, not the glyph layout or the TeX source
         if el.find_parent(['h2', 'h3']) or el.find_parent(class_='hanchor') or el.find_parent(class_='code-head') or el.find_parent(class_='sim-slot') or el.find_parent(class_='lab-thumb'):
             continue
         state['buf'].append(str(el).replace('\u200f', ''))

@@ -344,7 +344,7 @@ P(a client touching N objects gets stuck) = 1 − (1 − p_inactive)^N      # ob
 
 The means agree with closed-form formulas. For one host it is 3/10. For inactive PGs with two hosts it is C(8,1)/C(10,3) = 8/120. For PGs with no copy with three hosts it is 1/C(10,3) = 1/120.
 
-The practical message is in the inactive column. With two failed hosts only 6.67% of PGs stop I/O. But a one-gigabyte RBD image (256 objects) has at least one object on them with probability 1 − 0.9333^256 ≈ 99.999998%. Even a client that touches only 10 objects gets stuck in 50% of cases. So "only 7% of PGs" in practice means almost every virtual machine has stopped.
+The practical message is in the inactive column. With two failed hosts only 6.67% of PGs stop I/O. But a one-gigabyte RBD image (256 objects) has at least one object on them with probability $1 - 0.9333^{256} \approx 99.999998\%$. Even a client that touches only 10 objects gets stuck in 50% of cases. So "only 7% of PGs" in practice means almost every virtual machine has stopped.
 
 Until the OSDs are marked out (mon_osd_down_out_interval, chapter 7), CRUSH does not choose new locations and this state continues. If two failure domains are at risk at the same time, the remedy is raising size or choosing a larger failure domain, not lowering min_size.
 

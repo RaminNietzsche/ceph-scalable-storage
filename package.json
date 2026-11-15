@@ -1,13 +1,15 @@
 {
   "name": "ceph-scalable-storage",
   "private": true,
-  "description": "Node tooling for the book build: Markdown lint and Mermaid figure rendering",
+  "description": "Node tooling for the book build: Markdown lint, Mermaid figure rendering and KaTeX math",
   "license": "CC-BY-NC-SA-4.0",
   "devDependencies": {
     "@mermaid-js/mermaid-cli": "11.17.1",
+    "katex": "0.19.1",
     "markdownlint-cli2": "0.24.1"
   },
   "scripts": {
-    "lint": "markdownlint-cli2"
+    "lint": "markdownlint-cli2",
+    "math": "node tools/render_math.mjs"
   }
 }

@@ -1,18 +1,18 @@
 ---
 chapter: 27
 id: ch27
-title: 'Lower Layers (5): Erasure-Coding Math, from GF(2^8) to FastEC'
+title: 'Lower Layers (5): Erasure-Coding Math, from GF(2⁸) to FastEC'
 part: lower
 lang: en
 ---
 
 # Introduction: from XOR to Reed-Solomon {#sec-27-1}
 
-In chapter 13 we saw how a pool with erasure coding is created and what the profiles mean. This chapter goes one layer lower: the mathematics of the finite field GF(2^8), building the Reed-Solomon generator matrix (with the Vandermonde and Cauchy methods), the SIMD implementation in ISA-L, and how Ceph splits an object into stripes and chunks, performs partial writes with read-modify-write, and what changed in Tentacle with optimized EC (usually called FastEC). We also work through a complete numerical example of encode and decode by hand.
+In chapter 13 we saw how a pool with erasure coding is created and what the profiles mean. This chapter goes one layer lower: the mathematics of the finite field $\mathrm{GF}(2^8)$, building the Reed-Solomon generator matrix (with the Vandermonde and Cauchy methods), the SIMD implementation in ISA-L, and how Ceph splits an object into stripes and chunks, performs partial writes with read-modify-write, and what changed in Tentacle with optimized EC (usually called FastEC). We also work through a complete numerical example of encode and decode by hand.
 
 ::: {.summary}
 
-- All the main plugins (isa, jerasure and the base of clay) work in GF(2^8). In this field addition is XOR and multiplication is done with log/exp tables or SIMD.
+- All the main plugins (isa, jerasure and the base of clay) work in $\mathrm{GF}(2^8)$. In this field addition is XOR and multiplication is done with log/exp tables or SIMD.
 - The default profile in Tentacle and main is `plugin=isa technique=reed_sol_van k=2 m=2`. In Squid the default was `plugin=jerasure`.
 - In ISA-L, Vandermonde is guaranteed MDS only for m ≤ 4 (and for m=4 only with k ≤ 21). Otherwise Ceph switches to `cauchy` automatically.
 - The default `stripe_unit` is 4K, and it becomes 16K for pools with `allow_ec_optimizations`.
@@ -20,28 +20,28 @@ In chapter 13 we saw how a pool with erasure coding is created and what the prof
 
 :::
 
-# GF(2^8): arithmetic on bytes {#sec-27-2}
+# GF(2⁸): arithmetic on bytes {#sec-27-2}
 
-Erasure coding has to "multiply and divide" bytes in such a way that every non-zero number has an inverse and the result always stays a byte. The Galois field GF(2^8) provides exactly that. Its elements are the 256 bytes, viewed as polynomials of degree less than 8 with coefficients 0 and 1.
+Erasure coding has to "multiply and divide" bytes in such a way that every non-zero number has an inverse and the result always stays a byte. The Galois field $\mathrm{GF}(2^8)$ provides exactly that. Its elements are the 256 bytes, viewed as polynomials of degree less than 8 with coefficients 0 and 1.
 
 - **Addition and subtraction:** both are XOR, so a + a = 0.
 - **Multiplication:** the polynomials are multiplied and then reduced modulo an irreducible polynomial of degree 8. ISA-L uses 0x11D (x⁸ + x⁴ + x³ + x² + 1): on each left shift, if bit 8 becomes set, the value is XORed with 0x1D (the same pattern for multiplying by 2 can be seen in `ec_base.c`).
-- **log/exp tables:** because 2 is a generator of the multiplicative group, every non-zero byte equals 2^i. So a·b = exp[(log a + log b) mod 255] and a⁻¹ = exp[255 − log a].
+- **log/exp tables:** because 2 is a generator of the multiplicative group, every non-zero byte equals $2^i$. So $a \cdot b = \exp[(\log a + \log b) \bmod 255]$ and $a^{-1} = \exp[255 - \log a]$.
 
-| Sample multiplication in GF(2^8) with 0x11D | Result | Explanation |
+| Sample multiplication in $\mathrm{GF}(2^8)$ with 0x11D | Result | Explanation |
 |---|---|---|
 | 0x02 × 0x04 | 0x08 | no overflow; just a shift |
 | 0x34 × 0x02 | 0x68 | 0x34 << 1 = 0x68 |
 | 0x56 × 0x04 | 0x45 | 0x56 << 2 = 0x158 → bit 8 set → 0x58 ⊕ 0x1D = 0x45 |
 | 0x78 × 0x08 | 0xE7 | three shifts with two overflows |
 
-![Three layers of computation. At the top, GF(2^8) arithmetic: addition is XOR, and multiplication is done with shifts and an XOR with 0x1D on overflow, or with log/exp tables. In the middle, ISA-L's systematic generator matrix for k=4 and m=2 with the Vandermonde method: the first four rows are the identity (the data stays untouched), row P0 is all ones (plain XOR) and row P1 is the powers of 2. At the bottom, the SIMD implementation: ec_init_tables builds two 16-entry tables (low and high nibble) for each coefficient, and the PSHUFB instruction uses these tables to multiply 32 or 64 bytes in one instruction](figures/ch27/f02_gf.png){#fig-27-f02_gf}
+![Three layers of computation. At the top, GF(2⁸) arithmetic: addition is XOR, and multiplication is done with shifts and an XOR with 0x1D on overflow, or with log/exp tables. In the middle, ISA-L's systematic generator matrix for k=4 and m=2 with the Vandermonde method: the first four rows are the identity (the data stays untouched), row P0 is all ones (plain XOR) and row P1 is the powers of 2. At the bottom, the SIMD implementation: ec_init_tables builds two 16-entry tables (low and high nibble) for each coefficient, and the PSHUFB instruction uses these tables to multiply 32 or 64 bytes in one instruction](figures/ch27/f02_gf.png){#fig-27-f02_gf}
 
 # Systematic Reed-Solomon {#sec-27-3}
 
 In a systematic (k, m) code, the k data chunks are stored unchanged and m parity chunks are computed from them. If D is the data vector, the chunks are obtained by multiplying the (k+m)×k generator matrix G by D: C = G · D. The first four rows of G are the identity. The code is **MDS**, meaning any k of the k+m chunks are enough for reconstruction, provided every k×k submatrix of G is invertible.
 
-ISA-L's `gf_gen_rs_matrix` builds parity row i from the powers of gen = 2^(i−k). This is a simple "Vandermonde" matrix that is not MDS for every (k, m). That is why `ErasureCodeIsa.cc`, if m > 4 or m = 4 and k > 21, logs a message and switches to `gf_gen_cauchy1_matrix`, whose entries are 1/(i ⊕ j) and which is always MDS. The upper limit for k is `MAX_K = 32`.
+ISA-L's `gf_gen_rs_matrix` builds parity row i from the powers of $\mathit{gen} = 2^{i-k}$. This is a simple "Vandermonde" matrix that is not MDS for every (k, m). That is why `ErasureCodeIsa.cc`, if m > 4 or m = 4 and k > 21, logs a message and switches to `gf_gen_cauchy1_matrix`, whose entries are 1/(i ⊕ j) and which is always MDS. The upper limit for k is `MAX_K = 32`.
 
 | Parity matrix for k=4, m=2 | Row P0 | Row P1 |
 |---|---|---|
@@ -60,14 +60,14 @@ chunks = [12, 34, 56, 78 | 08, D8]   (shard 0..5)
 
 ## decode: losing two shards {#sec-27-3-2}
 
-Suppose the OSDs holding D1 and D3 have been lost and the healthy shards are {D0, D2, P0, P1}. The corresponding rows of G form a 4×4 matrix. Its inverse is computed in GF(2^8) (ISA-L uses `gf_invert_matrix`), and the rows for the missing data are multiplied by the healthy bytes:
+Suppose the OSDs holding D1 and D3 have been lost and the healthy shards are {D0, D2, P0, P1}. The corresponding rows of G form a 4×4 matrix. Its inverse is computed in $\mathrm{GF}(2^8)$ (ISA-L uses `gf_invert_matrix`), and the rows for the missing data are multiplied by the healthy bytes:
 
 ```text
 D1 = 7B·D0 ⊕ F5·D2 ⊕ A6·P0 ⊕ DD·P1 = 0x34   ✓
 D3 = 7A·D0 ⊕ F4·D2 ⊕ A7·P0 ⊕ DD·P1 = 0x78   ✓
 ```
 
-All the numbers in these two sections were computed and checked with an independent Python implementation of GF(2^8) with 0x11D and the same matrix-building algorithm as ISA-L. The decode coefficients are computed only once for each failure pattern, and the isa plugin keeps them in `ErasureCodeIsaTableCache`, because inverting the matrix is more expensive than encoding.
+All the numbers in these two sections were computed and checked with an independent Python implementation of $\mathrm{GF}(2^8)$ with 0x11D and the same matrix-building algorithm as ISA-L. The decode coefficients are computed only once for each failure pattern, and the isa plugin keeps them in `ErasureCodeIsaTableCache`, because inverting the matrix is more expensive than encoding.
 
 ::: {.deep}
 **Why is SIMD so fast?** Multiplying a byte x by a constant c can be split into two nibbles: c·x = c·(x_hi << 4) ⊕ c·x_lo. Each has only 16 possible values, so two 16-byte tables are enough. The `PSHUFB` instruction (or `VPSHUFB` in AVX2/AVX-512) can perform 16, 32 or 64 simultaneous lookups in a 16-byte table. ISA-L builds these tables for all the coefficients with `ec_init_tables`, and `ec_encode_data` runs the multiply and the accumulating XOR with these instructions for each input block. The result is an encode speed of several gigabytes per second per core. jerasure (with gf-complete) uses a similar method, but ISA-L is usually faster on x86. The isa plugin also works on Arm, with ISA-L's NEON and SVE code.
@@ -103,7 +103,7 @@ pseudocode: partial overwrite in the old ECBackend (this book's summary)
 
 ![A partial 4K write compared in the two backends. In the old EC, the primary reads the whole stripe from k shards, merges the new data, encodes again and rewrites all the shards. In optimized EC (Tentacle with allow_ec_optimizations), only the same old 4K and the parities are read, the delta = old ⊕ new is computed, and each parity is updated with its coefficient times the delta. A small read is also served directly from one data shard instead of a decode from k shards](figures/ch27/f03_rmw.png){#fig-27-f03_rmw}
 
-**Why is the parity delta correct?** Because the code is linear: P_i = Σ_j g_ij · D_j. If only D_j changes to D_j′, then P_i′ = P_i ⊕ g_ij · (D_j ⊕ D_j′). With the example from the previous section, if D1 changes from 0x34 to 0x35, the delta is 0x01, so P0′ = 0x08 ⊕ 1·0x01 = 0x09 and P1′ = 0xD8 ⊕ 2·0x01 = 0xDA. There is no need to read D0, D2 and D3.
+**Why is the parity delta correct?** Because the code is linear: $P_i = \sum_j g_{ij} \cdot D_j$. If only $D_j$ changes to $D_j'$, then $P_i' = P_i \oplus g_{ij} \cdot (D_j \oplus D_j')$. With the example from the previous section, if D1 changes from 0x34 to 0x35, the delta is 0x01, so P0′ = 0x08 ⊕ 1·0x01 = 0x09 and P1′ = 0xD8 ⊕ 2·0x01 = 0xDA. There is no need to read D0, D2 and D3.
 
 | Plugin flag (`ErasureCodeInterface.h`) | Meaning |
 |---|---|
@@ -137,10 +137,10 @@ In RS, rebuilding a lost shard requires reading k whole chunks. For k=8 this mea
 | Plugin | Parameters (default) | Idea | Trade-off |
 |---|---|---|---|
 | `lrc` | k, m, l | add a local parity for every l chunks; usually each group in one rack | more space overhead: (k+m)/k + (k+m)/(l·k) |
-| `clay` | k=4, m=2, d=k+m−1 (default) | a coupled-layer code with sub-chunks: repair by reading a fraction from d helpers | minimal repair (MSR); the number of sub-chunks is q^t, which grows quickly with k+m, and the reads become tiny |
+| `clay` | k=4, m=2, d=k+m−1 (default) | a coupled-layer code with sub-chunks: repair by reading a fraction from d helpers | minimal repair (MSR); the number of sub-chunks is $q^t$, which grows quickly with k+m, and the reads become tiny |
 | `shec` | k=4, m=3, c=2 | each parity covers only part of the data; c = the number of failures guaranteed to be tolerated | space efficiency between RS and replication; cheaper single repairs |
 
-**Numerical example for CLAY:** the repair bandwidth for one shard of size S is d · S / (d − k + 1). With k=8, m=4 and d=11 this is 11S/4 = 2.75S, while the equivalent RS reads 8S (about 66% savings). But q = d − k + 1 = 4 and t = (k+m)/q = 3, so each chunk is split into 4³ = 64 sub-chunks. With a stripe_unit of 4K the sub-chunks are 64 bytes, and the repair read becomes tens of small, scattered reads. That is why CLAY makes sense with a larger stripe_unit.
+**Numerical example for CLAY:** the repair bandwidth for one shard of size S is $d \cdot S / (d - k + 1)$. With k=8, m=4 and d=11 this is 11S/4 = 2.75S, while the equivalent RS reads 8S (about 66% savings). But q = d − k + 1 = 4 and t = (k+m)/q = 3, so each chunk is split into $4^3 = 64$ sub-chunks. With a stripe_unit of 4K the sub-chunks are 64 bytes, and the repair read becomes tens of small, scattered reads. That is why CLAY makes sense with a larger stripe_unit.
 
 # crc and integrity in EC {#sec-27-7}
 
@@ -153,9 +153,9 @@ ceph pg <pgid> query | jq '.info.stats.stat_sum.num_objects_degraded'
 ceph tell osd.4 config get osd_recovery_max_active_hdd
 ```
 
-# GF(2^8) arithmetic at the instruction level: log/exp tables and the nibble trick {#sec-27-8}
+# GF(2⁸) arithmetic at the instruction level: log/exp tables and the nibble trick {#sec-27-8}
 
-The previous sections defined multiplication in GF(2^8). This section shows how ISA-L, on which Ceph's `isa` plugin relies, performs this multiplication in the hot loop. ISA-L's reduction polynomial is the same 0x11D (that is, x^8+x^4+x^3+x^2+1). In the code this number appears as `0x1d`: whenever bit 7 is set before the shift, the result is XORed with 0x1d.
+The previous sections defined multiplication in $\mathrm{GF}(2^8)$. This section shows how ISA-L, on which Ceph's `isa` plugin relies, performs this multiplication in the hot loop. ISA-L's reduction polynomial is the same 0x11D (that is, $x^8+x^4+x^3+x^2+1$). In the code this number appears as `0x1d`: whenever bit 7 is set before the shift, the result is XORed with 0x1d.
 
 ::: {.algo #alg-27-1 title="Multiplication with log/exp tables" src="isa-l/erasure_code/ec_base.c :: gf_mul, gf_inv" complexity="O(1): two lookups, one addition and one comparison; tables of 256 + 256 bytes"}
 :::
@@ -171,11 +171,11 @@ gf_mul(a, b): if a == 0 or b == 0: return 0
 gf_inv(a):   return exp[255 − log[a]]
 ```
 
-**Numerical example.** exp[0..15] = 01 02 04 08 10 20 40 80 1D 3A 74 E8 CD 87 13 26. So 2^8 = 0x1D, that is, the first overflow. For 0x53 × 0xCA we have log[0x53] = 206 and log[0xCA] = 73. Their sum is 279, and because it is greater than 254, 279 − 255 = 24 and exp[24] = 0x8F. The inverse of 0x02 is exp[255 − 1] = 0x8E. Check: 0x8E × 2 = 0x11C and 0x11C ⊕ 0x11D = 0x01.
+**Numerical example.** exp[0..15] = 01 02 04 08 10 20 40 80 1D 3A 74 E8 CD 87 13 26. So $2^8 = \mathtt{0x1D}$, that is, the first overflow. For 0x53 × 0xCA we have log[0x53] = 206 and log[0xCA] = 73. Their sum is 279, and because it is greater than 254, 279 − 255 = 24 and exp[24] = 0x8F. The inverse of 0x02 is exp[255 − 1] = 0x8E. Check: 0x8E × 2 = 0x11C and 0x11C ⊕ 0x11D = 0x01.
 
 This method has two random table accesses and one branch per byte and is slow in the hot loop. That is why ISA-L builds a different table that fits SIMD instructions.
 
-![The 32-byte table that gf_vect_mul_init_base builds for the coefficient c=0x02. The first 16 entries are the products of c with the low nibble (0 to F), and the second 16 entries the products of c with the high nibble (0x00 to 0xF0). Each byte is multiplied with two lookups and one XOR, because multiplication in GF(2^8) is linear over XOR: c·(hi ⊕ lo) = c·hi ⊕ c·lo. The yellow entries are the two entries read for the byte 0xB7](figures/ch27/f05_gftbl.png){#fig-27-f05_gftbl}
+![The 32-byte table that gf_vect_mul_init_base builds for the coefficient c=0x02. The first 16 entries are the products of c with the low nibble (0 to F), and the second 16 entries the products of c with the high nibble (0x00 to 0xF0). Each byte is multiplied with two lookups and one XOR, because multiplication in GF(2⁸) is linear over XOR: c·(hi ⊕ lo) = c·hi ⊕ c·lo. The yellow entries are the two entries read for the byte 0xB7](figures/ch27/f05_gftbl.png){#fig-27-f05_gftbl}
 
 The trick is correct because every byte d equals (d AND 0xF0) ⊕ (d AND 0x0F), and multiplication by c distributes over ⊕. So instead of a 256-entry table for each c, two 16-entry tables are enough. 16 entries is exactly the size of an XMM register, and the PSHUFB instruction works with exactly that size: it takes each byte of the second register as an index into the first.
 
@@ -200,7 +200,7 @@ encode_row(row r, data D0..Dk-1, length L):
 ![The path for multiplying 32 bytes of data by the constant c=2 with AVX2. The data is split into two nibbles. Each nibble is looked up with VPSHUFB in its 16-entry table and the two results are XORed. The bottom row shows that this multiplication is repeated for each data column and accumulated in the parity. The gf_Nvect_dot_prod versions build several parities in one pass over the data, so the data is read from memory only once](figures/ch27/f07_pshufb.png){#fig-27-f07_pshufb}
 
 ::: {.deep}
-On processors with GFNI, ISA-L chooses the `*_gfni.asm` versions. The `GF2P8AFFINEQB` instruction performs multiplication by a GF(2^8) constant as an affine transform on each byte and removes the nibble table. The version is chosen at run time by the multi-version dispatcher (`ec_multibinary.asm`) based on CPUID, not when Ceph is compiled.
+On processors with GFNI, ISA-L chooses the `*_gfni.asm` versions. The `GF2P8AFFINEQB` instruction performs multiplication by a $\mathrm{GF}(2^8)$ constant as an affine transform on each byte and removes the nibble table. The version is chosen at run time by the multi-version dispatcher (`ec_multibinary.asm`) based on CPUID, not when Ceph is compiled.
 :::
 
 # Generator matrices: Vandermonde versus Cauchy {#sec-27-9}
@@ -231,7 +231,7 @@ gf_gen_cauchy1_matrix(a, rows, k):
 
 # decode with the matrix inverse: a complete byte-by-byte example {#sec-27-10}
 
-::: {.algo #alg-27-4 title="decode with Gauss-Jordan elimination in GF(2^8)" src="isa-l/erasure_code/ec_base.c :: gf_invert_matrix; src/erasure-code/isa/ErasureCodeIsa.cc :: ErasureCodeIsaDefault::isa_decode" complexity="inverse O(k^3) GF multiplications per failure pattern (cached in an LRU), then O(k·e·L) for e lost shards"}
+::: {.algo #alg-27-4 title="decode with Gauss-Jordan elimination in GF(2⁸)" src="isa-l/erasure_code/ec_base.c :: gf_invert_matrix; src/erasure-code/isa/ErasureCodeIsa.cc :: ErasureCodeIsaDefault::isa_decode" complexity="inverse O(k³) GF multiplications per failure pattern (cached in an LRU), then O(k·e·L) for e lost shards"}
 :::
 
 ```text
@@ -296,7 +296,7 @@ if crush-locality: steps = [choose g type locality, chooseleaf (l+1) type failur
 
 # Clay: which sub-chunks are read for repair {#sec-27-13}
 
-::: {.algo #alg-27-7 title="Choosing the repair sub-chunks in Clay" src="src/erasure-code/clay/ErasureCodeClay.cc :: ErasureCodeClay::parse, get_repair_subchunks, get_repair_sub_chunk_count" complexity="O(q^y) extents for a lost node in row y; traffic of d·(sub_chunk_no/q) sub-chunks"}
+::: {.algo #alg-27-7 title="Choosing the repair sub-chunks in Clay" src="src/erasure-code/clay/ErasureCodeClay.cc :: ErasureCodeClay::parse, get_repair_subchunks, get_repair_sub_chunk_count" complexity="O(qʸ) extents for a lost node in row y; traffic of d·(sub_chunk_no/q) sub-chunks"}
 :::
 
 ```text
@@ -325,15 +325,15 @@ In Clay, because the reads are split into small extents (sub_chunk_no of them), 
 
 # Hands-on exercise {#sec-27-15}
 
-1. Implement GF(2^8) multiplication with 0x11D in Python and reproduce this chapter's multiplication table. Then solve a decode with two failures for another pattern (for example D0 and P1).
+1. Implement $\mathrm{GF}(2^8)$ multiplication with 0x11D in Python and reproduce this chapter's multiplication table. Then solve a decode with two failures for another pattern (for example D0 and P1).
 2. With `ceph_erasure_code_benchmark` (in the test package), compare the encode speed of the isa and jerasure plugins for k=8 and m=3 on your server.
 3. On a test EC pool, with and without `allow_ec_optimizations`, run fio with 4K random writes and compare IOPS and latency.
 4. Compute the CLAY repair bandwidth for (k=6, m=3, d=8) and compare it with RS.
 
 # Review questions {#sec-27-16}
 
-1. Why are addition and subtraction in GF(2^8) both XOR?
-2. How is 0x56 × 0x04 computed in GF(2^8) with 0x11D?
+1. Why are addition and subtraction in $\mathrm{GF}(2^8)$ both XOR?
+2. How is 0x56 × 0x04 computed in $\mathrm{GF}(2^8)$ with 0x11D?
 3. What is an MDS code, and why is ISA-L's simple Vandermonde not always MDS?
 4. Under what conditions does Ceph switch to cauchy automatically?
 5. In this chapter's example, how were P0 and P1 obtained?

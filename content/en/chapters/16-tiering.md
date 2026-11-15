@@ -203,7 +203,7 @@ This section examines the tiering mechanisms described above with code and numbe
 
 ## HitSet size {#sec-16-6-1}
 
-::: {.algo #alg-16-1 title="Size of the Bloom filter in a HitSet" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::hit_set_create; src/osd/BloomHitSet.h :: BloomHitSet" complexity="O(1) to determine the size; memory −n·ln(p)/(ln 2)^2 bits"}
+::: {.algo #alg-16-1 title="Size of the Bloom filter in a HitSet" src="src/osd/PrimaryLogPG.cc :: PrimaryLogPG::hit_set_create; src/osd/BloomHitSet.h :: BloomHitSet" complexity="O(1) to determine the size; memory −n·ln(p)/(ln 2)² bits"}
 :::
 
 ```text
@@ -215,7 +215,7 @@ target_size = clamp(target_size, osd_hit_set_min_size = 1000, osd_hit_set_max_si
 seed = now.sec ; BloomHitSet(target_size, p, seed)
 ```
 
-**Numerical example.** With the `osd_tier_default_cache_*` defaults that `ceph osd tier add-cache` applies (bloom, hit_set_count = 4, hit_set_period = 1200 s) and `osd_pool_default_hit_set_bloom_fpp = 0.05`, the false-positive rate of each set is 0.05/4 = 0.0125. If the previous HitSet saw 30000 unique objects in 1200 seconds, target_size = 30000, and the filter is about 2.7×10^5 bits (about 33 KiB) with 6 hash functions. The cap of 100000 objects gives a filter of about 111 KiB, and the floor of 1000 about 1.1 KiB. The reason for dividing the fpp by the number of sets is that temperature comes from summing presence across several sets, and each set's error adds up.
+**Numerical example.** With the `osd_tier_default_cache_*` defaults that `ceph osd tier add-cache` applies (bloom, hit_set_count = 4, hit_set_period = 1200 s) and `osd_pool_default_hit_set_bloom_fpp = 0.05`, the false-positive rate of each set is 0.05/4 = 0.0125. If the previous HitSet saw 30000 unique objects in 1200 seconds, target_size = 30000, and the filter is about $2.7 \times 10^5$ bits (about 33 KiB) with 6 hash functions. The cap of 100000 objects gives a filter of about 111 KiB, and the floor of 1000 about 1.1 KiB. The reason for dividing the fpp by the number of sets is that temperature comes from summing presence across several sets, and each set's error adds up.
 
 ![Size of a HitSet's Bloom filter as a function of the number of unique objects in the previous set, for two values of hit_set_period. The target size scales by the ratio of the new period to the actual duration of the previous set and is clipped between the OSD's floor and cap. The dashed lines are these two limits. Each cache PG builds one filter per period and archives it as an object in a separate namespace of the same pool](figures/ch16/f12_hitset.png){#fig-16-f12_hitset}
 
@@ -243,7 +243,7 @@ agent_maybe_evict (SOME mode):
 
 Now the meaning of the code's condition: get_position_micro sets upper to the share of objects whose power-of-two temperature bin (`cbits(temp)`, that is, the index of the highest set bit) is less than or equal to this object's bin, and lower to the share of objects in smaller bins. Let us build a ten-sample histogram: five samples with temperature 0 (bin 0), two samples at 640000 and two at 1000000 (both bin 20), and one sample at 1800000 (bin 21). With evict_effort = 400000 the result is:
 
-| Object | Temperature | bin | lower | upper | 10^6 − upper | main's decision | Decision with the proposed fix (lower ≥ effort ⇒ keep) |
+| Object | Temperature | bin | lower | upper | $10^6 - \text{upper}$ | main's decision | Decision with the proposed fix (lower ≥ effort ⇒ keep) |
 |---|---|---|---|---|---|---|---|
 | D | 0 | 0 | 0 | 500000 | 500000 | keeps | evicts |
 | C | 640000 | 20 | 500000 | 900000 | 100000 | evicts | keeps |
@@ -252,7 +252,7 @@ Now the meaning of the code's condition: get_position_micro sets upper to the sh
 
 These numbers were obtained with a Python reimplementation of `pow2_hist_t::get_position_micro`. So main's condition really is **inverted**: the coldest object (D) stays and the hot ones are evicted. This inversion has a documented history. Before Jewel, the agent used "time since last access" (atime) instead of temperature, which is **larger** for cold data, and the condition `1000000 − atime_upper ≥ evict_effort ⇒ keep` was correct with that meaning. PR number 4737 (branch wip-temp-based-object-eviction) changed the metric to temperature, which is **smaller** for cold data, but only renamed the variable in the condition. In November 2017 this exact issue was reported on the ceph-devel list (thread "About the "temperature histogram" of tier-agent"), and Sage Weil referred it to that PR's authors for review. It was proposed to change the condition to `temp_upper ≥ evict_effort` or `temp_lower ≥ evict_effort`, but in today's main code (checked in November 2026) the condition still has the same old form. In EVICT_MODE_FULL this condition is not executed at all, and every clean, eligible object is evicted; so the effect of the inversion is only seen in SOME mode. This is one more reason why cache tiering (deprecated since Reef) should not be chosen for new work.
 
-![The evict condition in SOME mode for the example's ten-sample histogram. The horizontal axis is the power-of-two temperature bin, and the bars are the number of samples in each bin. The left side is main's decision, with the condition 10^6 − upper ≥ effort for keeping: only the cold bin zero stays (green) and all the hot bins are evicted (red). The right side is the decision with the fix proposed on ceph-devel in 2017, with the condition lower ≥ effort for keeping: the cold are evicted and the hot stay. In both halves the dashed line is the decision boundary on the cumulative-share axis: in main's code the boundary is upper = 0.6 (that is, 1 − 0.4), and in the proposed fix it is lower = 0.4](figures/ch16/f13_evictinv.png){#fig-16-f13_evictinv}
+![The evict condition in SOME mode for the example's ten-sample histogram. The horizontal axis is the power-of-two temperature bin, and the bars are the number of samples in each bin. The left side is main's decision, with the condition 10⁶ − upper ≥ effort for keeping: only the cold bin zero stays (green) and all the hot bins are evicted (red). The right side is the decision with the fix proposed on ceph-devel in 2017, with the condition lower ≥ effort for keeping: the cold are evicted and the hot stay. In both halves the dashed line is the decision boundary on the cumulative-share axis: in main's code the boundary is upper = 0.6 (that is, 1 − 0.4), and in the proposed fix it is lower = 0.4](figures/ch16/f13_evictinv.png){#fig-16-f13_evictinv}
 
 ![Left: the grade table of archived HitSets for two decay rates: with decay 20 the weight of the oldest set is still 41%, and with decay 50 only 6%. Right: the temperature of the four sample objects: presence in the current set always earns one million units, and with search_last_n = 1 only the first archived set in which the object is found adds its share](figures/ch16/f07_grade.png){#fig-16-f07_grade}
 

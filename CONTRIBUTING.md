@@ -43,6 +43,19 @@ upstream code excerpts must stay short, attributed and keep their original licen
 | Summary | `::: {.summary title="…"}` |
 | Algorithm | `::: {.algo #alg-NN-K title="…" src="file::function" complexity="…"}` |
 | Table | pipe tables; write a literal pipe inside a cell as `\|` |
+| Inline math | `$p = 10^{-14}$`, `$(1-p)^N \approx e^{-pN}$`, `$3.2 \times 10^{14}$` |
+
+Math is TeX between dollars, with no space just inside the dollars (a `$` followed
+by a digit is not math, so prices stay plain text). Use Latin digits inside math in
+both editions: the Persian build keeps Persian digits in the surrounding prose and
+isolates each formula left-to-right. Titles, headings, figure captions and algorithm
+attributes are plain text, so write Unicode superscripts there (`GF(2⁸)`, `O(k³)`).
+The web book and the PDF render math with the bundled KaTeX
+(`templates/vendor/katex`, `tools/render_math.mjs`; offline, needs `npm install`);
+the EPUB and HTML exports get MathML and DOCX gets Word equations from Pandoc.
+`make lint` rejects a bare `^` exponent outside code or math, an unbalanced `$`, and
+Persian digits or bidi marks inside math. The site never contains soft hyphens:
+hyphenation is CSS `hyphens: auto` with the page `lang`, so copied text stays clean.
 
 The Python tools and the Pandoc filter (`templates/pandoc/book.lua`) both read this
 format. `tools/booklib/mdlower.py` turns it into the print renderer's directive

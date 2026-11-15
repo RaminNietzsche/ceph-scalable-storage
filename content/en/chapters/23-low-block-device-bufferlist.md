@@ -214,7 +214,7 @@ while work remains:
     pushed = pulled = 0 ; reset attempts and delay
 ```
 
-**Numerical example.** With 1024 requests pending in the kernel queue and a batch of 64, io_submit may accept only 10 requests. In that case pushed = 10, r becomes −EAGAIN, and a retry happens after 125 µs. If the queue stays full, the waits are 125, 250, 500 µs and so on, doubling up to 4.1 seconds for the sixteenth attempt. The total is 125 × (2^16 − 1) µs ≈ 8.19 seconds. The retries counter shows up in the log as "aio_submit retries". If this number appears often in the OSD log, the queue depth or device latency has a problem, not the CPU.
+**Numerical example.** With 1024 requests pending in the kernel queue and a batch of 64, io_submit may accept only 10 requests. In that case pushed = 10, r becomes −EAGAIN, and a retry happens after 125 µs. If the queue stays full, the waits are 125, 250, 500 µs and so on, doubling up to 4.1 seconds for the sixteenth attempt. The total is $125 \times (2^{16} - 1)\,\mu\mathrm{s} \approx 8.19$ seconds. The retries counter shows up in the log as "aio_submit retries". If this number appears often in the OSD log, the queue depth or device latency has a problem, not the CPU.
 
 ![The wait before each retry (bars, logarithmic scale) and the cumulative wait (red line) when io_submit keeps returning EAGAIN. After 8 attempts only 32 milliseconds have passed, but the last 8 attempts take more than 8 seconds. So a short saturation is almost invisible, and only a long saturation turns into a slow op](figures/ch23/f07_aioretry.png){#fig-23-f07_aioretry}
 
@@ -288,7 +288,7 @@ zeros(crc, len):
     if rem: crc = regular_crc(crc, rem zero bytes)
 ```
 
-**Numerical example.** For 4096 zero bytes with seed = 0xFFFFFFFF: rem = 0 and n = 256 = 2^8, so only one multiplication with M[12] is needed, and the result is 0x6706BE76. Direct byte-by-byte computation (this guide's separate implementation) gives the same number. For 69637 = 65536 + 4096 + 5 bytes: two multiplications (M[16] and M[12]) and then 5 regular bytes, with the result 0xAC433F9D, which again matches the direct computation. The first four values of row M[0] (0xF26B8303, 0xE13B70F7, 0xC79A971F, 0x8AD958CF) are the same values as the crc_turbo_table in Ceph's code.
+**Numerical example.** For 4096 zero bytes with seed = 0xFFFFFFFF: rem = 0 and $n = 256 = 2^8$, so only one multiplication with M[12] is needed, and the result is 0x6706BE76. Direct byte-by-byte computation (this guide's separate implementation) gives the same number. For 69637 = 65536 + 4096 + 5 bytes: two multiplications (M[16] and M[12]) and then 5 regular bytes, with the result 0xAC433F9D, which again matches the direct computation. The first four values of row M[0] (0xF26B8303, 0xE13B70F7, 0xC79A971F, 0x8AD958CF) are the same values as the crc_turbo_table in Ceph's code.
 
 ::: {.algo #alg-23-5 title="Adjusting a cached crc to a new seed" src="src/common/buffer.cc :: buffer::list::crc32c; include/buffer_raw.h :: raw::get_crc, set_crc" complexity="O(log len) instead of O(len) for each raw whose crc is cached"}
 :::

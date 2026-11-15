@@ -185,7 +185,7 @@ if autotune and formula ≠ greedy and (1-u_greedy) ≥ ratio(2.0) × (1-u_pick)
 
 **مثال عددی.** سه سگمنت بسته داریم:
 
-| سگمنت | u (سهم زنده) | سن (ثانیه) | greedy = 1-u | cost-benefit = (1-u)·age/(2u) |
+| سگمنت | u (سهم زنده) | سن (ثانیه) | greedy = 1-u | cost-benefit = $(1-u) \cdot \mathit{age} / (2u)$ |
 |---|---|---|---|---|
 | A | 0.2 | 100 | **0.8** | 200 |
 | B | 0.5 | 1000 | 0.5 | 500 |

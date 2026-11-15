@@ -13,6 +13,7 @@ import argparse
 import collections
 import json
 import os
+import re
 import sys
 
 import yaml
@@ -31,6 +32,9 @@ OUT = a.out or os.path.join(B, META['outputs']['pdf'])
 FA = str.maketrans('0123456789', '۰۱۲۳۴۵۶۷۸۹') if UI['digits'] == 'fa' else str.maketrans('', '')
 SEP = UI['list_sep']
 src = open(os.path.join(B, 'book.html'), encoding='utf-8').read()
+# KaTeX emits HTML + a visually hidden MathML copy; print keeps only the typeset HTML
+# (otherwise every formula would be extracted twice from the PDF text layer).
+src = re.sub(r'<span class="katex-mathml">.*?</math></span>', '', src, flags=re.S)
 hits = json.load(open(os.path.join(B, 'ix_hits.json'), encoding='utf-8'))
 
 

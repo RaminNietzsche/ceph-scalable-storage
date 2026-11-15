@@ -160,7 +160,7 @@ ceph-bluestore-tool bluefs-export --path ... --out-dir /tmp/bluefs   # فایل�
 
 # onode: از کلید تا extent {#sec-24-6}
 
-![ساختار onode. کلید onode به ترتیبی کدگذاری می‌شود که مرتب‌سازی lexicographic آن با ترتیب ghobject_t یکسان باشد: shard + 0x80، سپس pool + 2^63، hash بیت‌معکوس، namespace و نام escapeشده، snap، generation و در پایان کاراکتر 'o'. مقدار، bluestore_onode_t است. lextentها به blobها و blobها به pextentهای فیزیکی اشاره می‌کنند. extent mapهای بزرگ به shardهایی جدا با کلید «onode + u32 offset + x» شکسته می‌شوند](figures/ch24/f03_onode.png){#fig-24-f03_onode}
+![ساختار onode. کلید onode به ترتیبی کدگذاری می‌شود که مرتب‌سازی lexicographic آن با ترتیب ghobject_t یکسان باشد: shard + 0x80، سپس pool + 2⁶³، hash بیت‌معکوس، namespace و نام escapeشده، snap، generation و در پایان کاراکتر 'o'. مقدار، bluestore_onode_t است. lextentها به blobها و blobها به pextentهای فیزیکی اشاره می‌کنند. extent mapهای بزرگ به shardهایی جدا با کلید «onode + u32 offset + x» شکسته می‌شوند](figures/ch24/f03_onode.png){#fig-24-f03_onode}
 
 ## کلید شیء {#sec-24-6-1}
 

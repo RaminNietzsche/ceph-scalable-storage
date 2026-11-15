@@ -185,7 +185,7 @@ The cost-benefit formula is the classic formula of log-structured file systems (
 
 **Numerical example.** We have three closed segments:
 
-| Segment | u (live fraction) | Age (seconds) | greedy = 1-u | cost-benefit = (1-u)·age/(2u) |
+| Segment | u (live fraction) | Age (seconds) | greedy = 1-u | cost-benefit = $(1-u) \cdot \mathit{age} / (2u)$ |
 |---|---|---|---|---|
 | A | 0.2 | 100 | **0.8** | 200 |
 | B | 0.5 | 1000 | 0.5 | 500 |

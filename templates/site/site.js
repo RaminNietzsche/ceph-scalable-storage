@@ -761,3 +761,24 @@
     }
   });
 })();
+
+/* Copying text that contains formulas: KaTeX keeps a hidden MathML copy next to the
+   visible layout, so a plain copy would paste every formula twice. Copy each formula
+   as its plain-text reading (data-plain, e.g. "p = 10⁻¹⁴") instead. */
+document.addEventListener('copy', function (e) {
+  var sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount || !e.clipboardData) return;
+  var r = sel.getRangeAt(0).cloneRange();
+  var m = function (n) { return (n.nodeType === 1 ? n : n.parentElement).closest('.math'); };
+  var a = m(r.startContainer), b = m(r.endContainer);
+  if (a) r.setStartBefore(a);
+  if (b) r.setEndAfter(b);
+  var box = document.createElement('div');
+  box.appendChild(r.cloneContents());
+  var maths = box.querySelectorAll('.math');
+  if (!maths.length) return;
+  maths.forEach(function (x) { x.replaceWith(document.createTextNode(x.getAttribute('data-plain') || '')); });
+  box.querySelectorAll('.katex-mathml').forEach(function (x) { x.remove(); });
+  e.clipboardData.setData('text/plain', box.textContent.replace(/[\u200e\u200f]/g, ''));
+  e.preventDefault();
+});

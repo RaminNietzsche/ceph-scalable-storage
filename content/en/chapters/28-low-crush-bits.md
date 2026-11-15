@@ -42,7 +42,7 @@ Any change to these functions, to the logarithm table or to the tunables (such a
 
 # straw2: an exponential draw {#sec-28-3}
 
-Suppose each item i with weight w_i draws an exponential random variable with rate w_i. The probability that item i has the **smallest** value is exactly w_i / Σw. straw2 implements exactly this without floating-point numbers:
+Suppose each item i with weight w_i draws an exponential random variable with rate w_i. The probability that item i has the **smallest** value is exactly $w_i / \sum w$. straw2 implements exactly this without floating-point numbers:
 
 ```text
 straw2 (the logic of mapper.c, LGPL; a simplified rendering by this book)
@@ -53,7 +53,7 @@ straw2 (the logic of mapper.c, LGPL; a simplified rendering by this book)
   return item with max draw              # the smallest −ln/w = exponential with rate w
 ```
 
-`crush_ln(x)` computes 2^44 · log2(x+1) with two tables, `__RH_LH_tbl` and `__LL_tbl` (in `crush_ln_table.h`), using only integer operations. It first normalizes the input (the exponent), then looks up the top 8 bits of the mantissa in the first table (an approximation of 1/x and log2) and the next 8 bits in the second table (the correction). The results in our test program: `crush_ln(0) = 0`, `crush_ln(0x7FFF) = 0xF00000000000` (that is 15 · 2^44) and `crush_ln(0xFFFF) = 0xFFFFF0000000` (about 16 · 2^44 = 2^48).
+`crush_ln(x)` computes $2^{44} \cdot \log_2(x+1)$ with two tables, `__RH_LH_tbl` and `__LL_tbl` (in `crush_ln_table.h`), using only integer operations. It first normalizes the input (the exponent), then looks up the top 8 bits of the mantissa in the first table (an approximation of 1/x and log2) and the next 8 bits in the second table (the correction). The results in our test program: `crush_ln(0) = 0`, `crush_ln(0x7FFF) = 0xF00000000000` (that is $15 \cdot 2^{44}$) and `crush_ln(0xFFFF) = 0xFFFFF0000000` (about $16 \cdot 2^{44} = 2^{48}$).
 
 ![A real straw2 run for x=0x36D15C32 in a root bucket with three hosts: -3 and -4 each with weight 10 and -5 with weight 20. At r=0, host -4 wins with the largest draw (−8.9M). At r=1, host -5 wins. For the third replica, r=2 to r=5 land on repeated hosts and ftotal is increased each time, until r=6 reaches host -3. The retry limit is choose_total_tries=50](figures/ch28/f02_straw2.png){#fig-28-f02_straw2}
 

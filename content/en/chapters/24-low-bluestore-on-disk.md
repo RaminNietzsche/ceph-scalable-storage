@@ -160,7 +160,7 @@ To see the volume of each prefix on a stopped OSD, use `ceph-kvstore-tool bluest
 
 # The onode: from key to extent {#sec-24-6}
 
-![The structure of an onode. The onode key is encoded in an order such that its lexicographic sort matches the ghobject_t order: shard + 0x80, then pool + 2^63, the bit-reversed hash, the namespace and escaped name, snap, generation, and finally the character 'o'. The value is bluestore_onode_t. lextents point to blobs, and blobs to physical pextents. Large extent maps are broken into separate shards with the key "onode + u32 offset + x"](figures/ch24/f03_onode.png){#fig-24-f03_onode}
+![The structure of an onode. The onode key is encoded in an order such that its lexicographic sort matches the ghobject_t order: shard + 0x80, then pool + 2⁶³, the bit-reversed hash, the namespace and escaped name, snap, generation, and finally the character 'o'. The value is bluestore_onode_t. lextents point to blobs, and blobs to physical pextents. Large extent maps are broken into separate shards with the key "onode + u32 offset + x"](figures/ch24/f03_onode.png){#fig-24-f03_onode}
 
 ## The object key {#sec-24-6-1}
 

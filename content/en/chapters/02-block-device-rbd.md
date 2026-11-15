@@ -116,7 +116,7 @@ rbd --id rbd-lab ls -l rbd
 rbd --id rbd-lab info rbd/disk01
 ```
 
-The output of `rbd info` includes the size, the number of objects, `order 22` (that is, 2^22-byte objects = 4 MB), the name prefix of the data objects (`block_name_prefix`) and the list of features.
+The output of `rbd info` includes the size, the number of objects, `order 22` (that is, $2^{22}$-byte objects = 4 MB), the name prefix of the data objects (`block_name_prefix`) and the list of features.
 
 ## Mapping with krbd {#sec-02-4-2}
 

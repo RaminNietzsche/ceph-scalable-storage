@@ -176,7 +176,7 @@ def fingerprint(doc, assets_dir):
         if f not in _hash_cache:
             _hash_cache[f] = hashlib.sha256(open(f, 'rb').read()).hexdigest()[:10] if os.path.exists(f) else ''
         return f'{m.group(1)}{m.group(2)}' + (f'?v={_hash_cache[f]}' if _hash_cache[f] else '') + '"'
-    return re.sub(r'((?:\.\./)?assets/)([\w.-]+\.(?:css|js))"', rep, doc)
+    return re.sub(r'((?:\.\./)?assets/)([\w./-]+\.(?:css|js))"', rep, doc)
 
 
 def preload(href):

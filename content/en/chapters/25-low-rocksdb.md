@@ -204,7 +204,7 @@ Insert(key): height h ; find prev[] and next[] from top to bottom ;
              link from level 0 upward with CAS or store-release
 ```
 
-**Numerical example.** With write_buffer_size = 16 MiB (Ceph's default) and entries of about 100 bytes, each memtable has about 160000 nodes. The expected number of nodes whose height is at least h is n·4^-(h−1): 160000, 40000, 10000, 2500, 625, 156, 39, 10, 2.4 for h = 1..9. So the effective height is about 9, and a Seek walks about 9 levels with 1 to 3 horizontal steps per level, that is fewer than 30 key comparisons. The average height is 4/3, so each node has on average 8 × 4/3 ≈ 10.7 bytes of pointers. A separate simulation with 160000 nodes gave an average of 1.335.
+**Numerical example.** With write_buffer_size = 16 MiB (Ceph's default) and entries of about 100 bytes, each memtable has about 160000 nodes. The expected number of nodes whose height is at least h is $n \cdot 4^{-(h-1)}$: 160000, 40000, 10000, 2500, 625, 156, 39, 10, 2.4 for h = 1..9. So the effective height is about 9, and a Seek walks about 9 levels with 1 to 3 horizontal steps per level, that is fewer than 30 key comparisons. The average height is 4/3, so each node has on average 8 × 4/3 ≈ 10.7 bytes of pointers. A separate simulation with 160000 nodes gave an average of 1.335.
 
 ![A skiplist with ten keys and random heights, and the path of Seek(38) in red. The search starts at head's highest level, moves forward while the next key is smaller, and moves down a level when it is larger or null. If an equal key is found at any level, it returns there. In InlineSkipList the upper-level pointers sit before the node itself in the same arena allocation, so a node of height h has exactly h eight-byte pointers followed by the key and value in one contiguous chunk](figures/ch25/f05_skiplist.png){#fig-25-f05_skiplist}
 
@@ -305,9 +305,9 @@ FP ≈ the average of a standard Bloom for (keys per line ± standard deviation)
 
 **Numerical example.**
 
-- **b = 20:** k = 11, and each cache line has on average 512/20 = 25.6 keys. The standard deviation is √25.6 ≈ 5.06, so the crowded and sparse cases have 30.66 and 20.54 keys per line. The estimated FP is about 1.7×10^-4 (0.017%), versus 6.8×10^-5 for a standard Bloom with the same memory.
+- **b = 20:** k = 11, and each cache line has on average 512/20 = 25.6 keys. The standard deviation is $\sqrt{25.6} \approx 5.06$, so the crowded and sparse cases have 30.66 and 20.54 keys per line. The estimated FP is about $1.7 \times 10^{-4}$ (0.017%), versus $6.8 \times 10^{-5}$ for a standard Bloom with the same memory.
 - **b = 10:** k = 6 and FP about 0.95%.
-- **Memory:** an SST with 1 million keys has 20×10^6 bits, that is 2.5 MB of filter.
+- **Memory:** an SST with 1 million keys has $20 \times 10^6$ bits, that is 2.5 MB of filter.
 
 The price of locality is a slightly higher FP. In return, each query has only one cache miss instead of 11.
 

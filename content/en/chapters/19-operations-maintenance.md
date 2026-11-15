@@ -261,7 +261,7 @@ base = 576 and budget = 424. There are four options:
 
 So A = 128 and B = 128 are chosen. In this example the result is the same as local rounding. The difference appears when local rounding would round both up and break the root's budget. The three-pass version could not see that. The dynamic threshold also allows a change from 256 to 512 without the 3x condition.
 
-![The four possible choices for rounding the two pools in the text's example. The height of each bar is the total distance of the rounded values from the target. The grey option exceeds the budget of 424 extra PG replicas and is excluded. The green option has the lowest cost and is chosen. Instead of trying all 2^n combinations, dynamic programming keeps only the possible sums of extra PGs](figures/ch19/f06_knap.png){#fig-19-f06_knap}
+![The four possible choices for rounding the two pools in the text's example. The height of each bar is the total distance of the rounded values from the target. The grey option exceeds the budget of 424 extra PG replicas and is excluded. The green option has the lowest cost and is chosen. Instead of trying all 2ⁿ combinations, dynamic programming keeps only the possible sums of extra PGs](figures/ch19/f06_knap.png){#fig-19-f06_knap}
 
 ::: {.warn}
 **Version-dependent.** This algorithm does not exist at tag v20.2.0 and is present at v21.2.0. In the same version the default `mon_target_pg_per_osd` also went from 100 to 200, so after the upgrade both the budget and the rounding method change. In the main branch, the `pg_num_min` floor is read from `osd_pool_default_pg_num` instead of the constant PG_NUM_MIN = 32. Check your own version before relying on it.
@@ -286,7 +286,7 @@ loop (max times): overfull = {dev > 5} , underfull = {dev < −5}
 
 **Numerical example.** We have six OSDs with weights 1, 1, 1, 1, 2 and 2 (total 8) and 384 PG replicas (128 PGs × size 3), so pgs_per_weight = 48. The weight-1 OSDs have a target of 48 and the weight-2 ones 96. The current counts are 55, 41, 50, 46, 100 and 92, so the deviations are +7, −7, +2, −2, +4 and −4.
 
-- **bal_score** = 2×(7/48)^2 + 2×(2/48)^2 + 4×(4/96)^2 = 0.0530.
+- **bal_score** = $2 \times (7/48)^2 + 2 \times (2/48)^2 + 4 \times (4/96)^2 = 0.0530$.
 - **First move**, one PG from osd.0 to osd.1: deviation ±6 and score 0.0417.
 - **Second move:** ±5 and score 0.0321.
 

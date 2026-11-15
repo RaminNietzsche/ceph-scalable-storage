@@ -43,7 +43,7 @@ thread t of that shard: dequeue ⇒ PG lock ⇒ do_op
 only a thread with thread_index < num_shards also drains the context (oncommit) queue
 ```
 
-**Numerical example.** An OSD in a cluster with 100 OSDs and a pool with pg_num=256 and size=3 has about 256×3/100 ≈ 7.7 PGs, of which about 2.6 are primary. With 8 shards, the probability that two primary PGs land in one shard is high (the birthday problem: for three PGs in 8 slots, 1 − (8×7×6)/8³ ≈ 34%). When one PG carries most of the load (for example a busy RBD image), **at most** two threads work on it, because the PG lock limits parallel execution of one PG's ops. That is why increasing `osd_op_num_threads_per_shard` does not help a hot PG. Increasing pg_num (and so splitting the hot data) is the real solution.
+**Numerical example.** An OSD in a cluster with 100 OSDs and a pool with pg_num=256 and size=3 has about 256×3/100 ≈ 7.7 PGs, of which about 2.6 are primary. With 8 shards, the probability that two primary PGs land in one shard is high (the birthday problem: for three PGs in 8 slots, $1 - (8 \times 7 \times 6)/8^3 \approx 34\%$). When one PG carries most of the load (for example a busy RBD image), **at most** two threads work on it, because the PG lock limits parallel execution of one PG's ops. That is why increasing `osd_op_num_threads_per_shard` does not help a hot PG. Increasing pg_num (and so splitting the hot data) is the real solution.
 
 ::: {.note}
 **Version-dependent.** The HDD default in v19.2.0 was five shards with one thread, and since v19.2.1 it is one shard with five threads (chapter 21). The shard options are read only when the OSD starts, and changing them requires a restart.

@@ -44,7 +44,7 @@ In EC, data is split into **k data chunks**, and **m parity chunks** are compute
 
 ## The mathematics in plain terms {#sec-13-2-2}
 
-Reed-Solomon codes (which ISA-L and Jerasure implement) work over a **Galois field** (usually GF(2^8)): each byte is a field element, and addition is XOR. Treat k data bytes as a vector d; the shards are the product of a (k+m)×k generator matrix G and d. The first k rows of G are the identity matrix (so the data shards are the data itself), and the next m rows are the parity coefficients. To rebuild, we take the k×k submatrix that corresponds to any k available shards and invert it. The condition for this to work is that **every** k×k submatrix is invertible; Vandermonde (`reed_sol_van`) and Cauchy (`cauchy`) matrices have this property.
+Reed-Solomon codes (which ISA-L and Jerasure implement) work over a **Galois field** (usually $\mathrm{GF}(2^8)$): each byte is a field element, and addition is XOR. Treat k data bytes as a vector d; the shards are the product of a (k+m)×k generator matrix G and d. The first k rows of G are the identity matrix (so the data shards are the data itself), and the next m rows are the parity coefficients. To rebuild, we take the k×k submatrix that corresponds to any k available shards and invert it. The condition for this to work is that **every** k×k submatrix is invertible; Vandermonde (`reed_sol_van`) and Cauchy (`cauchy`) matrices have this property.
 
 ```text
 shard_i = Σ_j  G[i][j] ⊗ d_j      (⊗ multiplication in GF(2^8), Σ is XOR)
@@ -244,7 +244,7 @@ PG names in EC have a shard suffix: `5.1as2` means shard 2 of PG 5.1a. This suff
 
 # Erasure coding by the numbers: the Reed-Solomon matrix, the MDS limit, parity-delta updates and the cost of rebuilding {#sec-13-9}
 
-This section runs the mathematics behind the ISA plugin on real bytes. References are to src/erasure-code/isa in main (November 2026) and to the gf_gen_rs_matrix function in the ISA-L library (erasure_code/ec_base.c). GF(2^8) arithmetic with the polynomial 0x11d was reimplemented in Python and checked against the gff_base table in ISA-L.
+This section runs the mathematics behind the ISA plugin on real bytes. References are to src/erasure-code/isa in main (November 2026) and to the gf_gen_rs_matrix function in the ISA-L library (erasure_code/ec_base.c). $\mathrm{GF}(2^8)$ arithmetic with the polynomial 0x11d was reimplemented in Python and checked against the gff_base table in ISA-L.
 
 ## Encoding and decoding one byte column {#sec-13-9-1}
 
@@ -262,7 +262,7 @@ decoding: choose k healthy rows ← B ; d = B⁻¹ × (healthy shards)
 
 **Numerical example (k = 4, m = 2, the bytes "ABCD").** Row P0 is all ones, so P0 = 0x41 ⊕ 0x42 ⊕ 0x43 ⊕ 0x44 = 0x04. Row P1 is 1, 2, 4 and 8: 2 ⊗ 0x42 = 0x84, 4 ⊗ 0x43 = 0x11 and 8 ⊗ 0x44 = 0x1a, so P1 = 0xce. If d1 and d3 are lost, the rows d0, d2, P0 and P1 form a 4×4 matrix whose inverse gives back 0x42 and 0x44. All 15 cases of losing two shards in 4+2 can be decoded.
 
-![Reed-Solomon encoding of one byte column. Left: the 6×4 matrix built with gf_gen_rs_matrix, containing the identity for the data and two parity rows. Right: computing P0 and P1 for "ABCD" and decoding after losing d1 and d3. The multiplications are in GF(2^8) with the polynomial 0x11d](figures/ch13/f09_gfencode.png){#fig-13-f09_gfencode}
+![Reed-Solomon encoding of one byte column. Left: the 6×4 matrix built with gf_gen_rs_matrix, containing the identity for the data and two parity rows. Right: computing P0 and P1 for "ABCD" and decoding after losing d1 and d3. The multiplications are in GF(2⁸) with the polynomial 0x11d](figures/ch13/f09_gfencode.png){#fig-13-f09_gfencode}
 
 ## Why does ISA sometimes fall back to Cauchy? {#sec-13-9-2}
 
@@ -303,7 +303,7 @@ choice in the OSD (ec_pdw_write_mode = 0):
 
 ## The cost of rebuilding one shard: RS, LRC and CLAY {#sec-13-9-4}
 
-::: {.algo #alg-13-4 title="The read volume for rebuilding one chunk" src="src/erasure-code/clay/ErasureCodeClay.cc :: parse (q = d − k + 1, t = (k+m+nu)/q, sub_chunk_no = q^t); src/erasure-code/lrc" complexity="O(1)"}
+::: {.algo #alg-13-4 title="The read volume for rebuilding one chunk" src="src/erasure-code/clay/ErasureCodeClay.cc :: parse (q = d − k + 1, t = (k+m+nu)/q, sub_chunk_no = qᵗ); src/erasure-code/lrc" complexity="O(1)"}
 :::
 
 ```text

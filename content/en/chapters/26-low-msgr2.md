@@ -233,7 +233,7 @@ reset_tx_handler(segments):
     if msgr2.1: nonce.counter += 1  else: nonce.fixed += 1   # msgr2.0: wraps after 2^32
 ```
 
-**Numerical example.** An OSD sending 10000 frames per second on one connection would, in msgr2.0, return to the initial nonce after 2^32 / 10^4 ≈ 429497 seconds (about 5 days), and the connection had to be reset. In msgr2.1 the 64-bit counter lasts 2^64 / 10^4 ≈ 5.8 × 10^7 years. GCM also allows at most about 64 GiB of data per nonce (2^32 blocks of 16 bytes), and msgr frames, with their segment limit, are far smaller than that.
+**Numerical example.** An OSD sending 10000 frames per second on one connection would, in msgr2.0, return to the initial nonce after $2^{32} / 10^4 \approx 429497$ seconds (about 5 days), and the connection had to be reset. In msgr2.1 the 64-bit counter lasts $2^{64} / 10^4 \approx 5.8 \times 10^7$ years. GCM also allows at most about 64 GiB of data per nonce ($2^{32}$ blocks of 16 bytes), and msgr frames, with their segment limit, are far smaller than that.
 
 # The EventCenter loop and waking up across threads {#sec-26-9}
 

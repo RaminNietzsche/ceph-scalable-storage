@@ -819,3 +819,7 @@ input, select, textarea, .sim input[type=number], .sim input[type=text], .sim se
   a { text-decoration: none; }
   html[data-theme="dark"] .hl * { color: #000 !important; }
 }
+/* inline math (KaTeX, pre-rendered at build time): always LTR and isolated inside RTL prose */
+.math { direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
+.math .katex { font-size: 1.06em; }
+html[data-theme="dark"] .math .katex { color: inherit; }

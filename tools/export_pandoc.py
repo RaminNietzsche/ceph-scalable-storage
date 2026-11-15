@@ -101,6 +101,8 @@ pandoc = os.environ.get('PANDOC') or shutil.which('pandoc') or os.path.expanduse
 cmd = [pandoc, src, '-o', out, '--from', 'markdown+fenced_divs+pipe_tables+yaml_metadata_block', '--toc', '--toc-depth=2',
        '--lua-filter', os.path.join(ROOT, 'templates', 'pandoc', 'book.lua'), '--resource-path', ROOT]
 if a.format in ('html', 'epub'):
+    cmd += ['--mathml']  # $...$ -> MathML, no JavaScript or CDN (docx gets native OMML equations)
+if a.format in ('html', 'epub'):
     cmd += ['--css', os.path.join(ROOT, 'templates', 'pandoc', f'html.{a.lang}.css')]
 if a.format == 'html':
     cmd += ['--standalone', '--embed-resources']

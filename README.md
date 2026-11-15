@@ -20,13 +20,13 @@ algorithm boxes, and is built from Markdown sources with one `make` command.
 
 <div dir="rtl">
 
-**پیش‌نیازها:** Python 3.11 یا جدیدتر، GNU Make، Pandoc 3.6 (برای HTML، EPUB و DOCX)، Node.js 20 یا جدیدتر (فقط برای markdownlint و رندر شکل‌های Mermaid)، Chrome یا Chromium (فقط برای رندر دوباره‌ی شکل‌ها و جلد)، و فونت‌های Vazirmatn، Inter، Source Serif و JetBrains Mono.
+**پیش‌نیازها:** Python 3.11 یا جدیدتر، GNU Make، Pandoc 3.6 (برای HTML، EPUB و DOCX)، Node.js 20 یا جدیدتر (برای رندر فرمول‌ها با KaTeX، و markdownlint و رندر شکل‌های Mermaid)، Chrome یا Chromium (فقط برای رندر دوباره‌ی شکل‌ها و جلد)، و فونت‌های Vazirmatn، Inter، Source Serif و JetBrains Mono.
 
 </div>
 
 ```sh
 python3 -m pip install -r requirements.txt   # WeasyPrint, Matplotlib, PyYAML, Pygments, codespell
-npm install                                  # markdownlint-cli2, mermaid-cli (optional)
+npm install                                  # KaTeX (math, required), markdownlint-cli2, mermaid-cli (optional)
 make html                                    # web book for LANG; fetches missing fonts on first run (make fonts)
 make pdf                                     # build/fa/ceph-scalable-storage-fa.pdf
 make site                                    # web book, fa and en: build/site/index.html

@@ -147,7 +147,7 @@ rbd --cluster site-a mirror image resync vmpool/db01
 
 کتابخانه‌ی `src/journal/` یک journal عمومی روی RADOS است و librbd فقط یکی از مصرف‌کننده‌های آن است. هر تصویر یک **شیء سرآیند** با نام `journal.<image_id>` دارد که در omap آن order (اندازه‌ی شیء)، splay_width، شماره‌ی set فعال، فهرست clientها (مثل rbd-mirror هر peer) و موقعیت commit هرکدام نگه داشته می‌شود. داده در اشیایی با نام `journal_data.<pool_id>.<image_id>.<n>` نوشته می‌شود (ثابت‌های `JOURNAL_HEADER_PREFIX` و `JOURNAL_OBJECT_PREFIX` در `Journaler.cc`).
 
-![چیدمان journal یک تصویر RBD. سرآیند در omap شیء journal.<id> قرار دارد. داده در setهایی از splay_width شیء است و هر entry بر اساس entry_tid % splay_width در یکی از اشیای set فعال append می‌شود. وقتی یکی از اشیا به اندازه‌ی 2^order برسد، کل set بسته و set بعدی فعال می‌شود. setهایی که همه‌ی clientها از آن‌ها گذشته‌اند حذف می‌شوند](figures/ch18/f06_journal.png){#fig-18-f06_journal}
+![چیدمان journal یک تصویر RBD. سرآیند در omap شیء journal.<id> قرار دارد. داده در setهایی از splay_width شیء است و هر entry بر اساس entry_tid % splay_width در یکی از اشیای set فعال append می‌شود. وقتی یکی از اشیا به اندازه‌ی $2^{\mathit{order}}$ برسد، کل set بسته و set بعدی فعال می‌شود. setهایی که همه‌ی clientها از آن‌ها گذشته‌اند حذف می‌شوند](figures/ch18/f06_journal.png){#fig-18-f06_journal}
 
 در `JournalRecorder.cc` دو رابطه‌ی ساده همه‌چیز را تعیین می‌کنند:
 

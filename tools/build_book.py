@@ -59,8 +59,32 @@ for it in REFDATA:
 TOOL_DESC = yaml.safe_load(open(os.path.join(C, 'data', 'tools.yaml'), encoding='utf-8')) or {}
 
 # ---------- inline ----------
+# Inline TeX math: $...$ (no space inside the delimiters, closing $ not followed by a digit).
+# inline() emits a placeholder; render_math() renders all formulas in one KaTeX call at the end.
+MATH_RE = r'\$(?=\S)[^$\n]+?(?<=\S)\$(?!\d)'
+MATHS = []
+
+
+def math_ph(tex):
+    MATHS.append(tex)
+    return f'\ue000{len(MATHS) - 1}\ue001'
+
+
+from booklib.mathtext import tex_plain  # noqa: E402
+
+
+def render_math(doc):
+    if not MATHS:
+        return doc
+    import subprocess
+    res = subprocess.run(['node', os.path.join(ROOT, 'tools', 'render_math.mjs')], input=json.dumps(MATHS),
+                         capture_output=True, text=True, check=True)
+    out = json.loads(res.stdout)
+    return re.sub('\ue000(\\d+)\ue001', lambda m: f'<span class="math" dir="ltr" data-plain="{html.escape(tex_plain(MATHS[int(m.group(1))]))}">' + out[int(m.group(1))] + '</span>', doc)
+
+
 LATIN = re.compile(r"[A-Za-z][A-Za-z0-9_./:\-+#@&'=~*<>\[\]{}\"]*(?:(?: |\(|\) ?|, )[A-Za-z0-9\"'(][A-Za-z0-9_./:\-+#@&'=~*<>\[\]{}\"]*)*")
-TOK = re.compile(r'(\*\*[^*]+\*\*|`[^`]+`)')
+TOK = re.compile(r'(\*\*[^*]+\*\*|`[^`]+`|' + MATH_RE + ')')
 
 
 def prose(t):
@@ -97,7 +121,9 @@ def inline(t):
         if not p:
             continue
         if p.startswith('**') and p.endswith('**') and len(p) > 4:
-            r.append('<strong>' + prose(p[2:-2]) + '</strong>')
+            r.append('<strong>' + inline(p[2:-2]) + '</strong>')
+        elif p.startswith('$') and p.endswith('$') and re.fullmatch(MATH_RE, p):
+            r.append(RLM + math_ph(p[1:-1]) + RLM)
         elif p.startswith('`') and p.endswith('`') and len(p) > 2:
             c = p[1:-1]
             cls = ' class="nw"' if len(c) <= 26 else ''
@@ -567,8 +593,12 @@ front = tmpl.substitute(cover='file://' + cover, book=BOOK, preface=pref, toc=''
                         technical_basis=META['technical_basis'])
 back = f'<div class="backpg"><img src="file://{backimg}"/></div>'
 css = open(os.path.join(ROOT, 'templates', 'css', f'book.{LANG}.css'), encoding='utf-8').read()
+if MATHS:  # KaTeX styles and fonts (vendored, offline) for the inline formulas
+    KX = os.path.join(ROOT, 'templates', 'vendor', 'katex')
+    css += '\n' + open(os.path.join(KX, 'katex.min.css'), encoding='utf-8').read().replace('url(fonts/', f'url(file://{KX}/fonts/')
+    css += '\n.math { direction: ltr; unicode-bidi: isolate; white-space: nowrap; } .math .katex { font-size: 1.05em; }\n'
 doc = f'<!doctype html><html lang="{LANG}" dir="{META["dir"]}"><head><meta charset="utf-8"><title>{BOOK}</title><style>{css}</style></head><body>\n{front}\n<div id="mainstart"></div>{"".join(body)}{"".join(app)}{back}</body></html>'
-open(os.path.join(OUT, 'book.html'), 'w', encoding='utf-8').write(doc)
+open(os.path.join(OUT, 'book.html'), 'w', encoding='utf-8').write(render_math(doc))
 
 # ---------- markdown export ----------
 md = [f'# {BOOK}\n\n{UI["md_title_line"]}\n\n{UI["md_byline"].format(version=META["version_display"], date=META["date_display"])}\n',

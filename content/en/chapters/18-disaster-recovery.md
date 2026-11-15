@@ -147,7 +147,7 @@ After a forced promote, if site A returns and its image is still primary, we hav
 
 The `src/journal/` library is a general-purpose journal on RADOS, and librbd is only one of its consumers. Each image has a **header object** named `journal.<image_id>`, whose omap holds the order (object size), splay_width, the active set number, the list of clients (such as each peer's rbd-mirror) and each one's commit position. Data is written to objects named `journal_data.<pool_id>.<image_id>.<n>` (the constants `JOURNAL_HEADER_PREFIX` and `JOURNAL_OBJECT_PREFIX` in `Journaler.cc`).
 
-![The journal layout of an RBD image. The header is in the omap of the journal.<id> object. Data is in sets of splay_width objects, and each entry is appended to one of the active set's objects according to entry_tid % splay_width. When one of the objects reaches 2^order bytes, the whole set is closed and the next set becomes active. Sets that all clients have passed are deleted](figures/ch18/f06_journal.png){#fig-18-f06_journal}
+![The journal layout of an RBD image. The header is in the omap of the journal.<id> object. Data is in sets of splay_width objects, and each entry is appended to one of the active set's objects according to entry_tid % splay_width. When one of the objects reaches $2^{\mathit{order}}$ bytes, the whole set is closed and the next set becomes active. Sets that all clients have passed are deleted](figures/ch18/f06_journal.png){#fig-18-f06_journal}
 
 In `JournalRecorder.cc`, two simple relations determine everything:
 
