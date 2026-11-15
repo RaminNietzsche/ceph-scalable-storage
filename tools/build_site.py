@@ -466,7 +466,7 @@ ids['lof'] = ('figures', '')
 # Every chapter number links to the first section of that chapter that uses the term.
 from booklib import bookindex  # noqa: E402
 _GL = yaml.safe_load(open(os.path.join(ROOT, 'glossary', 'glossary.yaml'), encoding='utf-8'))
-FA_TERM = {g['term']: g.get('fa_term') for g in _GL}
+FA_TERM = {g['term']: g['fa_term'] for g in _GL if re.match('[\u0600-\u06FF]', g.get('fa_term') or '')}  # Persian-initial only
 IXOCC = bookindex.build(ROOT, [g['term'] for g in _GL])
 chap_slug = {p.chap: p.slug for p in pages if p.chap}
 SEP = UI['list_sep']

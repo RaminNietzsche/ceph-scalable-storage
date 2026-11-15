@@ -156,7 +156,12 @@ for lang in ('fa', 'en'):
         FAN.append(len(fa_terms))
         if fa_terms != sorted(fa_terms, key=bookindex.fa_key):
             problems.append('fa/book-index: Persian entries are not in Persian alphabetical order')
-        if not main.select_one('#ix-latin'):
+        lat = main.select_one('#ix-latin')
+        for h in main.select('h3.ix-letter'):
+            before_latin = lat is not None and h.find_previous('h2', id='ix-latin') is None
+            if before_latin and not re.fullmatch('[\u0600-\u06FF]', h.get_text()):
+                problems.append(f'fa/book-index: Persian letter group headed {h.get_text()!r}')
+        if not lat:
             problems.append('fa/book-index: no Latin section')
         for li in main.select('ul.ixlist li'):
             t = li.select_one('.ixe')

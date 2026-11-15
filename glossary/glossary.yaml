@@ -1,5 +1,5 @@
 # Bilingual glossary: single source for both editions.
-# term: English term (index key); fa_term: Persian equivalent shown in the fa index (optional); fa: Persian definition; en: English definition.
+# term: English term (index key); fa_term: Persian equivalent shown in the fa index (optional; must start with a Persian letter, otherwise the term is listed in the Latin section); fa: Persian definition; en: English definition.
 - term: SPDK
   fa: کیت توسعه‌ی کارایی ذخیره‌سازی؛ راه‌انداز NVMe در فضای کاربر با polling که BlueStore و Crimson می‌توانند به‌جای هسته به کار ببرند
   en: Storage Performance Development Kit; a user-space, polling NVMe driver that BlueStore and Crimson can use instead of the kernel
@@ -264,7 +264,6 @@
   fa: فضای منطقی با سیاست تکثیر، قاعده‌ی CRUSH و تعداد PG مستقل
   en: A logical space with its own replication policy, CRUSH rule and PG count
 - term: Primary OSD
-  fa_term: OSD اصلی
   fa: OSD نخست acting set که درخواست‌های کلاینت را هماهنگ می‌کند
   en: The first OSD of the acting set, which coordinates client requests
 - term: Primary affinity
