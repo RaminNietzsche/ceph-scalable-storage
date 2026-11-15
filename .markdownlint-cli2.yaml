@@ -30,3 +30,4 @@ ignores:
   - "build/**"
   - "dist/**"
   - "node_modules/**"
+  - "ROADMAP.internal.md"   # private notes, never committed (.git/info/exclude)
