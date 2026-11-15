@@ -103,7 +103,8 @@ tools/                        build, export, render and check scripts (Python, e
 
 ## Writing conventions (short)
 
-The full guide is in [CONTRIBUTING.md](CONTRIBUTING.md).
+The full guide is in [CONTRIBUTING.md](CONTRIBUTING.md). Planned additions, including the
+gaps found against a 2016 Ceph book, are listed in [ROADMAP.md](ROADMAP.md).
 
 - Callouts are fenced divs: `::: {.tip}`, `.warn`, `.note`, `.try`, `.deep`,
   `.debug`, `.box`, `.summary`.
