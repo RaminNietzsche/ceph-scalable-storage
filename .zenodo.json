@@ -1,0 +1,34 @@
+{
+  "title": "The Comprehensive Ceph Guide: Designing, Implementing and Operating Scalable Storage — from the Code to Operations",
+  "upload_type": "publication",
+  "publication_type": "book",
+  "description": "<p>An open book on Ceph, the software-defined storage system, in Persian (راهنمای جامع Ceph) and English. It covers architecture and planning, RBD, RGW and CephFS, cluster operations, CRUSH, BlueStore, erasure coding, librados, monitoring, troubleshooting, disaster recovery and performance tuning, and then follows the code down to the lower layers (bufferlist, BlueFS, RocksDB, msgr2, erasure-coding math, CRUSH at the bit level, kernel clients, Crimson, SPDK, scrub and recovery) and the internals of RADOS, RBD and RGW. Commands are labelled with the Ceph release they need (Reef, Squid, Tentacle).</p><p>Each archived version is the source of one release; the PDF, EPUB, DOCX and HTML editions of both languages are attached to the matching GitHub Release. Web edition: <a href=\"https://book.ceph-s3.ir\">https://book.ceph-s3.ir</a>.</p>",
+  "creators": [
+    {
+      "name": "Najarbashi, Ramin",
+      "orcid": "0009-0000-7622-8130"
+    }
+  ],
+  "license": "cc-by-nc-sa-4.0",
+  "access_right": "open",
+  "language": "fas",
+  "keywords": [
+    "Ceph",
+    "software-defined storage",
+    "distributed storage",
+    "object storage",
+    "block storage",
+    "file systems",
+    "RADOS",
+    "CRUSH",
+    "BlueStore",
+    "erasure coding",
+    "RGW",
+    "RBD",
+    "CephFS",
+    "storage operations",
+    "Persian",
+    "open educational resources"
+  ],
+  "notes": "Bilingual book: Persian (primary edition) and English. Source: https://github.com/RaminNietzsche/ceph-scalable-storage"
+}

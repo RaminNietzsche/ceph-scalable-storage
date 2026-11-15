@@ -1,0 +1,159 @@
+# Checks, the web edition on GitHub Pages (https://book.ceph-s3.ir), and PDF/EPUB artifacts.
+#
+# Repository settings this workflow expects (see docs/PUBLISHING.md):
+#   Settings → Pages → Source: GitHub Actions; custom domain book.ceph-s3.ir
+#   Settings → Secrets and variables → Actions → Variables:
+#     CF_BEACON_TOKEN    Cloudflare Web Analytics token (public, but kept out of the repository)
+#     FEEDBACK_ENDPOINT  optional, https URL that receives "Was this section helpful?" votes
+#     NEWSLETTER_ACTION  optional, https URL of a newsletter signup form
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SITE_URL: https://book.ceph-s3.ir
+  PUPPETEER_SKIP_DOWNLOAD: "true"
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install tools
+        run: |
+          pip install -r requirements.txt
+          npm install --no-audit --no-fund
+          echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: make check (lint, spell, refs, links, parity, release labels, TL;DR, simulators, publishing metadata)
+        run: make check
+
+  site:
+    needs: check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install tools
+        run: |
+          pip install -r requirements.txt
+          npm install --no-audit --no-fund
+      - name: Build and check the web edition (figures are committed)
+        env:
+          # analytics, feedback and newsletter only for the deployed site, never for pull requests
+          CF_BEACON_TOKEN: ${{ github.event_name != 'pull_request' && vars.CF_BEACON_TOKEN || '' }}
+          FEEDBACK_ENDPOINT: ${{ github.event_name != 'pull_request' && vars.FEEDBACK_ENDPOINT || '' }}
+          NEWSLETTER_ACTION: ${{ github.event_name != 'pull_request' && vars.NEWSLETTER_ACTION || '' }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          CNAME: book.ceph-s3.ir
+        run: |
+          mkdir -p build && touch build/.figures.stamp
+          make site
+          make check-site
+          test "$(cat build/site/CNAME)" = "book.ceph-s3.ir"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/site
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: site
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  pdf:
+    needs: check
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [fa, en]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: System packages and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 fonts-dejavu-core
+          tools/install_fonts.sh
+      - name: Python packages
+        run: pip install -r requirements.txt
+      - name: Build PDF (figures are committed; KaTeX from the vendored copy)
+        run: |
+          mkdir -p build && touch build/.figures.stamp
+          make pdf LANG=${{ matrix.lang }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ceph-scalable-storage-${{ matrix.lang }}-pdf
+          path: build/${{ matrix.lang }}/ceph-scalable-storage-${{ matrix.lang }}.pdf
+          if-no-files-found: error
+
+  ebooks:
+    needs: check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Pandoc
+        run: |
+          curl -fsSL -o pandoc.deb https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-1-amd64.deb
+          sudo dpkg -i pandoc.deb
+      - run: pip install -r requirements.txt
+      - name: Single-file HTML / EPUB / DOCX for both editions
+        run: |
+          mkdir -p build && touch build/.figures.stamp
+          for l in fa en; do make LANG=$l html-single epub docx; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ceph-scalable-storage-ebooks
+          path: |
+            build/*/ceph-scalable-storage-*.html
+            build/*/ceph-scalable-storage-*.epub
+            build/*/ceph-scalable-storage-*.docx
+          if-no-files-found: error

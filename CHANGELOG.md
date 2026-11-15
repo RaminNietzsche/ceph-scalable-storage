@@ -7,6 +7,12 @@ restructures the book.
 
 ## [Unreleased]
 
+### Publishing
+
+- CI (`.github/workflows/ci.yml`, replacing `build.yml`): `make check`, the web edition built for `https://book.ceph-s3.ir` (analytics token from the repository variable `CF_BEACON_TOKEN`, `CNAME` in the output) and deployed to GitHub Pages with `actions/deploy-pages`, plus PDF/EPUB/DOCX artifacts.
+- Release workflow (`.github/workflows/release.yml`): a `v*` tag builds the PDFs, EPUB, DOCX and single-file HTML of both editions and attaches them, with checksums and the CHANGELOG notes, to a GitHub Release.
+- `.zenodo.json` (book, CC BY-NC-SA 4.0, ORCID, keywords) for a DOI per release through the Zenodo GitHub integration, and `CITATION.cff`; `make check-publish` keeps them in step with the book version. `docs/PUBLISHING.md` lists the repository, Pages, DNS, Cloudflare and Zenodo settings.
+
 ### Web edition: edit link, feedback, release notices, analytics
 
 - "Edit this page" / «ویرایش این صفحه» on every chapter opens the chapter's Markdown source on GitHub (`REPO_URL/edit/main/content/<lang>/chapters/<file>.md`; `REPO_URL` and `REPO_BRANCH` are build options).

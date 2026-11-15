@@ -72,10 +72,17 @@ edition is `fa`.
 | `check-refs` | Figure, ALGO, section and answer cross-references resolve |
 | `check-links` / `check-links-online` | URL syntax and `https`; `-online` also fetches |
 | `check-parity` | `fa` and `en` have the same chapters, figure ids, ALGO ids and section anchors |
+| `check-versions` / `check-tldr` / `check-publish` | Release labels (`{since=...}`) agree in fa and en and the release-changes data is complete / every chapter opens with a 3–5 bullet TL;DR / `.zenodo.json` and `CITATION.cff` match the book version |
 | `check` | All offline checks |
 | `sync-translations` | Create English placeholders for new Persian files |
 | `stats` | Counts (chapters, figures, algorithms, references, answers) |
 | `clean` / `distclean` / `dist` | Housekeeping; `dist` collects outputs and a `git archive` |
+
+Web-edition options (edit links, feedback endpoint, newsletter form, cookie-less analytics,
+custom domain) are read from the environment at build time, for example
+`make site SITE_URL=https://book.ceph-s3.ir CF_BEACON_TOKEN=…`; none is stored in the
+repository. CI, GitHub Pages, releases, Zenodo DOIs and DNS are described in
+[docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Layout
 
@@ -95,6 +102,7 @@ figures/
   data/                       raw measurement/simulation data used by the plots
 glossary/glossary.yaml        bilingual glossary (single source)
 references/references.json    CSL-JSON bibliography (curated official sources)
+references/ceph-release-changes.yaml  changes per Ceph release (appendix H) for the release labels
 templates/                    html front matter, print CSS (RTL/LTR), cover, Pandoc filter/CSS,
                               site/ (web book page template, CSS, JS, UI strings)
 assets/                       rendered covers

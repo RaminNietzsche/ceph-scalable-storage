@@ -1,0 +1,42 @@
+# Citation metadata (Citation File Format 1.2.0). GitHub shows "Cite this repository" from it.
+# After the first Zenodo release, add the concept DOI (all versions) under `doi` and
+# `preferred-citation.doi`; see docs/PUBLISHING.md.
+cff-version: 1.2.0
+message: "If you use this book, please cite it as below."
+title: "The Comprehensive Ceph Guide: Designing, Implementing and Operating Scalable Storage — from the Code to Operations"
+type: software
+authors:
+  - family-names: Najarbashi
+    given-names: Ramin
+    orcid: "https://orcid.org/0009-0000-7622-8130"
+version: "1.6"
+date-released: "2026-11-15"
+license: CC-BY-NC-SA-4.0
+url: "https://book.ceph-s3.ir"
+repository-code: "https://github.com/RaminNietzsche/ceph-scalable-storage"
+abstract: >-
+  An open, bilingual (Persian and English) book on Ceph: architecture, RBD, RGW and
+  CephFS, operations, CRUSH, BlueStore, erasure coding, monitoring, troubleshooting,
+  disaster recovery and performance, down to the code-level internals of RADOS, RBD and RGW.
+keywords:
+  - Ceph
+  - software-defined storage
+  - distributed storage
+  - RADOS
+  - CRUSH
+  - BlueStore
+  - erasure coding
+preferred-citation:
+  type: book
+  title: "The Comprehensive Ceph Guide: Designing, Implementing and Operating Scalable Storage — from the Code to Operations"
+  authors:
+    - family-names: Najarbashi
+      given-names: Ramin
+      orcid: "https://orcid.org/0009-0000-7622-8130"
+  year: 2026
+  edition: "1.6"
+  url: "https://book.ceph-s3.ir"
+  license: CC-BY-NC-SA-4.0
+  languages:
+    - fas
+    - eng

@@ -1,0 +1,128 @@
+# On a version tag (v1.7, v2.0, ...): build the PDF, EPUB, DOCX and single-file HTML of both
+# editions and attach them to a GitHub Release. With the Zenodo GitHub integration switched on
+# for this repository, every published release is archived on Zenodo and gets its own DOI
+# (metadata from .zenodo.json). See docs/PUBLISHING.md.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "existing tag to (re)build, e.g. v1.7"
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  PUPPETEER_SKIP_DOWNLOAD: "true"
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install PyYAML==6.0.3
+      - name: The tag matches the book version, CHANGELOG, CITATION.cff and .zenodo.json
+        run: python3 tools/check_publish.py --tag "$TAG"
+
+  pdf:
+    needs: verify
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: true
+      matrix:
+        lang: [fa, en]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: System packages and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 fonts-dejavu-core
+          tools/install_fonts.sh
+      - run: pip install -r requirements.txt
+      - name: Build PDF
+        run: |
+          mkdir -p build && touch build/.figures.stamp
+          make pdf LANG=${{ matrix.lang }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf-${{ matrix.lang }}
+          path: build/${{ matrix.lang }}/ceph-scalable-storage-${{ matrix.lang }}.pdf
+          if-no-files-found: error
+
+  ebooks:
+    needs: verify
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Pandoc
+        run: |
+          curl -fsSL -o pandoc.deb https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-1-amd64.deb
+          sudo dpkg -i pandoc.deb
+      - run: pip install -r requirements.txt
+      - name: EPUB, DOCX and single-file HTML
+        run: |
+          mkdir -p build && touch build/.figures.stamp
+          for l in fa en; do make LANG=$l epub docx html-single; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ebooks
+          path: |
+            build/*/ceph-scalable-storage-*.epub
+            build/*/ceph-scalable-storage-*.docx
+            build/*/ceph-scalable-storage-*.html
+          if-no-files-found: error
+
+  release:
+    needs: [pdf, ebooks]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Release notes from CHANGELOG.md
+        run: python3 tools/release_notes.py "$TAG" > notes.md
+      - name: Create or update the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          files=$(find dist -type f \( -name '*.pdf' -o -name '*.epub' -o -name '*.docx' -o -name '*.html' \) | sort)
+          ( cd dist && find . -type f -print0 | sort -z | xargs -0 sha256sum ) > SHA256SUMS.txt
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" $files SHA256SUMS.txt --clobber
+          else
+            gh release create "$TAG" $files SHA256SUMS.txt --title "$TAG" --notes-file notes.md --verify-tag
+          fi

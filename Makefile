@@ -58,7 +58,7 @@ SITE_SRC    := tools/build_site.py tools/booklib/seo.py tools/booklib/siteconf.p
 WEBFIG_STAMP := build/webfig/.stamp
 
 .PHONY: help all pdf html epub docx book figures cover lint markdownlint spell \
-        check check-links check-links-online check-refs check-parity check-versions check-tldr check-sims \
+        check check-links check-links-online check-refs check-parity check-versions check-tldr check-publish check-sims \
         html-single site check-site shoot-site webfig fonts \
         sync-translations stats clean distclean dist
 
@@ -155,7 +155,10 @@ check-parity: ## fa and en have the same chapters, figure ids, ALGO ids, anchors
 check-sims: ## simulator math (CRUSH, autoscaler, Striper, ...) against Ceph's own code (tests/sims/golden.json)
 	node tests/sims/test_core.js
 
-check: lint spell check-refs check-links check-parity check-versions check-tldr check-sims ## all offline checks
+check: lint spell check-refs check-links check-parity check-versions check-tldr check-publish check-sims ## all offline checks
+
+check-publish: ## .zenodo.json and CITATION.cff are complete and match the book version
+	$(PYTHON) tools/check_publish.py
 
 check-tldr: ## every chapter opens with a 3-5 bullet TL;DR, fa and en in step
 	$(PYTHON) tools/check_tldr.py
