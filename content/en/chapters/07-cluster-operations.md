@@ -239,7 +239,7 @@ ceph orch upgrade stop
 
 cephadm lets you limit an upgrade to a specific daemon type, service or host. Umbrella added the ability to upgrade OSDs **bucket by bucket** in CRUSH, which uses the new `ceph osd ok-to-upgrade` command to check which OSDs can be upgraded at the same time:
 
-```bash
+```bash {since=umbrella}
 ceph orch upgrade start --image quay.io/ceph/ceph:v21.2.0 --daemon-types mgr,mon
 ceph orch upgrade start --image quay.io/ceph/ceph:v21.2.0 --daemon-types osd --crush_bucket_type rack --crush_bucket_name rack-a
 ```

@@ -191,7 +191,7 @@ radosgw-admin user create --tenant=acme --uid=bob --display-name="Bob at ACME"
 
 از Squid، **account** مفهومی شبیه حساب AWS اضافه کرده است: یک account مالک کاربران، گروه‌ها، نقش‌ها و سیاست‌هاست و «کاربر ریشه»ی آن می‌تواند از طریق APIهای سازگار با IAM، بدون دخالت مدیر کلاستر، کاربران و کلیدها را مدیریت کند.
 
-```bash
+```bash {since=squid}
 radosgw-admin account create --account-name=acme --email=ops@acme.example
 radosgw-admin user create --uid=acme-root --display-name="ACME root" \
   --account-id=<account-id> --account-root --gen-secret --gen-access-key

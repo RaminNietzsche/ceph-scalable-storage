@@ -215,7 +215,7 @@ find_failover_candidate: first with the group's own location; if -ENOENT, with i
 
 # Practical commands {#sec-31-5}
 
-```bash
+```bash {since=tentacle}
 # the gateway (main documentation)
 ceph orch apply nvmeof POOL GROUP --placement="host01, host02"
 ceph nvmeof subsystem add --nqn nqn.2016-06.io.spdk:cnode1

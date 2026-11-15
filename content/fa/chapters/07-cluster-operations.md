@@ -239,7 +239,7 @@ ceph orch upgrade stop
 
 cephadm اجازه می‌دهد ارتقا را به نوع daemon، سرویس یا میزبان خاصی محدود کنید. در Umbrella امکان ارتقای OSDها **bucket به bucket** در CRUSH اضافه شده است که با دستور تازه‌ی `ceph osd ok-to-upgrade` بررسی می‌کند کدام OSDها را می‌توان هم‌زمان ارتقا داد:
 
-```bash
+```bash {since=umbrella}
 ceph orch upgrade start --image quay.io/ceph/ceph:v21.2.0 --daemon-types mgr,mon
 ceph orch upgrade start --image quay.io/ceph/ceph:v21.2.0 --daemon-types osd --crush_bucket_type rack --crush_bucket_name rack-a
 ```

@@ -215,7 +215,7 @@ find_failover_candidate: اول با location همان گروه؛ اگر -ENOENT
 
 # فرمان‌های عملی {#sec-31-5}
 
-```bash
+```bash {since=tentacle}
 # درگاه (مستند main)
 ceph orch apply nvmeof POOL GROUP --placement="host01, host02"
 ceph nvmeof subsystem add --nqn nqn.2016-06.io.spdk:cnode1

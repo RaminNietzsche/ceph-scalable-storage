@@ -254,7 +254,7 @@ The key point is that repair **has no separate mechanism for copying data**. It 
 
 # Commands and debugging {#sec-32-6}
 
-```bash
+```bash {since=squid}
 ceph pg deep-scrub 2.1f                    # an operator request (urgency operator_requested)
 ceph tell osd.4 dump_scrubs                # this OSD's scrub queue: targets, not_before and urgency
 ceph tell osd.4 dump_scrub_reservations    # local and remote reservations

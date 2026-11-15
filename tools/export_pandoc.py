@@ -25,6 +25,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 from booklib.mdlower import split_front_matter  # noqa: E402
 from booklib.structure import canonical_counts  # noqa: E402
+from booklib import cephver  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--lang', default='fa', choices=['fa', 'en'])
@@ -65,7 +66,22 @@ def body_of(path, shift=1, pending_title=None):
             elif shift and re.match(r'^#{1,5} ', l):
                 l = '#' * shift + l
         res.append(l)
-    return fm, res
+    return fm, release_fences(res)
+
+
+def release_fences(lines):
+    """Rewrite each command block's fence to Pandoc attribute syntax with its Ceph release label
+    (booklib.cephver: an explicit {since=...} or the Reef baseline); book.lua prints the label."""
+    out = list(lines)
+    for i, lang, attrs, body in cephver.blocks(lines):
+        since = cephver.since_of(lang, attrs, body)
+        cls = f'.{lang} ' if lang else ''
+        if since:
+            out[i] = (f'``` {{{cls}since="{since}" since-label="{cephver.label(since, a.lang)}" '
+                      f'since-title="{cephver.title(since, a.lang)}"}}')
+        elif attrs:
+            out[i] = '```' + lang
+    return out
 
 
 N_ALGO, N_FIG = canonical_counts(ROOT)
@@ -90,6 +106,18 @@ G = yaml.safe_load(open(os.path.join(ROOT, 'glossary', 'glossary.yaml'), encodin
 letter, title, _ = UI['app']['glossary']
 parts += ['', f'# {UI["appendix"]} {letter}: {title} {{.unnumbered}}', '', f'| {UI["glossary_cols"][0]} | {UI["glossary_cols"][1]} |', '|---|---|']
 parts += [f'| {g["term"]} | {(g.get(a.lang) or g.get("fa", "")).replace("|", "/")} |' for g in sorted(G, key=lambda g: g['term'].lower())]
+RC = yaml.safe_load(open(os.path.join(ROOT, 'references', 'ceph-release-changes.yaml'), encoding='utf-8'))
+letter, title, _ = UI['app']['changes']
+parts += ['', f'# {UI["appendix"]} {letter}: {title} {{#app-changes .unnumbered}}', '', UI['changes_intro'], '']
+for rk, ri in RC['releases'].items():
+    _, rname, rver = cephver.REL[rk]
+    parts += [f'## {rname} ({rver}) {{#rel-{rk} .unnumbered}}', '', UI['changes_release'].format(v=ri['version'], d=ri['date']) + f' <{ri["notes"]}>', '',
+              '| ' + ' | '.join(UI['changes_cols']) + ' |', '|---|---|---|---|']
+    for c in RC['changes']:
+        if c['rel'] == rk:
+            st = UI['changes_confirmed'] if c['status'] == 'confirmed' else UI['changes_review']
+            parts.append(f'| {c["area"]} | {c[a.lang].replace("|", "/")} | ' + ', '.join(f'[{UI["chapter_word"]} {num(n)}](#ch{n:02d})' for n in c['ch']) + f' | {st} |')
+    parts.append('')
 src = os.path.join(B, f'pandoc-{a.lang}.md')
 SIMSTR = yaml.safe_load(open(os.path.join(ROOT, 'templates', 'site', 'sims', f'strings-{a.lang}.yaml'), encoding='utf-8'))
 labels = {'algorithm': UI['algorithm'], 'algo_src': UI['algo_src'], 'algo_complexity': UI['algo_complexity'], **UI['callouts'],

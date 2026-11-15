@@ -150,6 +150,14 @@ def inline(t):
     return ''.join(r)
 
 
+# ---------- Ceph release labels on command blocks ----------
+from booklib import cephver  # noqa: E402
+
+
+def since_badge(key):
+    return f'<span class="since s-{key}" title="{esc(cephver.title(key, LANG))}">{esc(cephver.label(key, LANG))}</span>'
+
+
 # ---------- index anchors ----------
 from booklib import bookindex  # noqa: E402
 IX_MATCH = bookindex.matchers([g[0] for g in GLOSS])   # same whole-word rules as the web index
@@ -189,6 +197,7 @@ APPFIG = [0]
 ALGOS = []
 ANS = collections.defaultdict(list)
 BIB = collections.defaultdict(list)
+NEWER = []   # (chapter, release key, first command) of blocks labelled newer than the baseline
 
 
 def cells(row):
@@ -262,12 +271,16 @@ def render(lines, chap=None, md=None):
             i = j + 1
             continue
         if l.startswith('```'):
-            lang = l[3:].strip()
+            lang, fattrs = cephver.parse_fence(l) or (l[3:].strip(), {})
             j = i + 1
             buf = []
             while not lines[j].startswith('```'):
                 buf.append(lines[j])
                 j += 1
+            since = cephver.since_of(lang, fattrs, buf)
+            if chap and since and since != cephver.BASELINE:
+                first = next((re.sub(r'^\s*(?:[$#]\s+)?', '', b).split(' #')[0].rstrip() for b in buf if cephver.CMD.match(b)), buf[0] if buf else '')
+                NEWER.append((chap, since, first))
             if chap:
                 for b in buf:
                     s = b.strip()
@@ -275,11 +288,15 @@ def render(lines, chap=None, md=None):
                         s = s[2:]
                     m = re.match(r'(ceph-objectstore-tool|ceph-bluestore-tool|ceph-kvstore-tool|ceph-dencoder|ceph-volume|cephfs-journal-tool|radosgw-admin|osdmaptool|crushtool|monmaptool|cephadm|ceph|rados|rbd|kubectl)\s+(\S+)', s)
                     if m and not s.endswith(':'):
-                        cmds.append((m.group(1), m.group(2), s.split(' #')[0].rstrip(), chap))
+                        cmds.append((m.group(1), m.group(2), s.split(' #')[0].rstrip(), chap, since))
             cls = 'code long' if len(buf) > 28 else 'code'
             lab = f'<span class="lang">{esc(lang)}</span>' if lang else ''
-            H.append(f'<div class="{cls}">{lab}<pre>' + esc('\n'.join(buf)) + '</pre></div>')
-            mdw('\n```' + lang + '\n' + '\n'.join(buf) + '\n```\n')
+            ds = ''
+            if since:
+                ds = f' data-since="{since}"'
+                lab = since_badge(since) + lab
+            H.append(f'<div class="{cls}"{ds}>{lab}<pre>' + esc('\n'.join(buf)) + '</pre></div>')
+            mdw('\n```' + lang + '\n' + '\n'.join(buf) + '\n```\n' + (f'*{cephver.label(since, LANG)}: {cephver.title(since, LANG)}*\n' if since else ''))
             i = j + 1
             continue
         if l.startswith('!TABLE'):
@@ -496,12 +513,12 @@ MDA.append(f'\n\n# {UI["appendix"]} {letter}: {gtitle}\n\n| {UI["glossary_cols"]
 by = collections.OrderedDict()
 seen = set()
 order = ['ceph', 'rados', 'rbd', 'radosgw-admin', 'cephadm', 'ceph-volume', 'ceph-bluestore-tool', 'ceph-objectstore-tool', 'ceph-kvstore-tool', 'osdmaptool', 'crushtool', 'monmaptool', 'ceph-dencoder', 'cephfs-journal-tool', 'kubectl']
-for tool, sub, line, ch in cmds:
+for tool, sub, line, ch, since in cmds:
     key = re.sub(r'\s+', ' ', line)
     if key in seen or len(key) > 110:
         continue
     seen.add(key)
-    by.setdefault(tool, collections.OrderedDict()).setdefault(sub, []).append((key, ch))
+    by.setdefault(tool, collections.OrderedDict()).setdefault(sub, []).append((key, ch, since))
 letter, ctitle, cshort = A['cheatsheet']
 bh = [f'<section class="appendix" id="appB"><h1 class="ap-title" data-t="{UI["appendix"]} {letter} · {cshort}"><span class="apn">{UI["appendix"]} {letter}</span>{ctitle}</h1><p>{UI["cheatsheet_intro"]}</p>']
 MDA.append(f'\n\n# {UI["appendix"]} {letter}: {ctitle}\n')
@@ -512,9 +529,11 @@ for tool in sorted(by, key=lambda t: order.index(t) if t in order else 99):
     for sub in sorted(subs, key=lambda s: -len(subs[s])):
         bh.append(f'<tr class="subh"><td colspan="2"><span class="en">{esc(tool)} {esc(sub)}</span></td></tr>')
         MDA.append(f'\n**{tool} {sub}**\n')
-        for line, ch in subs[sub]:
-            bh.append(f'<tr><td class="cmd"><code>{esc(line)}</code></td><td class="chref">{UI["chapter_ref"].format(n=fa(ch))}</td></tr>')
-            MDA.append(f'- `{line}` ({UI["chapter_ref"].format(n=ch)})')
+        for line, ch, since in subs[sub]:
+            newer = since and since != cephver.BASELINE
+            bdg = ' ' + since_badge(since) if newer else ''
+            bh.append(f'<tr><td class="cmd"><code>{esc(line)}</code>{bdg}</td><td class="chref">{UI["chapter_ref"].format(n=fa(ch))}</td></tr>')
+            MDA.append(f'- `{line}` ({UI["chapter_ref"].format(n=ch)}' + (f'; {cephver.label(since, LANG)}' if newer else '') + ')')
     bh.append('</tbody></table>')
 bh.append('</section>')
 app.append('\n'.join(bh))
@@ -562,6 +581,33 @@ for k, (ch, aid, nm, src, cx) in enumerate(ALGOS):
     MDA.append(f'| {k + 1} | {nm} | `{src}` | {ch} |')
 alh.append('</tbody></table>')
 letter_sec('appH', 'algorithms', ''.join(alh))
+# ---------- appendix: changes in Reef, Squid and Tentacle (references/ceph-release-changes.yaml) ----------
+RC = yaml.safe_load(open(os.path.join(ROOT, 'references', 'ceph-release-changes.yaml'), encoding='utf-8'))
+cc = UI['changes_cols']
+chh = [f'<p>{inline(UI["changes_intro"])}</p>']
+MDA.append(f'\n\n# {UI["appendix"]} {A["changes"][0]}: {A["changes"][1]}\n\n{UI["changes_intro"]}\n')
+for rk, rinfo in RC['releases'].items():
+    n_, name_, ver_ = cephver.REL[rk]
+    rows = [c for c in RC['changes'] if c['rel'] == rk]
+    chh.append(f'<h2 id="rel-{rk}">{since_badge(rk)} <span class="en">{name_} ({ver_})</span></h2>'
+               f'<p class="rel-meta">{inline(UI["changes_release"].format(v=rinfo["version"], d=rinfo["date"]))} <a class="url" href="{rinfo["notes"]}">{esc(rinfo["notes"])}</a></p>'
+               f'<table class="relchg"><thead><tr>' + ''.join(f'<th>{x}</th>' for x in cc) + '</tr></thead><tbody>')
+    MDA.append(f'\n## {name_} ({ver_})\n\n{UI["changes_release"].format(v=rinfo["version"], d=rinfo["date"])} <{rinfo["notes"]}>\n\n| {" | ".join(cc)} |\n|---|---|---|---|')
+    for c in rows:
+        chl = UI['list_sep'].join(f'<a href="#ch{n}">{UI["chapter_word"]}&#160;{fa(n)}</a>' for n in c['ch'])
+        st = c['status']
+        stl = UI['changes_confirmed'] if st == 'confirmed' else UI['changes_review']
+        chh.append(f'<tr class="st-{st}"><td class="area"><span class="en">{esc(c["area"])}</span></td><td>{inline(c[LANG])}</td><td class="chref">{chl}</td><td class="st"><span class="st-{st}">{esc(stl)}</span></td></tr>')
+        MDA.append(f'| {c["area"]} | {c[LANG]} | {", ".join(str(n) for n in c["ch"])} | {stl} |')
+    chh.append('</tbody></table>')
+k1, k2, k3 = UI['changes_cmd_cols']
+chh.append(f'<h2 id="rel-labels">{inline(UI["changes_labels_title"])}</h2><p>{inline(UI["changes_badges"])}</p><table class="relcmd"><thead><tr><th>{k1}</th><th>{k2}</th><th>{k3}</th></tr></thead><tbody>')
+MDA.append(f'\n## {UI["changes_labels_title"]}\n\n{UI["changes_badges"]}\n\n| {k1} | {k2} | {k3} |\n|---|---|---|')
+for ch, since, first in NEWER:
+    chh.append(f'<tr><td>{since_badge(since)}</td><td class="cmd"><code>{esc(first)}</code></td><td class="chref"><a href="#ch{ch}">{UI["chapter_word"]}&#160;{fa(ch)}</a></td></tr>')
+    MDA.append(f'| {cephver.label(since, LANG)} | `{first}` | {ch} |')
+chh.append('</tbody></table>')
+letter_sec('appI', 'changes', ''.join(chh))
 json.dump({t: [(ch, a) for ch, a in v] for t, v in ix_hits.items()}, open(os.path.join(OUT, 'ix_hits.json'), 'w'))
 app.append(f'<section class="appendix index" id="index"><h1 class="ap-title" data-t="{UI["index"]}"><span class="apn">&nbsp;</span>{UI["index"]}</h1><p class="ixnote">{UI["index_note"]}</p><div class="ixcols"><!--INDEX--></div></section>')
 MDA.append(f'\n\n# {UI["index"]}\n\n{UI["index_md_note"]}\n')
@@ -585,7 +631,7 @@ for lvl, hid, num, txt, ch in toc:
         toc_html.append(f'<tr class="t1"><td class="tn">{CH} {num}</td><td class="tt"><a href="#{hid}">{inline(txt)}</a></td><td class="pg"><a class="pgn" href="#{hid}"></a></td></tr>')
     else:
         toc_html.append(f'<tr class="t2"><td class="tn">{num}</td><td class="tt"><a href="#{hid}">{inline(txt)}</a></td><td class="pg"><a class="pgn" href="#{hid}"></a></td></tr>')
-for aid, key in [('appA', 'glossary'), ('appB', 'cheatsheet'), ('appC', 'troubleshooting'), ('appD', 'versions'), ('appF', 'answers'), ('appG', 'bibliography'), ('appH', 'algorithms'), ('index', None)]:
+for aid, key in [('appA', 'glossary'), ('appB', 'cheatsheet'), ('appC', 'troubleshooting'), ('appD', 'versions'), ('appF', 'answers'), ('appG', 'bibliography'), ('appH', 'algorithms'), ('appI', 'changes'), ('index', None)]:
     t = UI['toc_app'][key] if key else UI['index']
     toc_html.append(f'<tr class="t1"><td class="tt" colspan="2"><a href="#{aid}">{inline(t)}</a></td><td class="pg"><a class="pgn" href="#{aid}"></a></td></tr>')
 

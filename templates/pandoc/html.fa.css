@@ -11,3 +11,10 @@ div.tip { border-color: #2e7d32; background: #e8f5e9; } div.warn { border-color:
 div.note { border-color: #e0a800; background: #fff8e1; } div.try { border-color: #1565c0; background: #e3f2fd; }
 div.deep { border-color: #6a1b9a; background: #f3e5f5; } div.debug { border-color: #455a64; background: #eceff1; }
 div.algo { border-color: #00796b; background: #e0f2f1; } div.summary { border-color: #2f5496; background: #f4f7fd; }
+
+/* release labels on Ceph command blocks */
+div.since { margin: .8em 0 -.4em; font-size: .8em; color: #555; }
+div.since strong { display: inline-block; padding: 0 .5em; border-radius: .7em; background: #e6eef7; color: #1d4f7a; }
+div.since-squid strong { background: #efe7f7; color: #5a2d82; }
+div.since-tentacle strong { background: #fbeee2; color: #8a4510; }
+div.since-umbrella strong, div.since-main strong { background: #fde8e8; color: #8f1d1d; }

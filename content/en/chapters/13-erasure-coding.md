@@ -143,7 +143,7 @@ rbd info rbd/vm01 | grep data_pool
 
 Tentacle added a new implementation of the EC I/O path, collectively called **FastEC**: partial reads (only the needed shards), partial writes, **parity delta** writes, removal of zero padding and space savings for small objects. It is enabled with a per-pool flag:
 
-```bash
+```bash {since=tentacle}
 ceph osd pool set ecpool allow_ec_optimizations true
 ceph osd pool get ecpool allow_ec_optimizations
 # the default for new pools
@@ -157,7 +157,7 @@ The limitations, according to the documentation:
 - It works only with ISA-L, or Jerasure with `reed_sol_van`; CLAY, LRC and SHEC are rejected.
 - stripe_unit must be a multiple of 4 kilobytes; the documentation recommends **16 kilobytes** for most workloads and up to 256 kilobytes for mostly-read workloads.
 
-```bash
+```bash {since=tentacle}
 ceph osd erasure-code-profile set ec42fast plugin=isa technique=reed_sol_van k=4 m=2 \
      stripe_unit=16K crush-failure-domain=host
 ceph osd pool create rbd-ec erasure ec42fast

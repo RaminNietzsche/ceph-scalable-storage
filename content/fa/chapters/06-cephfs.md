@@ -206,7 +206,7 @@ sudo mount -t nfs -o nfsvers=4.1,proto=tcp 192.168.10.50:/shared /mnt/shared
 
 تا پیش از Tentacle، برای صدور CephFS به ویندوز باید Samba را دستی با ماژول `vfs_ceph` پیکربندی می‌کردید. در Tentacle ماژول **smb** به MGR اضافه شد که خوشه‌های Samba را در کانتینر مستقر و مدیریت می‌کند؛ هم با کاربران محلی و هم با پیوستن به Active Directory:
 
-```bash
+```bash {since=tentacle}
 ceph mgr module enable smb
 ceph smb cluster create smb01 user --define-user-pass=alice%S3cret-Ch@ngeMe --placement="1 ceph-node2"
 ceph fs subvolumegroup create fs01 smb

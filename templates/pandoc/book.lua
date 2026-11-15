@@ -56,5 +56,18 @@ function Div(el)
   return nil
 end
 
+-- Command blocks carry their Ceph release label (since="squid", from tools/export_pandoc.py):
+-- a small line above the block, "Squid+ — Works on Ceph Squid (19.2) and later".
+function CodeBlock(el)
+  local lab = el.attributes['since-label']
+  if not lab then return nil end
+  local tt = el.attributes['since-title'] or ''
+  el.attributes['since-label'] = nil
+  el.attributes['since-title'] = nil
+  local para = pandoc.Para({ pandoc.Strong({ pandoc.Str(lab) }), pandoc.Space(), pandoc.Str('—'), pandoc.Space(), pandoc.Emph({ pandoc.Str(tt) }) })
+  local div = pandoc.Div({ para }, pandoc.Attr('', { 'since', 'since-' .. (el.attributes.since or '') }, { ['custom-style'] = 'Release label' }))
+  return { div, el }
+end
+
 -- Meta must run before Div (pandoc otherwise visits block elements before the metadata)
-return { { Meta = Meta }, { Div = Div } }
+return { { Meta = Meta }, { Div = Div, CodeBlock = CodeBlock } }

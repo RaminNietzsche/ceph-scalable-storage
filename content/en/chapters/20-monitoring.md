@@ -394,7 +394,7 @@ In deployments before Tentacle, the Dashboard, Grafana, Prometheus and Alertmana
 
 ![mgmt-gateway as the single entry: the user's browser connects to the nginx-based gateway with TLS and a virtual address, which, when authentication is enabled, passes the user through oauth2-proxy and the external IdP; behind the gateway sit the Dashboard, Grafana, Prometheus and Alertmanager, which are no longer directly exposed to the network](figures/ch20/f04_gateway.png){#fig-20-f04_gateway}
 
-```bash
+```bash {since=tentacle}
 ceph orch apply mgmt-gateway --placement="label:mgmt"
 # with a virtual address and authentication (per the mgmt-gateway documentation)
 ceph orch apply mgmt-gateway --virtual_ip 192.0.2.50 --enable-auth=true --placement="label:mgmt"

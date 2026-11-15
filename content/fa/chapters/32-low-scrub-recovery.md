@@ -254,7 +254,7 @@ send MOSDPGBackfill(progress, last_backfill) periodically
 
 # فرمان‌ها و اشکال‌زدایی {#sec-32-6}
 
-```bash
+```bash {since=squid}
 ceph pg deep-scrub 2.1f                    # درخواست اپراتور (فوریت operator_requested)
 ceph tell osd.4 dump_scrubs                # صف scrub این OSD: هدف‌ها، not_before و فوریت
 ceph tell osd.4 dump_scrub_reservations    # رزروهای محلی و راه دور

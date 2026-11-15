@@ -115,7 +115,7 @@ pseudocode: partial overwrite in the old ECBackend (this book's summary)
 | `FLAG_EC_PLUGIN_REQUIRE_SUB_CHUNKS` | the plugin needs sub-chunks (CLAY) |
 | `FLAG_EC_PLUGIN_OPTIMIZED_SUPPORTED` | can be used in an optimized pool: isa, and jerasure only with `reed_sol_van` |
 
-```bash
+```bash {since=tentacle}
 # Tentacle and later:
 ceph osd erasure-code-profile set ec42 plugin=isa technique=reed_sol_van k=4 m=2 crush-failure-domain=host
 ceph osd pool create ecdata erasure ec42

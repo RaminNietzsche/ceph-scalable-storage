@@ -108,7 +108,7 @@ for p in sorted(glob.glob(os.path.join(C, 'chapters', '[0-9][0-9]-*.md'))):
     CHFILES[int(fm['chapter'])] = p
 
 APPS = [('appA', 'glossary'), ('appB', 'cheatsheet'), ('appC', 'troubleshooting'), ('appD', 'versions'),
-        ('appF', 'answers'), ('appG', 'bibliography'), ('appH', 'algorithms')]
+        ('appF', 'answers'), ('appG', 'bibliography'), ('appH', 'algorithms'), ('appI', 'changes')]
 APPSRC = {'appC': os.path.join(C, 'appendices', 'troubleshooting.md'),
           'appD': os.path.join(C, 'appendices', 'versions.md')}
 
@@ -188,7 +188,14 @@ def code_block(div):
             pass
     long_ = ' long' if 'long' in div.get('class', []) else ''
     shown = esc(lang or 'code')
-    return frag(f'<div class="code{long_}" data-lang="{esc(lang)}"><div class="code-head"><span class="lang" dir="ltr">{shown}</span>'
+    since = div.get('data-since', '')
+    badge = ''
+    if since:   # release label (booklib.cephver); links to the release-changes appendix
+        b = div.find('span', class_='since')
+        badge = (f'<a class="since s-{esc(since)}" href="changes.html#rel-{esc(since) if since != 'main' else 'labels'}" title="{esc(b.get("title", "") if b else "")}" dir="ltr">'
+                 f'{esc(b.get_text() if b else since)}</a>')
+    ds = f' data-since="{esc(since)}"' if since else ''
+    return frag(f'<div class="code{long_}" data-lang="{esc(lang)}"{ds}><div class="code-head"><span class="ch-l"><span class="lang" dir="ltr">{shown}</span>{badge}</span>'
                 f'<button type="button" class="copy" aria-label="{esc(S["copy_label"])}" data-done="{esc(S["copied"])}">{esc(S["copy"])}</button></div>'
                 f'<pre dir="ltr" tabindex="0"><code class="hl">{body}</code></pre></div>')
 

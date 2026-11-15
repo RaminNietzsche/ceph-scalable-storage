@@ -158,7 +158,7 @@ In earlier releases, each management component (Dashboard, Grafana, Prometheus, 
 - **mgmt-gateway**: an nginx that is the single entry point to all management interfaces, terminates TLS and routes requests to the active MGR and the monitoring services. With a virtual IP it can be made multi-instance and highly available.
 - **oauth2-proxy**: centralised authentication with an OIDC provider (such as Keycloak or the organisation's identity service) for all the interfaces behind the gateway.
 
-```bash
+```bash {since=tentacle}
 ceph orch apply mgmt-gateway --placement="label:mgmt"
 # with authentication and a virtual IP
 ceph orch apply mgmt-gateway --virtual_ip 192.168.10.60 --enable-auth=true --placement="label:mgmt"

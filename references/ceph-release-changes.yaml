@@ -1,0 +1,273 @@
+# Notable changes in Reef, Squid and Tentacle that matter for this book's chapters.
+# Rendered as the appendix "Changes in Reef, Squid and Tentacle" (tools/build_book.py,
+# tools/export_pandoc.py) in both editions; checked by tools/check_versions.py.
+#
+# status: confirmed = stated in the official release notes of that release's x.2.0
+#                     version (the `notes` URL, read November 2026);
+#         review    = taken from this book's chapters or a later point release / changelog,
+#                     not verified line by line against the x.2.0 release notes; shown with
+#                     a "for review" mark until checked.
+# ch: chapters that discuss the change (links in the appendix).
+releases:
+  reef:
+    version: "18.2.0"
+    date: "2023-08-07"
+    notes: https://docs.ceph.com/en/latest/releases/reef/
+  squid:
+    version: "19.2.0"
+    date: "2024-09-26"
+    notes: https://docs.ceph.com/en/latest/releases/squid/
+  tentacle:
+    version: "20.2.0"
+    date: "2025-11-18"
+    notes: https://docs.ceph.com/en/latest/releases/tentacle/
+  # Umbrella is after the book's three releases; listed only for the changes the chapters use.
+  umbrella:
+    version: "21.2.0"
+    date: "2026-10-28"
+    notes: https://docs.ceph.com/en/latest/releases/umbrella/
+changes:
+  # ---------------------------------------------------------------- Reef
+  - rel: reef
+    area: RADOS
+    ch: [12, 10, 21]
+    status: confirmed
+    en: "FileStore is not supported; BlueStore is the only object store of the classic OSD (FileStore OSDs must be recreated before the upgrade)."
+    fa: "FileStore دیگر پشتیبانی نمی‌شود و BlueStore تنها object store در OSD کلاسیک است (OSDهای FileStore باید پیش از ارتقا از نو ساخته شوند)."
+  - rel: reef
+    area: RADOS
+    ch: [16, 15]
+    status: confirmed
+    en: "Cache tiering is deprecated."
+    fa: "cache tiering منسوخ اعلام شد."
+  - rel: reef
+    area: RADOS
+    ch: [25, 12]
+    status: confirmed
+    en: "RocksDB upgraded to 7.9.2, with RocksDB settings tunable per column family and new defaults."
+    fa: "RocksDB به نسخه‌ی 7.9.2 ارتقا یافت؛ تنظیم‌های RocksDB برای هر column family جداگانه قابل تنظیم شد و پیش‌فرض‌های تازه گرفت."
+  - rel: reef
+    area: RADOS
+    ch: [8, 19, 28]
+    status: confirmed
+    en: "The read balancer: balancing primary PGs per pool, offline with `osdmaptool` and `pg-upmap-primary`."
+    fa: "read balancer: متعادل‌کردن PGهای primary در هر pool، به‌صورت آفلاین با `osdmaptool` و `pg-upmap-primary`."
+  - rel: reef
+    area: RADOS
+    ch: [21, 7, 10]
+    status: confirmed
+    en: "mClock reworked: `balanced` becomes the default profile, QoS is a fraction of the OSD's IOPS capacity, and degraded objects recover before misplaced ones."
+    fa: "بازطراحی mClock: پروفایل `balanced` پیش‌فرض شد، QoS به‌صورت کسری از ظرفیت IOPS هر OSD بیان می‌شود و اشیای degraded پیش از misplaced بازیابی می‌شوند."
+  - rel: reef
+    area: RADOS
+    ch: [20, 10]
+    status: confirmed
+    en: "`perf dump` and `perf schema` are deprecated in favour of `counter dump` and `counter schema` (labelled perf counters)."
+    fa: "`perf dump` و `perf schema` به نفع `counter dump` و `counter schema` (perf counterهای برچسب‌دار) منسوخ شدند."
+  - rel: reef
+    area: Monitoring
+    ch: [20]
+    status: confirmed
+    en: "ceph-exporter, deployed on every host, exports the daemons' performance metrics instead of the mgr's prometheus module."
+    fa: "ceph-exporter که روی هر میزبان مستقر می‌شود، به‌جای ماژول prometheus در mgr، متریک‌های کارایی daemonها را صادر می‌کند."
+  - rel: reef
+    area: RGW
+    ch: [5, 42, 40]
+    status: confirmed
+    en: "Bucket resharding works in multisite (the `resharding` zone feature, on by default for new deployments)."
+    fa: "reshard کردن bucket در multisite ممکن شد (zone feature با نام `resharding` که در استقرارهای تازه پیش‌فرض روشن است)."
+  - rel: reef
+    area: RGW
+    ch: [5, 4]
+    status: confirmed
+    en: "Compression for objects uploaded with server-side encryption (the `compress-encrypted` zonegroup feature)."
+    fa: "فشرده‌سازی برای اشیایی که با رمزنگاری سمت سرور بارگذاری شده‌اند (zonegroup feature با نام `compress-encrypted`)."
+  - rel: reef
+    area: RBD
+    ch: [2, 38]
+    status: confirmed
+    en: "Layered client-side encryption: a clone can have its own encryption format and passphrase, distinct from its parent's."
+    fa: "رمزنگاری لایه‌ای سمت کلاینت: هر clone می‌تواند قالب رمزنگاری و passphrase مخصوص خودش را داشته باشد، جدا از image والد."
+  - rel: reef
+    area: Dashboard
+    ch: [9]
+    status: confirmed
+    en: "A new Dashboard landing page with alert and chart cards, and a cephx user management page."
+    fa: "صفحه‌ی اصلی تازه‌ی Dashboard با کارت‌های هشدار و نمودار، و بخشی برای مدیریت کاربران cephx."
+  - rel: reef
+    area: RGW
+    ch: [5]
+    status: review
+    en: "The `rgw` mgr module automates multisite setup (`ceph rgw realm bootstrap`)."
+    fa: "ماژول `rgw` در mgr راه‌اندازی multisite را خودکار می‌کند (`ceph rgw realm bootstrap`)."
+  # ---------------------------------------------------------------- Squid
+  - rel: squid
+    area: RADOS
+    ch: [12, 25]
+    status: confirmed
+    en: "LZ4 compression in BlueStore's RocksDB is on by default."
+    fa: "فشرده‌سازی LZ4 در RocksDBِ BlueStore به‌طور پیش‌فرض روشن است."
+  - rel: squid
+    area: RADOS
+    ch: [13, 28, 8]
+    status: confirmed
+    en: "A new CRUSH rule type, MSR (multi-step retry), for more flexible erasure-coded layouts."
+    fa: "نوع تازه‌ای از قاعده‌ی CRUSH به نام MSR (multi-step retry) برای چیدمان‌های انعطاف‌پذیرتر erasure coding."
+  - rel: squid
+    area: RADOS
+    ch: [19, 28]
+    status: confirmed
+    en: "The balancer module can manage read balancing online, with the new `read` and `upmap-read` modes."
+    fa: "ماژول balancer می‌تواند read balancing را به‌صورت آنلاین انجام دهد، با حالت‌های تازه‌ی `read` و `upmap-read`."
+  - rel: squid
+    area: RADOS
+    ch: [32, 17]
+    status: confirmed
+    en: "Scrub scheduling was improved."
+    fa: "زمان‌بندی scrub بهبود یافت."
+  - rel: squid
+    area: RADOS
+    ch: [36, 7]
+    status: confirmed
+    en: "The `POOL_APP_NOT_ENABLED` warning is raised for every pool without an application tag, used or not."
+    fa: "هشدار `POOL_APP_NOT_ENABLED` برای هر poolی که برچسب application ندارد داده می‌شود، چه استفاده شود چه نه."
+  - rel: squid
+    area: Crimson
+    ch: [30]
+    status: confirmed
+    en: "Crimson's first technology preview (RBD workloads on replicated pools)."
+    fa: "نخستین پیش‌نمایش فنی Crimson (بار کاری RBD روی poolهای replicated)."
+  - rel: squid
+    area: RBD
+    ch: [2, 39]
+    status: confirmed
+    en: "diff-iterate runs locally in fast-diff mode when the exclusive lock is available, a large speed-up for QEMU live disk sync and backups."
+    fa: "diff-iterate در حالت fast-diff، وقتی exclusive lock در دسترس است، به‌صورت محلی اجرا می‌شود؛ جهشی بزرگ برای همگام‌سازی زنده‌ی دیسک در QEMU و پشتیبان‌گیری."
+  - rel: squid
+    area: RGW
+    ch: [4, 41]
+    status: confirmed
+    en: "User accounts: AWS-compatible IAM APIs for self-service management of users, keys, groups, roles and policies."
+    fa: "حساب‌های کاربری (account): APIهای IAM سازگار با AWS برای مدیریت سلف‌سرویس کاربران، کلیدها، گروه‌ها، نقش‌ها و policyها."
+  - rel: squid
+    area: RGW
+    ch: [5, 42]
+    status: confirmed
+    en: "A new layout for bucket-notification topics that replicates through metadata sync (the `notification_v2` zone feature)."
+    fa: "چیدمان تازه برای topicهای bucket notification که با همگام‌سازی metadata تکثیر می‌شود (zone feature با نام `notification_v2`)."
+  - rel: squid
+    area: CephFS
+    ch: [6]
+    status: confirmed
+    en: "Subvolume quiesce commands for crash-consistent snapshots, `ceph fs swap`, and `--fs` required by snap-schedule commands on multi-file-system clusters."
+    fa: "فرمان‌های quiesce برای subvolume جهت snapshotهای crash-consistent، فرمان `ceph fs swap`، و الزام `--fs` در فرمان‌های snap-schedule وقتی کلاستر چند فایل‌سیستم دارد."
+  - rel: squid
+    area: cephx
+    ch: [8]
+    status: confirmed
+    en: "Key rotation with `ceph auth rotate`."
+    fa: "چرخش کلید با `ceph auth rotate`."
+  - rel: squid
+    area: RBD
+    ch: [2, 31]
+    status: review
+    en: "The NVMe-oF gateway with gateway groups is the official way to serve RBD over NVMe/TCP (group argument of `ceph orch apply nvmeof`)."
+    fa: "gateway NVMe-oF با gateway group راه رسمی ارائه‌ی RBD روی NVMe/TCP است (آرگومان group در `ceph orch apply nvmeof`)."
+  # ---------------------------------------------------------------- Tentacle
+  - rel: tentacle
+    area: RADOS
+    ch: [13, 27, 16]
+    status: confirmed
+    en: "FastEC: partial reads and writes and less space amplification in erasure-coded pools, enabled per pool with `allow_ec_optimizations`."
+    fa: "FastEC: خواندن و نوشتن جزئی و سربار فضای کمتر در poolهای erasure coding، که برای هر pool با `allow_ec_optimizations` روشن می‌شود."
+  - rel: tentacle
+    area: RADOS
+    ch: [13, 27]
+    status: confirmed
+    en: "ISA-L replaces Jerasure as the default erasure-code plugin for clusters created on Tentacle; upgraded clusters keep their defaults."
+    fa: "ISA-L جای Jerasure را به‌عنوان افزونه‌ی پیش‌فرض erasure code در کلاسترهایی که با Tentacle ساخته می‌شوند گرفت؛ کلاسترهای ارتقایافته پیش‌فرض قبلی را نگه می‌دارند."
+  - rel: tentacle
+    area: RADOS
+    ch: [12, 24]
+    status: confirmed
+    en: "BlueStore: better compression and a new, faster write-ahead log."
+    fa: "BlueStore: فشرده‌سازی بهتر و یک write-ahead log تازه و سریع‌تر."
+  - rel: tentacle
+    area: RADOS
+    ch: [20, 17]
+    status: confirmed
+    en: "A per-pool data availability score (`ceph osd pool availability-status`, tech preview, off by default)."
+    fa: "امتیاز دسترس‌پذیری داده برای هر pool (`ceph osd pool availability-status`، پیش‌نمایش فنی و به‌طور پیش‌فرض خاموش)."
+  - rel: tentacle
+    area: Crimson
+    ch: [30]
+    status: confirmed
+    en: "SeaStore technology preview: deployable alongside the Crimson OSD for testing."
+    fa: "پیش‌نمایش فنی SeaStore: برای آزمایش در کنار Crimson OSD قابل استقرار است."
+  - rel: tentacle
+    area: MGR
+    ch: [7, 9, 10]
+    status: confirmed
+    en: "The restful and zabbix mgr modules were removed; the dashboard module's REST API is the replacement for restful."
+    fa: "ماژول‌های restful و zabbix از mgr حذف شدند؛ جایگزین restful، REST API ماژول dashboard است."
+  - rel: tentacle
+    area: cephadm
+    ch: [9, 20]
+    status: confirmed
+    en: "The mgmt-gateway service (one TLS entry point for the Dashboard and the monitoring stack), oauth2-proxy for SSO, and certmgr for certificates."
+    fa: "سرویس mgmt-gateway (یک نقطه‌ی ورود TLS برای Dashboard و پشته‌ی پایش)، oauth2-proxy برای SSO و certmgr برای مدیریت گواهی‌ها."
+  - rel: tentacle
+    area: CephFS
+    ch: [6]
+    status: confirmed
+    en: "The smb mgr module manages Samba-backed SMB shares on CephFS, with standalone users or Active Directory."
+    fa: "ماژول smb در mgr اشتراک‌های SMB مبتنی بر Samba را روی CephFS مدیریت می‌کند، با کاربران محلی یا Active Directory."
+  - rel: tentacle
+    area: CephFS
+    ch: [6]
+    status: confirmed
+    en: "Case-insensitive or normalised directory entry names, and a confirmation flag for changing `max_mds` on an unhealthy cluster."
+    fa: "نام‌های بی‌حساس به بزرگی و کوچکی حروف یا نرمال‌شده برای مدخل‌های دایرکتوری، و لزوم پرچم تأیید برای تغییر `max_mds` در کلاستر ناسالم."
+  - rel: tentacle
+    area: RBD
+    ch: [2, 29]
+    status: confirmed
+    en: "`rbd device map` uses msgr2 by default (`-o ms_mode=legacy` keeps msgr1 for krbd)."
+    fa: "`rbd device map` به‌طور پیش‌فرض از msgr2 استفاده می‌کند (`-o ms_mode=legacy` برای krbd همان msgr1 را نگه می‌دارد)."
+  - rel: tentacle
+    area: RBD
+    ch: [2, 39]
+    status: confirmed
+    en: "Mirroring can pair a local namespace with a differently named remote one (`--remote-namespace`), and `rbd group info` and `rbd group snap info` were added."
+    fa: "mirroring می‌تواند یک namespace محلی را به namespaceی با نام دیگر در کلاستر مقابل جفت کند (`--remote-namespace`)، و فرمان‌های `rbd group info` و `rbd group snap info` اضافه شدند."
+  - rel: tentacle
+    area: RGW
+    ch: [4, 40]
+    status: confirmed
+    en: "S3 GetObjectAttributes; LastModified truncated to the second; resharding blocks writes for much less time."
+    fa: "پشتیبانی از S3 GetObjectAttributes؛ گرد شدن LastModified به ثانیه؛ و reshard که مدت بسیار کوتاه‌تری نوشتن را مسدود می‌کند."
+  - rel: tentacle
+    area: RGW
+    ch: [4]
+    status: confirmed
+    en: "Tenant-level IAM APIs are deprecated in favour of accounts (removal no sooner than the V release)."
+    fa: "APIهای IAM در سطح tenant به نفع account منسوخ شدند (حذف، زودتر از نسخه‌ی V نیست)."
+  - rel: tentacle
+    area: RBD
+    ch: [31]
+    status: review
+    en: "The `ceph nvmeof` CLI for gateway configuration and the `ceph nvme-gw listeners` command (Tentacle documentation and point-release notes)."
+    fa: "رابط خط فرمان `ceph nvmeof` برای پیکربندی gateway و فرمان `ceph nvme-gw listeners` (بر پایه‌ی مستندات و یادداشت‌های نسخه‌های نقطه‌ای Tentacle)."
+  # ---------------------------------------------------------------- Umbrella
+  - rel: umbrella
+    area: RADOS
+    ch: [21, 7]
+    status: review
+    en: "Default HDD OSD shard settings changed: `osd_op_num_shards_hdd` 5 → 1 and `osd_op_num_threads_per_shard_hdd` 1 → 5 (issue 66289), stated in the Umbrella notes. Chapter 7 attributes it to Squid, chapter 21 and appendix D to Tentacle; to be reconciled."
+    fa: "پیش‌فرض شارد OSDهای HDD تغییر کرد: `osd_op_num_shards_hdd` از ۵ به ۱ و `osd_op_num_threads_per_shard_hdd` از ۱ به ۵ (issue 66289)؛ این در یادداشت‌های Umbrella آمده است. فصل ۷ آن را به Squid و فصل ۲۱ و پیوست د به Tentacle نسبت می‌دهند و باید یکدست شوند."
+  - rel: umbrella
+    area: cephadm
+    ch: [7]
+    status: review
+    en: "CRUSH-bucket-aware OSD upgrades (`ok-to-upgrade`, upgrades scoped to a CRUSH bucket) are in the Umbrella notes; the exact `--crush_bucket_type` / `--crush_bucket_name` flag names used in chapter 7 are not spelled out there."
+    fa: "ارتقای OSD با آگاهی از bucketهای CRUSH (فرمان `ok-to-upgrade` و ارتقای محدود به یک bucket) در یادداشت‌های Umbrella آمده است؛ نام دقیق گزینه‌های `--crush_bucket_type` و `--crush_bucket_name` که فصل ۷ به کار می‌برد آنجا ذکر نشده است."

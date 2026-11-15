@@ -206,7 +206,7 @@ The nfs module's official support is for NFSv4.1 and above. NFSv3 is available i
 
 Before Tentacle, exporting CephFS to Windows meant configuring Samba by hand with the `vfs_ceph` module. In Tentacle the **smb** module was added to the MGR; it deploys and manages Samba clusters in containers, with either local users or joining Active Directory:
 
-```bash
+```bash {since=tentacle}
 ceph mgr module enable smb
 ceph smb cluster create smb01 user --define-user-pass=alice%S3cret-Ch@ngeMe --placement="1 ceph-node2"
 ceph fs subvolumegroup create fs01 smb

@@ -36,7 +36,7 @@ DIST        := dist
 
 # ---- dependency sets -------------------------------------------------------
 TOOLS       := $(wildcard tools/*.py tools/booklib/*.py)
-CONTENT     := $(shell find content/$(L) -type f) glossary/glossary.yaml references/references.json templates/site/sims/strings-$(L).yaml
+CONTENT     := $(shell find content/$(L) -type f) glossary/glossary.yaml references/references.json templates/site/sims/strings-$(L).yaml references/ceph-release-changes.yaml
 TEMPLATES   := $(wildcard templates/html/*.$(L).html templates/css/book.$(L).css templates/cover/cover.$(L).yaml)
 PANDOC_TPL  := $(wildcard templates/pandoc/*)
 FIG_SRC     := $(wildcard figures/ch*/*.mmd figures/ch*/*.bf.json) $(wildcard figures/i18n/*.yaml)
@@ -55,7 +55,7 @@ SITE_SRC    := tools/build_site.py tools/booklib/seo.py tools/sim_fallback.js $(
 WEBFIG_STAMP := build/webfig/.stamp
 
 .PHONY: help all pdf html epub docx book figures cover lint markdownlint spell \
-        check check-links check-links-online check-refs check-parity check-sims \
+        check check-links check-links-online check-refs check-parity check-versions check-sims \
         html-single site check-site shoot-site webfig fonts \
         sync-translations stats clean distclean dist
 
@@ -151,7 +151,10 @@ check-parity: ## fa and en have the same chapters, figure ids, ALGO ids, anchors
 check-sims: ## simulator math (CRUSH, autoscaler, Striper, ...) against Ceph's own code (tests/sims/golden.json)
 	node tests/sims/test_core.js
 
-check: lint spell check-refs check-links check-parity check-sims ## all offline checks
+check: lint spell check-refs check-links check-parity check-versions check-sims ## all offline checks
+
+check-versions: ## release labels on command blocks (fa/en) and references/ceph-release-changes.yaml
+	$(PYTHON) tools/check_versions.py
 
 sync-translations: ## create/refresh en placeholders for new fa files
 	$(PYTHON) tools/sync_translations.py --lang en

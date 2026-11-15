@@ -197,7 +197,7 @@ if autotune and formula ≠ greedy and (1-u_greedy) ≥ ratio(2.0) × (1-u_pick)
 
 # سنجش و پایش Crimson {#sec-30-8}
 
-```bash
+```bash {since=main}
 ceph tell osd.0 dump_metrics reactor_utilization     # بهره‌وری هر reactor (shard)
 ceph tell osd.0 dump_store_shards                    # نگاشت PGها و store shardها به هسته‌ها
 ceph config set osd crimson_prometheus_port_base 29180   # main: osd.N روی 29180+N

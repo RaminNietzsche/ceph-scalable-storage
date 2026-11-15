@@ -7,6 +7,12 @@ restructures the book.
 
 ## [Unreleased]
 
+### Ceph release labels
+
+- Every code block that runs a Ceph command-line tool carries a release badge, "Reef+", "Squid+", "Tentacle+" (and "Umbrella+" or "main" for the few commands newer than the book's three releases), in the PDF, web, EPUB and DOCX editions. The baseline is Reef (18.2); a block that needs a later release says so on its fence: ```` ```bash {since=squid} ````. On the web the badge links to the matching release section of the new appendix.
+- New appendix H «تغییرات Reef، Squid و Tentacle» / "Changes in Reef, Squid and Tentacle": per release, the notable changes the chapters rely on, with links to the chapters, a link to the official release notes and a confirmed / for review status; and the list of command blocks labelled newer than Reef. Data in `references/ceph-release-changes.yaml`.
+- `make check-versions` (part of `make check`): fa and en label the same blocks with the same release, labels are valid, and the release-changes data is complete.
+
 ### UI consistency (web edition)
 
 - Every control (buttons, `.btn`, chips, toggles, simulator controls, quiz and flashcard buttons, header pills, inputs and selects) now uses the site font (Vazirmatn in Persian, Inter in English) with one size, weight and line-height scale, instead of the browser's system font.

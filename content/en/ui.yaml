@@ -43,6 +43,7 @@ app:
   answers: ["E", "Answers to Review Questions", "Answers"]
   bibliography: ["F", "Bibliography and Official Sources", "Bibliography"]
   algorithms: ["G", "List of Algorithms", "List of Algorithms"]
+  changes: ["H", "Changes in Reef, Squid and Tentacle", "Release Changes"]
 toc_app:
   glossary: "Appendix A: English Glossary"
   cheatsheet: "Appendix B: Command Cheat Sheet"
@@ -51,10 +52,11 @@ toc_app:
   answers: "Appendix E: Answers to Review Questions"
   bibliography: "Appendix F: Bibliography and Official Sources"
   algorithms: "Appendix G: List of Algorithms"
+  changes: "Appendix H: Changes in Reef, Squid and Tentacle"
 index: "Index"
 glossary_intro: "Key terms used in the book, in English alphabetical order, each with a short definition. Use the index at the end of the book to find where each term is used."
 glossary_cols: ["Term", "Definition"]
-cheatsheet_intro: "Every command that appears in a code block of a chapter is collected here, grouped by tool and subcommand, so you can find it quickly during day-to-day work. The right-hand column shows the chapter of first use; go back to that chapter for the full explanation. Before running state-changing commands on a real cluster, make sure you are connected to the right cluster (<code>ceph fsid</code>) and record the current state with <code>ceph -s</code>."
+cheatsheet_intro: "Every command that appears in a code block of a chapter is collected here, grouped by tool and subcommand, so you can find it quickly during day-to-day work. The right-hand column shows the chapter of first use; go back to that chapter for the full explanation. Before running state-changing commands on a real cluster, make sure you are connected to the right cluster (<code>ceph fsid</code>) and record the current state with <code>ceph -s</code>. Commands that need a release newer than Reef carry a release label (for example <span class=\"since s-squid\">Squid+</span>); the others work unchanged on Reef (18.2) and later. The same labels appear on the code blocks in the chapters."
 answers_intro: "The answers below are short and indicative; for full explanations go back to the corresponding chapter."
 bib_intro: "This bibliography gathers every source listed in the chapters' “Sources” sections, together with general references. All links were checked in November 2026. Official project documentation is always the most current source; read the documentation for your own version before using any feature in production."
 bib_general: "General sources"
@@ -77,4 +79,12 @@ md_title_line: "**Designing, Implementing and Operating Scalable Storage — fro
 md_byline: "Written by Ramin Najarbashi · version {version} · {date}"
 md_about_title: "About this work"
 md_about: "This book is an original work: the text, examples, commands, exercises and figures were written for it. The English edition is the author's English version of the Persian text. Short excerpts of Ceph code are quoted with their paths from github.com/ceph/ceph (LGPL)."
-md_toc_apps: "- Appendix A: English Glossary\n- Appendix B: Command Cheat Sheet\n- Appendix C: Troubleshooting Guide\n- Appendix D: Ceph Release Table\n- Appendix E: Answers\n- Appendix F: Bibliography\n- Appendix G: List of Algorithms\n- Index\n"
+md_toc_apps: "- Appendix A: English Glossary\n- Appendix B: Command Cheat Sheet\n- Appendix C: Troubleshooting Guide\n- Appendix D: Ceph Release Table\n- Appendix E: Answers\n- Appendix F: Bibliography\n- Appendix G: List of Algorithms\n- Appendix H: Changes in Reef, Squid and Tentacle\n- Index\n"
+changes_intro: "This appendix lists, one table per release, the notable changes in the three major releases Reef (18.2), Squid (19.2) and Tentacle (20.2) that matter for this book's chapters. Rows marked confirmed are stated in the official release notes of that release's x.2.0 version; rows marked for review come from the chapters or from point-release notes and have not yet been checked against the main release notes. For Umbrella (21.2) and each release's support dates, see appendix D."
+changes_badges: "Release labels: every code block that runs a Ceph command carries a label such as Reef+, meaning the commands work unchanged on that release and later. The book's baseline is Reef; the blocks below need a newer release:"
+changes_cols: ["Area", "Change", "Chapters", "Status"]
+changes_cmd_cols: ["Label", "First command of the block", "Chapter"]
+changes_release: "Version {v}, {d} — release notes:"
+changes_confirmed: "confirmed"
+changes_review: "for review"
+changes_labels_title: "Commands that need a release newer than Reef"

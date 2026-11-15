@@ -584,7 +584,7 @@ rbd --cluster site-a mirror image promote vms/db01
 
 از Squid به بعد دروازه‌ی **NVMe over Fabrics** (روی TCP) راه رسمی ارائه‌ی RBD به میزبان‌هایی است که کلاینت Ceph ندارند. این دروازه بر پایه‌ی SPDK ساخته شده و با cephadm مستقر می‌شود. دروازه‌ها در **gateway group** سازمان می‌یابند. طبق مستندات، هر گروه در حال حاضر تا هشت دروازه را پشتیبانی می‌کند و دسترس‌پذیری بالا به‌صورت فعال/آماده‌به‌کار برای هر namespace کار می‌کند: هر namespace به یک load-balancing group تعلق دارد و با خرابی یک دروازه، دروازه‌ی دیگری مسئولیتش را بر عهده می‌گیرد. برای HA دست‌کم دو دروازه لازم است. داشبورد Ceph از Tentacle مدیریت گروه‌ها و namespaceهای متعدد NVMe-oF را پشتیبانی می‌کند و در Umbrella امکاناتی مثل TLS/mTLS، احراز هویت DHCHAP و KMIP به آن افزوده شده است.
 
-```bash
+```bash {since=squid}
 ceph osd pool create nvmeof-pool && rbd pool init nvmeof-pool
 ceph orch apply nvmeof nvmeof-pool group1 --placement="ceph-node2,ceph-node3"
 ```

@@ -197,7 +197,7 @@ The cost-benefit formula chooses segment C, because it is very old. But cleaning
 
 # Measuring and monitoring Crimson {#sec-30-8}
 
-```bash
+```bash {since=main}
 ceph tell osd.0 dump_metrics reactor_utilization     # utilization of each reactor (shard)
 ceph tell osd.0 dump_store_shards                    # mapping of PGs and store shards to cores
 ceph config set osd crimson_prometheus_port_base 29180   # main: osd.N on 29180+N

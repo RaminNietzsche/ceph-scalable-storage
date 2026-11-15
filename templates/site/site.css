@@ -830,3 +830,19 @@ input, select, textarea, .sim input[type=number], .sim input[type=text], .sim se
 .math { direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
 .math .katex { font-size: 1.06em; }
 html[data-theme="dark"] .math .katex { color: inherit; }
+
+/* Ceph release labels (Reef+, Squid+ ...) on command blocks; see tools/booklib/cephver.py */
+.code-head .ch-l { display: inline-flex; align-items: center; gap: 8px; }
+.since { display: inline-block; font: 700 .68rem/1.5 var(--font-mono); color: #fff; background: #4b5563; border-radius: 999px; padding: 0 8px; text-decoration: none; letter-spacing: .02em; white-space: nowrap; direction: ltr; unicode-bidi: isolate; }
+a.since:hover { filter: brightness(1.12); text-decoration: none; }
+.since.s-reef { background: #2f6f4f; } .since.s-squid { background: #1d5fa8; } .since.s-tentacle { background: #7a3fa0; }
+.since.s-umbrella { background: #a6531b; } .since.s-main { background: #b42318; } .since.s-quincy { background: #5b6472; }
+.cmds .since { margin-inline-start: 6px; font-size: .62rem; vertical-align: middle; }
+
+/* appendix: changes in Reef, Squid and Tentacle */
+.relchg td.area, .relchg td.st { white-space: nowrap; }
+.relchg span.st-review { color: var(--c-warn, #a6531b); font-weight: 700; }
+.relchg span.st-review::before { content: "⚑ "; }
+.relchg span.st-confirmed { color: var(--c-tip, #2f6f4f); }
+.rel-meta { font-size: .9rem; color: var(--fg-soft); }
+h2 .since { vertical-align: middle; font-size: .8rem; }

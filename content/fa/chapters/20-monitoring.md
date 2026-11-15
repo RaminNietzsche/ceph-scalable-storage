@@ -394,7 +394,7 @@ predict_linear: (a, b) = کمترین مربعات روی نمونه‌های 48
 
 ![mgmt-gateway به‌عنوان ورودی واحد: مرورگر کاربر به gateway مبتنی بر nginx با TLS و نشانی مجازی وصل می‌شود که در صورت فعال بودن احراز هویت، کاربر را از oauth2-proxy و IdP بیرونی عبور می‌دهد؛ پشت gateway، Dashboard، Grafana، Prometheus و Alertmanager قرار دارند و دیگر مستقیماً در معرض شبکه نیستند](figures/ch20/f04_gateway.png){#fig-20-f04_gateway}
 
-```bash
+```bash {since=tentacle}
 ceph orch apply mgmt-gateway --placement="label:mgmt"
 # با نشانی مجازی و احراز هویت (طبق مستندات mgmt-gateway)
 ceph orch apply mgmt-gateway --virtual_ip 192.0.2.50 --enable-auth=true --placement="label:mgmt"

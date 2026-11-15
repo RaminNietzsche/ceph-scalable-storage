@@ -191,7 +191,7 @@ radosgw-admin user create --tenant=acme --uid=bob --display-name="Bob at ACME"
 
 Since Squid, the **account** adds a concept similar to an AWS account: an account owns users, groups, roles and policies, and its "root user" can manage users and keys through IAM-compatible APIs without the cluster administrator's involvement.
 
-```bash
+```bash {since=squid}
 radosgw-admin account create --account-name=acme --email=ops@acme.example
 radosgw-admin user create --uid=acme-root --display-name="ACME root" \
   --account-id=<account-id> --account-root --gen-secret --gen-access-key

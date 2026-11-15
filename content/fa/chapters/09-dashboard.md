@@ -158,7 +158,7 @@ ceph dashboard sso enable saml2
 - **mgmt-gateway**: یک nginx که نقطه‌ی ورود واحد به همه‌ی رابط‌های مدیریتی است، TLS را خاتمه می‌دهد و درخواست‌ها را به MGR فعال و سرویس‌های پایش هدایت می‌کند. با IP مجازی می‌توان آن را چندنمونه‌ای و دسترس‌پذیر کرد.
 - **oauth2-proxy**: احراز هویت متمرکز با یک ارائه‌دهنده‌ی OIDC (مثل Keycloak یا سرویس هویت سازمان) برای همه‌ی رابط‌های پشت دروازه.
 
-```bash
+```bash {since=tentacle}
 ceph orch apply mgmt-gateway --placement="label:mgmt"
 # با احراز هویت و IP مجازی
 ceph orch apply mgmt-gateway --virtual_ip 192.168.10.60 --enable-auth=true --placement="label:mgmt"

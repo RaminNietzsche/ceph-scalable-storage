@@ -584,7 +584,7 @@ In the lab, mirror an image in snapshot mode with a one-minute schedule, write a
 
 Since Squid, the **NVMe over Fabrics** gateway (over TCP) has been the official way to serve RBD to hosts that have no Ceph client. The gateway is built on SPDK and deployed with cephadm. Gateways are organised in a **gateway group**. According to the documentation, each group currently supports up to eight gateways, and high availability works as active/standby per namespace: each namespace belongs to a load-balancing group, and when a gateway fails another gateway takes over its responsibility. At least two gateways are needed for HA. The Ceph dashboard supports managing multiple NVMe-oF groups and namespaces since Tentacle, and Umbrella added features such as TLS/mTLS, DHCHAP authentication and KMIP.
 
-```bash
+```bash {since=squid}
 ceph osd pool create nvmeof-pool && rbd pool init nvmeof-pool
 ceph orch apply nvmeof nvmeof-pool group1 --placement="ceph-node2,ceph-node3"
 ```
