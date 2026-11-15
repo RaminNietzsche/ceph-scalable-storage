@@ -28,7 +28,10 @@ import os
 import re
 import shutil
 import string
+import concurrent.futures
 import subprocess
+import tempfile
+import time
 import sys
 
 import yaml
@@ -183,22 +186,123 @@ def hires(abspath):
     return None, None, found
 
 
-def maybe_avif(src, dst):
-    """Encode dst AVIF from a PNG/WebP if avifenc or magick is on PATH. Return dst or None."""
-    if os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src):
+AVIF_CACHE = os.path.join(ROOT, 'build', 'avif-cache')
+AVIF_SPEED, AVIF_QUALITY = 6, 45  # avifenc: speed 6 is a good size/time trade-off
+
+
+def avif_cache_path(png):
+    rel = os.path.splitext(os.path.relpath(png, os.path.join(ROOT, 'figures')))[0] + '.avif'
+    return os.path.join(AVIF_CACHE, rel.replace(os.sep, '/'))
+
+
+def _avif_fresh(path, src):
+    return os.path.exists(path) and os.path.getsize(path) > 0 and os.path.getmtime(path) >= os.path.getmtime(src)
+
+
+def maybe_avif(src, dst, png=None):
+    """Encode dst AVIF from src (PNG/WebP) if avifenc or magick is on PATH.
+
+    ``png`` is the committed figure, used as the cache key under build/avif-cache/
+    so CI can restore encodings across runs. Return dst or None.
+    """
+    cache = avif_cache_path(png) if png else None
+    if _avif_fresh(dst, src):
+        if cache and not _avif_fresh(cache, src):
+            os.makedirs(os.path.dirname(cache), exist_ok=True)
+            shutil.copy2(dst, cache)
+        return dst
+    if cache and _avif_fresh(cache, src):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(cache, dst)
         return dst
     os.makedirs(os.path.dirname(dst), exist_ok=True)
-    for argv in (
-        ['avifenc', '-s', '6', '-q', '45', src, dst],
-        ['magick', src, '-quality', '45', dst],
-    ):
+    # avifenc does not read WebP; re-encode non-PNG sources through a temporary PNG.
+    raster, tmp_png = src, None
+    if not src.lower().endswith('.png'):
         try:
-            subprocess.run(argv, check=True, capture_output=True)
-            if os.path.exists(dst) and os.path.getsize(dst) > 0:
-                return dst
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            continue
+            im = Image.open(src)
+            if im.mode not in ('RGB', 'RGBA'):
+                im = im.convert('RGBA' if 'A' in im.getbands() else 'RGB')
+            fd, tmp_png = tempfile.mkstemp(suffix='.png')
+            os.close(fd)
+            im.save(tmp_png, 'PNG')
+            raster = tmp_png
+        except OSError:
+            raster = png or src
+    fd, tmp = tempfile.mkstemp(suffix='.avif')
+    os.close(fd)
+    try:
+        for argv in (
+            ['avifenc', '-s', str(AVIF_SPEED), '-q', str(AVIF_QUALITY), raster, tmp],
+            ['magick', raster, '-quality', str(AVIF_QUALITY), tmp],
+        ):
+            try:
+                subprocess.run(argv, check=True, capture_output=True)
+                if os.path.exists(tmp) and os.path.getsize(tmp) > 0:
+                    if cache:
+                        os.makedirs(os.path.dirname(cache), exist_ok=True)
+                        shutil.copy2(tmp, cache)
+                    shutil.move(tmp, dst)
+                    return dst
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                continue
+    finally:
+        for path in (tmp, tmp_png):
+            if path and os.path.exists(path):
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
     return None
+
+
+def collect_figure_pngs(*soups):
+    out = []
+    for soup_ in soups:
+        if soup_ is None:
+            continue
+        for img in soup_.select('figure img[src]'):
+            src = img['src'].replace('file://', '')
+            if src.endswith('.png') and os.path.exists(src):
+                out.append(os.path.abspath(src))
+    # unique, stable order
+    return list(dict.fromkeys(out))
+
+
+def warm_avif_cache(pngs):
+    """Encode unique figure AVIFs in parallel into the site tree and build/avif-cache/."""
+    if not pngs:
+        return
+    if not shutil.which('avifenc') and not shutil.which('magick'):
+        return
+    jobs = []
+    for pth in pngs:
+        hi, ext, alts = hires(pth)
+        if ext == '.svg':
+            continue
+        src = pth
+        if alts.get('.webp'):
+            cand = os.path.join(FIGDIR, alts['.webp'].split('figures/', 1)[-1])
+            if os.path.exists(cand):
+                src = cand
+        dst = os.path.splitext(os.path.join(FIGDIR, os.path.relpath(pth, os.path.join(ROOT, 'figures'))))[0] + '.avif'
+        if _avif_fresh(dst, src):
+            maybe_avif(src, dst, png=pth)  # keep the cache in sync
+            continue
+        jobs.append((src, dst, pth))
+    if not jobs:
+        print(f'avif: {len(pngs)} figure(s) already encoded')
+        return
+    t0 = time.time()
+    workers = max(1, min(8, os.cpu_count() or 4))
+    ok = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = [ex.submit(maybe_avif, src, dst, pth) for src, dst, pth in jobs]
+        for fut in concurrent.futures.as_completed(futs):
+            if fut.result():
+                ok += 1
+    print(f'avif: encoded {ok}/{len(jobs)} figure(s) with {workers} workers in {time.time() - t0:.1f}s '
+          f'(cache {os.path.relpath(AVIF_CACHE, ROOT)}, speed={AVIF_SPEED}, q={AVIF_QUALITY})')
 
 
 def code_block(div):
@@ -400,7 +504,7 @@ def decorate(body, page):
             if alts.get('.webp'):
                 src_for_avif = os.path.join(FIGDIR, alts['.webp'].split('figures/', 1)[-1])
             avif_dst = os.path.splitext(os.path.join(FIGDIR, os.path.relpath(p, os.path.join(ROOT, 'figures'))))[0] + '.avif'
-            if maybe_avif(src_for_avif if os.path.exists(src_for_avif) else p, avif_dst):
+            if maybe_avif(src_for_avif if os.path.exists(src_for_avif) else p, avif_dst, png=p):
                 alts['.avif'] = '../figures/' + os.path.relpath(avif_dst, FIGDIR).replace(os.sep, '/')
         if ext == '.svg':
             img['src'] = hi
@@ -466,6 +570,9 @@ def decorate(body, page):
 pref = soup.select_one('section#preface')
 Page('preface', 'front', UI['preface'], UI['preface'], 'front', body_of(pref, ['h1']))
 copyright_box = soup.select_one('.fm.copyright .cbox')
+
+# Encode unique figure AVIFs once (parallel, cached) before pages start decorating.
+warm_avif_cache(collect_figure_pngs(soup))
 
 # chapters -------------------------------------------------------------------
 SITE_PARTS = [(23, 34, 'part-low', 'part_low', 'part-3'), (34, 10 ** 6, 'part-spec', 'part_spec', 'part-4')]

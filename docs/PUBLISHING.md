@@ -15,6 +15,9 @@ This file is the checklist for running the book's public repository
 
 Figures are committed, so CI does not render Mermaid (it touches `build/.figures.stamp`);
 KaTeX comes from `node_modules` or, without it, from `templates/vendor/katex/`.
+The site and preview workflows install `libavif-bin` (`avifenc`) and cache
+`build/avif-cache` so figure AVIFs are produced and reused; `tools/check_avif.py --require`
+confirms that `<picture>` lists the AVIF source before WebP.
 
 ## One-time repository settings
 
