@@ -8,7 +8,10 @@ This file is the checklist for running the book's public repository
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `.github/workflows/ci.yml` | push to `main`, pull request, manual | `make check`; builds the web edition with `SITE_URL=https://book.ceph-s3.ir`, runs `make check-site` and deploys `build/site` to GitHub Pages with `actions/deploy-pages` (pushes to `main` only); builds the PDFs, EPUB, DOCX and single-file HTML as workflow artifacts |
-| `.github/workflows/release.yml` | tag `v*` (or manual with an existing tag) | checks that the tag matches the book version (`tools/check_publish.py --tag`), builds PDF, EPUB, DOCX and single-file HTML for both editions and attaches them, with `SHA256SUMS.txt`, to a GitHub Release whose notes are the version's CHANGELOG section |
+| `.github/workflows/release.yml` | tag `v*` (or manual with an existing tag) | checks that the tag matches the book version (`tools/check_publish.py --tag`), builds PDF, EPUB, DOCX and single-file HTML for both editions and attaches them, with `SHA256SUMS.txt`, to a GitHub Release whose notes are the version's CHANGELOG section; then notifies confirmed newsletter subscribers when `MAIL_HOOK_KEY` is set |
+| `.github/workflows/preview.yml` | pull request | builds the web edition and, when `CLOUDFLARE_API_TOKEN` is set, uploads it to the `ceph-book-preview` Cloudflare Pages project and comments the `pages.dev` URL on the PR |
+| `.github/workflows/weekly.yml` | Mondays 06:00 UTC, or manual | report-only: lychee on external links, and `tools/check_ceph_commands.py` against the latest Ceph man pages; opens or updates a `ci-report` issue |
+| `.github/workflows/ci.yml` (`translation-pr`) | pull request | warns when `content/fa` changes without the matching `content/en` path (non-blocking annotations) |
 
 Figures are committed, so CI does not render Mermaid (it touches `build/.figures.stamp`);
 KaTeX comes from `node_modules` or, without it, from `templates/vendor/katex/`.
@@ -143,3 +146,43 @@ is protected by the same `STATS_KEY` as `/stats` (Bearer, `X-Stats-Key`, or `?ke
 The JSON lists `helpful=no` votes grouped by page, section and language, and the
 new newsletter signups in that window. A daily routine can poll this together
 with GitHub issues labelled `feedback`.
+
+## Pull-request previews
+
+`.github/workflows/preview.yml` builds `build/site` for each pull request and uploads
+it to Cloudflare Pages project `ceph-book-preview` (direct upload, not a Git
+integration). The preview URL is `https://pr-<number>.ceph-book-preview.pages.dev`
+and is posted as a PR comment.
+
+The Cloudflare MCP used to maintain this repository cannot create Pages projects
+(403). Ramin needs to add one repository secret:
+
+1. [Create an API token](https://dash.cloudflare.com/profile/api-tokens) → Custom token.
+2. Account resources: include account `53895845b7cfe401510ca1843235f3fc`.
+3. Permissions: **Account — Cloudflare Pages — Edit**, and **Account — Account Settings — Read**
+   (wrangler asks for the latter).
+4. Settings → Secrets and variables → Actions → Secrets → `CLOUDFLARE_API_TOKEN`.
+
+The first successful deploy creates the `ceph-book-preview` project automatically.
+Do not point a custom domain at this project; production stays on GitHub Pages at
+https://book.ceph-s3.ir.
+
+## Search engines
+
+`make check-site` already checks `sitemap.xml` (absolute `loc` and `hreflang` when
+`SITE_URL` is set), `robots.txt`, Book/Chapter JSON-LD and Open Graph images.
+The production sitemap is https://book.ceph-s3.ir/sitemap.xml.
+
+To verify the property, a DNS TXT record on `ceph-s3.ir` (or `book.ceph-s3.ir`) is
+enough; it can be added as a Cloudflare DNS TXT without touching the book CNAME,
+blog, policygen or feedback records. After you have the token from the console,
+it can be added for you:
+
+1. **Google Search Console**: Add property `https://book.ceph-s3.ir` (URL prefix).
+   Choose DNS TXT verification and send the token (the `google-site-verification=…`
+   value). Then submit the sitemap `https://book.ceph-s3.ir/sitemap.xml`.
+2. **Bing Webmaster Tools**: Add the same URL. Bing can import a verified Search
+   Console property, or it can issue its own DNS TXT token the same way. Submit
+   the same sitemap.
+
+Do not add placeholder TXT records. Wait for the official token from each console.

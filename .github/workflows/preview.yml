@@ -1,0 +1,86 @@
+# Pull-request preview of the web edition on Cloudflare Pages (direct upload).
+# Needs repository secret CLOUDFLARE_API_TOKEN (see docs/PUBLISHING.md). Without
+# it the job still builds the site and comments what remains to be configured.
+name: preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  PUPPETEER_SKIP_DOWNLOAD: "true"
+  # First deploy creates this Pages project; later PR branches are
+  # https://pr-<n>.ceph-book-preview.pages.dev
+  CF_PAGES_PROJECT: ceph-book-preview
+  CF_ACCOUNT_ID: "53895845b7cfe401510ca1843235f3fc"
+
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install tools
+        run: |
+          pip install -r requirements.txt
+          npm install --no-audit --no-fund
+      - name: Build the web edition for the preview host
+        env:
+          SITE_URL: https://pr-${{ github.event.pull_request.number }}.ceph-book-preview.pages.dev
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          CNAME: ""
+        run: |
+          mkdir -p build && touch build/.figures.stamp
+          make site
+          make check-site
+          rm -f build/site/CNAME
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CF_ACCOUNT_ID }}
+        run: |
+          npx --yes wrangler@4 pages deploy build/site \
+            --project-name="$CF_PAGES_PROJECT" \
+            --branch="pr-${{ github.event.pull_request.number }}" \
+            --commit-dirty=true \
+            --commit-hash="${{ github.event.pull_request.head.sha }}" | tee /tmp/pages-deploy.txt
+          url=$(python3 -c "import pathlib,re; t=pathlib.Path('/tmp/pages-deploy.txt').read_text(); m=re.search(r'https://[a-zA-Z0-9.-]+\\.pages\\.dev\\S*', t); print(m.group(0).rstrip('.') if m else '')")
+          if [ -z "$url" ]; then
+            url="https://pr-${{ github.event.pull_request.number }}.ceph-book-preview.pages.dev"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "status=deployed" >> "$GITHUB_OUTPUT"
+      - name: Comment the preview URL on the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_URL: ${{ steps.deploy.outputs.url }}
+          DEPLOY_STATUS: ${{ steps.deploy.outputs.status }}
+        run: |
+          marker="<!-- book-preview -->"
+          if [ "$DEPLOY_STATUS" = "deployed" ] && [ -n "$PREVIEW_URL" ]; then
+            body=$(printf '%s\n**Preview:** %s\n\nThis is a Cloudflare Pages upload of `build/site` for this pull request. It is not the production site at https://book.ceph-s3.ir.\n' "$marker" "$PREVIEW_URL")
+          else
+            body=$(printf '%s\nPreview was built but not uploaded. Add a repository secret `CLOUDFLARE_API_TOKEN` (Account: Cloudflare Pages — Edit, on account `53895845b7cfe401510ca1843235f3fc`). The first deploy creates the `ceph-book-preview` Pages project. See docs/PUBLISHING.md.\n' "$marker")
+          fi
+          existing=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" --jq ".[] | select(.body | contains(\"book-preview\")) | .id" | tail -n1 || true)
+          if [ -n "$existing" ]; then
+            printf '%s' "$body" | gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$existing" -F body=@-
+          else
+            printf '%s' "$body" | gh api -X POST "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" -F body=@-
+          fi
