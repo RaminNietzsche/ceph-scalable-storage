@@ -1,52 +1,46 @@
-# نقشه‌ی راه (Roadmap)
+# Roadmap
 
-این فایل کارهای برنامه‌ریزی‌شده برای نسخه‌های بعدی کتاب را نگه می‌دارد. هر مورد پس از نوشته شدن در متن فارسی، با همان شناسه‌ها به نسخه‌ی انگلیسی هم ترجمه می‌شود.
+This file holds planned work for later editions of the book. After an item is written in the Persian text, it is translated into the English edition with the same identifiers.
 
 ## Gaps vs 《Ceph分布式存储实战》 (2016)
 
-### شکاف‌ها در برابر یک کتاب Ceph سال ۲۰۱۶
+A topical comparison of this book's contents with the Chinese book 《Ceph分布式存储实战》 (2016; its examples are mostly based on Hammer and Jewel) showed that most of that book's topics are already covered here, or that their methods are obsolete. The remaining gaps are mostly **practical case studies**, not architectural holes. The list below is ordered by practical value today.
 
-یک مقایسه‌ی موضوعی میان فهرست این کتاب و کتاب چینی 《Ceph分布式存储实战》 (۲۰۱۶، مثال‌ها بیشتر بر پایه‌ی Hammer و Jewel) نشان داد بیشتر موضوع‌های آن کتاب در این کتاب پوشش داده شده‌اند یا روش‌شان منسوخ شده است. شکاف‌های باقی‌مانده بیشتر **مطالعه‌ی موردی کاربردی** هستند، نه خلأ معماری. فهرست زیر به ترتیب ارزش عملی امروز مرتب شده است.
+The comparison was only a way to find topics: no prose, command list or figure from that book is copied into this repository, and every new section will be written from official documentation and our own experiments.
 
-این مقایسه فقط برای پیدا کردن موضوع بود: هیچ متن، فهرست دستور یا شکلی از آن کتاب به این مخزن منتقل نمی‌شود و هر بخش تازه از روی مستندات رسمی و آزمایش خود ما نوشته خواهد شد.
-
-| رتبه | موضوع (Topic) | فصل هدف | وضعیت |
+| Rank | Topic | Target chapter | Status |
 |---:|---|---|---|
-| 1 | درایو ابری روی RGW با Nextcloud و S3 سازگار (Cloud drive: Nextcloud on RGW/S3) — external storage، bucket مجازی در DNS، CORS و path-style | فصل ۴ | planned |
-| 2 | تفکیک خواندن و نوشتن در جلوی RGW (Read/write split in front of RGW) — ACL روی متد HTTP در HAProxy کنار سرویس ingress، و دام‌های سازگاری پس از PUT | فصل ۴ (کنار §۴.۳.۲) | planned |
-| 3 | پخش ویدئوی درخواستی با HLS و DASH روی RGW (VOD with HLS/DASH on RGW) — lifecycle برای قطعه‌های قدیمی، CDN، CORS و هشدار bucket عمومی | فصل ۴ | planned |
-| 4 | دسترسی از ویندوز به روش امروزی (Windows access, the modern way) — SMB برای CephFS، کلاینت رسمی Ceph برای Windows، و initiator ‏NVMe/TCP برای ویندوز و VMware | فصل ۶ و فصل ۲ | planned |
-| 5 | رابط REST ‏Admin Ops در RGW (RGW Admin Ops REST API) — چه زمانی به‌جای CLI، caps لازم، و چند مثال کاربر، bucket و سهمیه | فصل ۴ (ارجاع به امضای فصل ۴۱) | planned |
-| 6 | الگوی «primary روی SSD، نسخه‌ها روی HDD» (Primary on SSD, replicas on HDD) — جعبه‌ی «الگو و دام» با primary-affinity و قاعده‌ی CRUSH، و چرا pool جدا معمولاً بهتر است | فصل ۸ یا ۱۶ | planned |
-| 7 | CloudStack با RBD (CloudStack with RBD) — primary storage از نوع RBD، کوتاه و بدون هم‌وزنی با OpenStack | فصل ۲ (ارجاع در فصل ۳) | planned |
-| 8 | CephFS برای HPC (CephFS for HPC) — کی CephFS و کی Lustre یا BeeGFS، و فشار فراداده با کلاینت‌های زیاد | فصل ۶ | planned |
-| 9 | تکمیل تنظیم سیستم‌عامل و BIOS (OS and BIOS tuning additions) — irqbalance، پروفایل‌های tuned و چند sysctl شبکه | فصل ۲۱ (§۲۱.۸) | planned |
+| 1 | Cloud drive: Nextcloud on RGW/S3 — external storage, virtual bucket in DNS, CORS and path-style | ch04 | planned |
+| 2 | Read/write split in front of RGW — ACLs on HTTP methods in HAProxy next to the ingress service, and consistency pitfalls after PUT | ch04 (beside §4.3.2) | planned |
+| 3 | VOD with HLS/DASH on RGW — lifecycle for stale segments, CDN, CORS and the public-bucket warning | ch04 | planned |
+| 4 | Windows access, the modern way — SMB for CephFS, the official Ceph client for Windows, and an NVMe/TCP initiator for Windows and VMware | ch06 and ch02 | planned |
+| 5 | RGW Admin Ops REST API — when to use it instead of the CLI, the caps it needs, and a few user, bucket and quota examples | ch04 (with a pointer to the signing material in ch41) | planned |
+| 6 | Primary on SSD, replicas on HDD — a "pattern and pitfall" box with primary-affinity and the CRUSH rule, and why a separate pool is usually better | ch08 or ch16 | planned |
+| 7 | CloudStack with RBD — RBD as primary storage, short, and not given equal weight with OpenStack | ch02 (referenced in ch03) | planned |
+| 8 | CephFS for HPC — when to use CephFS and when Lustre or BeeGFS, and metadata pressure with many clients | ch06 | planned |
+| 9 | OS and BIOS tuning additions — irqbalance, tuned profiles and a few network sysctl settings | ch21 (§21.8) | planned |
 
 ### Not adding (obsolete)
 
-### موارد منسوخ که اضافه نمی‌شوند
-
-- **Calamari** (و Romana، Diamond، salt-minion): جای آن را Ceph Dashboard گرفته است (فصل ۹).
-- **ceph-deploy و ceph-disk**: ابزار امروزی cephadm است (فصل‌های ۱ و ۱۱).
-- **FileStore و journal روی SSD** و نسبت‌های اندازه‌ی journal: جای آن را BlueStore گرفته است (فصل ۱۲).
-- **همگام‌سازی federated با Region در Hammer**: multisite امروزی با realm، zonegroup و period (فصل‌های ۵ و ۴۲).
-- **cache tier به‌عنوان راه‌حل تولیدی تازه**: فصل ۱۶ فقط معماری و مهاجرت به بیرون را می‌آورد.
-- **iSCSI با tgtd**: دروازه‌ی NVMe-oF جایگزین است (§۲.۱۰.۱ و فصل ۳۱).
-- **Hadoop روی CephFS با پلاگین قدیمی**: مسیر امروزی S3A است (§۴.۸).
-- **COSBench**: از warp استفاده می‌شود (§۱۰.۷.۱).
-- **Ceph-Dokan با خاموش کردن cephx**: از نظر امنیتی پذیرفتنی نیست.
-- **ZStack**، و **Zabbix یا Diamond** به‌عنوان پایش اصلی (پشته‌ی امروزی Prometheus در فصل ۲۰ است).
-- **اعداد سخت‌افزاری ۲۰۱۶** (NIC یک‌گیگابیتی، MON با ۱ گیگابایت RAM و مانند آن): جدول به‌روز در §۱.۵ است.
+- **Calamari** (and Romana, Diamond, salt-minion): replaced by the Ceph Dashboard (ch09).
+- **ceph-deploy and ceph-disk**: the current tool is cephadm (ch01 and ch11).
+- **FileStore and a journal on SSD**, and journal sizing ratios: replaced by BlueStore (ch12).
+- **Federated sync with Region in Hammer**: today's multisite uses realm, zonegroup and period (ch05 and ch42).
+- **cache tier as a new production design**: ch16 covers only the architecture and how to migrate off it.
+- **iSCSI with tgtd**: the NVMe-oF gateway replaces it (§2.10.1 and ch31).
+- **Hadoop on CephFS with the old plugin**: the current path is S3A (§4.8).
+- **COSBench**: warp is used instead (§10.7.1).
+- **Ceph-Dokan with cephx turned off**: not acceptable from a security standpoint.
+- **ZStack**, and **Zabbix or Diamond** as the primary monitoring stack (today's stack is Prometheus, in ch20).
+- **2016 hardware figures** (1 GbE NICs, MONs with 1 GB of RAM, and the like): the current table is in §1.5.
 
 ## Ceph publications to review and integrate
-
-### مقاله‌های Ceph برای بررسی و ادغام
 
 Sources checked on 2026-11-15: the [ceph.io publications page](https://ceph.io/en/news/publications/) and the archived [UCSC SSRC Ultra-Large Scale Storage project page](https://www.ssrc.us/proj/exscale.html). Relevance notes are our own one-line summaries, not abstracts. "In bibliography" means the paper is already cited in a chapter's Sources list. Every row is `to review` until someone reads the paper and either cites it or decides against it.
 
 The books on the ceph.io page are not listed: this book does not draw on other books (the 2016 Chinese book is handled only as a gap list, above).
 
-#### ceph.io: papers
+### ceph.io: papers
 
 | Title | Authors | Year | Venue | Link | Relevance | Target | In bibliography | Status |
 |---|---|---|---|---|---|---|---|---|
@@ -70,7 +64,7 @@ The books on the ceph.io page are not listed: this book does not draw on other b
 | Replication Under Scalable Hashing: A Family of Algorithms for Scalable Decentralized Data Distribution | R. J. Honicky, E. L. Miller | 2004 | IPDPS 2004 | [pdf](http://www.ssrc.ucsc.edu/Papers/honicky-ipdps04.pdf) | RUSH, CRUSH's direct predecessor | ch08, ch28 | no (RUSH named in ch01 prose) | to review |
 | A Distributed Key-Value Store using Ceph | E. Cawthon | 2012 | Summer project report | [pdf](https://ceph.io/assets/pdfs/CawthonKeyValueStore.pdf) | A key-value layer built on RADOS objects; a worked librados example | ch14, ch15 | no | to review |
 
-#### UCSC SSRC (exscale)
+### UCSC SSRC (exscale)
 
 Ceph-, RADOS-, CRUSH-, CephFS- and object-storage-related papers from the project page that are not already in the ceph.io table above. Not listed as out of scope: metadata search (Spyglass, Magellan, Copernicus), provenance, archival power management, the CERN EOS trace study, and pre-2001 work.
 

@@ -1,28 +1,19 @@
 # Ceph: Scalable Storage — راهنمای جامع Ceph
 
-An original Persian book on Ceph, with a parallel English edition. It goes from first
-cluster to source code and on-disk bytes, in 42 chapters with 375 figures and 188
-algorithm boxes, and is built from Markdown sources with one `make` command.
+An original Persian book on Ceph, with a parallel English edition (*The Comprehensive Ceph Guide*). It goes from first cluster to source code and on-disk bytes, in 42 chapters with 375 figures and 188 algorithm boxes, and is built from Markdown sources with one `make` command.
 
-<div dir="rtl">
-
-راهنمای فارسی و جامع Ceph، با ویرایش انگلیسی موازی. کتاب از نخستین کلاستر شروع می‌کند و تا کد منبع و بایت‌های روی دیسک پیش می‌رود: ۴۲ فصل، ۳۷۵ شکل و ۱۸۸ کادر الگوریتم. همه‌ی خروجی‌ها از منابع Markdown و با یک فرمان `make` ساخته می‌شوند.
-
-</div>
+**Read it:** [book.ceph-s3.ir](https://book.ceph-s3.ir) · [Persian](https://book.ceph-s3.ir/fa/) · [English](https://book.ceph-s3.ir/en/) · [Releases](https://github.com/RaminNietzsche/ceph-scalable-storage/releases)
 
 | | Persian (`fa`, canonical) | English (`en`) |
 |---|---|---|
 | Content | `content/fa/` | `content/en/` (translation of the Persian text) |
 | Print | `make pdf` | `make pdf LANG=en` |
-| Status | v1.6, 1250 pages | in progress (see `make check-parity`) |
+| Status | v1.6, 1250 pages | translated (see `make check-parity`) |
+| Live site | [book.ceph-s3.ir/fa/](https://book.ceph-s3.ir/fa/) | [book.ceph-s3.ir/en/](https://book.ceph-s3.ir/en/) |
 
-## ساختن کتاب (فارسی)
+## Building
 
-<div dir="rtl">
-
-**پیش‌نیازها:** Python 3.11 یا جدیدتر، GNU Make، Pandoc 3.6 (برای HTML، EPUB و DOCX)، Node.js 20 یا جدیدتر (برای رندر فرمول‌ها با KaTeX، و markdownlint و رندر شکل‌های Mermaid)، Chrome یا Chromium (فقط برای رندر دوباره‌ی شکل‌ها و جلد)، و فونت‌های Vazirmatn، Inter، Source Serif و JetBrains Mono.
-
-</div>
+**Prerequisites:** Python 3.11 or newer, GNU Make, Pandoc 3.6 (for HTML, EPUB and DOCX), Node.js 20 or newer (for KaTeX math, markdownlint and Mermaid figures), Chrome or Chromium (only to re-render figures and the cover), and the Vazirmatn, Inter, Source Serif and JetBrains Mono fonts.
 
 ```sh
 python3 -m pip install -r requirements.txt   # WeasyPrint, Matplotlib, PyYAML, Pygments, codespell
@@ -35,30 +26,18 @@ make all                                     # pdf + web book + html-single + ep
 make check                                   # lint, spell, refs, links, parity
 ```
 
-<div dir="rtl">
+`LANG` must be `fa` or `en`. A locale value inherited from the environment, such as `en_US.UTF-8`, is ignored, so the default edition is `fa`. `make` and `make pdf` build the Persian edition; use `make pdf LANG=en` for English. `make help` lists every target.
 
-- فونت‌ها خودکار نصب می‌شوند: `make pdf`، `make html` و `make site` به هدف `make fonts` وابسته‌اند که فقط اگر fontconfig یکی از فونت‌های Vazirmatn، Inter، JetBrains Mono یا Source Serif را پیدا نکند، `tools/install_fonts.sh` را اجرا می‌کند (لینوکس: `~/.local/share/fonts`، مک: `~/Library/Fonts`؛ بدون نیاز به root). در مک، fontconfig را با `brew install fontconfig` نصب کنید. پس از یک clone تازه همین `make html` کافی است.
-- `make` و `make pdf` نسخه‌ی فارسی را می‌سازند. نسخه‌ی انگلیسی را با `make pdf LANG=en` بسازید.
-- `make html` نسخه‌ی وب چندصفحه‌ای کتاب را در `build/site/<lang>/` می‌سازد: یک صفحه برای هر فصل و پیوست، فهرست کناری تاشو (در نسخه‌ی فارسی سمت راست)، فهرست «در این صفحه»، قبلی/بعدی، جست‌وجوی آفلاین با یکسان‌سازی ی/ي، ک/ك، نیم‌فاصله و ارقام فارسی، بزرگ‌نمایی شکل‌ها با چرخ، کشیدن و دو انگشت، پوسته‌ی روشن و تیره، رنگ‌آمیزی کد و دکمه‌ی کپی، تعویض زبان و برگه‌ی چاپ. فونت‌ها، اسکریپت‌ها و شکل‌ها کنار صفحه‌ها کپی می‌شوند و سایت بدون اینترنت و حتی با `file://` کار می‌کند. `make site` هر دو زبان را می‌سازد و `make check-site` پیوندها و anchorها را بررسی می‌کند. `make webfig` نسخه‌ی پرتراکم شکل‌ها را برای وب می‌سازد (نمودارهای mermaid با مقیاس ۳ و نمودارهای matplotlib به‌صورت SVG) تا بزرگ‌نمایی تیز بماند؛ در نسخه‌ی انگلیسی هنگام ساخت، نشانه‌ی شکستن کلمه (soft hyphen) با الگوهای Pyphen افزوده می‌شود تا متن هم‌تراز در موبایل فاصله‌ی زیاد نگیرد.
-- `make html-single`، `make epub` و `make docx` خروجی‌های Pandoc را در `build/<lang>/` می‌سازند.
-- شکل‌ها در مخزن ثبت شده‌اند، پس برای ساختن کتاب به Chrome نیازی نیست. `make figures` فقط شکل‌هایی را دوباره رندر می‌کند که منبعشان (`.mmd`، `.bf.json` یا برچسب‌های `figures/i18n`) تغییر کرده است. تشخیص تغییر با hash محتوا است، نه زمان فایل.
-- اگر نمی‌خواهید چیزی نصب کنید، Docker کافی است: `docker build -t ceph-book . && docker run --rm -v "$PWD":/book ceph-book make all`.
-- `make help` همه‌ی هدف‌ها را فهرست می‌کند.
-
-**مجوز.** متن، شکل‌ها، قالب‌ها و ابزارها و اسکریپت‌های این مخزن همه با یک مجوز واحد، [CC BY-NC-SA 4.0](LICENSE) (اِسناد، غیرتجاری، اشتراک همسان ۴.۰ بین‌المللی)، منتشر شده‌اند: بازنشر و اقتباس با ذکر منبع و با همان مجوز آزاد است، اما **استفاده‌ی تجاری مجاز نیست**. تکه‌های کد نقل‌شده از پروژه‌های بالادستی مجوز اصلی خودشان را حفظ می‌کنند؛ [NOTICE.md](NOTICE.md) را ببینید.
-
-</div>
-
-## Building (English)
-
-The prerequisites are the same as above. `LANG` must be `fa` or `en`. A locale value
-inherited from the environment, such as `en_US.UTF-8`, is ignored, so the default
-edition is `fa`.
+- Fonts are installed automatically: `make pdf`, `make html` and `make site` depend on `make fonts`, which runs `tools/install_fonts.sh` only when fontconfig cannot find Vazirmatn, Inter, JetBrains Mono or Source Serif (Linux: `~/.local/share/fonts`, macOS: `~/Library/Fonts`; no root). On macOS, install fontconfig first with `brew install fontconfig`. After a fresh clone, `make html` is enough.
+- `make html` writes the multi-page web book to `build/site/<lang>/`: one page per chapter and appendix, a collapsible sidebar (right-hand in Persian), in-page contents, previous/next, breadcrumbs, offline search (with ی/ي, ک/ك, ZWNJ and Persian-digit folding), figure zoom (wheel, drag, pinch), light/dark theme, highlighted code with copy buttons, a language switcher and a print stylesheet. Fonts, scripts and figures are copied next to the pages, so the site works offline and from `file://`. `make site` builds both editions and `make check-site` checks links and anchors. `make webfig` renders high-resolution web figures (3× Mermaid, SVG Matplotlib plots) so zoom stays sharp. The English build inserts soft hyphens with Pyphen patterns so justified text on a narrow screen does not leave large gaps.
+- `make html-single`, `make epub` and `make docx` write Pandoc exports to `build/<lang>/`.
+- Figures are committed, so Chrome is not needed to build the book. `make figures` re-renders only figures whose source (`.mmd`, `.bf.json` or `figures/i18n` labels) has changed. Change detection is a content hash, not the file mtime.
+- To build without installing the toolchain on the host: `docker build -t ceph-book . && docker run --rm -v "$PWD":/book ceph-book make all`.
 
 | Target | What it does |
 |---|---|
 | `pdf` | Print PDF (WeasyPrint, two-pass page-number index) for `LANG` |
-| `html` | Multi-page web book for `LANG` in `build/site/LANG/`: one page per chapter and appendix, collapsible sidebar (right-hand in Persian), in-page contents, previous/next, breadcrumbs, offline Persian-aware search, figure zoom (wheel, drag, pinch), light/dark theme, highlighted code with copy buttons, language switcher, print stylesheet; self-hosted fonts and no network access (works from `file://`) |
+| `html` | Multi-page web book for `LANG` in `build/site/LANG/` (see the notes above) |
 | `site` | `html` for both editions; open `build/site/index.html` |
 | `fonts` | Install Vazirmatn, Inter, JetBrains Mono and Source Serif with `tools/install_fonts.sh`, only if fontconfig cannot find them (Linux `~/.local/share/fonts`, macOS `~/Library/Fonts`, no root). `pdf`, `html` and `site` depend on it, so a fresh clone needs only `make html`; on macOS install fontconfig first (`brew install fontconfig`) |
 | `webfig` | Render high-resolution web figures (3x mermaid / 2x byte-layout WebP, SVG plots) into `build/webfig/`; `make html` runs it |
@@ -78,11 +57,7 @@ edition is `fa`.
 | `stats` | Counts (chapters, figures, algorithms, references, answers) |
 | `clean` / `distclean` / `dist` | Housekeeping; `dist` collects outputs and a `git archive` |
 
-Web-edition options (edit links, feedback endpoint, newsletter form, cookie-less analytics,
-custom domain) are read from the environment at build time, for example
-`make site SITE_URL=https://book.ceph-s3.ir CF_BEACON_TOKEN=…`; none is stored in the
-repository. CI, GitHub Pages, releases, Zenodo DOIs and DNS are described in
-[docs/PUBLISHING.md](docs/PUBLISHING.md).
+Web-edition options (edit links, feedback endpoint, newsletter form, cookie-less analytics, custom domain) are read from the environment at build time, for example `make site SITE_URL=https://book.ceph-s3.ir CF_BEACON_TOKEN=…`; none is stored in the repository. CI, GitHub Pages, releases, Zenodo DOIs and DNS are described in [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Layout
 
@@ -111,21 +86,23 @@ tools/                        build, export, render and check scripts (Python, e
 
 ## Writing conventions (short)
 
-The full guide is in [CONTRIBUTING.md](CONTRIBUTING.md). Planned additions, including the
-gaps found against a 2016 Ceph book, are listed in [ROADMAP.md](ROADMAP.md).
+The full guide is in [CONTRIBUTING.md](CONTRIBUTING.md). Planned additions, including the gaps found against a 2016 Ceph book, are listed in [ROADMAP.md](ROADMAP.md).
 
-- Callouts are fenced divs: `::: {.tip}`, `.warn`, `.note`, `.try`, `.deep`,
-  `.debug`, `.box`, `.summary`.
+- Callouts are fenced divs: `::: {.tip}`, `.warn`, `.note`, `.try`, `.deep`, `.debug`, `.box`, `.summary`.
 - Algorithms: `::: {.algo #alg-NN-K title="…" src="file::function" complexity="…"}`.
-- Figures: `![caption](figures/chNN/name.png){#fig-NN-name}`. When a file
-  `name.<lang>.png` exists, that edition uses it.
-- Headings carry stable ids (`{#sec-NN-K}`), and the English edition keeps the
-  Persian ids. `tools/renumber_sections.py` fixes them after you reorder sections.
+- Figures: `![caption](figures/chNN/name.png){#fig-NN-name}`. When a file `name.<lang>.png` exists, that edition uses it.
+- Headings carry stable ids (`{#sec-NN-K}`), and the English edition keeps the Persian ids. `tools/renumber_sections.py` fixes them after you reorder sections.
+
+## Citing this book
+
+If you use the book, please cite it. GitHub’s “Cite this repository” button reads [CITATION.cff](CITATION.cff). A Zenodo DOI will be added there, and as a badge here, once one is minted for v1.6.
+
+Najarbashi, Ramin. *The Comprehensive Ceph Guide: Designing, Implementing and Operating Scalable Storage — from the Code to Operations*. 1.6. 2026. <https://book.ceph-s3.ir>. CC BY-NC-SA 4.0. ORCID: [0009-0000-7622-8130](https://orcid.org/0009-0000-7622-8130).
+
+## Contributing and feedback
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, Markdown conventions and translation notes. On the [live site](https://book.ceph-s3.ir) every page has an “Edit this page” link back to the source file on `main`. After a “No” on “Was this section helpful?”, the site can open a prefilled GitHub issue with the `feedback` label; you can also [browse or open feedback issues](https://github.com/RaminNietzsche/ceph-scalable-storage/issues?q=label%3Afeedback) directly. Run `make check` before you send a change; it must report 0 errors.
 
 ## Licence
 
-The text, figures, templates and the tools/scripts are under a single licence,
-[CC BY-NC-SA 4.0](LICENSE) (Attribution-NonCommercial-ShareAlike 4.0 International):
-free to share and adapt with attribution, under the same licence, and **not for
-commercial use**. Quoted upstream code excerpts keep their original licences; see
-[NOTICE.md](NOTICE.md).
+The text, figures, templates and the tools/scripts are under a single licence, [CC BY-NC-SA 4.0](LICENSE) (Attribution-NonCommercial-ShareAlike 4.0 International): free to share and adapt with attribution, under the same licence, and **not for commercial use**. Quoted upstream code excerpts keep their original licences; see [NOTICE.md](NOTICE.md).
