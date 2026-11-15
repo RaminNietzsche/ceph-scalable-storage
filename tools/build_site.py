@@ -848,6 +848,7 @@ ICON = {
     'cards': '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="13" height="13" rx="2"/><path d="M8 4h11a2 2 0 0 1 2 2v11"/></svg>',
     'flame': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2.2-4.8.2 1.6 1 2.6 2 3 0-3 .3-5.6.8-8.2z"/></svg>',
     'book': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z"/><path d="M4 19a2 2 0 0 1 2-2h13"/></svg>',
+    'github': '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" stroke="none" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.66.35-1.08.63-1.33-2.22-.25-4.56-1.11-4.56-4.95 0-1.1.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0 1 12 6.8a9.6 9.6 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.85-2.34 4.7-4.57 4.95.36.31.68.92.68 1.85v2.74c0 .26.18.58.69.48A10 10 0 0 0 12 2z"/></svg>',
 }
 ICON['list'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>'
 ICON['flask'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6l-5.6 9.6A1.6 1.6 0 0 0 5.8 21h12.4a1.6 1.6 0 0 0 1.4-2.4L14 9V3M7.2 15h9.6"/></svg>'
@@ -1286,6 +1287,35 @@ def ch_href(n):
     return f'{CH[n].slug}.html' if n in CH else f'{first.slug}.html'
 
 
+def home_picture(rel, alt, cls='learn-img'):
+    """Committed figure under figures/, preferring a LANG-specific .en.png."""
+    base = os.path.join(ROOT, 'figures')
+    pth = os.path.join(base, rel)
+    if LANG == 'en':
+        en = os.path.join(base, rel[:-4] + '.en.png')
+        if os.path.exists(en):
+            pth = en
+    if not os.path.exists(pth):
+        return ''
+    src = copy_figure(pth)
+    hi, ext, alts = hires(pth)
+    if ext != '.svg':
+        src_for_avif = pth
+        if alts.get('.webp'):
+            src_for_avif = os.path.join(FIGDIR, alts['.webp'].split('figures/', 1)[-1])
+        avif_dst = os.path.splitext(os.path.join(FIGDIR, os.path.relpath(pth, os.path.join(ROOT, 'figures'))))[0] + '.avif'
+        if maybe_avif(src_for_avif if os.path.exists(src_for_avif) else pth, avif_dst, png=pth):
+            alts['.avif'] = '../figures/' + os.path.relpath(avif_dst, FIGDIR).replace(os.sep, '/')
+    w, h = Image.open(pth).size
+    sources = []
+    if alts.get('.avif'):
+        sources.append(f'<source type="image/avif" srcset="{alts[".avif"]}">')
+    if alts.get('.webp'):
+        sources.append(f'<source type="image/webp" srcset="{alts[".webp"]}">')
+    img = f'<img class="{cls}" src="{src}" width="{w}" height="{h}" loading="lazy" alt="{esc(alt)}">'
+    return ('<picture>' + ''.join(sources) + img + '</picture>') if sources else img
+
+
 ROLES = [('cluster', 1, 1), ('deploy', 2, 11), ('ops', 3, 7), ('alert', 4, 17), ('code', 5, 22), ('layers', 6, 'part-4')]
 gs_cards = []
 for icon, k, tgt in ROLES:
@@ -1306,9 +1336,52 @@ for i, (icon, word, title, rng, desc, lo, hi, href, new_) in enumerate(PARTS_HOM
                       f'<span class="pc-prog" data-lo="{lo}" data-hi="{hi}" hidden>{ring()}<span class="pc-pt"></span></span></div>'
                       f'<h3><a href="{href}">{esc(title)}</a></h3><p>{esc(desc)}</p>'
                       f'<p class="pc-time">{ICON["clock"]}{esc(fmt_min(sum(CH[n].minutes for n in range(lo, hi + 1) if n in CH), True))}</p><div class="chips">{chips}</div></div>')
+CONCEPT_DOI, VERSION_DOI = '10.5281/zenodo.24253822', '10.5281/zenodo.24253823'
 nparts = len(PARTS_HOME)
-stats = ('<div class="stats">' + ''.join(f'<div><b data-n="{n}">{loc(n)}</b><span>{esc(S[k])}</span></div>'
-                                         for n, k in ((len(CH), 'stat_ch'), (N_FIG, 'stat_fig'), (N_ALGO, 'stat_algo'), (nparts, 'stat_parts'))) + '</div>')
+stats = ('<div class="stats" role="list">' + ''.join(
+    f'<div role="listitem"><b data-n="{n}">{loc(n)}</b><span>{esc(S[k])}</span></div>'
+    for n, k in ((len(CH), 'stat_ch'), (N_FIG, 'stat_fig'), (N_ALGO, 'stat_algo'), (nparts, 'stat_parts'))) + '</div>')
+VERSIONS = ('Reef', 'Squid', 'Tentacle', 'Umbrella')
+versions = (f'<p class="versions"><span class="ver-label">{esc(S["versions_label"])}</span>'
+            f'<span class="ver-list" dir="ltr">' +
+            ''.join(f'<span class="vpill">{v}</span>' for v in VERSIONS) + '</span></p>')
+ver_tag = str(META['version'])
+rel_base = f"{CFG['repo']}/releases/download/v{ver_tag}/ceph-scalable-storage-{LANG}"
+pdf_url, epub_url = rel_base + '.pdf', rel_base + '.epub'
+LEARN_FIGS = (
+    (1, 'ch01/f01_stack.png', 1),
+    (2, 'ch08/f02_hier.png', 8),
+    (3, 'ch12/f01_stack.png', 12),
+    (4, 'ch34/f01_oppath.png', 34),
+)
+learn_cards = []
+for k, rel, chap_n in LEARN_FIGS:
+    href = ch_href(chap_n)
+    pic = home_picture(rel, S[f'learn{k}_alt'])
+    tag = f'{esc(UI["chapter_word"])} {loc(chap_n)}'
+    learn_cards.append(
+        f'<a class="lcard l{k}" href="{href}"><span class="lfig">{pic}</span>'
+        f'<span class="hc-tag">{tag}</span><span class="hc-t">{esc(S[f"learn{k}_t"])}</span>'
+        f'<span class="hc-d">{esc(S[f"learn{k}_d"])}</span>'
+        f'<span class="hc-go">{esc(S["gs_go"])} {ICON["arrow"]}</span></a>')
+learn = (f'<section class="hsec" id="learn" aria-labelledby="learn-h"><div class="hsec-head">'
+         f'<h2 id="learn-h">{esc(S["learn_title"])}</h2><p>{esc(S["learn_sub"])}</p></div>'
+         f'<div class="hgrid learn">{"".join(learn_cards)}</div></section>')
+cite = (f'<section class="hsec cite" id="cite" aria-labelledby="cite-h"><div class="hsec-head">'
+        f'<h2 id="cite-h">{esc(S["cite_title"])}</h2><p>{esc(S["cite_sub"])}</p></div>'
+        f'<div class="cite-grid">'
+        f'<a class="cite-card" href="https://doi.org/{CONCEPT_DOI}" rel="noopener">'
+        f'<span class="cite-k">{esc(S["cite_concept"])}</span>'
+        f'<span class="cite-v en" lang="en" dir="ltr">{esc(CONCEPT_DOI)}</span></a>'
+        f'<a class="cite-card" href="https://doi.org/{VERSION_DOI}" rel="noopener">'
+        f'<span class="cite-k">{esc(S["cite_version"].format(v=loc(META["version_display"])))}</span>'
+        f'<span class="cite-v en" lang="en" dir="ltr">{esc(VERSION_DOI)}</span></a>'
+        f'<a class="cite-card" href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener">'
+        f'<span class="cite-k">{esc(S["cite_license"])}</span>'
+        f'<span class="cite-v en" lang="en" dir="ltr">CC BY-NC-SA 4.0</span></a></div></section>')
+feedback = (f'<section class="hsec feedback" id="feedback" aria-labelledby="fb-h"><div class="hsec-head">'
+            f'<h2 id="fb-h">{esc(S["fb_title"])}</h2><p>{esc(S["fb_lead"])}</p></div>'
+            f'<p class="fb-acts"><a class="btn" href="{esc(CFG["repo"])}/issues/new" rel="noopener">{ICON["github"]}{esc(S["fb_issue"])}</a></p></section>')
 rp = (f'<div class="rp" id="rp" hidden><div class="ring-wrap">{ring("big")}<b class="rp-pct"></b></div><div class="rp-body"><div class="rp-t">{esc(S["progress_title"])}</div>'
       f'<p class="rp-line"></p><div class="rp-acts"><a class="btn primary rp-cont" href="{first.slug}.html" hidden>{ICON["book"]}<span class="rp-ct">{esc(S["continue"])}</span> {ICON["arrow"]}</a>'
       f'<button type="button" class="btn" data-open-my>{ICON["bookmark"]}{esc(S["my_reading"])}</button></div>'
@@ -1341,19 +1414,28 @@ home = f'''<article class="content home" id="top">
 <div class="hbadge"><span class="pulse" aria-hidden="true"></span>{esc(S["badge"].format(v=loc(META["version_display"])))}</div>
 <div class="eyebrow">{esc(S["study_guide"])}</div><h1>{esc(BOOK).replace("Ceph", '<span class="grad">Ceph</span>')}</h1>
 <p class="subtitle">{esc(META.get("subtitle", ""))}</p><p class="lead">{esc(S["hero_lead"])}</p>
-<p class="cta"><a class="btn primary" href="{first.slug}.html">{esc(S["start"])} {ICON["arrow"]}</a> <a class="btn" href="#get-started">{esc(S["get_started"])}</a> <a class="btn ghost" href="../{OTHER}/index.html" hreflang="{OTHER}" lang="{OTHER}">{esc(S["read_in_other"])}</a></p>
-{stats}
+<p class="cta">
+<a class="btn primary" href="{first.slug}.html">{ICON["book"]}{esc(S["cta_read"])} {ICON["arrow"]}</a>
+<a class="btn" href="{esc(pdf_url)}" rel="noopener">{ICON["download"]}{esc(S["cta_pdf"])}</a>
+<a class="btn" href="{esc(epub_url)}" rel="noopener">{ICON["download"]}{esc(S["cta_epub"])}</a>
+<a class="btn ghost" href="{esc(CFG["repo"])}" rel="noopener">{ICON["github"]}{esc(S["cta_github"])}</a>
+</p>
+<p class="cta-more"><a href="#get-started">{esc(S["get_started"])}</a>
+<span aria-hidden="true">·</span>
+<a href="../{OTHER}/index.html" hreflang="{OTHER}" lang="{OTHER}">{esc(S["read_in_other"])}</a></p>
+{stats}{versions}
 {rp}
 <p class="byline">{esc(S["written_by"])}</p><p class="meta">{esc(S["version"])} {esc(loc(META["version_display"]))} · {esc(META["date_display"])}<br>{esc(S["basis"])}: <span dir="auto">{esc(META["technical_basis"])}</span></p></div>
 <div class="hero-art"><div class="glow" aria-hidden="true"></div><img class="cover" src="../assets/cover.{LANG}.webp" width="{COVER_WH[0]}" height="{COVER_WH[1]}" fetchpriority="high" alt="{esc(S['cover_alt'].format(book=BOOK))}">{term}</div></section>
+{learn}
 <section class="hsec" id="get-started" aria-labelledby="gs-h"><div class="hsec-head"><h2 id="gs-h">{esc(S["gs_title"])}</h2><p>{esc(S["gs_sub"])}</p></div><div class="hgrid roles">{"".join(gs_cards)}</div></section>
 <section class="hsec" id="lab" aria-labelledby="lab-h"><div class="hsec-head"><h2 id="lab-h">{esc(SIMY["lab_title"])}</h2><p>{esc(SIMY["lab_intro"])}</p></div><div class="lab-grid">{LAB_CARDS}</div><p><a class="btn" href="lab.html">{ICON["flask"]}{esc(SIMY["lab_title"])} {ICON["arrow"]}</a></p></section>
 <section class="hsec" id="parts" aria-labelledby="parts-h"><div class="hsec-head"><h2 id="parts-h">{esc(S["parts_title"])}</h2><p>{esc(S["parts_sub"])}</p></div><div class="hgrid parts">{"".join(part_cards)}</div></section>
 <section class="hsec" id="contents" aria-labelledby="contents-h"><div class="hsec-head"><h2 id="contents-h">{esc(S["contents"])}</h2><p>{esc(S["contents_home"])}</p></div><p><a class="btn primary" href="contents.html">{ICON["list"]}{esc(S["contents_cta"])} {ICON["arrow"]}</a></p></section>
-{newsletter}
+{cite}
+<div class="cta-band">{newsletter}{feedback}</div>
 <section class="about" aria-labelledby="about-h"><h2 id="about-h">{esc(S["about"])}</h2>{about}</section></article>'''
 HOME_DESC = seo.describe(f'{META.get("subtitle", "")}. {S["hero_lead"]}')
-CONCEPT_DOI, VERSION_DOI = '10.5281/zenodo.24253822', '10.5281/zenodo.24253823'
 HOME_LD = seo.book_ld(U, LANG, OTHER, BOOK, yaml.safe_load(open(os.path.join(ROOT, 'content', OTHER, 'ui.yaml'), encoding='utf-8'))['book'],
                       HOME_DESC, str(META['version']), str(META['date']),
                       [(n, CH[n].title_text, CH[n].slug) for n in sorted(CH)], U.rel(f'assets/og.{LANG}.png'),
@@ -1435,17 +1517,33 @@ chooser = f"""<!doctype html>
 {f'<link rel="canonical" href="{U.abs("index.html")}">' if U.base else ''}
 <link rel="alternate" hreflang="fa" href="{U.root('fa/index.html')}"><link rel="alternate" hreflang="en" href="{U.root('en/index.html')}"><link rel="alternate" hreflang="x-default" href="{U.root('index.html')}">
 <meta name="theme-color" content="{seo.THEME}"><link rel="icon" href="assets/icons/favicon.ico" sizes="48x48"><link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">
-{seo.preload('assets/fonts/inter-var.woff2')}
+{seo.preload('assets/fonts/inter-var.woff2')}{seo.preload('assets/fonts/vazirmatn-400.woff2')}
 <meta property="og:type" content="website"><meta property="og:site_name" content="{esc(books["en"])}"><meta property="og:title" content="{esc(books["en"])} · {esc(books["fa"])}"><meta property="og:description" content="{esc(seo.describe(CH_DESC))}">
 <meta property="og:locale" content="en_US"><meta property="og:locale:alternate" content="fa_IR"><meta property="og:image" content="{U.root('assets/og.en.png')}"><meta property="og:image:width" content="{seo.OG_W}"><meta property="og:image:height" content="{seo.OG_H}"><meta property="og:image:alt" content="{esc(_alt['en'])}">{f'<meta property="og:url" content="{U.abs("index.html")}">' if U.base else ''}
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{esc(books["en"])} · {esc(books["fa"])}"><meta name="twitter:description" content="{esc(seo.describe(CH_DESC))}"><meta name="twitter:image" content="{U.root('assets/og.en.png')}"><meta name="twitter:image:alt" content="{esc(_alt['en'])}">
 <script type="application/ld+json">{json.dumps(_ld, ensure_ascii=False)}</script>
 <link rel="stylesheet" href="assets/fonts.css"><link rel="stylesheet" href="assets/site.css">
 <script>try{{var t=localStorage.getItem('book-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=t}}catch(e){{}}</script></head>
-<body class="chooser"><main><h1><span lang="fa" dir="rtl">{esc(STR_FA["choose"])}</span> · {esc(STR_EN["choose"])}</h1><div class="choose-grid">
+<body class="chooser"><button type="button" class="icon-btn choose-theme" id="theme-btn" aria-label="{esc(STR_EN['choose_theme'])} · {esc(STR_FA['choose_theme'])}">{ICON['sun']}{ICON['moon']}</button>
+<main>
+<p class="choose-kicker" dir="ltr">Ceph · Reef · Squid · Tentacle · Umbrella</p>
+<h1><span lang="fa" dir="rtl">{esc(STR_FA["choose"])}</span> · {esc(STR_EN["choose"])}</h1>
+<p class="choose-lead"><span lang="fa" dir="rtl">{esc(STR_FA["choose_lead"])}</span> · <span lang="en">{esc(STR_EN["choose_lead"])}</span></p>
+<div class="choose-stats" role="list">
+<div role="listitem"><b dir="ltr">{len(CH)}</b><span lang="en">{esc(STR_EN["stat_ch"])}</span></div>
+<div role="listitem"><b dir="ltr">{N_FIG}</b><span lang="en">{esc(STR_EN["stat_fig"])}</span></div>
+<div role="listitem"><b dir="ltr">{N_ALGO}</b><span lang="en">{esc(STR_EN["stat_algo"])}</span></div>
+<div role="listitem"><b dir="ltr">{nparts}</b><span lang="en">{esc(STR_EN["stat_parts"])}</span></div>
+</div>
+<div class="choose-grid">
 <a class="choose-card" href="fa/index.html" lang="fa" dir="rtl"><img src="assets/cover.fa.webp" alt="{esc(_alt['fa'])}" width="240" height="{_ch}"><span>{esc(books["fa"])}</span><small>فارسی (متن اصلی)</small></a>
 <a class="choose-card" href="en/index.html" lang="en"><img src="assets/cover.en.webp" alt="{esc(_alt['en'])}" width="240" height="{_ch}"><span>{esc(books["en"])}</span><small>English (translation)</small></a>
-</div><p class="lic">© 2026 Ramin Najarbashi · CC BY-NC-SA 4.0</p></main></body></html>
+</div>
+<p class="lic">© 2026 Ramin Najarbashi · <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener">CC BY-NC-SA 4.0</a><br>
+<span class="en" lang="en" dir="ltr"><a href="https://doi.org/{CONCEPT_DOI}">{CONCEPT_DOI}</a></span></p>
+</main>
+<script>document.getElementById('theme-btn').addEventListener('click',function(){{var t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;try{{localStorage.setItem('book-theme',t)}}catch(e){{}}}});</script>
+</body></html>
 """
 if ANALYTICS_TAG:
     chooser = chooser.replace('</body>', ANALYTICS_TAG + '\n</body>', 1)
