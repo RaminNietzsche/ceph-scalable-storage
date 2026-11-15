@@ -12,4 +12,3 @@ fonttools==4.65.0
 Brotli==1.2.0
 # optional: headless-Chrome smoke test of the web book (make shoot-site)
 playwright==1.64.1
-pyphen==0.18.1

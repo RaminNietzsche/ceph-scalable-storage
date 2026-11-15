@@ -110,9 +110,10 @@ $(SITE_STAMP): $(BOOK_HTML) $(SITE_SRC) $(WEBFIG_STAMP) | fonts
 	$(PYTHON) tools/build_site.py --lang $(L) --book $(B) --out $(SITE) --site-url '$(SITE_URL)'
 	@touch $@
 
-check-site: ## links, anchors, offline-only resources and SEO metadata of the built web book
+check-site: ## links, anchors, offline-only resources, SEO metadata and content checks (check_lists.py) of the built web book
 	$(PYTHON) tools/check_site.py --site $(SITE)
 	$(PYTHON) tools/check_seo.py --site $(SITE)
+	$(PYTHON) tools/check_lists.py --site $(SITE)
 
 shoot-site: ## headless-Chrome smoke test + screenshots of the web book (needs playwright)
 	$(PYTHON) tools/shoot_site.py --site $(SITE) --out build/site-shots

@@ -884,24 +884,9 @@ def emit(cur, main_html, title_text, desc=None, ld=None):
 
 
 # ---------------------------------------------------------------- hyphenation
+# No soft hyphens are inserted: they ended up in copied text ("cal\u00adcu\u00adla\u00adtion").
+# The English pages rely on CSS `hyphens: auto` with lang="en" (site.css).
 HYPH = None
-if LANG == 'en':
-    import pyphen
-    _dic = pyphen.Pyphen(lang='en_US', left=3, right=3)
-    _word = re.compile(r'[A-Za-z]{7,}')
-    SKIP = ('pre', 'code', 'kbd', 'h1', 'h2', 'h3', 'h4', 'h5', 'script', 'style', 'th')
-
-    def HYPH(body):
-        """Insert soft hyphens (U+00AD) into long English words of justified prose,
-        so justified text does not gap in browsers without hyphenation dictionaries."""
-        for t in list(body.find_all(string=True)):
-            if type(t) is not NavigableString or not t.strip():
-                continue
-            if t.find_parent(SKIP) or t.find_parent(class_=['url', 'code', 'hanchor', 'term', 'cmd', 'src', 'sim-slot', 'lab-thumb']):
-                continue
-            new_t = _word.sub(lambda m: m.group(0) if any(c.isupper() for c in m.group(0)[1:]) else _dic.inserted(m.group(0), hyphen='\u00ad'), str(t))
-            if new_t != str(t):
-                t.replace_with(NavigableString(new_t))
 
 # ---------------------------------------------------------------- write pages
 docs = []
