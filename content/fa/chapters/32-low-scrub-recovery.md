@@ -6,6 +6,15 @@ part: lower
 lang: fa
 ---
 
+::: {.tldr}
+
+- scrub در `src/osd/scrubber/` است: PgScrubber، ماشین حالت ScrubMachine، ScrubBackend برای مقایسه و زمان‌بندی در سطح OSD.
+- هر PG دو هدف scrub سطحی و عمیق با زمان و فوریت دارد؛ درخواست اپراتور مقدم است.
+- پس از peering، recovery اشیای گمشده را از روی log پر می‌کند و backfill کل PG را به مقصدهایی که log مشترک ندارند کپی می‌کند.
+- repair همان recovery است با یک فهرست missing مصنوعی، پس محدودیت‌های recovery (رزرو و `osd_max_backfills`) بر آن هم اعمال می‌شود.
+
+:::
+
 # نقشه‌ی فصل {#sec-32-1}
 
 سه سازوکار درستی داده در OSD را در سطح کد بررسی می‌کنیم:

@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- cephadm upgrades are rolling: mgrs, then MONs one by one, then OSDs while PGs stay active, then the other daemons.
+- Replace a disk with `--replace` so the OSD id and CRUSH position are kept and only its PGs are backfilled.
+- Host maintenance mode checks that stopping a host is safe and sets `noout` for that host only.
+- pg_autoscaler sets PG counts per pool and the upmap balancer evens out the PG distribution; device health and periodic checks belong in the routine.
+
+:::
+
 # Before you start {#sec-19-1}
 
 ## What questions does this chapter answer? {#sec-19-1-1}

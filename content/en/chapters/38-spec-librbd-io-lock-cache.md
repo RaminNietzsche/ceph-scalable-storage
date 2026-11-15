@@ -6,6 +6,15 @@ part: specialist
 lang: en
 ---
 
+::: {.tldr}
+
+- librbd sends each request through layered ImageDispatcher and ObjectDispatcher chains (QoS, cache, journal and others).
+- Clones read through to the parent within the overlap; the first write copies the parent's data up (copyup), and flatten copies everything.
+- exclusive-lock is cooperative and keeps the object map, journal and cache consistent with one writer at a time.
+- The default cache is writearound; QoS uses token buckets per limit; krbd, librbd and rbd-nbd differ in feature support.
+
+:::
+
 # Before we begin {#sec-38-1}
 
 librbd is a heavy library: each request passes through several **dispatch** layers at the image level and then at the object level, and features such as exclusive-lock, journaling, caching, encryption and QoS are each a layer. This chapter shows those layers in their real order, then opens three widely used mechanisms in detail: copyup in clones and flatten, acquiring and breaking the exclusive-lock with blocklisting, and the default writearound cache. Finally it compares krbd, librbd and rbd-nbd in terms of features and performance. Names and defaults have been checked against the main branch of the ceph/ceph repository (November 2026).

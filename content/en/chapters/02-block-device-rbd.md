@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- An RBD image is a thin set of 4 MB RADOS objects spread over every OSD of the pool; give each client its own user with `profile rbd`, never `client.admin`.
+- krbd is fast and dependency-free but lags in features; librbd (QEMU, rbd-nbd) is the most complete path.
+- Snapshots are instant copy-on-write, clones are writable and cheap, and `flatten` cuts a clone from its parent; without a freeze a snapshot is only crash-consistent.
+- Mirroring runs in journal mode (RPO of seconds, double writes) or snapshot mode (RPO equal to the schedule); a forced promote without fencing risks split-brain.
+
+:::
+
 # Before you start {#sec-02-1}
 
 ## What questions does this chapter answer? {#sec-02-1-1}

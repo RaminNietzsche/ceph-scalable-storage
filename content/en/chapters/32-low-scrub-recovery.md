@@ -6,6 +6,15 @@ part: lower
 lang: en
 ---
 
+::: {.tldr}
+
+- Scrub lives in `src/osd/scrubber/`: PgScrubber, a statechart ScrubMachine, ScrubBackend for comparisons, and OSD-level scheduling.
+- Each PG has shallow and deep scrub targets with times and urgency; operator requests come first.
+- After peering, recovery fills missing objects from the log, while backfill copies whole PGs to targets without log overlap.
+- Repair reuses recovery with an artificial missing list, so recovery limits (reservations, `osd_max_backfills`) apply to it too.
+
+:::
+
 # Chapter map {#sec-32-1}
 
 We examine three data-correctness mechanisms of the OSD at the code level:

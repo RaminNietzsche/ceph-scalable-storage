@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- RADOS classes run your methods inside the OSD, next to the object, saving round trips and avoiding races.
+- Clients call them with `exec`; the OSD capability needs `x`.
+- You can write your own class in C++ (the chapter builds `tally`) or run Lua scripts with cls_lua.
+- Method flags (RD, WR) must match what the method really does; measure cost and correctness on a real cluster.
+
+:::
+
 # Before you start {#sec-15-1}
 
 ## What questions does this chapter answer? {#sec-15-1-1}

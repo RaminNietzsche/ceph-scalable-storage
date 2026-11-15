@@ -6,6 +6,15 @@ part: specialist
 lang: en
 ---
 
+::: {.tldr}
+
+- `pg_info_t` and `pg_history_t` record a PG's last update and the epochs of its intervals.
+- Past intervals give the prior set: the OSDs that might hold writes and must be asked during peering.
+- The primary picks the most authoritative log and merges it; missing sets list what each member must recover.
+- Members whose log does not overlap get backfill instead of log-based recovery; log length (trimming) trades memory for faster recovery.
+
+:::
+
 # Before we begin {#sec-35-1}
 
 Chapter 17 showed the peering state machine and how the authoritative info is chosen, and chapter 32 showed recovery reservation and scheduling. This chapter opens the middle layer: how a PG works out which OSDs it must ask (past intervals and the prior set), how the logs of two OSDs are merged, what it does with **divergent** entries, how the missing set is built, when and by how much the log is trimmed, and what recovery and backfill actually do object by object. Function names and defaults have been checked against the main branch of the ceph/ceph repository (November 2026).

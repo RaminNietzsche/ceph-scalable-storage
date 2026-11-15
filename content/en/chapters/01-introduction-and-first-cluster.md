@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- Ceph is software-defined storage: block (RBD), object (RGW) and file (CephFS) interfaces all sit on one layer, RADOS, instead of RAID arrays.
+- MONs hold the cluster maps, the MGR holds statistics and modules, and OSDs hold the data; CRUSH computes where an object lives, so there is no central lookup table.
+- Planning decides success: workload, failure domain, network and MTU, fill ratio, and SSDs with power-loss protection for DB/WAL and MONs.
+- cephadm is the official deployment tool: bootstrap one host, add hosts, and declare the desired services with `ceph orch apply`.
+
+:::
+
 # Before you start {#sec-01-1}
 
 ## What questions does this chapter answer? {#sec-01-1-1}

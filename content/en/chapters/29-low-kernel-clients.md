@@ -6,6 +6,15 @@ part: lower
 lang: en
 ---
 
+::: {.tldr}
+
+- The Linux kernel clients are libceph (messenger, MON and OSD client), krbd for block devices and ceph.ko for CephFS.
+- `ceph_osdc` builds requests, computes the target OSD from the maps and resends after map changes.
+- The shared striper maps a device or file offset to an object and an offset within it.
+- krbd uses a watch and the exclusive lock on `rbd_header`; ceph.ko exposes client-side latency and file statistics in debugfs.
+
+:::
+
 # Introduction: Ceph inside the kernel {#sec-29-1}
 
 All the clients of the previous chapters, that is librados, librbd, ceph-fuse and RGW, run in user space and use Ceph's shared C++ code (Objecter and AsyncMessenger). The Linux kernel, however, has a **completely independent** implementation in C: the `libceph` module (the `net/ceph/` directory), which implements the messenger, the mon and OSD clients, CRUSH and cephx. Its two consumers are `rbd.ko` (the file `drivers/block/rbd.c`) and `ceph.ko` (the `fs/ceph/` directory). This chapter examines all three. The source is the master branch of the torvalds/linux repository, and the kernel code is GPL-2.0. In this chapter we give only the names of functions and constants and explain the logic in our own words.

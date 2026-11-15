@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- Replication is not backup: you also need copies out of reach of the same credentials, such as protected snapshots or another cluster.
+- rbd-mirror runs on the destination and pulls; snapshot mode is the usual default, journal mode is for RPOs of seconds.
+- Stretch mode keeps one cluster across two sites with a tiebreaker MON, for zero RPO when a whole site is lost.
+- If all MONs are lost, the monitor store can be rebuilt from the OSDs; `ceph-objectstore-tool` can export and import PGs from a dead OSD's readable disk.
+
+:::
+
 # Before you start {#sec-18-1}
 
 ## What questions does this chapter answer? {#sec-18-1-1}

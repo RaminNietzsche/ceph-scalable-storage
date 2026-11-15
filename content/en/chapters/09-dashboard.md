@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- The Ceph Dashboard is an MGR module: a Python REST API plus an Angular UI on that same API, enabled by default by cephadm.
+- Role-based access control (roles over scopes) and SSO control who may do what; every action is recorded in the audit log.
+- Tentacle adds mgmt-gateway and oauth2-proxy: one front door for the Dashboard, Grafana, Prometheus and Alertmanager.
+- Every Dashboard step has a CLI equivalent; the data is read from ceph-mgr's memory, so it is as fresh as the OSDs' periodic reports.
+
+:::
+
 # Before you start {#sec-09-1}
 
 ## Why has this chapter been rewritten? {#sec-09-1-1}

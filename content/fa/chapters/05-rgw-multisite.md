@@ -6,6 +6,15 @@ part: main
 lang: fa
 ---
 
+::: {.tldr}
+
+- realm فضای نام سراسری است، zonegroup واحد تکثیر داده، zone یک کلاستر و period یک نسخه‌ی commit‌شده از پیکربندی.
+- metadata از zone اصلی (master) پخش می‌شود؛ داده‌ی اشیا بین zoneهای یک zonegroup به‌صورت ناهمگام و active-active تکثیر می‌شود.
+- راه‌اندازی دستی با `radosgw-admin` یا خودکار با `ceph rgw realm bootstrap` است؛ پایش با `sync status`، `bucket sync status` و `sync error list` انجام می‌شود.
+- failover یعنی master کردن zone دیگر و commit کردن period؛ در قطعی کوتاه شبکه با عجله promote نکنید.
+
+:::
+
 # پیش از شروع {#sec-05-1}
 
 ## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-05-1-1}

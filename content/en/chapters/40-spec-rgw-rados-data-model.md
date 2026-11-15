@@ -6,6 +6,15 @@ part: specialist
 lang: en
 ---
 
+::: {.tldr}
+
+- Each zone's pools are mostly namespaces inside a few shared pools; users, buckets and their metadata live there.
+- A bucket index is a set of omap-only `.dir.<marker>.<shard>` objects, with a generation after resharding.
+- Versioned buckets add an OLH (object logical head) that points to the current version.
+- The manifest maps an object's head and tails to placement pools and storage classes; a multipart ETag is the md5 of the parts' md5s plus a part count.
+
+:::
+
 # Before we begin {#sec-40-1}
 
 Chapter 4 showed that RGW keeps each S3 object in two places (the bucket index and the data) and presented the algorithms for choosing the shard, resharding, listing, and naming the head and tail objects. This chapter goes one layer down: exactly which pool and namespace hold user and bucket metadata, what fields an index entry has and how its omap keys are built, how the two-phase index update copes with failure, how versioning is implemented with the OLH, how the manifest lays out the head and tail across placement and storage classes, and how multipart completes without copying data. The chapter ends with a `radosgw-admin` reference. Names and defaults have been checked against the main branch of the ceph/ceph repository (November 2026).

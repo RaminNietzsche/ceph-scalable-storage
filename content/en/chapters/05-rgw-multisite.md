@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- A realm is the global namespace, a zonegroup is the unit of data replication, a zone is one cluster, and a period is a committed configuration version.
+- Metadata flows from the master zone; object data is replicated asynchronously and active-active between the zones of a zonegroup.
+- Set it up by hand with `radosgw-admin` or with `ceph rgw realm bootstrap`; watch it with `sync status`, `bucket sync status` and `sync error list`.
+- Failover means promoting another zone to master and committing the period; do not promote in a hurry during a short network outage.
+
+:::
+
 # Before you start {#sec-05-1}
 
 ## What questions does this chapter answer? {#sec-05-1-1}

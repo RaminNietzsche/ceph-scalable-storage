@@ -6,6 +6,15 @@ part: specialist
 lang: en
 ---
 
+::: {.tldr}
+
+- Pool snapshots and self-managed snapshots (RBD, CephFS) both use the pool's `snap_seq`, so a pool can use only one kind.
+- A clone is an object with the same name and a snap id; SnapSet records the clones and their overlap, and BlueStore clones extents cheaply.
+- Deleting a snapshot queues it; the SnapTrimmer removes the clones in the background.
+- Watch state is stored on the object, so it survives a primary change; the chapter ends with references for `rados` and `ceph osd pool`.
+
+:::
+
 # Before we begin {#sec-36-1}
 
 Snapshots in RADOS are the basis of snapshots in RBD and CephFS, watch/notify is the basis of coordination between RBD and RGW clients, and object classes (cls) are the basis of most RBD and RGW metadata. Chapter 14 showed these mechanisms from the librados side and chapter 15 showed how to write a class. This chapter follows the same mechanisms **inside the OSD**: how the SnapSet changes, when a clone is created, which clone a read from a snapshot reaches, how snaptrim frees space, what state watch and notify have in the OSD, and how a class call runs inside the same op transaction. The chapter ends with a complete reference for `rados` and `ceph osd pool`.

@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- CephFS keeps metadata (tree, inodes, MDS journal) in a metadata pool and file contents in data pools; clients read and write data directly to the OSDs.
+- Create restricted clients with `ceph fs authorize`; the MDS hands out capabilities (caps) so clients can cache coherently without a global lock.
+- `fs volumes` gives subvolumes with quotas and snapshots for Kubernetes and Manila; NFS-Ganesha, and SMB in Tentacle, serve clients that cannot mount CephFS.
+- cephfs-mirror copies snapshots to another cluster; a client whose mount hangs has usually been evicted, so check `dmesg` and remount.
+
+:::
+
 # Before you start {#sec-06-1}
 
 ## What questions does this chapter answer? {#sec-06-1-1}

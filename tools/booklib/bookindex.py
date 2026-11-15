@@ -96,7 +96,14 @@ def scan_chapter(path, ms):
     res = []
     inc = False
     in_sources = False
+    in_tldr = False   # the chapter-opening TL;DR repeats the chapter; the index points at the sections
     for line in lines:
+        if line.startswith('::: {.tldr}'):
+            in_tldr = True
+            continue
+        if in_tldr:
+            in_tldr = not re.match(r'^:::+\s*$', line)
+            continue
         if line.startswith('```'):
             inc = not inc
             continue

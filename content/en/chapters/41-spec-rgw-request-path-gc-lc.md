@@ -6,6 +6,15 @@ part: specialist
 lang: en
 ---
 
+::: {.tldr}
+
+- The Beast frontend runs each connection in a coroutine on a thread pool; the request becomes an op with a fixed sequence of steps.
+- SigV4 authentication derives a signing key from the secret, date, region and service; the chapter computes one example step by step.
+- Quotas are soft (cached per RGW) and rate limits are token buckets per user or bucket.
+- Deleted tails go to the gc queue and are freed later; lifecycle runs in a daily window, and `rgw_lc_debug_interval` speeds it up for tests.
+
+:::
+
 # Before we begin {#sec-41-1}
 
 Chapter 40 showed how RGW's data is laid out on RADOS. This chapter follows the same data in motion: what stages an HTTP request goes through from Beast to the execution of the op, exactly how a SigV4 signature is rebuilt and checked, how PUT and GET move data in parallel windows, where in the path and with what arithmetic quotas and rate limits are applied, and how the two background workers, gc and lifecycle, divide and schedule their work. Defaults have been read from `src/common/options/rgw.yaml.in` in the main branch (November 2026).

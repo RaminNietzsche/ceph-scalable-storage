@@ -6,6 +6,15 @@ part: main
 lang: fa
 ---
 
+::: {.tldr}
+
+- Ceph Dashboard یک ماژول MGR است: یک REST API پایتونی و یک رابط Angular روی همان API که cephadm به‌طور پیش‌فرض فعالش می‌کند.
+- کنترل دسترسی مبتنی بر نقش (نقش روی scopeها) و SSO مشخص می‌کنند چه کسی چه کاری بکند؛ همه‌ی کارها در audit log ثبت می‌شود.
+- Tentacle سرویس‌های mgmt-gateway و oauth2-proxy را آورد: یک درِ ورودی برای Dashboard، Grafana، Prometheus و Alertmanager.
+- هر گام در Dashboard معادل CLI دارد؛ داده‌ها از حافظه‌ی ceph-mgr خوانده می‌شوند و تازگی‌شان به گزارش‌های دوره‌ای OSDها بستگی دارد.
+
+:::
+
 # پیش از شروع {#sec-09-1}
 
 ## چرا این فصل بازنویسی شده است؟ {#sec-09-1-1}

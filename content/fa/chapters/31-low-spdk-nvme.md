@@ -6,6 +6,15 @@ part: lower
 lang: fa
 ---
 
+::: {.tldr}
+
+- NVMe با جفت‌صف‌های submission و completion در حافظه‌ی میزبان با آن حرف می‌زند؛ فصل فرمان‌ها و completionها را بایت‌به‌بایت می‌خواند.
+- SPDK درایور NVMe را با polling در فضای کاربر اجرا می‌کند و `NVMEDevice` در BlueStore وقتی مسیر دستگاه با `spdk:` شروع شود از آن استفاده می‌کند.
+- gateway از نوع NVMe-oF، imageهای RBD را روی NVMe/TCP صادر می‌کند؛ gatewayهای یک گروه برای failover وضعیت ANA را با هم شریک‌اند.
+- اگر I/O میزبان پس از خرابی یک gateway متوقف ماند، `ceph nvme-gw show` و blocklist در OSDها را بررسی کنید.
+
+:::
+
 # چرا این فصل؟ {#sec-31-1}
 
 در فصل‌های قبل، پایین‌ترین لایه‌ای که دیدیم `KernelDevice` در BlueStore بود که با libaio یا io_uring درخواست را به هسته می‌دهد. این فصل یک لایه پایین‌تر می‌رود: خود **صف‌های سخت‌افزاری NVMe**، بایت‌های یک فرمان و یک تکمیل، doorbellها و Phase Tag. سپس دو جایی را بررسی می‌کنیم که Ceph با **SPDK** (Storage Performance Development Kit) هسته را دور می‌زند:

@@ -6,6 +6,15 @@ part: lower
 lang: en
 ---
 
+::: {.tldr}
+
+- RocksDB inside BlueStore is an LSM tree: writes go to the WAL and the memtable (a skiplist), then are flushed to SST files.
+- Group commit batches writers into one WAL write; the WAL record format splits large records into fragments.
+- SST data blocks use key deltas with restart points; Ceph's Bloom filters (`rocksdb_bloom_bits_per_key = 20`) avoid useless reads.
+- Compaction score and dynamic level sizes decide when and where data is compacted, which drives write amplification.
+
+:::
+
 # Introduction: why RocksDB? {#sec-25-1}
 
 BlueStore writes object data directly to the raw device, but all of its metadata, from onodes and omaps to the freelist and deferred writes, lives in RocksDB. RocksDB is a key-value database based on an LSM-tree: writes are first recorded in a sequential log (the WAL) and an in-memory structure (the memtable), and later, in the background, turned into sorted, immutable files (SSTs) and merged. This structure makes small writes cheap and sequential, which is ideal for BlueStore's frequently changing metadata. The cost is paid in compaction and write amplification. This chapter shows layer by layer how Ceph configures and shards RocksDB and places it on BlueFS.

@@ -6,6 +6,15 @@ part: lower
 lang: en
 ---
 
+::: {.tldr}
+
+- msgr2 is Ceph's wire protocol: a banner, then frames with a preamble, segments and an epilogue, in crc or secure (AES-GCM) mode.
+- A message has four segments: header, front, middle and data.
+- AsyncConnection runs a connection's state machine and EventCenter dispatches socket events on a few worker threads.
+- The chapter decodes real frames byte by byte, such as a KEEPALIVE2 in crc mode.
+
+:::
+
 # Introduction: the wire between two daemons {#sec-26-1}
 
 Every message exchanged in Ceph, whether a client's write request to an OSD, a heartbeat between OSDs or a map that the mon publishes, passes through the messenger layer. Since Nautilus the default protocol is msgr2 (port 3300 for the mon). This chapter opens it up at the byte level: the opening banner, the frame format with its preamble and segments, the two modes crc and secure (AES-GCM), the authentication handshake, the session and reconnection, and finally the `ProtocolV2` state machine and the `EventCenter` event loop that runs all of this with a small number of threads. The source of the structures is `src/msg/async/frames_v2.h`, `ProtocolV2.cc`, `crypto_onwire.cc` and `src/include/msgr.h` on the main branch.

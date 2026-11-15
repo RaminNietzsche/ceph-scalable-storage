@@ -6,6 +6,15 @@ part: lower
 lang: en
 ---
 
+::: {.tldr}
+
+- BlueFS is a tiny file system that holds RocksDB; its superblock and log describe the files and are compacted when the log grows.
+- Object keys in RocksDB are built so a range scan returns a PG's objects in order; the onode holds size, xattrs and the extent map.
+- The extent map maps logical ranges to blobs; shared blobs with reference counts make clones and snapshots cheap.
+- Allocators (AVL, bitmap, hybrid) and the freelist track free space; the fragmentation score shows how scattered it is.
+
+:::
+
 # Introduction: what does BlueStore write on disk? {#sec-24-1}
 
 In chapter 23 we saw how bytes get from a bufferlist to `io_submit`. This chapter shows **where** and **in what format** those bytes land on disk: from the device's first 4 kilobytes (the label) to the superblock and the BlueFS log, and from the RocksDB keys that hold the onode and extent map to the freelist bits and the in-memory cache structure. All structures were extracted from the main branch of the Ceph code (`src/os/bluestore/`). Wherever behaviour depends on the version, it is marked.

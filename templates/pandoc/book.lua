@@ -2,7 +2,8 @@
 -- * callouts (.tip .warn .note .try .deep .debug .box .summary .signature)
 --   get a bold label paragraph and, for DOCX, a custom paragraph style;
 -- * .algo divs (empty in the source) are expanded from their attributes;
--- * .sim divs (empty) become a pointer to the web edition's interactive lab.
+-- * .sim divs (empty) become a pointer to the web edition's interactive lab;
+-- * .tldr (the chapter-opening TL;DR) becomes <details open> in HTML/EPUB.
 local labels = {}
 
 function Meta(m)
@@ -45,6 +46,19 @@ function Div(el)
   if callout[cls] then
     table.insert(el.content, 1, label_para(labels[cls] or cls))
     el.attributes['custom-style'] = 'Callout ' .. cls
+    return el
+  end
+  if cls == 'tldr' then
+    -- the chapter-opening TL;DR: <details open> in HTML and EPUB, a styled callout in DOCX
+    local t = (labels.tldr_title or 'TL;DR') .. ' · ' .. (labels.tldr_sub or '')
+    if FORMAT:match('html') or FORMAT:match('epub') then
+      local out = { pandoc.RawBlock('html', '<details class="tldr" open="open"><summary>' .. t .. '</summary>') }
+      for _, b in ipairs(el.content) do table.insert(out, b) end
+      table.insert(out, pandoc.RawBlock('html', '</details>'))
+      return out
+    end
+    table.insert(el.content, 1, label_para(t))
+    el.attributes['custom-style'] = 'Summary'
     return el
   end
   if cls == 'summary' and el.attributes.title then

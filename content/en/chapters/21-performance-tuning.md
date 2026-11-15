@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- Check the basics first: network saturation, the block.db device and CPU power saving solve most performance problems.
+- The OSD spreads PGs over shards and threads; mClock (the default scheduler since Quincy) shares capacity between client I/O, recovery and scrub.
+- `osd_memory_target` (4 GiB by default) is the per-OSD memory budget that BlueStore's cache autotuning follows.
+- Tune the OS, network (consistent MTU) and CPU, and always report latency percentiles (p99, p99.9), not just averages.
+
+:::
+
 # Before you start {#sec-21-1}
 
 ## What questions does this chapter answer? {#sec-21-1-1}

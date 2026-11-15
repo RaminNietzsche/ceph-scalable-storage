@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- Try every important change in a cheap, rebuildable lab first.
+- cephadm is declarative and reconciles toward the specs you apply; ceph-ansible was imperative.
+- Describe the whole cluster in a spec file, keep it in Git, and use cephadm-ansible for host prerequisites.
+- Rook runs Ceph inside Kubernetes from CRDs, with ceph-csi for RBD and CephFS volumes; check the production readiness list before the real bootstrap.
+
+:::
+
 # Before you start {#sec-11-1}
 
 ## What questions does this chapter answer? {#sec-11-1-1}

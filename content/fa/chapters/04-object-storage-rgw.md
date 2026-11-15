@@ -6,6 +6,15 @@ part: main
 lang: fa
 ---
 
+::: {.tldr}
+
+- RGW یک سرور HTTP بی‌حالت است که S3 و Swift را روی RADOS پیاده می‌کند؛ چند نمونه از آن را پشت سرویس ingress در cephadm اجرا کنید.
+- هر شیء S3 به یک head، چند tail و یک مدخل در bucket index تبدیل می‌شود؛ pool ایندکس را replicated و روی SSD نگه دارید.
+- user، subuser، tenant و account سطوح متفاوت هویت‌اند؛ برای طراحی تازه account را (از Squid به بعد) در نظر بگیرید.
+- versioning، object lock، lifecycle، storage class، policy، SSE و اعلان رویداد، RGW را به سرویس کامل S3 تبدیل کرده‌اند؛ قانون lifecycle برای multipartهای ناتمام را فراموش نکنید و بدانید gc فضا را بعداً آزاد می‌کند.
+
+:::
+
 # پیش از شروع {#sec-04-1}
 
 ## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-04-1-1}

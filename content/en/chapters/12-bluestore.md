@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- BlueStore writes directly to the raw device and keeps all metadata (onodes, omap, allocation) in RocksDB on BlueFS, with checksums on every read.
+- Put block.db and the WAL on a fast device; cephadm splits it evenly between the OSDs of a node.
+- Small writes may be deferred through the RocksDB WAL; `min_alloc_size` and compression settings decide how much raw space small objects really use.
+- FileStore OSDs must be recreated as BlueStore before upgrading to Reef or later; there is no in-place conversion.
+
+:::
+
 # Before you start {#sec-12-1}
 
 ## What questions does this chapter answer? {#sec-12-1-1}

@@ -6,6 +6,15 @@ part: main
 lang: fa
 ---
 
+::: {.tldr}
+
+- یک کلاستر Ceph می‌تواند همه‌ی نیازهای ذخیره‌سازی OpenStack را پوشش دهد: Glance، Cinder، Cinder Backup، دیسک‌های ephemeral در Nova، Manila و Swift/S3 از راه RGW.
+- هر سرویس pool و کاربر Ceph خودش را دارد؛ `client.cinder` روی pool تصاویر فقط اجازه‌ی خواندن دارد.
+- copy-on-write از image به volume به تصویر با قالب raw و `show_image_direct_url = True` نیاز دارد؛ با qcow2 بی‌صدا از دست می‌رود.
+- UUID مربوط به secret در libvirt باید روی همه‌ی compute nodeها یکسان و برابر `rbd_secret_uuid` باشد؛ `images_type = rbd` دیسک‌های ephemeral را هم به Ceph می‌برد و live migration و evacuate را ساده می‌کند.
+
+:::
+
 # پیش از شروع {#sec-03-1}
 
 ## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-03-1-1}

@@ -6,6 +6,15 @@ part: main
 lang: fa
 ---
 
+::: {.tldr}
+
+- erasure coding داده را به k تکه‌ی داده و m تکه‌ی parity می‌شکند؛ هر k تکه برای بازسازی کافی است، پس m خرابی با فضای خام بسیار کمتر از replication تحمل می‌شود.
+- در pool از نوع EC هر OSD در acting set یک shard را نگه می‌دارد؛ RBD و CephFS روی EC به `allow_ec_overwrites` نیاز دارند و RBD متادیتا را در pool از نوع replicated نگه می‌دارد.
+- در Tentacle افزونه‌ی پیش‌فرض کلاسترهای تازه ISA-L شد و FastEC (خواندن و نوشتن جزئی و parity-delta) پشت `allow_ec_optimizations` آمد.
+- عدد `2147483647` در نگاشت PG همان `CRUSH_ITEM_NONE` است: CRUSH برای آن shard هیچ OSDی پیدا نکرده است.
+
+:::
+
 # پیش از شروع {#sec-13-1}
 
 ## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-13-1-1}

@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- With cephadm every daemon is a container under systemd and you manage services declaratively with `ceph orch`; configuration lives in the MON database, not in `ceph.conf`.
+- Keep each node under about 10–15% of raw capacity and leave enough free space to survive the loss of the largest failure domain without crossing `nearfull`.
+- A failed OSD is marked out after `mon_osd_down_out_interval` (10 minutes) and recovery starts; replace disks with `ceph orch osd rm --replace` and use host maintenance mode for planned work.
+- Upgrades are staged and automatic with `ceph orch upgrade`; the three full ratios and `MAX AVAIL` in `ceph df` explain why free space is less than it looks.
+
+:::
+
 # Before you start {#sec-07-1}
 
 ## What questions does this chapter answer? {#sec-07-1-1}

@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- Cache tiering puts a fast pool in front of a base pool, but it has been deprecated since Reef.
+- Remove an existing cache tier carefully: check the base pool's free space, flush and evict, then remove the overlay.
+- Today's alternatives are device classes and CRUSH rules per pool, separating hot and cold data in the application, and RGW storage classes with lifecycle transitions.
+- RocksDB data already spreads between fast and slow devices inside BlueStore.
+
+:::
+
 # Before you start {#sec-16-1}
 
 ## What questions does this chapter answer? {#sec-16-1-1}

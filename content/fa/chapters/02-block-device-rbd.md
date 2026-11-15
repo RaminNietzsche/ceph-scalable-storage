@@ -6,6 +6,15 @@ part: main
 lang: fa
 ---
 
+::: {.tldr}
+
+- هر image در RBD مجموعه‌ای thin از اشیای ۴ مگابایتی RADOS است که روی همه‌ی OSDهای pool پخش می‌شود؛ به هر کلاینت کاربر جداگانه با `profile rbd` بدهید، نه `client.admin`.
+- krbd سریع و بی‌وابستگی است اما در قابلیت‌ها عقب‌تر است؛ librbd (در QEMU و rbd-nbd) کامل‌ترین مسیر است.
+- snapshot فوری و copy-on-write است، clone قابل نوشتن و ارزان است و `flatten` وابستگی clone به والد را قطع می‌کند؛ snapshot بدون freeze فقط crash-consistent است.
+- mirroring در حالت journal (RPO چند ثانیه، نوشتن دوبرابر) یا snapshot (RPO برابر زمان‌بندی) کار می‌کند؛ promote اجباری بدون fencing خطر split-brain دارد.
+
+:::
+
 # پیش از شروع {#sec-02-1}
 
 ## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-02-1-1}

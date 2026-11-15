@@ -177,3 +177,9 @@ table.tocl tr.tpart td { font-weight: 700; color: #C0392B; padding-top: 2.5mm; }
 .relchg td.area, .relchg td.st { white-space: nowrap; font-size: 8pt; }
 .relchg .st-review { color: #a6531b; font-weight: 700; } .relchg .st-confirmed { color: #2f6f4f; }
 .rel-meta { font-size: 8.5pt; }
+
+/* chapter-opening TL;DR («حوصله ندارم») */
+.tldr { break-inside: avoid; margin: 2mm 0 5mm; padding: 2.5mm 4mm; border-radius: 1.2mm; background: #FFF8E6; border-right: 2mm solid #E0A100; font-size: 9.3pt; line-height: 1.75; }
+.tldr .lab { font-weight: 800; font-size: 10pt; color: #7A5600; margin-bottom: .8mm; }
+.tldr .lab .s { font-weight: 400; font-size: 8.5pt; color: #8A6D2A; }
+.tldr ul { margin: 0; }

@@ -6,6 +6,15 @@ part: lower
 lang: en
 ---
 
+::: {.tldr}
+
+- `KernelDevice` opens the block device with O_DIRECT and submits I/O with libaio or io_uring; offsets, lengths and buffers must be aligned to the block size.
+- `flush` ends in `fdatasync`, and discard can be synchronous or asynchronous; SPDK's `NVMEDevice` bypasses the kernel completely.
+- `bufferlist` is a list of reference-counted buffer pointers; `c_str()` on a fragmented list silently copies everything into one buffer.
+- mempools account memory per subsystem, and BlueStore checksums blocks with crc32c by default.
+
+:::
+
 # Where this part fits {#sec-23-1}
 
 The "lower layers" part starts where the earlier chapters stopped: after BlueStore has decided "write these bytes at this offset", what happens? This chapter follows the path from a `bufferlist` in ceph-osd's memory to the DMA command on the device. The following chapters do the same for BlueStore's on-disk format, RocksDB, msgr2, erasure code mathematics, CRUSH at the bit level and the kernel clients. All names have been checked against the main branch of the ceph/ceph repository.

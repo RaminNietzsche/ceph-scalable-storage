@@ -4,7 +4,7 @@ Source files use standard Pandoc Markdown:
 
 * YAML front matter (``---`` ... ``---``)
 * fenced divs for callouts: ``::: {.tip}``, ``.warn``, ``.note``, ``.try``,
-  ``.deep``, ``.debug``, ``.box``, ``.summary title="..."``
+  ``.deep``, ``.debug``, ``.box``, ``.summary title="..."``, ``.tldr`` (the chapter-opening TL;DR list)
 * ``::: {.algo #alg-NN-K title="..." src="..." complexity="..."}`` + ``:::``
 * ``::: {.sim name="crush"}`` + ``:::``: an interactive simulator of the web edition
 * figures: ``![caption](figures/chNN/name.png){#fig-NN-name}``
@@ -121,6 +121,10 @@ def lower(lines, resolve_image=None):
                 out.append('!ENDBOX')
             elif kind == 'signature':
                 out.extend('!SIGN ' + b for b in content)
+            elif kind == 'tldr':
+                out.append('!TLDR')
+                out.extend(content)
+                out.append('!ENDTLDR')
             elif kind == 'summary':
                 t = attrs.get('title', '')
                 out.append('!SUM' + (' ' + t if t else ''))

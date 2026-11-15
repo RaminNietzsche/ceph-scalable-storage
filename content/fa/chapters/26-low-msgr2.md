@@ -6,6 +6,15 @@ part: lower
 lang: fa
 ---
 
+::: {.tldr}
+
+- msgr2 پروتکل سیمی Ceph است: یک banner و سپس frameهایی با preamble، segmentها و epilogue در حالت crc یا secure (AES-GCM).
+- هر پیام چهار segment دارد: header، front، middle و data.
+- AsyncConnection ماشین حالت هر اتصال را اجرا می‌کند و EventCenter رویدادهای socket را روی چند thread کارگر پخش می‌کند.
+- فصل frameهای واقعی را بایت‌به‌بایت رمزگشایی می‌کند، مثل یک KEEPALIVE2 در حالت crc.
+
+:::
+
 # مقدمه: سیم بین دو daemon {#sec-26-1}
 
 هر پیامی که در Ceph رد و بدل می‌شود، چه درخواست نوشتن کلاینت به OSD، چه heartbeat بین OSDها و چه نقشه‌ای که mon منتشر می‌کند، از لایه‌ی messenger می‌گذرد. از Nautilus به بعد پروتکل پیش‌فرض msgr2 (پورت 3300 برای mon) است. این فصل آن را در سطح بایت باز می‌کند: banner آغازین، قالب frame با preamble و segmentها، دو حالت crc و secure (AES-GCM)، دست‌دهی احراز هویت، جلسه و بازاتصال، و در پایان ماشین وضعیت `ProtocolV2` و حلقه‌ی رویداد `EventCenter` که همه‌ی این‌ها را با تعداد کمی thread اجرا می‌کند. منبع ساختارها `src/msg/async/frames_v2.h`، `ProtocolV2.cc`، `crypto_onwire.cc` و `src/include/msgr.h` در شاخه‌ی main است.

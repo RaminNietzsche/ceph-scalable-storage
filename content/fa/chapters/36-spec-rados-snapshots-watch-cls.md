@@ -6,6 +6,15 @@ part: specialist
 lang: fa
 ---
 
+::: {.tldr}
+
+- snapshotهای pool و snapshotهای خودمدیریت (RBD و CephFS) هر دو از `snap_seq` در pool استفاده می‌کنند، پس هر pool فقط یکی از این دو را می‌پذیرد.
+- clone شیئی با همان نام و یک شناسه‌ی snap است؛ SnapSet cloneها و همپوشانی آن‌ها را ثبت می‌کند و BlueStore extentها را ارزان clone می‌کند.
+- حذف snapshot فقط آن را در صف می‌گذارد و SnapTrimmer cloneها را در پس‌زمینه پاک می‌کند.
+- وضعیت watch روی خود شیء ذخیره می‌شود و با عوض شدن primary از بین نمی‌رود؛ فصل با مرجع فرمان‌های `rados` و `ceph osd pool` تمام می‌شود.
+
+:::
+
 # پیش از شروع {#sec-36-1}
 
 snapshot در RADOS پایه‌ی snapshot در RBD و CephFS است، watch/notify پایه‌ی هماهنگی میان کلاینت‌های RBD و RGW، و کلاس‌های شیء (cls) پایه‌ی بیشتر فراداده‌ی RBD و RGW. فصل ۱۴ این سازوکارها را از دید librados و فصل ۱۵ نوشتن یک کلاس را نشان داد. این فصل همان‌ها را **درون OSD** دنبال می‌کند: SnapSet چگونه تغییر می‌کند، clone چه زمانی ساخته می‌شود، خواندن از snapshot به کدام clone می‌رسد، snaptrim چگونه فضا را آزاد می‌کند، watch و notify چه حالتی در OSD دارند و فراخوانی کلاس چگونه درون همان تراکنش op اجرا می‌شود. فصل با مرجع کامل `rados` و `ceph osd pool` تمام می‌شود.

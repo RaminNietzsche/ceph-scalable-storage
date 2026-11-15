@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- RGW is a stateless HTTP server that speaks S3 and Swift on top of RADOS; run several instances behind the cephadm ingress service.
+- An S3 object becomes a head object, tail objects and a bucket index entry; keep the index pool replicated and on SSD.
+- Users, subusers, tenants and accounts are different identity levels; for a new design consider accounts (Squid+).
+- Versioning, object lock, lifecycle, storage classes, policies, SSE and bucket notifications make RGW a complete S3 service; remember lifecycle rules for incomplete multipart uploads and that gc frees space later.
+
+:::
+
 # Before you start {#sec-04-1}
 
 ## What questions does this chapter answer? {#sec-04-1-1}

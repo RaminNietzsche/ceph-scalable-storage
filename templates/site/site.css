@@ -846,3 +846,17 @@ a.since:hover { filter: brightness(1.12); text-decoration: none; }
 .relchg span.st-confirmed { color: var(--c-tip, #2f6f4f); }
 .rel-meta { font-size: .9rem; color: var(--fg-soft); }
 h2 .since { vertical-align: middle; font-size: .8rem; }
+
+/* chapter-opening TL;DR («حوصله ندارم»): collapsible, open by default */
+details.tldr { --cc: #a86f00; --cb: #fff7e3; margin: .6em 0 1.6em; padding: 10px 16px; border-radius: 10px; background: var(--cb);
+  border: 1px solid color-mix(in srgb, var(--cc) 30%, transparent); border-inline-start: 4px solid var(--cc); }
+html[data-theme="dark"] details.tldr { --cc: #f0b84a; --cb: #2a2213; }
+details.tldr > summary { cursor: pointer; font-weight: 700; color: var(--cc); display: flex; align-items: baseline; gap: 8px; list-style: none; }
+details.tldr > summary::-webkit-details-marker { display: none; }
+details.tldr > summary::before { content: "⚡"; }
+details.tldr > summary::after { content: "▾"; margin-inline-start: auto; transition: transform .2s; }
+details.tldr:not([open]) > summary::after { transform: rotate(90deg); }
+details.tldr > summary .s { font-weight: 400; font-size: .85rem; color: var(--fg-soft); }
+details.tldr > ul { margin: .5em 0 0; }
+details.tldr > ul > li { margin: .25em 0; }
+@media print { details.tldr { break-inside: avoid; } }

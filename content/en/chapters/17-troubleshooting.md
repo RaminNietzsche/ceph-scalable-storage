@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- Record the state first (`ceph -s`, `ceph health detail`, `ceph osd tree`, `ceph pg dump_stuck`), then work from MONs to OSDs to PGs.
+- Without quorum MONs do nothing; flags such as `noout` and `nodown` are temporary tools to unset afterwards.
+- `ceph pg <pgid> query` shows a PG's path through the peering state machine and what it is blocked on.
+- Slow ops are traced with `dump_ops_in_flight` and `dump_historic_ops`; use `ceph-objectstore-tool` and unfound-object commands only with care, after a backup.
+
+:::
+
 # Before you start {#sec-17-1}
 
 ## What questions does this chapter answer? {#sec-17-1-1}

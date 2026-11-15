@@ -6,6 +6,15 @@ part: lower
 lang: en
 ---
 
+::: {.tldr}
+
+- NVMe talks to the host through submission and completion queue pairs in host memory; the chapter reads commands and completions byte by byte.
+- SPDK drives NVMe from user space with polling, and BlueStore's `NVMEDevice` uses it when the device path starts with `spdk:`.
+- The NVMe-oF gateway exports RBD images over NVMe/TCP; gateways in a group share ANA state for failover.
+- If host I/O stalls after a gateway failure, check `ceph nvme-gw show` and the OSD blocklist.
+
+:::
+
 # Why this chapter? {#sec-31-1}
 
 In the previous chapters, the lowest layer we saw was `KernelDevice` in BlueStore, which hands requests to the kernel with libaio or io_uring. This chapter goes one layer lower: the **NVMe hardware queues** themselves, the bytes of a command and of a completion, the doorbells and the Phase Tag. Then we examine the two places where Ceph bypasses the kernel with **SPDK** (Storage Performance Development Kit):

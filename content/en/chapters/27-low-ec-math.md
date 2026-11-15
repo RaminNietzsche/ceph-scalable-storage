@@ -6,6 +6,15 @@ part: lower
 lang: en
 ---
 
+::: {.tldr}
+
+- Erasure coding in Ceph is arithmetic in GF(2⁸): each byte is a field element, addition is XOR, and multiplication uses log tables.
+- Encoding multiplies the data chunks by a generator matrix; Reed–Solomon matrices keep any k shards enough to decode (the MDS property).
+- Decoding after a loss inverts the matching rows of the matrix; parity-delta updates change parity without reading the whole stripe.
+- Tentacle's FastEC uses this for partial reads and writes, behind `allow_ec_optimizations`.
+
+:::
+
 # Introduction: from XOR to Reed-Solomon {#sec-27-1}
 
 In chapter 13 we saw how a pool with erasure coding is created and what the profiles mean. This chapter goes one layer lower: the mathematics of the finite field $\mathrm{GF}(2^8)$, building the Reed-Solomon generator matrix (with the Vandermonde and Cauchy methods), the SIMD implementation in ISA-L, and how Ceph splits an object into stripes and chunks, performs partial writes with read-modify-write, and what changed in Tentacle with optimized EC (usually called FastEC). We also work through a complete numerical example of encode and decode by hand.

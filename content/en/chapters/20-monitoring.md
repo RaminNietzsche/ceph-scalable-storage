@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- The monitoring stack is the MGR prometheus module plus ceph-exporter for per-daemon perf counters, Prometheus, Alertmanager and Grafana with the ceph-mixin dashboards and alerts.
+- Perf counters are atomic variables in each daemon; know their types (counters, averages, histograms) to read them correctly.
+- Watch a few key signals: health, PG states, latency, capacity and slow ops; add your own alert rules next to ceph-mixin, not instead of it.
+- Tentacle's mgmt-gateway puts every monitoring UI behind one entry point; build SLO views on top of the ceph-mixin dashboards.
+
+:::
+
 # Before you start {#sec-20-1}
 
 ## What questions does this chapter answer? {#sec-20-1-1}

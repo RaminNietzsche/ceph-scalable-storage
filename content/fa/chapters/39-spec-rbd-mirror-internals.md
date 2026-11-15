@@ -6,6 +6,15 @@ part: specialist
 lang: fa
 ---
 
+::: {.tldr}
+
+- با فعال بودن journaling، librbd هر تغییر را پیش از اعمال روی image در یک journal روی RADOS می‌نویسد.
+- در حالت journal، rbd-mirror به‌عنوان کلاینت journal در مبدأ ثبت می‌شود و رویدادها را در مقصد replay می‌کند.
+- در حالت snapshot، snapshotهای زمان‌بندی‌شده‌ی mirror روی image اصلی گرفته می‌شوند و rbd-mirror تفاوت دو snapshot پیاپی را کپی می‌کند.
+- چند daemon از rbd-mirror با یک leader و از راه watch/notify imageها را میان خود تقسیم می‌کنند؛ فاصله‌ی timestampهای snapshot همان RPO فعلی است.
+
+:::
+
 # پیش از شروع {#sec-39-1}
 
 فصل ۲ نشان داد mirroring چگونه پیکربندی و برای failover و failback استفاده می‌شود. این فصل به درون آن می‌رود: journal یک image روی RADOS چه شکلی دارد و هر رویداد بایت به بایت چگونه نوشته می‌شود، librbd چه ترتیبی میان journal و داده نگه می‌دارد، rbd-mirror در حالت journal چگونه رویدادها را replay و commit می‌کند، حالت snapshot چه snapshotهایی می‌سازد و چگونه فقط تفاوت‌ها را کپی می‌کند، و چند daemon ‏rbd-mirror کار را چگونه میان خود تقسیم می‌کنند. نام‌ها و پیش‌فرض‌ها با شاخه‌ی main مخزن ceph/ceph (نوامبر ۲۰۲۶) تطبیق داده شده‌اند.

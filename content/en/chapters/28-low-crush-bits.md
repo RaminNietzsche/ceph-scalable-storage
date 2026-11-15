@@ -6,6 +6,15 @@ part: lower
 lang: en
 ---
 
+::: {.tldr}
+
+- CRUSH is deterministic: rjenkins hashes of the input, bucket id and replica number drive every choice.
+- straw2 draws a weighted "straw" per item and picks the longest, so a weight change moves only data to or from that item.
+- firstn suits replication and indep suits erasure coding, where a shard's position must not shift; uniform, list and tree buckets move more data.
+- upmap entries in the OSDMap override CRUSH for single PGs; the balancer uses them.
+
+:::
+
 # Introduction: how does CRUSH "compute"? {#sec-28-1}
 
 In chapters 1 and 8 we saw CRUSH as an algorithm that determines the location of each PG without a central table. This chapter goes down to the bit level: the rjenkins hashes that make every decision deterministic, the straw2 algorithm with its fixed-point logarithm table, the step-by-step execution of `crush_do_rule`, the retries on collisions, and finally how choose_args, weight-set and upmap correct CRUSH's raw result. We follow a complete example from the object name to the choice of host, with numbers computed by compiling Ceph's own C code (`src/crush/hash.c` and `mapper.c`, LGPL) into a small test program.

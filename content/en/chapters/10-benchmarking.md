@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- Measure layer by layer: disks with fio, the network, then RADOS, RBD, RGW and CephFS, so you know where a disappointing number comes from.
+- `ceph tell osd.N bench` tests one OSD's BlueStore without network or replication; `rados bench` tests the whole cluster path. They are not comparable.
+- fio's rbd engine, warp for S3 and the admin socket (`perf dump`, `dump_historic_ops`) are the operator's main tools.
+- A benchmark report without hardware, versions, settings, duration and percentiles is worthless.
+
+:::
+
 # Before you start {#sec-10-1}
 
 ## What questions does this chapter answer? {#sec-10-1-1}

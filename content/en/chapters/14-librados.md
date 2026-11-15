@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- librados is the native RADOS API (C, C++, Python and community bindings): connect, open an IoCtx on a pool and read or write objects, xattrs and omap.
+- Operations on a single object are atomic: combine writes, xattrs, omap updates and guards in one operation.
+- watch/notify gives a light notification channel on an object; RBD uses it to tell clients about image changes.
+- The Objecter on the client computes targets, keeps per-OSD sessions, resends ops on map changes and limits in-flight work; respect `osd_max_object_size` and stripe large data.
+
+:::
+
 # Before you start {#sec-14-1}
 
 ## What questions does this chapter answer? {#sec-14-1-1}

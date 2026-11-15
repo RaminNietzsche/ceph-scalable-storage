@@ -6,6 +6,15 @@ part: specialist
 lang: en
 ---
 
+::: {.tldr}
+
+- With journaling enabled, librbd writes every change to a journal on RADOS before applying it to the image.
+- In journal mode rbd-mirror registers as a journal client on the source and replays events on the destination.
+- In snapshot mode, scheduled mirror snapshots are taken on the primary and rbd-mirror copies the difference between consecutive snapshots.
+- Several rbd-mirror daemons share images through a leader using watch/notify; the gap between snapshot timestamps is the current RPO.
+
+:::
+
 # Before we begin {#sec-39-1}
 
 Chapter 2 showed how mirroring is configured and used for failover and failback. This chapter goes inside it: what an image's journal looks like on RADOS and how each event is written byte by byte, what order librbd keeps between the journal and the data, how rbd-mirror replays and commits events in journal mode, which snapshots snapshot mode creates and how it copies only the differences, and how several rbd-mirror daemons divide the work among themselves. Names and defaults have been checked against the main branch of the ceph/ceph repository (November 2026).

@@ -6,6 +6,15 @@ part: specialist
 lang: en
 ---
 
+::: {.tldr}
+
+- A format 2 image is `rbd_id`, an `rbd_header.<id>` omap and data objects `rbd_data.<id>.<objectno>`; metadata changes only through the rbd class.
+- Default striping is consecutive 4 MiB objects; custom striping spreads small sequential writes round-robin over `stripe_count` objects.
+- The object map keeps two bits per object, so fast-diff and `rbd du` need not query every object.
+- The chapter ends with an rbd command reference.
+
+:::
+
 # Before we begin {#sec-37-1}
 
 Chapter 2 showed which objects a format 2 image has and how its id is generated (algorithm 2-1). This chapter opens that same layout key by key: exactly which omap keys an image header has, what the pool-level objects (`rbd_directory`, `rbd_trash`, `rbd_mirroring`, `rbd_namespace` and others) hold, how striping with `stripe_unit` and `stripe_count` maps an offset to an object, how the object map packs and stores its bits, and how fast-diff finds the changes between two snapshots without reading data. The chapter ends with a complete reference for the `rbd` command and `rbd-nbd`. Names have been checked against the main branch of the ceph/ceph repository (November 2026).

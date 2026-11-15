@@ -6,6 +6,15 @@ part: main
 lang: fa
 ---
 
+::: {.tldr}
+
+- اول وضعیت را ثبت کنید (`ceph -s`، `ceph health detail`، `ceph osd tree` و `ceph pg dump_stuck`)، سپس از MONها به OSDها و بعد PGها بروید.
+- MON بدون quorum هیچ کاری نمی‌کند؛ پرچم‌هایی مثل `noout` و `nodown` ابزار موقت‌اند و باید بعداً برداشته شوند.
+- `ceph pg <pgid> query` مسیر PG در ماشین حالت peering و چیزی را که مانع آن است نشان می‌دهد.
+- slow opها را با `dump_ops_in_flight` و `dump_historic_ops` دنبال کنید؛ `ceph-objectstore-tool` و فرمان‌های اشیای unfound را فقط با احتیاط و پس از پشتیبان‌گیری به کار ببرید.
+
+:::
+
 # پیش از شروع {#sec-17-1}
 
 ## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-17-1-1}

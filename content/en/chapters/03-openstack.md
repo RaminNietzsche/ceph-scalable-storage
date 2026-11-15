@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- One Ceph cluster can back all of OpenStack's storage: Glance, Cinder, Cinder Backup, Nova ephemeral disks, Manila and Swift/S3 through RGW.
+- Give every service its own pool and Ceph user; `client.cinder` only reads the images pool.
+- Copy-on-write from image to volume needs raw-format images and `show_image_direct_url = True`; qcow2 silently loses it.
+- The libvirt secret UUID must be identical on every compute node and equal to `rbd_secret_uuid`; `images_type = rbd` moves ephemeral disks to Ceph for easy live migration and evacuate.
+
+:::
+
 # Before you start {#sec-03-1}
 
 ## What questions does this chapter answer? {#sec-03-1-1}

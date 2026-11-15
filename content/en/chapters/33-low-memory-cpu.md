@@ -6,6 +6,15 @@ part: lower
 lang: en
 ---
 
+::: {.tldr}
+
+- Most OSD performance complaints come down to memory (OOM kills) or one saturated thread or shard.
+- Each PG's ops go to shard `ps % num_shards`, so a hot PG can saturate one shard while others idle.
+- mempools count bytes and items per subsystem without locks; tcmalloc may keep freed memory, so RSS and the mempool total differ.
+- PriorityCache splits `osd_memory_target` between onode, data and RocksDB caches; NUMA affinity and profiling (perf, flame graphs) find CPU hot spots.
+
+:::
+
 # Why memory and CPU? {#sec-33-1}
 
 Most performance complaints about an OSD eventually come back to one of these two: either the OSD uses more than its share of memory (and the OOM killer kills it), or one thread or one shard is saturated while the rest are idle. This chapter examines the internal mechanisms of both, function by function: **mempool** for memory accounting, **tcmalloc** as the allocator, **PriorityCache** for dividing the memory budget among caches, **the OSD's threads** and how work is distributed among them, **NUMA**, and the measurement tools (perf, bpftrace and uftrace). All references are to main.

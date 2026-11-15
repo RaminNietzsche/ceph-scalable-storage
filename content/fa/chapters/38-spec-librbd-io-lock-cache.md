@@ -6,6 +6,15 @@ part: specialist
 lang: fa
 ---
 
+::: {.tldr}
+
+- librbd هر درخواست را از زنجیره‌های لایه‌ای ImageDispatcher و ObjectDispatcher (QoS، cache، journal و دیگران) عبور می‌دهد.
+- clone در محدوده‌ی overlap از والد می‌خواند؛ اولین نوشتن داده‌ی والد را بالا می‌آورد (copyup) و flatten همه را کپی می‌کند.
+- exclusive-lock همیارانه است و با یک نویسنده در هر لحظه object map، journal و cache را سازگار نگه می‌دارد.
+- cache پیش‌فرض writearound است؛ QoS برای هر محدودیت یک token bucket دارد؛ krbd، librbd و rbd-nbd در پشتیبانی از قابلیت‌ها متفاوت‌اند.
+
+:::
+
 # پیش از شروع {#sec-38-1}
 
 librbd یک کتابخانه‌ی سنگین است: هر درخواست از چند لایه‌ی **dispatch** در سطح image و سپس در سطح شیء عبور می‌کند، و ویژگی‌هایی مثل exclusive-lock، journaling، cache، رمزنگاری و QoS هر کدام یک لایه‌اند. این فصل آن لایه‌ها را به ترتیب واقعی‌شان نشان می‌دهد، سپس سه سازوکار پرکاربرد را در جزئیات باز می‌کند: copyup در clone و flatten، گرفتن و شکستن exclusive-lock با blocklist، و cache پیش‌فرض writearound. در پایان krbd، librbd و rbd-nbd را از نظر ویژگی و کارایی مقایسه می‌کند. نام‌ها و پیش‌فرض‌ها با شاخه‌ی main مخزن ceph/ceph (نوامبر ۲۰۲۶) تطبیق داده شده‌اند.

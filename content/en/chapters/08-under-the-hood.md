@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- CRUSH replaces a central lookup table: a hierarchy of buckets plus rules computes the OSDs of each PG, so clients find data themselves.
+- An object hashes to a PG and the PG maps to OSDs in different failure domains; every change of the maps is versioned by an epoch.
+- Tunables fix old CRUSH behaviours but change mappings, so enabling them moves data.
+- cephx gives Kerberos-like mutual authentication with time-limited tickets; device classes put a pool on chosen OSDs.
+
+:::
+
 # Before you start {#sec-08-1}
 
 ## What questions does this chapter answer? {#sec-08-1-1}

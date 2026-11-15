@@ -6,6 +6,15 @@ part: lower
 lang: en
 ---
 
+::: {.tldr}
+
+- Crimson is the new OSD built on Seastar: shard-per-core, no locks or blocking calls, futures and continuations instead.
+- Each PG is pinned to one core and operations go through ordered pipeline phases instead of the PG lock.
+- Backends are BlueStore (through an adaptor), CyanStore (memory) and SeaStore, a log-structured store for NVMe.
+- SeaStore needs segment garbage collection; some monitoring commands exist only on main, so check your release.
+
+:::
+
 # Introduction: why a new OSD? {#sec-30-1}
 
 The classic OSD (chapters 12, 21 and 22) was designed in an era when a spinning disk had a latency of several milliseconds and a few tens of microseconds of software cost were negligible against it. On today's NVMe, a 4K read completes in about 10 to 80 microseconds. In that same time, the classic OSD hands the message from a network thread to a shard queue, from there to another thread holding the PG lock, and then to the kv_sync and finisher threads in BlueStore. Every hand-off between threads costs a context switch, lost processor cache and lock contention. **Crimson** is a rewrite of the OSD on the **Seastar** framework to eliminate these costs: each processor core has one reactor, and each PG lives on only one core.

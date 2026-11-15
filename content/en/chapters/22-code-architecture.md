@@ -6,6 +6,15 @@ part: special
 lang: en
 ---
 
+::: {.tldr}
+
+- The ceph/ceph repository is a large C++ monorepo with Python parts and submodules; build it with `do_cmake.sh`, CMake and Ninja and test with vstart.
+- The OSD talks to storage only through `ObjectStore::Transaction`; BlueStore is one implementation.
+- No blocking work may run in a messenger thread or while holding a PG lock; structures are versioned with encode/decode for compatibility.
+- The chapter follows a RADOS write and an RGW PUT function by function and times the write path with OpTracker.
+
+:::
+
 # Repository map {#sec-22-1}
 
 The `github.com/ceph/ceph` repository is a large C++ monorepo with Python parts. On the main branch, the `src/` directory contains, in addition to Ceph's own code, several submodules and external libraries (rocksdb, seastar, spdk, isa-l, fmt, googletest, s3select, arrow, zstd and so on). Knowing this boundary is the first step in reading the code: whatever is inside these submodules is not Ceph code.

@@ -6,6 +6,15 @@ part: main
 lang: fa
 ---
 
+::: {.tldr}
+
+- CephFS متادیتا (درخت، inodeها و journal مربوط به MDS) را در pool متادیتا و محتوای فایل‌ها را در pool داده نگه می‌دارد؛ کلاینت داده را مستقیم با OSDها می‌خواند و می‌نویسد.
+- کلاینت محدود را با `ceph fs authorize` بسازید؛ MDS با capabilityها (caps) به کلاینت‌ها اجازه می‌دهد بدون قفل سراسری، cache منسجم داشته باشند.
+- `fs volumes` برای Kubernetes و Manila، subvolume با quota و snapshot فراهم می‌کند؛ NFS-Ganesha و در Tentacle سرویس SMB به کلاینت‌هایی می‌رسند که نمی‌توانند CephFS را mount کنند.
+- cephfs-mirror، snapshotها را به کلاستر دیگری می‌برد؛ کلاینتی که mountش قفل شده معمولاً evict شده است، پس `dmesg` را ببینید و دوباره mount کنید.
+
+:::
+
 # پیش از شروع {#sec-06-1}
 
 ## این فصل به چه سؤال‌هایی جواب می‌دهد؟ {#sec-06-1-1}

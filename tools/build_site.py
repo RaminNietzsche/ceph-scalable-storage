@@ -390,6 +390,18 @@ def decorate(body, page):
         t.wrap(w)
     for div in body.select('div.call, div.sum, div.box'):
         div['role'] = 'note'
+    for div in body.select('div.tldr'):
+        # the chapter-opening TL;DR: collapsible, open by default
+        lab = div.select_one('.lab')
+        det = new('details', {'class': 'tldr', 'open': ''})
+        sm = new('summary')
+        for c in list(lab.contents):
+            sm.append(c.extract())
+        det.append(sm)
+        for c in list(div.contents):
+            if c is not lab:
+                det.append(c.extract())
+        div.replace_with(det)
     for a in body.select('a.url'):
         a['rel'] = 'noopener'
     for td in body.select('td.pg'):

@@ -6,6 +6,15 @@ part: specialist
 lang: en
 ---
 
+::: {.tldr}
+
+- A period records the multisite configuration; changes are staged and committed, which raises the epoch.
+- Metadata logs, data logs and bucket index logs record changes; zones_trace prevents changes being sent back.
+- Sync status objects live in the destination zone's log pool, named after the source zone.
+- Data sync advances shard markers despite failures and retries them from an error repo; metadata writes need the master zone.
+
+:::
+
 # Before we begin {#sec-42-1}
 
 Chapter 5 covered multisite from the point of view of setup and operation: the realm, zonegroup and zone hierarchy, the three logs, the data sync state machine, choosing the datalog and mdlog shard, the coalescing window and trim. This last chapter of the specialist part opens up the inside of that same engine: exactly what checks committing a period involves and when it creates a new period, what fields the bilog, datalog and mdlog records have, which RADOS objects hold the sync status, how reshard copes with sync through log "generations", where errors are queued, and how a conflict from concurrent writes in two zones is resolved. Names have been matched against the main branch (November 2026).

@@ -6,6 +6,15 @@ part: main
 lang: en
 ---
 
+::: {.tldr}
+
+- Erasure coding splits data into k data chunks plus m parity chunks; any k of them rebuild the data, so m failures are tolerated with much less raw space than replication.
+- In an EC pool each OSD in the acting set holds one shard; RBD and CephFS on EC need `allow_ec_overwrites`, and RBD keeps its metadata in a replicated pool.
+- Tentacle makes ISA-L the default plugin for new clusters and adds FastEC (partial reads and writes, parity-delta) behind `allow_ec_optimizations`.
+- `2147483647` in a PG mapping is `CRUSH_ITEM_NONE`: CRUSH could not find an OSD for that shard.
+
+:::
+
 # Before you start {#sec-13-1}
 
 ## What questions does this chapter answer? {#sec-13-1-1}

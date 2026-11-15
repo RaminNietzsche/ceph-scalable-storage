@@ -6,6 +6,15 @@ part: special
 lang: fa
 ---
 
+::: {.tldr}
+
+- مخزن ceph/ceph یک monorepo بزرگ C++ با بخش‌های پایتونی و submoduleهاست؛ با `do_cmake.sh`، CMake و Ninja ساخته و با vstart آزموده می‌شود.
+- OSD فقط از راه `ObjectStore::Transaction` با ذخیره‌ساز حرف می‌زند و BlueStore یکی از پیاده‌سازی‌های آن است.
+- هیچ کار مسدودکننده‌ای نباید در thread پیام‌رسان یا هنگام نگه داشتن قفل PG انجام شود؛ ساختارها برای سازگاری با encode/decode نسخه‌گذاری می‌شوند.
+- فصل یک نوشتن RADOS و یک PUT در RGW را تابع‌به‌تابع دنبال می‌کند و مسیر نوشتن را با OpTracker زمان‌سنجی می‌کند.
+
+:::
+
 # نقشه‌ی مخزن {#sec-22-1}
 
 مخزن `github.com/ceph/ceph` یک monorepo بزرگ C++ با بخش‌های پایتون است. در شاخه‌ی main، پوشه‌ی `src/` علاوه بر کد خود Ceph، چندین زیرماژول و کتابخانه‌ی خارجی هم دارد (rocksdb، seastar، spdk، isa-l، fmt، googletest، s3select، arrow، zstd و...). شناختن این مرز اولین قدم برای خواندن کد است: هرچه داخل این زیرماژول‌ها است، کد Ceph نیست.

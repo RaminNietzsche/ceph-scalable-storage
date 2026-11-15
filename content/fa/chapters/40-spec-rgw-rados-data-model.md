@@ -6,6 +6,15 @@ part: specialist
 lang: fa
 ---
 
+::: {.tldr}
+
+- poolهای هر zone بیشتر namespaceهایی درون چند pool مشترک‌اند و کاربران، bucketها و متادیتایشان آنجا هستند.
+- bucket index مجموعه‌ای از اشیای فقط-omap با نام `.dir.<marker>.<shard>` است که پس از reshard یک generation هم می‌گیرد.
+- bucketهای versioned یک OLH (object logical head) دارند که به نسخه‌ی جاری اشاره می‌کند.
+- manifest، head و tailهای شیء را به poolهای placement و storage classها نگاشت می‌کند؛ ETag در multipart برابر md5 روی md5 بخش‌ها به‌همراه تعداد بخش‌هاست.
+
+:::
+
 # پیش از شروع {#sec-40-1}
 
 فصل ۴ نشان داد RGW هر شیء S3 را در دو جا نگه می‌دارد (ایندکس bucket و داده) و الگوریتم‌های انتخاب shard، reshard، فهرست‌گیری و نام اشیای head و tail را آورد. این فصل یک لایه پایین‌تر می‌رود: فراداده‌ی کاربر و bucket دقیقاً در کدام pool و namespace است، یک ورودی ایندکس چه فیلدهایی دارد و کلیدهایش در omap چگونه ساخته می‌شوند، به‌روزرسانی دومرحله‌ای ایندکس چگونه با شکست کنار می‌آید، نسخه‌بندی با OLH چگونه پیاده شده، manifest چگونه head و tail را در placement و storage class می‌چیند، و multipart چگونه بدون کپی داده کامل می‌شود. فصل با مرجع `radosgw-admin` تمام می‌شود. نام‌ها و پیش‌فرض‌ها با شاخه‌ی main مخزن ceph/ceph (نوامبر ۲۰۲۶) تطبیق داده شده‌اند.

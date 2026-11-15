@@ -258,6 +258,17 @@ def render(lines, chap=None, md=None):
             mdw('\n' + '\n'.join('> ' + b for b in buf) + '\n')
             i = j + 1
             continue
+        if l.startswith('!TLDR'):
+            j = i + 1
+            buf = []
+            while not lines[j].startswith('!ENDTLDR'):
+                buf.append(lines[j])
+                j += 1
+            items = ''.join(f'<li>{inline(b[2:])}</li>' for b in buf if b.startswith('- '))
+            H.append(f'<div class="tldr"><div class="lab"><span class="t">{esc(UI["tldr_title"])}</span> <span class="s">{esc(UI["tldr_sub"])}</span></div><ul>{items}</ul></div>')
+            mdw(f'\n> **{UI["tldr_title"]}** ({UI["tldr_sub"]})\n>\n' + '\n'.join('> ' + b for b in buf) + '\n')
+            i = j + 1
+            continue
         if l.startswith('!SUM'):
             lab = l[4:].strip() or UI['summary_default']
             j = i + 1

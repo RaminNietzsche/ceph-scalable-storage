@@ -6,6 +6,15 @@ part: specialist
 lang: en
 ---
 
+::: {.tldr}
+
+- The OSD identifies an object by `hobject_t`: pool, hash, namespace, key, name and snap; its bitwise key sets the sort order.
+- An object has data, xattrs (inside the onode) and omap (separate RocksDB keys).
+- An op is queued on an OSD shard and passes do_op's gates (map, peering, missing objects, blocks) before it runs.
+- `execute_ctx` turns ops into a transaction, assigns the version and writes the pg log entry, which lives in the pgmeta object's omap.
+
+:::
+
 # Before we start {#sec-34-1}
 
 Chapter 8 showed how an object reaches an OSD through CRUSH, and chapter 22 followed the path of a write from librados to the ack at a glance. This chapter opens up that same path inside the OSD in detail: exactly what key a RADOS object is identified and sorted by, where its metadata (object_info_t and SnapSet) lives, which shard the op is queued in, which gates it passes through before it runs, how versions are numbered and what the pg log looks like on disk. All names have been checked against the main branch of the ceph/ceph repository (November 2026).
