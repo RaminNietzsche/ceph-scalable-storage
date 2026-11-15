@@ -607,7 +607,7 @@ for f in ('site.css', 'site.js', 'game.js'):
     shutil.copy2(os.path.join(TPL, f), os.path.join(ASSETS, f))
 # KaTeX (MIT) styles + woff2 fonts for the formulas that build_book.py pre-renders; no runtime JS, no CDN
 _kx = os.path.join(ROOT, 'templates', 'vendor', 'katex')
-shutil.copytree(_kx, os.path.join(ASSETS, 'katex'), dirs_exist_ok=True)
+shutil.copytree(_kx, os.path.join(ASSETS, 'katex'), dirs_exist_ok=True, ignore=shutil.ignore_patterns('*.js'))  # the JS is for the build only
 shutil.copy2(os.path.join(SIMDIR, 'sims.css'), os.path.join(ASSETS, 'sims.css'))
 with open(os.path.join(ASSETS, 'sims.js'), 'w', encoding='utf-8') as _f:
     _f.write('/* The interactive lab of "Ceph: Scalable Storage", concatenated from templates/site/sims by tools/build_site.py.\n'

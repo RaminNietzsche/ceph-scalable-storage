@@ -15,6 +15,8 @@ SHELL       := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := pdf
 MAKEFLAGS   += --no-builtin-rules --warn-undefined-variables
+# a recipe that fails removes its half-written target (no empty book.html or PDF left behind)
+.DELETE_ON_ERROR:
 
 EDITIONS    := fa en
 BOOK_LANG   := $(if $(filter $(EDITIONS),$(LANG)),$(LANG),fa)

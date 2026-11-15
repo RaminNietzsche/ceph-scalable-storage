@@ -26,6 +26,14 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 from booklib.mdlower import lower, split_front_matter  # noqa: E402
 
+
+def write_atomic(path, text):
+    """Write via a temporary file, so a failed build never leaves an empty or partial output behind."""
+    tmp = path + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        f.write(text)
+    os.replace(tmp, path)
+
 ap = argparse.ArgumentParser()
 ap.add_argument('--lang', default='fa', choices=['fa', 'en'])
 ap.add_argument('--out', default=None)
@@ -76,9 +84,16 @@ from booklib.mathtext import tex_plain  # noqa: E402
 def render_math(doc):
     if not MATHS:
         return doc
+    import shutil
     import subprocess
-    res = subprocess.run(['node', os.path.join(ROOT, 'tools', 'render_math.mjs')], input=json.dumps(MATHS),
-                         capture_output=True, text=True, check=True)
+    node = os.environ.get('NODE') or shutil.which('node')
+    if not node:
+        sys.exit('build_book: Node.js is needed to typeset the book\'s formulas with KaTeX (tools/render_math.mjs); '
+                 'install Node.js 18 or later (npm install is optional: a KaTeX copy is vendored in templates/vendor/katex).')
+    res = subprocess.run([node, os.path.join(ROOT, 'tools', 'render_math.mjs')], input=json.dumps(MATHS),
+                         capture_output=True, text=True)
+    if res.returncode != 0:
+        sys.exit(f'build_book: KaTeX failed (tools/render_math.mjs, exit {res.returncode}):\n' + res.stderr.strip())
     out = json.loads(res.stdout)
     return re.sub('\ue000(\\d+)\ue001', lambda m: f'<span class="math" dir="ltr" data-plain="{html.escape(tex_plain(MATHS[int(m.group(1))]))}">' + out[int(m.group(1))] + '</span>', doc)
 
@@ -602,7 +617,7 @@ if MATHS:  # KaTeX styles and fonts (vendored, offline) for the inline formulas
     css += '\n' + open(os.path.join(KX, 'katex.min.css'), encoding='utf-8').read().replace('url(fonts/', f'url(file://{KX}/fonts/')
     css += '\n.math { direction: ltr; unicode-bidi: isolate; white-space: nowrap; } .math .katex { font-size: 1.05em; }\n'
 doc = f'<!doctype html><html lang="{LANG}" dir="{META["dir"]}"><head><meta charset="utf-8"><title>{BOOK}</title><style>{css}</style></head><body>\n{front}\n<div id="mainstart"></div>{"".join(body)}{"".join(app)}{back}</body></html>'
-open(os.path.join(OUT, 'book.html'), 'w', encoding='utf-8').write(render_math(doc))
+write_atomic(os.path.join(OUT, 'book.html'), render_math(doc))
 
 # ---------- markdown export ----------
 md = [f'# {BOOK}\n\n{UI["md_title_line"]}\n\n{UI["md_byline"].format(version=META["version_display"], date=META["date_display"])}\n',
@@ -617,7 +632,7 @@ for lvl, hid, num, txt, ch in toc:
 md.append(UI['md_toc_apps'])
 md.append(f'\n# {UI["lof"]}\n')
 md += [f'- {UI["figure"]} {num.translate(EN)}: {short(cap)}' for fid, num, cap in figs]
-open(os.path.join(OUT, 'book.md'), 'w', encoding='utf-8').write('\n'.join(md) + '\n'.join(MD) + '\n'.join(MDA) + '\n')
+write_atomic(os.path.join(OUT, 'book.md'), '\n'.join(md) + '\n'.join(MD) + '\n'.join(MDA) + '\n')
 stats = dict(lang=LANG, chapters=len(chapters), figures=len(figs), algorithms=len(ALGOS), references=len(allu),
              answers=sum(len(v) for v in ANS.values()), toc=len(toc), commands=len(seen), index_terms=len(ix_hits),
              pending_chapters=pending)
