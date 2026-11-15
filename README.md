@@ -4,6 +4,8 @@ An original Persian book on Ceph, with a parallel English edition (*The Comprehe
 
 **Read it:** [book.ceph-s3.ir](https://book.ceph-s3.ir) · [Persian](https://book.ceph-s3.ir/fa/) · [English](https://book.ceph-s3.ir/en/) · [Releases](https://github.com/RaminNietzsche/ceph-scalable-storage/releases)
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24253822.svg)](https://doi.org/10.5281/zenodo.24253822)
+
 | | Persian (`fa`, canonical) | English (`en`) |
 |---|---|---|
 | Content | `content/fa/` | `content/en/` (translation of the Persian text) |
@@ -95,9 +97,9 @@ The full guide is in [CONTRIBUTING.md](CONTRIBUTING.md). Planned additions, incl
 
 ## Citing this book
 
-If you use the book, please cite it. GitHub’s “Cite this repository” button reads [CITATION.cff](CITATION.cff). A Zenodo DOI will be added there, and as a badge here, once one is minted for v1.6.
+If you use the book, please cite it. GitHub’s “Cite this repository” button reads [CITATION.cff](CITATION.cff). The concept DOI (all versions) is [10.5281/zenodo.24253822](https://doi.org/10.5281/zenodo.24253822); the DOI of version 1.6 is [10.5281/zenodo.24253823](https://doi.org/10.5281/zenodo.24253823).
 
-Najarbashi, Ramin. *The Comprehensive Ceph Guide: Designing, Implementing and Operating Scalable Storage — from the Code to Operations*. 1.6. 2026. <https://book.ceph-s3.ir>. CC BY-NC-SA 4.0. ORCID: [0009-0000-7622-8130](https://orcid.org/0009-0000-7622-8130).
+Najarbashi, Ramin. *The Comprehensive Ceph Guide: Designing, Implementing and Operating Scalable Storage — from the Code to Operations*. 1.6. 2026. <https://doi.org/10.5281/zenodo.24253822>. <https://book.ceph-s3.ir>. CC BY-NC-SA 4.0. ORCID: [0009-0000-7622-8130](https://orcid.org/0009-0000-7622-8130).
 
 ## Contributing and feedback
 

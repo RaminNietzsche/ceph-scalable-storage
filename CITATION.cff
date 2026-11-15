@@ -1,6 +1,5 @@
 # Citation metadata (Citation File Format 1.2.0). GitHub shows "Cite this repository" from it.
-# After the first Zenodo release, add the concept DOI (all versions) under `doi` and
-# `preferred-citation.doi`; see docs/PUBLISHING.md.
+# `doi` is the concept DOI (all versions). `identifiers` lists that and the v1.6 version DOI.
 cff-version: 1.2.0
 message: "If you use this book, please cite it as below."
 title: "The Comprehensive Ceph Guide: Designing, Implementing and Operating Scalable Storage — from the Code to Operations"
@@ -14,6 +13,14 @@ date-released: "2026-11-15"
 license: CC-BY-NC-SA-4.0
 url: "https://book.ceph-s3.ir"
 repository-code: "https://github.com/RaminNietzsche/ceph-scalable-storage"
+doi: "10.5281/zenodo.24253822"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.24253822"
+    description: "Concept DOI (all versions of this book)."
+  - type: doi
+    value: "10.5281/zenodo.24253823"
+    description: "DOI of version 1.6."
 abstract: >-
   An open, bilingual (Persian and English) book on Ceph: architecture, RBD, RGW and
   CephFS, operations, CRUSH, BlueStore, erasure coding, monitoring, troubleshooting,
@@ -35,6 +42,7 @@ preferred-citation:
       orcid: "https://orcid.org/0009-0000-7622-8130"
   year: 2026
   edition: "1.6"
+  doi: "10.5281/zenodo.24253822"
   url: "https://book.ceph-s3.ir"
   license: CC-BY-NC-SA-4.0
   languages:
