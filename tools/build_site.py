@@ -461,18 +461,69 @@ decorate(lb, pages[-1])
 ids['lof'] = ('figures', '')
 
 # index ----------------------------------------------------------------------
+# Built from the chapter sources of BOTH editions (booklib.bookindex): whole-word prose
+# occurrences only, united per section, so fa and en list the same terms and targets.
+# Every chapter number links to the first section of that chapter that uses the term.
+from booklib import bookindex  # noqa: E402
+_GL = yaml.safe_load(open(os.path.join(ROOT, 'glossary', 'glossary.yaml'), encoding='utf-8'))
+FA_TERM = {g['term']: g.get('fa_term') for g in _GL}
+IXOCC = bookindex.build(ROOT, [g['term'] for g in _GL])
 chap_slug = {p.chap: p.slug for p in pages if p.chap}
-items = []
-for term in sorted(IX, key=lambda t: t.lower()):
-    first = {}
-    for ch, aid in IX[term]:
-        if ch and ch not in first:
-            first[ch] = aid
-    if not first:
-        continue
-    links = UI['list_sep'].join(f'<a href="{chap_slug[ch]}.html#{aid}" aria-label="{esc(term)} — {esc(UI["chapter_word"])} {loc(ch)}">{loc(ch)}</a>' for ch, aid in sorted(first.items()))
-    items.append(f'<li><span class="term" lang="en" dir="ltr">{esc(term)}</span> <span class="chs">{esc(UI["chapter_word"])} {links}</span></li>')
-ib = frag(f'<div><p class="lead">{esc(S["index_intro"])}</p><ul class="ixlist">{"".join(items)}</ul></div>').find('div')
+SEP = UI['list_sep']
+
+
+def ix_links(term):
+    out = []
+    for ch, secs in IXOCC[term].items():
+        if ch not in chap_slug:
+            continue
+        sec, _ = secs[0]
+        n = sum(k for _, k in secs)
+        lab = f'{term} — {UI["chapter_word"]} {loc(ch)} ({S["ix_occ"].format(n=loc(n))})'
+        out.append(f'<a href="{chap_slug[ch]}.html{"#" + sec if sec else ""}" aria-label="{esc(lab)}" title="{esc(S["ix_occ"].format(n=loc(n)))}">{loc(ch)}</a>')
+    return SEP.join(out)
+
+
+def ix_item(term, label_html):
+    return f'<li>{label_html} <span class="chs">{esc(UI["chapter_word"])} {ix_links(term)}</span></li>'
+
+
+groups = []   # (letter, heading id, [li])
+_terms = [t for t in IXOCC if any(ch in chap_slug for ch in IXOCC[t])]
+if LANG == 'fa':
+    fa_items = sorted([t for t in _terms if FA_TERM.get(t)], key=lambda t: bookindex.fa_key(FA_TERM[t]))
+    for t in fa_items:
+        L = bookindex.fa_letter(FA_TERM[t])
+        if not groups or groups[-1][0] != L:
+            groups.append((L, f'ix-{len(groups) + 1}', []))
+        groups[-1][2].append(ix_item(t, f'<span class="ixt">{esc(FA_TERM[t])}</span> <span class="ixe" lang="en" dir="ltr">{esc(t)}</span>'))
+    latin = sorted([t for t in _terms if not FA_TERM.get(t)], key=lambda t: t.lower())
+else:
+    latin = sorted(_terms, key=lambda t: t.lower())
+n_fa_groups = len(groups)
+for t in latin:
+    L = t[0].upper()
+    if len(groups) == n_fa_groups or groups[-1][0] != L:
+        groups.append((L, f'ix-{len(groups) + 1}', []))
+    groups[-1][2].append(ix_item(t, f'<span class="ixt" lang="en" dir="ltr">{esc(t)}</span>'))
+
+
+def _jump(gs):
+    return ''.join(f'<a href="#{gid}">{esc(L)}</a>' for L, gid, _ in gs)
+
+
+_body = [f'<p class="lead">{esc(S["index_intro"])}</p>']
+_nav = f'<nav class="ix-jump" aria-label="{esc(S["ix_jump"])}">'
+if LANG == 'fa':
+    _nav += f'<span class="ix-jump-fa">{_jump(groups[:n_fa_groups])}</span><span class="ix-jump-en" dir="ltr">{_jump(groups[n_fa_groups:])}</span>'
+else:
+    _nav += f'<span class="ix-jump-en">{_jump(groups)}</span>'
+_body.append(_nav + '</nav>')
+for k, (L, gid, lis) in enumerate(groups):
+    if LANG == 'fa' and k == n_fa_groups:
+        _body.append(f'<h2 class="ix-sec" id="ix-latin">{esc(S["ix_latin"])}</h2>')
+    _body.append(f'<h3 class="ix-letter" id="{gid}"{" dir=ltr" if k >= n_fa_groups else ""}>{esc(L)}</h3><ul class="ixlist">{"".join(lis)}</ul>')
+ib = frag('<div>' + ''.join(_body) + '</div>').find('div')
 Page('book-index', 'list', esc(UI['index']), esc(UI['index']), 'lists', ib)
 ids['index'] = ('book-index', '')
 ids['toc'] = ('contents', '')

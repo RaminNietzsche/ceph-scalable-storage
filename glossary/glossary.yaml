@@ -1,5 +1,5 @@
 # Bilingual glossary: single source for both editions.
-# term: English term (index key); fa: Persian equivalent/definition; en: English definition.
+# term: English term (index key); fa_term: Persian equivalent shown in the fa index (optional); fa: Persian definition; en: English definition.
 - term: SPDK
   fa: کیت توسعه‌ی کارایی ذخیره‌سازی؛ راه‌انداز NVMe در فضای کاربر با polling که BlueStore و Crimson می‌توانند به‌جای هسته به کار ببرند
   en: Storage Performance Development Kit; a user-space, polling NVMe driver that BlueStore and Crimson can use instead of the kernel
@@ -28,9 +28,11 @@
   fa: دستور جابه‌جایی بایت SSSE3 که ISA-L با جدول ۱۶تایی برای ضرب GF(2⁸) به کار می‌برد
   en: The SSSE3 byte-shuffle instruction that ISA-L uses with 16-entry tables for GF(2⁸) multiplication
 - term: Skiplist
+  fa_term: فهرست پرشی
   fa: فهرست پیوندی چندسطحی احتمالاتی؛ ساختار پیش‌فرض memtable در RocksDB
   en: A probabilistic multi-level linked list; the default memtable structure in RocksDB
 - term: Bloom filter
+  fa_term: فیلتر بلوم
   fa: ساختار احتمالاتی عضویت با مثبت کاذب ولی بدون منفی کاذب؛ در RocksDB و HitSet به کار می‌رود
   en: A probabilistic membership structure with false positives but no false negatives; used in RocksDB and HitSet
 - term: libaio
@@ -40,33 +42,41 @@
   fa: مجموعه‌ی اشیای دسترسی‌شده در یک بازه‌ی زمانی برای تعیین دمای شیء در cache tiering
   en: The set of objects accessed in a time interval, used to judge object temperature in cache tiering
 - term: Volume selector
+  fa_term: انتخاب‌گر حجم
   fa: سیاست BlueFS برای انتخاب دستگاه WAL، DB یا کند برای هر فایل RocksDB
   en: The BlueFS policy that chooses the WAL, DB or slow device for each RocksDB file
 - term: Knapsack
+  fa_term: مسئله‌ی کوله‌پشتی
   fa: مسئله‌ی کوله‌پشتی؛ autoscaler در Umbrella با آن تصمیم می‌گیرد کدام pool به توان دو بالاتر گرد شود
   en: The knapsack problem; the Umbrella autoscaler uses it to decide which pool is rounded up to the next power of two
 - term: cls_lock
   fa: کلاس RADOS برای قفل مشورتی انحصاری یا اشتراکی با انقضا، ذخیره در xattr
   en: A RADOS class for advisory exclusive or shared locks with expiry, stored in an xattr
 - term: Acting set
+  fa_term: مجموعه‌ی فعال
   fa: مجموعه‌ی OSDهایی که در عمل یک PG را سرویس می‌دهند؛ ممکن است به‌طور موقت با up set فرق کند
   en: The set of OSDs that actually serve a PG; it may temporarily differ from the up set
 - term: Admin socket
+  fa_term: سوکت مدیریت
   fa: سوکت مدیریتی محلی هر daemon برای فرمان مستقیم (ceph daemon)
   en: Each daemon's local management socket for direct commands (ceph daemon)
 - term: Allocator
+  fa_term: تخصیص‌دهنده
   fa: تخصیص‌دهنده‌ی فضای خام در BlueStore (پیش‌فرض hybrid)
   en: The raw-space allocator in BlueStore (hybrid by default)
 - term: Backfill
+  fa_term: پرکردن پس‌زمینه
   fa: بازسازی کامل PG روی OSD جدید با پیمایش همه‌ی اشیا
   en: Full rebuild of a PG on a new OSD by walking all of its objects
 - term: Balancer
+  fa_term: متعادل‌ساز
   fa: ماژول mgr برای یکنواخت کردن توزیع PG (حالت upmap)
   en: The mgr module that evens out PG distribution (upmap mode)
 - term: Blob
   fa: واحد checksum و فشرده‌سازی در BlueStore که به pextentها اشاره می‌کند
   en: The unit of checksumming and compression in BlueStore, which points to pextents
 - term: Blocklist
+  fa_term: فهرست مسدود
   fa: فهرست سیاه کلاینت‌ها در OSDMap برای جلوگیری از نوشتن‌های دیررسیده
   en: The OSDMap list of blocked clients, used to stop late writes
 - term: BlueFS
@@ -76,12 +86,15 @@
   fa: backend پیش‌فرض ذخیره‌سازی OSD که مستقیم روی دستگاه خام می‌نویسد
   en: The default OSD storage backend, which writes directly to the raw device
 - term: Bucket index
+  fa_term: ایندکس bucket
   fa: فهرست اشیای یک bucket در RGW که در omap شاردها نگه داشته می‌شود
   en: The list of a bucket's objects in RGW, kept in the omap of the index shards
 - term: Cache tiering
+  fa_term: لایه‌بندی کش
   fa: لایه‌بندی کش بین دو pool؛ از Reef منسوخ شده است
   en: A cache layer between two pools; deprecated since Reef
 - term: Capability (cap)
+  fa_term: قابلیت دسترسی
   fa: مجوز کش و تغییر که MDS به کلاینت CephFS برای هر inode می‌دهد
   en: A caching and mutation permission that the MDS grants a CephFS client for each inode
 - term: cephadm
@@ -94,12 +107,15 @@
   fa: ابزار آماده‌سازی دیسک و ساخت OSD (LVM)
   en: The tool that prepares disks and creates OSDs (LVM)
 - term: Clone
+  fa_term: کلون
   fa: تصویر RBD قابل نوشتن که از snapshot یک تصویر والد ساخته می‌شود
   en: A writable RBD image created from a snapshot of a parent image
 - term: Collection
+  fa_term: مجموعه (collection)
   fa: گروه اشیای یک PG در ObjectStore
   en: The group of objects of one PG in the ObjectStore
 - term: Copy-on-write
+  fa_term: کپی هنگام نوشتن
   fa: کپی در زمان نوشتن؛ داده‌ی والد فقط هنگام اولین تغییر کپی می‌شود
   en: Parent data is copied only when it is first modified
 - term: Copyup
@@ -115,42 +131,53 @@
   fa: لاگ تغییر شاردهای bucket برای همگام‌سازی multisite
   en: The change log of bucket shards used for multisite synchronisation
 - term: Deep scrub
+  fa_term: وارسی عمیق
   fa: بررسی کامل داده با خواندن و مقایسه‌ی checksum
   en: A full data check that reads the data and compares checksums
 - term: Deferred write
+  fa_term: نوشتن تأخیری
   fa: نوشتن کوچک که ابتدا در WAL ثبت و بعداً روی دستگاه اعمال می‌شود
   en: A small write that is first recorded in the WAL and applied to the device later
 - term: Dirfrag
   fa: تکه‌ای از یک دایرکتوری CephFS که واحد تقسیم و جابه‌جایی بین MDSها است
   en: A fragment of a CephFS directory; the unit of splitting and migration between MDSs
 - term: Dynamic resharding
+  fa_term: بازشاردبندی پویا
   fa: افزایش خودکار شارد index یک bucket بزرگ در RGW
   en: Automatic increase of the index shard count of a large bucket in RGW
 - term: Erasure coding
+  fa_term: کدگذاری پاک‌شونده
   fa: کد پاک‌سازی؛ تقسیم داده به k قطعه‌ی داده و m قطعه‌ی parity
   en: Splitting data into k data chunks and m parity chunks
 - term: Exclusive lock
+  fa_term: قفل انحصاری
   fa: قفل همکارانه‌ی RBD برای داشتن یک نویسنده‌ی فعال
   en: A cooperative RBD lock that ensures a single active writer
 - term: Failure domain
+  fa_term: دامنه‌ی خرابی
   fa: دامنه‌ی خرابی؛ سطحی از سلسله‌مراتب (host، rack) که نسخه‌ها بین آن پخش می‌شوند
   en: A level of the hierarchy (host, rack) across which replicas are spread
 - term: Fast-diff
   fa: قابلیت RBD برای محاسبه‌ی سریع تفاوت با استفاده از object map
   en: An RBD feature that computes differences quickly using the object map
 - term: Flatten
+  fa_term: مسطح‌سازی
   fa: جدا کردن clone از والد با کپی همه‌ی داده
   en: Detaching a clone from its parent by copying all data
 - term: Full ratio
+  fa_term: نسبت پُری
   fa: آستانه‌ی پر شدن OSD که بالاتر از آن نوشتن متوقف می‌شود
   en: The OSD fullness threshold above which writes stop
 - term: Incremental map
+  fa_term: نقشه‌ی افزایشی
   fa: تفاوت دو epoch متوالی نقشه که به مشترکان ارسال می‌شود
   en: The difference between two consecutive map epochs, sent to subscribers
 - term: Journal (RBD)
+  fa_term: ژورنال RBD
   fa: ثبت ترتیبی تغییرات تصویر برای mirroring مبتنی بر journal
   en: A sequential record of image changes for journal-based mirroring
 - term: Lease
+  fa_term: اجاره (lease)
   fa: اجازه‌ی محدود زمانی که رهبر MON برای خواندن به peonها می‌دهد
   en: A time-limited permission that the MON leader grants peons for reads
 - term: librados
@@ -160,6 +187,7 @@
   fa: کتابخانه‌ی کلاینت دستگاه بلوکی RBD در فضای کاربر
   en: The user-space client library for RBD block devices
 - term: Manifest
+  fa_term: مانیفست
   fa: نقشه‌ی بخش‌های یک شیء RGW (head و tail)
   en: The map of the parts of an RGW object (head and tail)
 - term: MDS
@@ -175,6 +203,7 @@
   fa: کمترین تعداد نسخه‌ی در دسترس برای پذیرش I/O در یک pool
   en: The minimum number of available replicas for a pool to accept I/O
 - term: Mirroring
+  fa_term: آینه‌سازی
   fa: تکثیر ناهمگام تصاویر RBD یا CephFS به کلاستر دیگر
   en: Asynchronous replication of RBD images or CephFS to another cluster
 - term: MON
@@ -184,9 +213,11 @@
   fa: نسخه‌ی ۲ پروتکل شبکه‌ی Ceph با رمزنگاری اختیاری (پورت 3300)
   en: Version 2 of the Ceph network protocol, with optional encryption (port 3300)
 - term: Multisite
+  fa_term: چندسایتی
   fa: ساختار realm، zonegroup و zone برای تکثیر RGW بین سایت‌ها
   en: The realm, zonegroup and zone structure for replicating RGW between sites
 - term: Object map
+  fa_term: نقشه‌ی اشیا
   fa: بیت‌مپ وضعیت وجود اشیای یک تصویر RBD
   en: A bitmap of which objects of an RBD image exist
 - term: ObjectStore
@@ -208,12 +239,15 @@
   fa: نقشه‌ی وضعیت OSDها، poolها و استثناهای جای‌گذاری
   en: The map of the state of OSDs, pools and placement exceptions
 - term: Paxos
+  fa_term: پکسوس
   fa: الگوریتم اجماع مورد استفاده‌ی MONها
   en: The consensus algorithm used by the MONs
 - term: Peering
+  fa_term: هم‌تاسازی (peering)
   fa: فرایند توافق OSDهای یک PG روی وضعیت و تاریخچه‌ی آن
   en: The process by which the OSDs of a PG agree on its state and history
 - term: PG (Placement Group)
+  fa_term: گروه جای‌گذاری
   fa: گروه جای‌گذاری؛ واحد منطقی توزیع و بازیابی اشیا
   en: Placement group; the logical unit of object distribution and recovery
 - term: pg_autoscaler
@@ -226,15 +260,19 @@
   fa: نگاشت موقت acting set در OSDMap هنگام backfill
   en: A temporary acting-set mapping in the OSDMap during backfill
 - term: Pool
+  fa_term: استخر (pool)
   fa: فضای منطقی با سیاست تکثیر، قاعده‌ی CRUSH و تعداد PG مستقل
   en: A logical space with its own replication policy, CRUSH rule and PG count
 - term: Primary OSD
+  fa_term: OSD اصلی
   fa: OSD نخست acting set که درخواست‌های کلاینت را هماهنگ می‌کند
   en: The first OSD of the acting set, which coordinates client requests
 - term: Primary affinity
+  fa_term: تمایل primary
   fa: ضریب تمایل یک OSD برای primary شدن
   en: An OSD's affinity factor for becoming primary
 - term: Quorum
+  fa_term: حد نصاب
   fa: اکثریت MONهای در دسترس که می‌توانند تصمیم بگیرند
   en: The majority of available MONs that can make decisions
 - term: RADOS
@@ -244,12 +282,15 @@
   fa: دستگاه بلوکی Ceph
   en: The Ceph block device
 - term: Recovery
+  fa_term: بازیابی
   fa: بازگرداندن نسخه‌های گم‌شده‌ی اشیا بر اساس PG log
   en: Restoring missing object replicas based on the PG log
 - term: Replication
+  fa_term: تکثیر
   fa: تکثیر کامل داده در چند نسخه
   en: Full copies of data in several replicas
 - term: Reweight
+  fa_term: وزن‌دهی دوباره
   fa: ضریب موقت کاهش داده‌ی یک OSD (۰ تا ۱)
   en: A temporary factor (0 to 1) that reduces the data on an OSD
 - term: RGW
@@ -259,27 +300,34 @@
   fa: اپراتور Kubernetes برای استقرار و مدیریت Ceph
   en: A Kubernetes operator for deploying and managing Ceph
 - term: Scrub
+  fa_term: وارسی
   fa: بررسی دوره‌ای سازگاری فراداده‌ی نسخه‌های یک PG
   en: Periodic consistency check of the metadata of a PG's replicas
 - term: Shard
+  fa_term: شارد
   fa: یک بخش از داده‌ی تقسیم‌شده؛ مثلاً شارد index، شارد EC یا شارد صف OSD
   en: One part of partitioned data, e.g. an index shard, an EC shard or an OSD queue shard
 - term: Snapshot
+  fa_term: اسنپ‌شات
   fa: تصویر فقط‌خواندنی یک نقطه‌ی زمانی
   en: A read-only image of a point in time
 - term: Stretch mode
+  fa_term: حالت کشیده
   fa: حالت کلاستر کشیده بین دو مرکز داده همراه یک MON داور
   en: A cluster stretched between two data centres, with a tiebreaker MON
 - term: Striping
+  fa_term: نواربندی
   fa: تقسیم داده‌ی پیوسته روی چند شیء
   en: Splitting contiguous data across several objects
 - term: Tiebreaker
+  fa_term: داور (tiebreaker)
   fa: MON داور در stretch mode برای شکستن تساوی quorum
   en: The arbiter MON in stretch mode that breaks quorum ties
 - term: Upmap
   fa: استثنای صریح جای‌گذاری PG در OSDMap برای توازن
   en: An explicit PG placement exception in the OSDMap, used for balancing
 - term: Up set
+  fa_term: مجموعه‌ی بالا (up set)
   fa: مجموعه‌ی OSDهای محاسبه‌شده با CRUSH پیش از اعمال pg_temp
   en: The set of OSDs computed by CRUSH before pg_temp is applied
 - term: vstart.sh
@@ -289,9 +337,11 @@
   fa: لاگ پیش‌نویس RocksDB در BlueStore
   en: The RocksDB write-ahead log in BlueStore
 - term: Zone
+  fa_term: ناحیه (zone)
   fa: یک استقرار RGW با poolهای خودش در multisite
   en: One RGW deployment with its own pools in multisite
 - term: Zonegroup
+  fa_term: گروه ناحیه
   fa: گروه zoneها که داده را بین خود تکثیر می‌کنند
   en: A group of zones that replicate data among themselves
 - term: AES-GCM
@@ -307,9 +357,11 @@
   fa: checksum با چندجمله‌ای Castagnoli که BlueStore، msgr2 و journal از آن استفاده می‌کنند
   en: A checksum with the Castagnoli polynomial, used by BlueStore, msgr2 and journals
 - term: Envelope mode (BlueFS)
+  fa_term: حالت پاکت BlueFS
   fa: قالب تازه‌ی ثبت فایل‌های BlueFS که در Tentacle و بالاتر وجود دارد
   en: A new on-disk record format for BlueFS files, present in Tentacle and later
 - term: Frame preamble
+  fa_term: پیش‌درآمد قاب
   fa: سرآیند ۳۲ بایتی هر قاب msgr2 با tag، طول segmentها و crc
   en: The 32-byte header of every msgr2 frame, with tag, segment lengths and crc
 - term: GF(2⁸)
@@ -322,15 +374,18 @@
   fa: درایور هسته‌ای RBD (rbd.ko) که تصویر را به‌صورت دستگاه بلوکی /dev/rbdN نشان می‌دهد
   en: The kernel RBD driver (rbd.ko) that exposes an image as the block device /dev/rbdN
 - term: Label (BlueStore)
+  fa_term: برچسب BlueStore
   fa: بلوک ۴۰۹۶ بایتی آغاز دستگاه با uuid، اندازه و فراداده‌ی OSD
   en: The 4096-byte block at the start of the device with the uuid, size and OSD metadata
 - term: libceph
   fa: کتابخانه‌ی مشترک هسته‌ی لینوکس برای messenger، monclient، osd_client و CRUSH
   en: The shared Linux kernel library for the messenger, monclient, osd_client and CRUSH
 - term: Linger request
+  fa_term: درخواست ماندگار
   fa: درخواست ماندگار libceph یا Objecter برای watch و notify که با هر نقشه دوباره ارزیابی می‌شود
   en: A persistent libceph or Objecter request for watch and notify, re-evaluated with every map
 - term: LSM tree
+  fa_term: درخت LSM
   fa: ساختار درخت ادغام ساخت‌یافته در لاگ که RocksDB بر آن بنا شده است
   en: The log-structured merge tree on which RocksDB is built
 - term: memtable
@@ -349,12 +404,14 @@
   fa: باز کردن دستگاه بدون page cache؛ BlueStore داده را این‌گونه می‌نویسد
   en: Opening the device without the page cache; BlueStore writes data this way
 - term: Perf counter
+  fa_term: شمارنده‌ی کارایی
   fa: شمارنده‌ی کارایی درون daemon (u64، time، avg یا histogram)
   en: A performance counter inside a daemon (u64, time, avg or histogram)
 - term: PriorityCache
   fa: مدیر بودجه‌ی حافظه که cacheهای BlueStore و RocksDB را با osd_memory_target تنظیم می‌کند
   en: The memory budget manager that tunes the BlueStore and RocksDB caches to osd_memory_target
 - term: Reed-Solomon
+  fa_term: رید-سولومون
   fa: کد پاک‌سازی MDS که با k تکه‌ی داده و m تکه‌ی parity هر m خرابی را تحمل می‌کند
   en: An MDS erasure code that tolerates any m failures with k data chunks and m parity chunks
 - term: Rjenkins hash
@@ -370,18 +427,22 @@
   fa: الگوریتم انتخاب bucket در CRUSH با کشیدن «نی» به‌صورت ln(hash)/weight
   en: The CRUSH bucket selection algorithm that draws a "straw" as ln(hash)/weight
 - term: Storage class
+  fa_term: کلاس ذخیره‌سازی
   fa: کلاس ذخیره‌سازی در RGW که به data_pool جداگانه در placement target نگاشت می‌شود
   en: An RGW storage class, mapped to a separate data_pool in the placement target
 - term: Superblock (BlueFS)
+  fa_term: ابربلوک BlueFS
   fa: سرآیند BlueFS در آفست 4096 دستگاه با log_fnode و نسخه
   en: The BlueFS header at offset 4096 of the device, with log_fnode and version
 - term: Throttle (BlueStore)
+  fa_term: گلوگاه BlueStore
   fa: محدودیت هزینه‌ی تراکنش‌های در جریان بر حسب بایت معادل
   en: A limit on the cost of in-flight transactions, in equivalent bytes
 - term: WriteBatch
   fa: دسته‌ی اتمیک عملیات Put و Delete در RocksDB
   en: An atomic batch of Put and Delete operations in RocksDB
 - term: Lifecycle (RGW)
+  fa_term: چرخه‌ی عمر
   fa: قواعد انقضا و انتقال اشیا که LCWorkerها در پنجره‌ی زمانی اجرا می‌کنند
   en: Expiration and transition rules for objects, run by LCWorkers in a time window
 - term: OLH (Object Logical Head)
@@ -394,30 +455,38 @@
   fa: لاگ تغییرات فراداده‌ی RGW (کاربر، bucket) به ازای هر period در اشیای meta.log.<period>.<N>
   en: The RGW metadata change log (users, buckets), one per period, in meta.log.<period>.<N> objects
 - term: Period
+  fa_term: دوره (period)
   fa: نسخه‌ی ثبت‌شده‌ی پیکربندی multisite با شناسه، epoch و realm_epoch؛ تغییر master zone یک period تازه می‌سازد
   en: A committed version of the multisite configuration with an id, epoch and realm_epoch; changing the master zone creates a new period
 - term: Error repo (sync)
+  fa_term: مخزن خطا
   fa: omap شیء ‎.retry کنار وضعیت هر shard ‏datalog که bucket shardهای شکست‌خورده را برای تلاش دوباره نگه می‌دارد
   en: The omap of the .retry object beside each datalog shard status, holding failed bucket shards for retry
 - term: Bilog generation
+  fa_term: نسل bilog
   fa: نسل layout لاگ bucket پس از reshard؛ مقصد نسل قدیم را تا انتها همگام می‌کند و سپس به نسل جدید می‌رود
   en: The generation of a bucket's log layout after a reshard; peers finish the old generation before moving to the new one
 - term: SigV4
   fa: امضای AWS Signature Version 4؛ HMAC-SHA256 روی string to sign با کلیدی که از secret، تاریخ، region و سرویس مشتق می‌شود
   en: AWS Signature Version 4; HMAC-SHA256 over the string to sign with a key derived from the secret, date, region and service
 - term: Placement target
+  fa_term: هدف جای‌گذاری
   fa: قاعده‌ی zonegroup که pool ایندکس، data_extra_pool و pool هر storage class یک bucket را در zone تعیین می‌کند
   en: A zonegroup rule that maps a bucket to the index pool, data_extra_pool and per-storage-class data pools in a zone
 - term: Delete marker
+  fa_term: نشانگر حذف
   fa: نسخه‌ی بی‌داده‌ای که حذف بدون versionId در bucket نسخه‌دار می‌سازد و نسخه‌ی جاری می‌شود
   en: A data-less version created by a delete without versionId in a versioned bucket, which becomes the current version
 - term: Multipart upload
+  fa_term: آپلود چندبخشی
   fa: آپلود یک شیء در چند بخش مستقل که complete آن‌ها را بدون کپی داده با یک manifest به هم وصل می‌کند؛ ETag با پسوند ‎-N
   en: Uploading an object in independent parts that complete joins with one manifest and no data copy; ETag carries a -N suffix
 - term: Garbage collection (RGW)
+  fa_term: زباله‌روبی
   fa: صف حذف tailهای شیء حذف‌شده یا بازنویسی‌شده در اشیای gc.N که پس از rgw_gc_obj_min_wait پردازش می‌شود
   en: The queue of tails of deleted or overwritten objects in gc.N objects, processed after rgw_gc_obj_min_wait
 - term: Rate limit (RGW)
+  fa_term: محدودیت نرخ
   fa: سطل توکن در حافظه‌ی هر RGW برای account، کاربر و bucket که درخواست اضافی را با 503 SlowDown رد می‌کند
   en: An in-memory token bucket per RGW for accounts, users and buckets that rejects excess requests with 503 SlowDown
 - term: SnapSet
@@ -430,9 +499,11 @@
   fa: خلاصه‌ی بازه‌هایی که acting set یک PG در آن‌ها ثابت بوده؛ peering با آن OSDهایی را می‌یابد که باید پرسیده شوند
   en: A summary of intervals in which a PG's acting set was stable; peering uses it to find the OSDs it must query
 - term: Divergent entry
+  fa_term: ورودی واگرا
   fa: ورودی PG log در یک replica که در لاگ authoritative نیست و هنگام merge_log باید برگردانده یا حذف شود
   en: A PG log entry on a replica that is not in the authoritative log and must be rolled back or removed during merge_log
 - term: Watch/Notify
+  fa_term: پایش و اعلان
   fa: سازوکار RADOS که کلاینت‌ها روی یک شیء watch ثبت می‌کنند و notify پیامی را به همه می‌رساند و منتظر ack می‌ماند
   en: The RADOS mechanism where clients register a watch on an object and a notify delivers a message to all and waits for acks
 - term: hobject_t
@@ -442,5 +513,6 @@
   fa: cache نوشتن پایدار librbd روی SSD یا PMEM که نوشتن‌ها را به‌ترتیب ثبت و بعداً به خوشه flush می‌کند
   en: librbd's persistent write-back cache on SSD or PMEM that logs writes in order and flushes them to the cluster later
 - term: Mirror snapshot
+  fa_term: اسنپ‌شات آینه
   fa: snapshot ویژه‌ی RBD با فضای نام mirror که حالت snapshot-based mirroring بر پایه‌ی آن تفاوت دو نقطه را کپی می‌کند
   en: A special RBD snapshot in the mirror namespace on which snapshot-based mirroring copies the difference between two points

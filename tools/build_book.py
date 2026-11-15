@@ -136,21 +136,19 @@ def inline(t):
 
 
 # ---------- index anchors ----------
-IX_TERMS = sorted([g[0] for g in GLOSS], key=len, reverse=True)
-IX_RE = {t: re.compile(r'(?<![A-Za-z\-])' + re.escape(t) + r'(?:s|es)?(?![A-Za-z\-])', re.I if len(t) > 3 else 0) for t in IX_TERMS}
+from booklib import bookindex  # noqa: E402
+IX_MATCH = bookindex.matchers([g[0] for g in GLOSS])   # same whole-word rules as the web index
 ix_hits = collections.defaultdict(list)
 ix_n = [0]
 
 
 def ix_anchors(text, chap):
     a = ''
-    text = re.sub(r'`[^`]*`', '', text)
-    for t in IX_TERMS:
-        if IX_RE[t].search(text):
-            ix_n[0] += 1
-            aid = f'ix{ix_n[0]}'
-            ix_hits[t].append((chap, aid))
-            a += f'<span class="ixa" id="{aid}"></span>'
+    for t in bookindex.count(IX_MATCH, bookindex.clean(text)):
+        ix_n[0] += 1
+        aid = f'ix{ix_n[0]}'
+        ix_hits[t].append((chap, aid))
+        a += f'<span class="ixa" id="{aid}"></span>'
     return a
 
 

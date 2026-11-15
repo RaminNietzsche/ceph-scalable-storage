@@ -7,6 +7,11 @@
 * List of figures (fa, en): one entry per figure of the book; each
   entry shows the figure number and the FULL caption of that figure (as on the
   chapter page) and links to the figure.
+* Index (fa, en): both editions list the same terms with the same chapters and
+  link targets; every target section exists and its text uses the term; no
+  space before the Persian comma; fa: Persian-equivalent entries sorted in
+  Persian alphabetical order under letter headings, then a Latin section;
+  every jump-bar letter points to a heading.
 
 Usage: tools/check_lists.py [--site build/site]
 """
@@ -17,9 +22,12 @@ import os
 import re
 import sys
 
+import yaml
 from bs4 import BeautifulSoup
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(ROOT, 'tools'))
+from booklib import bookindex  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--site', default=os.path.join(ROOT, 'build', 'site'))
@@ -111,6 +119,92 @@ for lang in ('fa', 'en'):
     if len(rows) != n_book or figs_seen != n_book:
         problems.append(f'{lang}/figures: {len(rows)} entries, {figs_seen} valid, but the chapters have {n_book} figures')
 summary.append(f'figures list fa/en: {FIGN}')
+
+# ---- index
+GL = yaml.safe_load(open(os.path.join(ROOT, 'glossary', 'glossary.yaml'), encoding='utf-8'))
+FA_TERM = {g['term']: g.get('fa_term') for g in GL}
+MS = dict(bookindex.matchers([g['term'] for g in GL]))
+entries = {}
+FAN = []
+for lang in ('fa', 'en'):
+    ix = page(lang, 'book-index')
+    main = ix.find('main')
+    if re.search(r'\s،', main.get_text()):
+        problems.append(f'{lang}/book-index: space before the Persian comma')
+    ent = {}
+    for li in main.select('ul.ixlist li'):
+        term = norm((li.select_one('.ixe') or li.select_one('.ixt')).get_text())
+        links = [x['href'] for x in li.select('.chs a')]
+        if not links:
+            problems.append(f'{lang}/book-index: {term} has no links')
+        ent[term] = links
+        for h in links:
+            slug, _, sec = h.partition('.html#')
+            tgt = page(lang, slug.replace('.html', ''))
+            if tgt is None:
+                problems.append(f'{lang}/book-index: {term}: missing page {h}')
+                continue
+            if sec and tgt.find(id=sec) is None:
+                problems.append(f'{lang}/book-index: {term}: missing anchor {h}')
+    entries[lang] = ent
+    hs = {x['id'] for x in main.select('h2[id], h3[id]')}
+    for a in main.select('nav.ix-jump a'):
+        if a['href'][1:] not in hs:
+            problems.append(f'{lang}/book-index: jump link {a["href"]} has no heading')
+    if lang == 'fa':
+        fa_terms = [norm(x.get_text()) for x in main.select('ul.ixlist li .ixt') if x.find_next_sibling(class_='ixe')]
+        FAN.append(len(fa_terms))
+        if fa_terms != sorted(fa_terms, key=bookindex.fa_key):
+            problems.append('fa/book-index: Persian entries are not in Persian alphabetical order')
+        if not main.select_one('#ix-latin'):
+            problems.append('fa/book-index: no Latin section')
+        for li in main.select('ul.ixlist li'):
+            t = li.select_one('.ixe')
+            if t and FA_TERM.get(norm(t.get_text())) != norm(li.select_one('.ixt').get_text()):
+                problems.append(f'fa/book-index: {norm(t.get_text())}: Persian label does not match the glossary')
+if entries.get('fa') != entries.get('en'):
+    d = set(entries['fa']) ^ set(entries['en'])
+    diff = [t for t in set(entries['fa']) & set(entries['en']) if entries['fa'][t] != entries['en'][t]]
+    problems.append(f'book-index: fa and en differ (terms only in one: {sorted(d)[:5]}, different links: {diff[:5]})')
+
+
+# every target section uses the term in at least one edition
+SEC = {}
+
+
+def section_text(lang, slug, sec):
+    if (lang, slug, sec) not in SEC:
+        SEC[lang, slug, sec] = _section_text(page(lang, slug), sec)
+    return SEC[lang, slug, sec]
+
+
+def _section_text(soup, sec):
+    h = soup.find(id=sec)
+    if h is None:
+        return ''
+    buf = []
+    for el in h.find_all_next():
+        if el.name in ('h2', 'h3') and el is not h and el.get('id'):
+            break
+        if el.name in ('p', 'li', 'td', 'th', 'figcaption', 'blockquote', 'div') and not el.find(['p', 'li', 'td', 'figcaption']):
+            c = BeautifulSoup(str(el), 'html.parser')
+            for x in c.select('pre, code, a.url'):
+                x.decompose()
+            buf.append(text(c))
+    return ' '.join(buf)
+
+
+n_links = 0
+for term, links in entries.get('en', {}).items():
+    rx = MS.get(term)
+    for h in links:
+        slug, _, sec = h.partition('.html#')
+        if not sec:
+            continue
+        n_links += 1
+        if not any(rx.search(section_text(lg, slug, sec)) for lg in ('fa', 'en')):
+            problems.append(f'book-index: {term} -> {h}: the section text does not use the term')
+summary.append(f'index: {len(entries.get("en", {}))} terms ({FAN[0] if FAN else 0} with a Persian label), {n_links} links checked against section text')
 
 for p in problems[:60]:
     print('check_lists:', p)
