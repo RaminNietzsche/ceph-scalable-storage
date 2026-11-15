@@ -1565,6 +1565,28 @@ nf = f"""<!doctype html>
 open(os.path.join(OUT, '404.html'), 'w', encoding='utf-8').write(seo.fingerprint(nf, ASSETS))
 seo.sitemap(os.path.join(OUT, 'sitemap.xml'), U, EMITTED, str(META['date']))
 seo.robots(os.path.join(OUT, 'robots.txt'), U)
+# LLM-facing catalogue, full-text dumps and per-page Markdown alternates (llmstxt.org)
+from booklib import llmstxt  # noqa: E402
+_home_lead = (f'{META.get("subtitle") or ""}\n\n{S["hero_lead"]}\n\n'
+              f'Author: {seo.AUTHOR}. Version {META.get("version")}. '
+              f'Licence: CC BY-NC-SA 4.0. Concept DOI: https://doi.org/{llmstxt.CONCEPT_DOI}.')
+llmstxt.write_edition_markdowns(OUT, U, ROOT, LANG, pages, home_lead=_home_lead)
+# App / generated pages that were emitted but are not in the book ``pages`` list
+for _slug in EMITTED:
+    _md = os.path.join(LOUT, f'{_slug}.md')
+    if os.path.exists(_md):
+        continue
+    _html = os.path.join(LOUT, f'{_slug}.html')
+    if not os.path.exists(_html):
+        continue
+    _soup = BeautifulSoup(open(_html, encoding='utf-8').read(), 'html.parser')
+    _title = (_soup.select_one('h1') or _soup.title)
+    _title = text_of(_title) if _title else _slug
+    _main = _soup.select_one('article') or _soup.select_one('main') or _soup.body
+    llmstxt.write_page_markdown(LOUT, _slug, _title, LANG, U, html=_main)
+llmstxt.write_llms_txt(OUT, U, ROOT, version=str(META.get('version') or '1.6'))
+llmstxt.write_llms_full(OUT, U, ROOT, 'en', version=str(META.get('version') or '1.6'))
+llmstxt.write_llms_full(OUT, U, ROOT, 'fa', version=str(META.get('version') or '1.6'))
 seo.host_files(OUT)
 json.dump({'site_url': U.base, 'pages': EMITTED}, open(os.path.join(OUT, 'seo.json'), 'w'))
 # releases feed (from CHANGELOG.md), custom domain for GitHub Pages, and what was configured

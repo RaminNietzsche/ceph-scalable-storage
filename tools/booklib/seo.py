@@ -27,6 +27,20 @@ PRELOAD_FONT = {'fa': 'vazirmatn-400.woff2', 'en': 'inter-var.woff2'}
 esc = lambda s: html.escape(str(s), quote=True)  # noqa: E731
 
 
+def lastmod_date(date):
+    """W3C datetime date (YYYY-MM-DD) for <lastmod>. A month-only value becomes YYYY-MM-01."""
+    s = str(date or '').strip()
+    if re.fullmatch(r'\d{4}-\d{2}-\d{2}', s):
+        return s
+    if re.fullmatch(r'\d{4}-\d{2}', s):
+        return s + '-01'
+    m = re.search(r'(\d{4}-\d{2}-\d{2})', s)
+    if m:
+        return m.group(1)
+    raise ValueError(f'cannot turn {date!r} into a YYYY-MM-DD lastmod')
+
+
+
 class Urls:
     """URL helper: ``rel`` is used inside <lang>/ pages, ``root_rel`` at the site root."""
 
@@ -196,6 +210,8 @@ def head(u, lang, other, slug, title, desc, og_type, og_alt, book, jsonld, icon_
     out += [f'<link rel="alternate" hreflang="{lang}" href="{rel(me)}">',
             f'<link rel="alternate" hreflang="{other}" href="{rel(them)}">',
             f'<link rel="alternate" hreflang="x-default" href="{rel("index.html")}">',
+            f'<link rel="alternate" type="text/markdown" href="{u.abs(f"{lang}/{slug}.md") if u.base else f"{slug}.md"}">',
+            f'<link rel="describedby" href="{u.root("llms.txt") if u.base else "../llms.txt"}">',
             f'<meta name="theme-color" content="{THEME}">',
             f'<link rel="icon" href="{icon_prefix}favicon.ico" sizes="48x48">',
             f'<link rel="icon" href="{icon_prefix}icon.svg" type="image/svg+xml">',
@@ -268,7 +284,7 @@ def sitemap(path, u, slugs, date):
     out = [ns]
     for slug in slugs:
         for lang in ('fa', 'en'):
-            out.append(f'<url><loc>{esc(u.root(f"{lang}/{slug}.html"))}</loc><lastmod>{date}</lastmod>')
+            out.append(f'<url><loc>{esc(u.root(f"{lang}/{slug}.html"))}</loc><lastmod>{lastmod_date(date)}</lastmod>')
             for l2 in ('fa', 'en'):
                 out.append(f'<xhtml:link rel="alternate" hreflang="{l2}" href="{esc(u.root(f"{l2}/{slug}.html"))}"/>')
             out.append(f'<xhtml:link rel="alternate" hreflang="x-default" href="{esc(u.root("index.html"))}"/></url>\n')
@@ -277,12 +293,8 @@ def sitemap(path, u, slugs, date):
 
 
 def robots(path, u):
-    txt = 'User-agent: *\nAllow: /\nDisallow: /404.html\n'
-    if u.base:
-        txt += f'\nSitemap: {u.abs("sitemap.xml")}\n'
-    else:
-        txt += '\n# Build with SITE_URL=https://example.org/book to add the absolute Sitemap: line.\n'
-    open(path, 'w').write(txt)
+    from booklib.llmstxt import robots_txt
+    open(path, 'w', encoding='utf-8').write(robots_txt(u))
 
 
 HEADERS = """# Cache policy for static hosts that read _headers (Netlify, Cloudflare Pages).

@@ -280,6 +280,7 @@ try:
             expect.add(f'{BASE}/{r}' if BASE else r)
     check(expect <= locs, 'sitemap', 'sitemap.xml', f'{len(expect - locs)} pages missing, e.g. {sorted(expect - locs)[:3]}')
     check(all({x.get('hreflang') for x in u.findall('x:link', ns)} >= {'fa', 'en', 'x-default'} for u in urls), 'sitemap-hreflang', 'sitemap.xml', 'url without hreflang alternates')
+    check(all(re.fullmatch(r'\d{4}-\d{2}-\d{2}', (u.find('s:lastmod', ns).text or '') if u.find('s:lastmod', ns) is not None else '') for u in urls), 'sitemap-lastmod', 'sitemap.xml', 'lastmod is missing or is not a full YYYY-MM-DD date')
     if BASE:
         check(all(l.startswith(BASE + '/') for l in locs), 'sitemap-abs', 'sitemap.xml', 'relative <loc> although SITE_URL is set')
 except (OSError, ET.ParseError) as e:

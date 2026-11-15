@@ -73,7 +73,7 @@ for f in files:
             errors.append(f'{rel}: duplicate id "{i}" ({n}x)')
     for attr, val, tag, relattr in p.refs:
         u = urlsplit(val)
-        if u.scheme in ('http', 'https') and tag == 'link' and relattr in ('canonical', 'alternate'):
+        if u.scheme in ('http', 'https') and tag == 'link' and relattr in ('canonical', 'alternate', 'describedby'):
             # page URLs (not resources); with SITE_URL they must map onto a built page
             if BASE and val.startswith(BASE + '/') and not os.path.exists(os.path.join(SITE, val[len(BASE) + 1:])):
                 errors.append(f'{rel}: {relattr} link to a page that was not built: {val}')
@@ -101,7 +101,51 @@ for f in files:
         if u.fragment and target.endswith('.html') and u.fragment != 'top':
             if u.fragment not in parse(target).ids:
                 errors.append(f'{rel}: missing anchor "{val}"')
+
+# llms.txt (llmstxt.org): every catalogue link must resolve to a built file or an allowed external URL.
+llms = os.path.join(SITE, 'llms.txt')
+if not os.path.exists(llms):
+    errors.append('llms.txt missing')
+else:
+    import re as _re
+    body = open(llms, encoding='utf-8').read()
+    if not body.lstrip('\ufeff').startswith('# '):
+        errors.append('llms.txt: missing H1 title')
+    hrefs = _re.findall(r'\[[^\]]+\]\(([^)]+)\)', body)
+    if len(hrefs) < 80:
+        errors.append(f'llms.txt: expected links to every chapter and appendix in both editions, found {len(hrefs)}')
+    n_ok = 0
+    for href in hrefs:
+        href = href.strip()
+        u = urlsplit(href)
+        if u.scheme in ('http', 'https'):
+            if BASE and href.startswith(BASE + '/'):
+                relp = unquote(href[len(BASE) + 1:]).split('#', 1)[0]
+                if not relp or not os.path.exists(os.path.join(SITE, relp)):
+                    errors.append(f'llms.txt: link does not resolve: {href}')
+                else:
+                    n_ok += 1
+            # off-site (DOI, licence, GitHub) is fine
+            continue
+        if u.scheme:
+            errors.append(f'llms.txt: unexpected URL scheme in {href}')
+            continue
+        relp = unquote((u.path or href).lstrip('/')).split('#', 1)[0]
+        if not relp:
+            continue
+        if not os.path.exists(os.path.join(SITE, relp)):
+            errors.append(f'llms.txt: link does not resolve: {href}')
+        else:
+            n_ok += 1
+    nlinks += n_ok
+
+# full-text dumps named in the catalogue should exist
+for relp, label in (('llms-full.txt', 'English full text'), ('fa/llms-full.txt', 'Persian full text')):
+    if not os.path.exists(os.path.join(SITE, relp)):
+        errors.append(f'{relp} missing ({label})')
+
 for e in errors[:200]:
+
     print('check_site:', e)
 print(f'check_site: {len(files)} pages, {nlinks} local links/resources checked, {len(errors)} problems'
       + (f', {other_lang_missing} links into an edition that was not built' if other_lang_missing else ''))
