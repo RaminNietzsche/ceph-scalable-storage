@@ -2,15 +2,15 @@
    so the same rules mirror for the Persian (rtl) edition. */
 :root {
   --hdr: 56px; --sb-w: 300px; --toc-w: 250px; --measure: 46rem;
-  --bg: #ffffff; --bg-soft: #f4f7fb; --bg-sb: #f7f9fc; --fg: #0f172a; --fg-soft: #475569; --fg-mute: #64748b;
+  --bg: #ffffff; --bg-soft: #f4f7fb; --bg-sb: #f7f9fc; --fg: #0f172a; --fg-soft: #475569; --fg-mute: #4b5563;
   --line: #e2e8f0; --accent: #0e7490; --accent-2: #4338ca; --accent-3: #047857; --on-accent: #ffffff; --link: #0369a1; --link-v: #6d28d9;
   --grad: linear-gradient(100deg, #0891b2 0%, #10b981 50%, #6366f1 100%); --hero-bg: radial-gradient(900px 420px at 85% -10%, rgba(8,145,178,.13), transparent 70%), radial-gradient(700px 380px at 0% 110%, rgba(99,102,241,.10), transparent 70%);
   --card: #ffffff; --card-line: #e2e8f0; --term-bg: #0b1120; --term-fg: #cbd5e1;
   --code-bg: #f6f8fa; --code-fg: #1f2328; --code-line: #e1e4e8; --sel: #ffe8a3; --mark: #ffe58a;
   --shadow: 0 8px 30px rgba(15, 23, 42, .12);
-  --c-tip: #2e7d32; --c-tip-bg: #edf7ee; --c-warn: #c62828; --c-warn-bg: #fdeeee; --c-note: #b7791f; --c-note-bg: #fff8e6;
+  --c-tip: #2e7d32; --c-tip-bg: #edf7ee; --c-warn: #c62828; --c-warn-bg: #fdeeee; --c-note: #8a5400; --c-note-bg: #fff8e6;
   --c-try: #1565c0; --c-try-bg: #e9f2fd; --c-deep: #6a1b9a; --c-deep-bg: #f5ecf8; --c-debug: #455a64; --c-debug-bg: #eef1f3;
-  --c-algo: #00796b; --c-algo-bg: #e6f4f2; --c-sum: #2f5496; --c-sum-bg: #f1f5fd;
+  --c-algo: #00564c; --c-algo-bg: #e6f4f2; --c-sum: #2f5496; --c-sum-bg: #f1f5fd;
   --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Vazirmatn', monospace;
 }
@@ -848,7 +848,7 @@ a.since:hover { filter: brightness(1.12); text-decoration: none; }
 h2 .since { vertical-align: middle; font-size: .8rem; }
 
 /* chapter-opening TL;DR («حوصله ندارم»): collapsible, open by default */
-details.tldr { --cc: #a86f00; --cb: #fff7e3; margin: .6em 0 1.6em; padding: 10px 16px; border-radius: 10px; background: var(--cb);
+details.tldr { --cc: #7a4e00; --cb: #fff7e3; margin: .6em 0 1.6em; padding: 10px 16px; border-radius: 10px; background: var(--cb);
   border: 1px solid color-mix(in srgb, var(--cc) 30%, transparent); border-inline-start: 4px solid var(--cc); }
 html[data-theme="dark"] details.tldr { --cc: #f0b84a; --cb: #2a2213; }
 details.tldr > summary { cursor: pointer; font-weight: 700; color: var(--cc); display: flex; align-items: baseline; gap: 8px; list-style: none; }

@@ -219,7 +219,7 @@ def head(u, lang, other, slug, title, desc, og_type, og_alt, book, jsonld, icon_
     return '\n'.join(out)
 
 
-def book_ld(u, lang, other, book, other_book, desc, version, date, chapters, image):
+def book_ld(u, lang, other, book, other_book, desc, version, date, chapters, image, doi=None, version_doi=None):
     """chapters: [(position, name, slug)]"""
     url = u.rel(f'{lang}/index.html')
     bid = url + '#book'
@@ -228,6 +228,14 @@ def book_ld(u, lang, other, book, other_book, desc, version, date, chapters, ima
          'license': LICENSE_URL, 'bookFormat': 'https://schema.org/EBook', 'version': version, 'datePublished': date,
          'image': image, 'isAccessibleForFree': True,
          'hasPart': [{'@type': 'Chapter', 'position': n, 'name': t, 'url': u.rel(f'{lang}/{s}.html')} for n, t, s in chapters]}
+    if doi:
+        b['identifier'] = {'@type': 'PropertyValue', 'propertyID': 'DOI', 'value': doi}
+        b['sameAs'] = f'https://doi.org/{doi}'
+        if version_doi:
+            b['identifier'] = [
+                b['identifier'],
+                {'@type': 'PropertyValue', 'propertyID': 'DOI', 'value': version_doi, 'description': 'This edition'},
+            ]
     rel_key = 'translationOfWork' if lang == 'en' else 'workTranslation'
     b[rel_key] = {'@type': 'Book', 'name': other_book, 'inLanguage': other, 'url': u.rel(f'{other}/index.html')}
     site = {'@type': 'WebSite', '@id': url + '#website', 'name': book, 'url': url, 'inLanguage': lang,
@@ -298,6 +306,7 @@ ErrorDocument 404 /404.html
   ExpiresByType font/woff2 "access plus 1 year"
   ExpiresByType image/png "access plus 1 week"
   ExpiresByType image/webp "access plus 1 week"
+  ExpiresByType image/avif "access plus 1 week"
   ExpiresByType image/svg+xml "access plus 1 week"
   ExpiresByType text/html "access plus 0 seconds"
 </IfModule>

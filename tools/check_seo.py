@@ -212,6 +212,13 @@ for lang, f in pages:
         bl = (types.get('BreadcrumbList') or [{}])[0]
         items = bl.get('itemListElement', [])
         check(len(items) >= 2 and all(i.get('name') and i.get('position') == k for k, i in enumerate(items, 1)), 'jsonld-breadcrumb', rel, 'BreadcrumbList missing or malformed')
+        kind = (d.html.get('data-kind') or '')
+        slug = os.path.splitext(os.path.basename(rel))[0]
+        if kind in ('chapter', 'appendix'):
+            ch = (types.get('Chapter') or [{}])[0]
+            check(ch.get('@type', 'Chapter') == 'Chapter' and ch.get('name') and ch.get('url'),
+                  'jsonld-chapter', rel, 'chapter/appendix page lacks Chapter JSON-LD')
+            check(slug in img.replace('\\', '/'), 'og-image-page', rel, f'og:image is not the per-page card: {img}')
     else:
         check('WebSite' in types, 'jsonld', rel, 'chooser lacks WebSite JSON-LD')
     # headings
