@@ -45,6 +45,19 @@ jobs:
       - name: make check (lint, spell, refs, links, parity, release labels, TL;DR, simulators, publishing metadata)
         run: make check
 
+
+  translation-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Warn when content/fa changes without the matching content/en
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 tools/check_translation_pr.py
+
   site:
     needs: check
     runs-on: ubuntu-24.04
