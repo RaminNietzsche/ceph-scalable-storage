@@ -601,7 +601,7 @@ for rk, rinfo in RC['releases'].items():
     n_, name_, ver_ = cephver.REL[rk]
     rows = [c for c in RC['changes'] if c['rel'] == rk]
     chh.append(f'<h2 id="rel-{rk}">{since_badge(rk)} <span class="en">{name_} ({ver_})</span></h2>'
-               f'<p class="rel-meta">{inline(UI["changes_release"].format(v=rinfo["version"], d=rinfo["date"]))} <a class="url" href="{rinfo["notes"]}">{esc(rinfo["notes"])}</a></p>'
+               f'<p class="rel-meta">{inline(UI["changes_release"]).replace("{v}", f'<bdi dir="ltr">{fa(rinfo["version"])}</bdi>').replace("{d}", f'<bdi dir="ltr">{fa(rinfo["date"])}</bdi>')} <a class="url" href="{rinfo["notes"]}">{esc(rinfo["notes"])}</a></p>'
                f'<table class="relchg"><thead><tr>' + ''.join(f'<th>{x}</th>' for x in cc) + '</tr></thead><tbody>')
     MDA.append(f'\n## {name_} ({ver_})\n\n{UI["changes_release"].format(v=rinfo["version"], d=rinfo["date"])} <{rinfo["notes"]}>\n\n| {" | ".join(cc)} |\n|---|---|---|---|')
     for c in rows:

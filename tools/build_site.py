@@ -43,6 +43,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 from booklib.mdlower import split_front_matter, parse_div  # noqa: E402
 from booklib import seo  # noqa: E402
+from booklib import siteconf  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--lang', default='fa', choices=['fa', 'en'])
@@ -51,6 +52,8 @@ ap.add_argument('--out')
 ap.add_argument('--site-url', default=os.environ.get('SITE_URL', ''), help='public base URL, e.g. https://example.org/ceph; enables canonical links and absolute URLs')
 args = ap.parse_args()
 U = seo.Urls(args.site_url)
+CFG = siteconf.load(args.site_url)   # REPO_URL, FEEDBACK_ENDPOINT, NEWSLETTER_ACTION, ANALYTICS, CF_BEACON_TOKEN, CNAME (env only)
+ANALYTICS_TAG = siteconf.analytics_tag(CFG)
 LANG = args.lang
 OTHER = 'en' if LANG == 'fa' else 'fa'
 BOOKDIR = os.path.abspath(args.book or os.path.join(ROOT, 'build', LANG))
@@ -891,7 +894,10 @@ def page_toc(cur):
 
 PAGE_TPL = string.Template(open(os.path.join(TPL, 'page.html'), encoding='utf-8').read())
 SITE_DATA = json.dumps({k: S[k] for k in ('search', 'search_placeholder', 'search_hint', 'no_results', 'results', 'loading',
-                                           'zoom_in', 'zoom_out', 'zoom_reset', 'close', 'copied', 'copy', 'zoom') + PROG_KEYS} | {'lang': LANG, 'rtl': RTL, 'pages': TRACK}, ensure_ascii=False)
+                                           'zoom_in', 'zoom_out', 'zoom_reset', 'close', 'copied', 'copy', 'zoom',
+                                           'fb_thanks', 'fb_issue', 'fb_issue_title', 'fb_issue_body') + PROG_KEYS}
+                       | {'lang': LANG, 'rtl': RTL, 'pages': TRACK,
+                          'fb': {'repo': CFG['repo'], 'endpoint': CFG['feedback'], 'issues': CFG['feedback_issues']}}, ensure_ascii=False)
 
 
 EMITTED, DESC_SEEN = [], set()
@@ -940,6 +946,10 @@ def emit(cur, main_html, title_text, desc=None, ld=None):
     if 'class="katex"' in main_html:
         head_extra += '<link rel="stylesheet" href="../assets/katex/katex.min.css">'
     scripts_extra = '<script src="sim-data.js" defer></script>\n<script src="../assets/sims.js" defer></script>' if has_sims else ''
+    if cur is None:
+        head_extra += f'<link rel="alternate" type="application/atom+xml" title="{esc(S["nl_feed"])}" href="../releases.xml">'
+    if ANALYTICS_TAG:
+        scripts_extra += '\n' + ANALYTICS_TAG
     desc = desc or page_desc(cur, title_text)
     DESC_SEEN.add(desc)
     og_type = 'book' if cur is None else ('article' if getattr(cur, 'kind', '') in ('chapter', 'appendix') else 'website')
@@ -952,7 +962,7 @@ def emit(cur, main_html, title_text, desc=None, ld=None):
         toc_inline=inline, main=main_html, pager=pager(cur), toc=side,
         has_toc='has-toc' if side else 'no-toc', kind=cur.kind if cur else 'home', extras=EXTRAS,
         search_title=esc(S['search']), search_placeholder=esc(S['search_placeholder']), close=esc(S['close']),
-        search_hint=esc(S['search_hint']), lic=esc('© 2026 Ramin Najarbashi · CC BY-NC-SA 4.0'), version=esc(META['version_display']),
+        search_hint=esc(S['search_hint']), lic=esc('© 2026 Ramin Najarbashi · CC BY-NC-SA 4.0'), privacy=PRIVACY, version=esc(META['version_display']),
         date=esc(META['date_display']))
     open(os.path.join(LOUT, f'{slug}.html'), 'w', encoding='utf-8').write(seo.fingerprint(doc, ASSETS))
     EMITTED.append(slug)
@@ -965,6 +975,36 @@ HYPH = None
 
 # ---------------------------------------------------------------- write pages
 docs = []
+PRIVACY = esc(S['privacy_analytics'].format(svc=siteconf.analytics_name(CFG)) if CFG['analytics'] else S['privacy_none'])
+
+
+def edit_url(path):
+    return f'{CFG["repo"]}/edit/{CFG["branch"]}/{os.path.relpath(path, ROOT).replace(os.sep, "/")}'
+
+
+FB_SKIP = (UI['review_questions'], UI['chapter_sources'])
+
+
+def add_feedback(p):
+    """A small "Was this section helpful?" row at the end of every h2 section of a chapter.
+
+    Votes go through bookEvent() in site.js: FEEDBACK_ENDPOINT (if set), any analytics
+    with custom events, and a 'book:event' DOM event; a "No" also offers a prefilled
+    GitHub issue naming the section anchor. Hidden until site.js runs.
+    """
+    hs = [h for h in p.body.find_all('h2') if h.get('id')]
+    for k, h in enumerate(hs):
+        title = text_of(frag(heading_inner(h)))
+        if title.startswith(FB_SKIP):
+            continue
+        row = frag(f'<div class="fb" data-sec="{esc(h["id"])}" data-sec-t="{esc(title)}" hidden><span class="fb-q">{esc(S["fb_q"])}</span>'
+                   f'<button type="button" class="fb-b" data-v="yes">👍 {esc(S["fb_yes"])}</button>'
+                   f'<button type="button" class="fb-b" data-v="no">👎 {esc(S["fb_no"])}</button>'
+                   f'<span class="fb-t" role="status" aria-live="polite"></span></div>')
+        if k + 1 < len(hs):
+            hs[k + 1].insert_before(row)
+        else:
+            p.body.append(row)
 
 
 def index_docs(p):
@@ -986,7 +1026,7 @@ def index_docs(p):
             continue
         if el.find_parent(class_='katex-html') or el.find_parent('annotation'):
             continue  # math: index the MathML text once, not the glyph layout or the TeX source
-        if el.find_parent(['h2', 'h3']) or el.find_parent(class_='hanchor') or el.find_parent(class_='code-head') or el.find_parent(class_='sim-slot') or el.find_parent(class_='lab-thumb'):
+        if el.find_parent(['h2', 'h3']) or el.find_parent(class_='fb') or el.find_parent(class_='hanchor') or el.find_parent(class_='code-head') or el.find_parent(class_='sim-slot') or el.find_parent(class_='lab-thumb'):
             continue
         state['buf'].append(str(el).replace('\u200f', ''))
     flush()
@@ -995,10 +1035,17 @@ def index_docs(p):
 for p in pages:
     if p.kind not in ('list',):
         index_docs(p)
+    if p.kind == 'chapter':
+        add_feedback(p)
     meta = ''
     if p.slug in TRACK:
+        edit = ''
+        if p.kind == 'chapter' and p.chap in CHFILES:
+            edit = (f'<a class="edit-link" href="{esc(edit_url(CHFILES[p.chap]))}" title="{esc(S["edit_page_t"])}" rel="noopener">'
+                    f'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>'
+                    f'<span>{esc(S["edit_page"])}</span></a>')
         meta = (f'<div class="ph-meta"><span class="rt">{ICON["clock"]}{esc(fmt_min(p.minutes))}</span>'
-                f'<button type="button" class="read-tog" id="read-tog" aria-pressed="false" hidden>{ICON["check"]}<span>{esc(S["mark_read"])}</span></button></div>')
+                f'<button type="button" class="read-tog" id="read-tog" aria-pressed="false" hidden>{ICON["check"]}<span>{esc(S["mark_read"])}</span></button>{edit}</div>')
     if HYPH:
         HYPH(p.body)
     eyebrow = f'<div class="eyebrow">{esc(p.eyebrow)}</div>' if p.eyebrow else ''
@@ -1077,6 +1124,22 @@ term = ('<div class="term" dir="ltr" aria-hidden="true"><div class="term-bar"><i
         '<pre><span class="tp">$</span> ceph -s\n  cluster:\n    health: <span class="tok">HEALTH_OK</span>\n  services:\n    mon: 3 daemons, quorum a,b,c\n'
         '    osd: 36 osds: 36 up, 36 in\n    rgw: 3 daemons active\n  data:\n    pgs: <span class="tok">1024 active+clean</span></pre></div>')
 LAB_CARDS = ''.join(lab_card(n) for n in SIM_NAMES)
+if CFG['newsletter']:
+    nl_body = (f'<form class="nl-form" action="{esc(CFG["newsletter"])}" method="post" target="_blank">'
+               f'<label class="sr-only" for="nl-email">{esc(S["nl_email"])}</label>'
+               f'<input type="email" id="nl-email" name="email" required autocomplete="email" placeholder="{esc(S["nl_email"])}" dir="ltr">'
+               f'<button type="submit" class="btn primary">{esc(S["nl_submit"])}</button></form>'
+               f'<p class="nl-alt"><a href="{esc(CFG["repo"])}/releases" rel="noopener" title="{esc(S["nl_watch_t"])}">{esc(S["nl_watch"])}</a> · '
+               f'<a href="../releases.xml" type="application/atom+xml">{esc(S["nl_feed"])}</a></p>'
+               f'<p class="nl-privacy">{esc(S["nl_privacy_form"])} {PRIVACY}</p>')
+else:
+    nl_body = (f'<p class="nl-acts"><a class="btn primary nl-watch" href="{esc(CFG["repo"])}/releases" rel="noopener">{ICON["arrow"]}{esc(S["nl_watch"])}</a>'
+               f'<a class="btn nl-feed" href="../releases.xml" type="application/atom+xml">'
+               f'<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M6.2 15.6a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zM4 9.5a10.5 10.5 0 0 1 10.5 10.5h-3A7.5 7.5 0 0 0 4 12.5v-3zm0-5.5A16 16 0 0 1 20 20h-3A13 13 0 0 0 4 7V4z"/></svg>'
+               f'{esc(S["nl_feed"])}</a></p><p class="nl-hint">{esc(S["nl_watch_t"])}</p>'
+               f'<p class="nl-privacy">{esc(S["nl_privacy_none"])} {PRIVACY}</p>')
+newsletter = (f'<section class="hsec newsletter" id="newsletter" aria-labelledby="nl-h"><div class="hsec-head"><h2 id="nl-h">{esc(S["nl_title"])}</h2>'
+              f'<p>{esc(S["nl_sub"])}</p></div>{nl_body}</section>')
 home = f'''<article class="content home" id="top">
 <section class="hero"><div class="hero-text">
 <div class="hbadge"><span class="pulse" aria-hidden="true"></span>{esc(S["badge"].format(v=loc(META["version_display"])))}</div>
@@ -1091,6 +1154,7 @@ home = f'''<article class="content home" id="top">
 <section class="hsec" id="lab" aria-labelledby="lab-h"><div class="hsec-head"><h2 id="lab-h">{esc(SIMY["lab_title"])}</h2><p>{esc(SIMY["lab_intro"])}</p></div><div class="lab-grid">{LAB_CARDS}</div><p><a class="btn" href="lab.html">{ICON["flask"]}{esc(SIMY["lab_title"])} {ICON["arrow"]}</a></p></section>
 <section class="hsec" id="parts" aria-labelledby="parts-h"><div class="hsec-head"><h2 id="parts-h">{esc(S["parts_title"])}</h2><p>{esc(S["parts_sub"])}</p></div><div class="hgrid parts">{"".join(part_cards)}</div></section>
 <section class="hsec" id="contents" aria-labelledby="contents-h"><div class="hsec-head"><h2 id="contents-h">{esc(S["contents"])}</h2><p>{esc(S["contents_home"])}</p></div><p><a class="btn primary" href="contents.html">{ICON["list"]}{esc(S["contents_cta"])} {ICON["arrow"]}</a></p></section>
+{newsletter}
 <section class="about" aria-labelledby="about-h"><h2 id="about-h">{esc(S["about"])}</h2>{about}</section></article>'''
 HOME_DESC = seo.describe(f'{META.get("subtitle", "")}. {S["hero_lead"]}')
 HOME_LD = seo.book_ld(U, LANG, OTHER, BOOK, yaml.safe_load(open(os.path.join(ROOT, 'content', OTHER, 'ui.yaml'), encoding='utf-8'))['book'],
@@ -1185,6 +1249,8 @@ chooser = f"""<!doctype html>
 <a class="choose-card" href="en/index.html" lang="en"><img src="assets/cover.en.webp" alt="{esc(_alt['en'])}" width="240" height="{_ch}"><span>{esc(books["en"])}</span><small>English (translation)</small></a>
 </div><p class="lic">© 2026 Ramin Najarbashi · CC BY-NC-SA 4.0</p></main></body></html>
 """
+if ANALYTICS_TAG:
+    chooser = chooser.replace('</body>', ANALYTICS_TAG + '\n</body>', 1)
 open(os.path.join(OUT, 'index.html'), 'w', encoding='utf-8').write(seo.fingerprint(chooser, ASSETS))
 seo.manifest(os.path.join(OUT, 'manifest.webmanifest'), f'{books["en"]} · {books["fa"]}', 'Ceph', 'en', 'ltr', seo.describe(CH_DESC), 'assets/icons/')
 # 404 page (served from the site root by most static hosts; <base> keeps its links working at any depth when SITE_URL is set)
@@ -1205,6 +1271,19 @@ seo.sitemap(os.path.join(OUT, 'sitemap.xml'), U, EMITTED, str(META['date']))
 seo.robots(os.path.join(OUT, 'robots.txt'), U)
 seo.host_files(OUT)
 json.dump({'site_url': U.base, 'pages': EMITTED}, open(os.path.join(OUT, 'seo.json'), 'w'))
+# releases feed (from CHANGELOG.md), custom domain for GitHub Pages, and what was configured
+# (for tools/check_features.py; no secrets: the analytics token is not recorded here)
+with open(os.path.join(OUT, 'releases.xml'), 'w', encoding='utf-8') as fh:
+    fh.write(siteconf.atom_feed(os.path.join(ROOT, 'CHANGELOG.md'), CFG, U.base, yaml.safe_load(open(os.path.join(ROOT, 'content', 'en', 'ui.yaml'), encoding='utf-8'))['book'], seo.AUTHOR))
+_cn = os.path.join(OUT, 'CNAME')
+if CFG['cname']:
+    open(_cn, 'w').write(CFG['cname'] + '\n')
+elif os.path.exists(_cn):
+    os.remove(_cn)
+json.dump({'repo': CFG['repo'], 'branch': CFG['branch'], 'feedback': bool(CFG['feedback']), 'feedback_issues': CFG['feedback_issues'],
+           'newsletter': CFG['newsletter'], 'analytics': CFG['analytics'],
+           'analytics_hosts': [siteconf.ANALYTICS_HOSTS[CFG['analytics']]] if CFG['analytics'] else [], 'cname': CFG['cname']},
+          open(os.path.join(OUT, 'features.json'), 'w'), indent=1)
 if not os.path.exists(os.path.join(ASSETS, f'cover.{OTHER}.webp')):
     im = Image.open(os.path.join(ROOT, 'assets', f'cover.{OTHER}.png')).convert('RGB')
     im.thumbnail((720, 1100))

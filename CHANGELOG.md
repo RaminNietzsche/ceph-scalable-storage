@@ -7,6 +7,14 @@ restructures the book.
 
 ## [Unreleased]
 
+### Web edition: edit link, feedback, release notices, analytics
+
+- "Edit this page" / «ویرایش این صفحه» on every chapter opens the chapter's Markdown source on GitHub (`REPO_URL/edit/main/content/<lang>/chapters/<file>.md`; `REPO_URL` and `REPO_BRANCH` are build options).
+- "Was this section helpful?" / «این بخش مفید بود؟» at the end of every section of a chapter. A vote goes to `bookEvent()`: an optional `FEEDBACK_ENDPOINT` (sendBeacon, no cookies), analytics that support custom events, and a `book:event` DOM event; a "No" offers a prefilled GitHub issue naming the section anchor. Cloudflare Web Analytics has no custom events, so with it alone the votes are seen only through the endpoint or the issues.
+- Home page "Hear about new editions": a signup form when `NEWSLETTER_ACTION` is set, otherwise "Watch releases on GitHub" and an Atom feed, `releases.xml`, generated from this changelog; privacy notes in both languages and in the footer.
+- Cookie-less analytics only when configured: `CF_BEACON_TOKEN` (Cloudflare Web Analytics) or `ANALYTICS=plausible`; no token is stored in the repository. `CNAME` is written for the custom domain of `SITE_URL`.
+- `tools/check_features.py` (part of `make check-site`) checks the TL;DR boxes, release badges, edit links, feedback rows, newsletter section, feed, CNAME and analytics tags in both editions; `check_site.py` allows the analytics host only when analytics was configured.
+
 ### Ceph release labels
 
 - Every code block that runs a Ceph command-line tool carries a release badge, "Reef+", "Squid+", "Tentacle+" (and "Umbrella+" or "main" for the few commands newer than the book's three releases), in the PDF, web, EPUB and DOCX editions. The baseline is Reef (18.2); a block that needs a later release says so on its fence: ```` ```bash {since=squid} ````. On the web the badge links to the matching release section of the new appendix.

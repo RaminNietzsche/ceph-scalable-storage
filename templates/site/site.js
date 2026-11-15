@@ -782,3 +782,69 @@ document.addEventListener('copy', function (e) {
   e.clipboardData.setData('text/plain', box.textContent.replace(/[\u200e\u200f]/g, ''));
   e.preventDefault();
 });
+
+/* ---------- "Was this section helpful?" and the event hook ----------
+   bookEvent(name, props) is the one place the site reports an event. It sends to:
+   FEEDBACK_ENDPOINT when the build set one (navigator.sendBeacon, a JSON text body, no
+   cookies); any loaded analytics that supports custom events (Plausible, Umami,
+   GoatCounter); and a 'book:event' DOM event for anything else. Cloudflare Web Analytics
+   has no custom events, so with it alone a vote is only seen through the endpoint or the
+   GitHub issue a "No" offers. Nothing is sent before the reader clicks. */
+(function () {
+  'use strict';
+  var d = document, S = {};
+  try { S = JSON.parse(d.getElementById('site-data').textContent); } catch (e) { S = {}; }
+  var FB = S.fb || {};
+  function bookEvent(name, props) {
+    props = props || {};
+    try {
+      if (FB.endpoint && navigator.sendBeacon) {
+        navigator.sendBeacon(FB.endpoint, JSON.stringify({ event: name, props: props, lang: S.lang, page: location.pathname, t: new Date().toISOString() }));
+      }
+    } catch (e) { /* ignore */ }
+    try { if (typeof window.plausible === 'function') window.plausible(name, { props: props }); } catch (e) { /* ignore */ }
+    try { if (window.umami && typeof window.umami.track === 'function') window.umami.track(name, props); } catch (e) { /* ignore */ }
+    try { if (window.goatcounter && typeof window.goatcounter.count === 'function') window.goatcounter.count({ path: name + '/' + (props.page || '') + '#' + (props.section || ''), event: true }); } catch (e) { /* ignore */ }
+    try { d.dispatchEvent(new CustomEvent('book:event', { detail: { name: name, props: props } })); } catch (e) { /* ignore */ }
+  }
+  window.bookEvent = bookEvent;
+  var rows = d.querySelectorAll('.fb[data-sec]');
+  if (!rows.length) return;
+  var slug = d.documentElement.dataset.slug || '';
+  var h1 = d.querySelector('.page-head h1');
+  var pageTitle = (h1 ? h1.textContent.trim() : d.title).replace(/[\u200e\u200f]/g, '');
+  function key(sec) { return 'book-fb:' + S.lang + ':' + slug + '#' + sec; }
+  function fill(t, map) { return String(t || '').replace(/\{(\w+)\}/g, function (_, k) { return map[k] != null ? map[k] : ''; }); }
+  function done(row, v) {
+    row.classList.add('voted');
+    row.querySelectorAll('.fb-b').forEach(function (b) { b.disabled = true; b.setAttribute('aria-pressed', String(b.dataset.v === v)); });
+    var out = row.querySelector('.fb-t');
+    out.textContent = S.fb_thanks || 'Thanks.';
+    if (v === 'no' && FB.issues && FB.repo) {
+      var sec = row.dataset.sec, st = (row.dataset.secT || sec).replace(/[\u200e\u200f]/g, '');
+      var url = location.href.split('#')[0] + '#' + sec;
+      var q = { page: pageTitle, sec: st, url: url };
+      var href = FB.repo + '/issues/new?labels=feedback&title=' + encodeURIComponent(fill(S.fb_issue_title, q)) +
+        '&body=' + encodeURIComponent(fill(S.fb_issue_body, q));
+      var a = d.createElement('a');
+      a.className = 'fb-issue'; a.href = href; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = S.fb_issue || 'GitHub';
+      out.appendChild(d.createTextNode(' '));
+      out.appendChild(a);
+    }
+  }
+  rows.forEach(function (row) {
+    row.hidden = false;
+    var prev = null;
+    try { prev = localStorage.getItem(key(row.dataset.sec)); } catch (e) { /* private mode */ }
+    if (prev === 'yes' || prev === 'no') { done(row, prev); return; }
+    row.addEventListener('click', function (e) {
+      var b = e.target.closest('.fb-b');
+      if (!b || row.classList.contains('voted')) return;
+      var v = b.dataset.v;
+      try { localStorage.setItem(key(row.dataset.sec), v); } catch (err) { /* private mode */ }
+      bookEvent('section-feedback', { page: slug, section: row.dataset.sec, helpful: v, lang: S.lang });
+      done(row, v);
+    });
+  });
+})();

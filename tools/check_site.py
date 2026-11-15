@@ -24,6 +24,9 @@ a = ap.parse_args()
 SITE = os.path.abspath(a.site)
 _cfg = os.path.join(SITE, 'seo.json')
 BASE = (json.load(open(_cfg)).get('site_url') or '') if os.path.exists(_cfg) else ''
+_feat = os.path.join(SITE, 'features.json')
+# hosts the build was told to load analytics from (ANALYTICS / CF_BEACON_TOKEN); nothing else may load from the network
+ALLOWED = set(json.load(open(_feat)).get('analytics_hosts') or []) if os.path.exists(_feat) else set()
 
 
 class P(HTMLParser):
@@ -76,6 +79,8 @@ for f in files:
                 errors.append(f'{rel}: {relattr} link to a page that was not built: {val}')
             continue
         if u.scheme in ('http', 'https'):
+            if tag == 'script' and u.hostname in ALLOWED:
+                continue
             if tag != 'a':
                 errors.append(f'{rel}: external resource <{tag} {attr}="{val}"> (site must work offline)')
             continue

@@ -51,7 +51,10 @@ DOCX        := $(B)/$(NAME)-$(L).docx
 SITE        := build/site
 SITE_STAMP  := $(SITE)/$(L)/.stamp
 SITE_URL    ?=
-SITE_SRC    := tools/build_site.py tools/booklib/seo.py tools/sim_fallback.js $(wildcard templates/site/*) $(wildcard templates/site/sims/*)
+# web-edition deployment options, read by tools/build_site.py from the environment
+# (see tools/booklib/siteconf.py); none of them is stored in the repository
+export REPO_URL REPO_BRANCH FEEDBACK_ENDPOINT FEEDBACK_ISSUES NEWSLETTER_ACTION ANALYTICS CF_BEACON_TOKEN PLAUSIBLE_DOMAIN CNAME
+SITE_SRC    := tools/build_site.py tools/booklib/seo.py tools/booklib/siteconf.py CHANGELOG.md tools/sim_fallback.js $(wildcard templates/site/*) $(wildcard templates/site/sims/*)
 WEBFIG_STAMP := build/webfig/.stamp
 
 .PHONY: help all pdf html epub docx book figures cover lint markdownlint spell \
@@ -116,6 +119,7 @@ check-site: ## links, anchors, offline-only resources, SEO metadata and content 
 	$(PYTHON) tools/check_site.py --site $(SITE)
 	$(PYTHON) tools/check_seo.py --site $(SITE)
 	$(PYTHON) tools/check_lists.py --site $(SITE)
+	$(PYTHON) tools/check_features.py --site $(SITE)
 
 shoot-site: ## headless-Chrome smoke test + screenshots of the web book (needs playwright)
 	$(PYTHON) tools/shoot_site.py --site $(SITE) --out build/site-shots
