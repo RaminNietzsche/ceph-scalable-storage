@@ -296,7 +296,8 @@ check(os.path.exists(os.path.join(SITE, '_headers')) and os.path.exists(os.path.
 for lang, f in pages:
     s = open(f, encoding='utf-8').read() if os.path.exists(f) else ''
     check(not re.search(r'<(script|link)[^>]+(src|href)="https?://(?!creativecommons)', s.split('</head>')[0]) or
-          all(m.group(0).find('rel="canonical"') >= 0 or 'rel="alternate"' in m.group(0) for m in re.finditer(r'<link[^>]+href="https?://[^"]+"[^>]*>', s.split('</head>')[0])),
+          all(m.group(0).find('rel="canonical"') >= 0 or 'rel="alternate"' in m.group(0) or (BASE and 'rel="describedby"' in m.group(0) and f'href="{BASE}/' in m.group(0))
+              for m in re.finditer(r'<link[^>]+href="https?://[^"]+"[^>]*>', s.split('</head>')[0])),
           'offline', os.path.relpath(f, SITE), 'external script or stylesheet in <head>')
 
 for e in errors[:200]:
