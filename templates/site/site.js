@@ -848,3 +848,28 @@ document.addEventListener('copy', function (e) {
     });
   });
 })();
+
+/* ---------- "Ask the book" ----------
+   Only a button is on the page. ask.js (the panel) is fetched on the first click, so the
+   page loads nothing extra and nothing is sent before the reader asks. Built only when
+   ASK_ENDPOINT is set (see infra/book-ask). */
+(function () {
+  'use strict';
+  var d = document, S = {};
+  try { S = JSON.parse(d.getElementById('site-data').textContent); } catch (e) { S = {}; }
+  var A = S.ask, btn = d.getElementById('ask-fab');
+  if (!A || !A.endpoint || !btn) return;
+  btn.hidden = false;
+  var loading = false;
+  btn.addEventListener('click', function () {
+    if (window.bookAsk) { window.bookAsk.open(btn); return; }
+    if (loading) return;
+    loading = true;
+    btn.setAttribute('aria-busy', 'true');
+    var s = d.createElement('script');
+    s.src = A.js;
+    s.onload = function () { btn.removeAttribute('aria-busy'); if (window.bookAsk) window.bookAsk.open(btn); };
+    s.onerror = function () { loading = false; btn.removeAttribute('aria-busy'); };
+    d.body.appendChild(s);
+  });
+})();

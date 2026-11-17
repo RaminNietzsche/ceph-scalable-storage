@@ -53,7 +53,7 @@ SITE_STAMP  := $(SITE)/$(L)/.stamp
 SITE_URL    ?=
 # web-edition deployment options, read by tools/build_site.py from the environment
 # (see tools/booklib/siteconf.py); none of them is stored in the repository
-export REPO_URL REPO_BRANCH FEEDBACK_ENDPOINT FEEDBACK_ISSUES NEWSLETTER_ACTION ANALYTICS CF_BEACON_TOKEN PLAUSIBLE_DOMAIN CNAME
+export REPO_URL REPO_BRANCH FEEDBACK_ENDPOINT FEEDBACK_ISSUES ASK_ENDPOINT NEWSLETTER_ACTION ANALYTICS CF_BEACON_TOKEN PLAUSIBLE_DOMAIN CNAME
 SITE_SRC    := tools/build_site.py tools/booklib/seo.py tools/booklib/siteconf.py CHANGELOG.md tools/sim_fallback.js $(wildcard templates/site/*) $(wildcard templates/site/sims/*)
 WEBFIG_STAMP := build/webfig/.stamp
 

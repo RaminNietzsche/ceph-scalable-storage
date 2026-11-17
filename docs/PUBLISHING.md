@@ -30,6 +30,8 @@ confirms that `<picture>` lists the AVIF source before WebP.
    - `FEEDBACK_ENDPOINT` (optional): an https URL that receives "Was this section helpful?" votes.
    - `NEWSLETTER_ACTION` (optional): an https form URL (POST with field `email`) of a newsletter
      service. Without it the home page offers "Watch releases on GitHub" and the Atom feed.
+   - `ASK_ENDPOINT` (optional): the "Ask the book" Worker. The workflow defaults to
+     `https://ask.ceph-s3.ir`; set the variable to `none` to build the site without the button.
    Pull-request builds never get these values.
 3. **Environment** `github-pages` is created by the first deployment; restrict it to `main`.
 
@@ -48,7 +50,8 @@ confirms that `<picture>` lists the AVIF source before WebP.
 - `_headers` in the site is for hosts that read it (Netlify, Cloudflare Pages); GitHub Pages
   ignores it. A Content-Security-Policy, if wanted, can be added as a Cloudflare response-header
   transform rule: `script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com;
-  connect-src 'self' https://cloudflareinsights.com` plus the `FEEDBACK_ENDPOINT` origin.
+  connect-src 'self' https://cloudflareinsights.com` plus the `FEEDBACK_ENDPOINT` and
+  `ASK_ENDPOINT` origins.
 
 ## Analytics and the "helpful?" buttons
 
@@ -189,3 +192,13 @@ it can be added for you:
    the same sitemap.
 
 Do not add placeholder TXT records. Wait for the official token from each console.
+
+## "Ask the book"
+
+With `ASK_ENDPOINT` set, every page has an "Ask the book" / «از کتاب بپرس» button. The panel
+(`templates/site/ask.js`) is fetched only on the first click, so it costs nothing on page load
+and no request leaves the page before the reader asks. A question is POSTed to
+`ASK_ENDPOINT/v1/ask` and answered by the `book-ask` Worker from the book's own text, with
+links to the sections used. The Worker, its D1 database and the indexing scripts are in
+`infra/book-ask/`; re-index after a content release (see its README). The footer privacy note
+says where questions go.

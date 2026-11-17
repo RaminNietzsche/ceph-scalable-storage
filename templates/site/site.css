@@ -923,3 +923,35 @@ details.tldr > ul > li { margin: .25em 0; }
 .newsletter .nl-hint, .newsletter .nl-privacy { font-size: .85rem; color: var(--fg-mute); max-width: 46rem; }
 .site-foot .privacy { font-size: .8rem; color: var(--fg-mute); }
 .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---- "Ask the book" (button always; panel from ask.js on click) ---- */
+.ask-fab { position: fixed; bottom: 20px; inset-inline-start: 20px; z-index: 35; display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 18px;
+  border-radius: 999px; border: 0; background: var(--grad); color: #fff; font: inherit; font-weight: 700; font-size: .9rem; cursor: pointer; box-shadow: var(--shadow); }
+html[data-theme="dark"] .ask-fab { color: #04202a; }
+.ask-fab:hover { filter: brightness(1.07); }
+.ask-fab[aria-busy="true"] { opacity: .75; cursor: progress; }
+.ask-fab[aria-expanded="true"] { display: none; }
+@media (max-width: 600px) { .ask-fab { padding: 0; width: 46px; justify-content: center; } .ask-fab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } }
+@media print { .ask-fab, .ask-panel { display: none !important; } }
+.ask-panel { position: fixed; bottom: 16px; inset-inline-start: 16px; z-index: 60; width: min(440px, calc(100vw - 32px)); max-height: min(78vh, 680px); overflow: auto;
+  background: var(--card); color: var(--fg); border: 1px solid var(--card-line); border-radius: 16px; box-shadow: var(--shadow); padding: 14px 16px 12px; font-size: .95rem; line-height: 1.7; }
+.ask-panel[hidden] { display: none; }
+.ask-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ask-head h2 { margin: 0; font-size: 1.05rem; }
+.ask-intro, .ask-note { color: var(--fg-soft); font-size: .85rem; margin: 6px 0 10px; }
+.ask-note { font-size: .78rem; margin: 10px 0 0; color: var(--fg-mute); }
+.ask-form { display: flex; gap: 8px; align-items: flex-end; }
+.ask-form textarea { flex: 1; resize: vertical; min-height: 44px; max-height: 160px; font: inherit; font-size: .92rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.ask-form textarea:focus-visible { outline: 3px solid var(--link); outline-offset: 1px; }
+.ask-form .btn { white-space: nowrap; }
+.ask-out:not(:empty) { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ask-out p { margin: 0 0 .6em; }
+.ask-out ul { margin: 0 0 .6em; padding-inline-start: 1.2em; }
+.ask-out code { font-family: var(--font-mono); font-size: .85em; background: var(--code-bg); color: var(--code-fg); padding: .05em .3em; border-radius: 4px; unicode-bidi: isolate; }
+.ask-wait { color: var(--fg-soft); }
+.ask-err { color: var(--c-warn); }
+.ask-cite { font-size: .75em; vertical-align: super; text-decoration: none; padding: 0 .15em; font-weight: 700; }
+.ask-cite::before { content: "["; } .ask-cite::after { content: "]"; }
+.ask-src-h { font-size: .85rem; margin: 10px 0 4px; color: var(--fg-soft); }
+.ask-src { margin: 0; padding-inline-start: 1.4em; font-size: .85rem; }
+.ask-src li { margin-bottom: 2px; }

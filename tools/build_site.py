@@ -776,7 +776,7 @@ open(os.path.join(ASSETS, 'fonts', 'README.txt'), 'w', encoding='utf-8').write(
     'Vazirmatn (github.com/rastikerdar/vazirmatn), Inter (github.com/rsms/inter) and JetBrains Mono\n'
     '(github.com/JetBrains/JetBrainsMono) are subset copies licensed under the SIL Open Font License 1.1\n'
     '(openfontlicense.org). They are not covered by the book\'s CC BY-NC-SA 4.0 licence.\n')
-for f in ('site.css', 'site.js', 'game.js'):
+for f in ('site.css', 'site.js', 'game.js', 'ask.js'):
     shutil.copy2(os.path.join(TPL, f), os.path.join(ASSETS, f))
 # KaTeX (MIT) styles + woff2 fonts for the formulas that build_book.py pre-renders; no runtime JS, no CDN
 _kx = os.path.join(ROOT, 'templates', 'vendor', 'katex')
@@ -965,7 +965,9 @@ EXTRAS = (f'<div class="my-dlg" id="my-dlg" role="dialog" aria-modal="true" aria
           f'<p class="my-note">{esc(S["store_note"])}</p></div></div>'
           f'<button type="button" class="totop" id="totop" aria-label="{esc(S["to_top"])}" title="{esc(S["to_top"])}" hidden>'
           f'<svg class="ring" viewBox="0 0 48 48" aria-hidden="true"><circle class="trk" cx="24" cy="24" r="21"/><circle class="val" cx="24" cy="24" r="21" pathLength="100"/></svg>{ICON["up"]}</button>'
-          f'<p class="vh" id="live" role="status" aria-live="polite"></p>')
+          f'<p class="vh" id="live" role="status" aria-live="polite"></p>'
+          + (f'<button type="button" class="ask-fab" id="ask-fab" aria-haspopup="dialog" title="{esc(S["ask_title"])}" hidden>'
+             f'{ICON["spark"]}<span>{esc(S["ask_btn"])}</span></button>' if CFG['ask'] else ''))
 
 
 def sidebar(cur):
@@ -1065,7 +1067,10 @@ SITE_DATA = json.dumps({k: S[k] for k in ('search', 'search_placeholder', 'searc
                                            'zoom_in', 'zoom_out', 'zoom_reset', 'close', 'copied', 'copy', 'zoom',
                                            'fb_thanks', 'fb_issue', 'fb_issue_title', 'fb_issue_body') + PROG_KEYS}
                        | {'lang': LANG, 'rtl': RTL, 'pages': TRACK,
-                          'fb': {'repo': CFG['repo'], 'endpoint': CFG['feedback'], 'issues': CFG['feedback_issues']}}, ensure_ascii=False)
+                          'fb': {'repo': CFG['repo'], 'endpoint': CFG['feedback'], 'issues': CFG['feedback_issues']}}
+                       | ({'ask': {'endpoint': CFG['ask'] + '/v1/ask', 'js': '../assets/ask.js',
+                                   's': {k[4:]: S[k] for k in S if k.startswith('ask_')} | {'close': S['close']}}}
+                          if CFG['ask'] else {}), ensure_ascii=False)
 
 
 EMITTED, DESC_SEEN = [], set()
@@ -1170,6 +1175,8 @@ HYPH = None
 # ---------------------------------------------------------------- write pages
 docs = []
 PRIVACY = esc(S['privacy_analytics'].format(svc=siteconf.analytics_name(CFG)) if CFG['analytics'] else S['privacy_none'])
+if CFG['ask']:
+    PRIVACY += ' ' + esc(S['privacy_ask'])
 
 
 def edit_url(path):
@@ -1599,6 +1606,7 @@ if CFG['cname']:
 elif os.path.exists(_cn):
     os.remove(_cn)
 json.dump({'repo': CFG['repo'], 'branch': CFG['branch'], 'feedback': bool(CFG['feedback']), 'feedback_issues': CFG['feedback_issues'],
+           'ask': CFG['ask'],
            'newsletter': CFG['newsletter'], 'analytics': CFG['analytics'],
            'analytics_hosts': [siteconf.ANALYTICS_HOSTS[CFG['analytics']]] if CFG['analytics'] else [], 'cname': CFG['cname']},
           open(os.path.join(OUT, 'features.json'), 'w'), indent=1)

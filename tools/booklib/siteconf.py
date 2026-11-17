@@ -11,6 +11,8 @@ no feedback endpoint.
     FEEDBACK_ENDPOINT  optional https URL; "Was this section helpful?" votes are POSTed
                        to it with navigator.sendBeacon as a small JSON text body
     FEEDBACK_ISSUES    1 (default) offers a prefilled GitHub issue after a "No" vote; 0 turns it off
+    ASK_ENDPOINT       optional https URL of the "Ask the book" Worker (infra/book-ask); questions are
+                       POSTed to <url>/v1/ask only after the reader opens the panel and asks
     NEWSLETTER_ACTION  optional https URL of a newsletter signup form (POST; fields "email", hidden "lang", honeypot "website");
                        without it the site offers "Watch releases on GitHub" and releases.xml
     ANALYTICS          cloudflare | plausible | none (default: cloudflare when CF_BEACON_TOKEN is set)
@@ -68,6 +70,7 @@ def load(site_url: str, env=os.environ) -> dict:
         'feedback': _https('FEEDBACK_ENDPOINT', env.get('FEEDBACK_ENDPOINT') or ''),
         'feedback_issues': (env.get('FEEDBACK_ISSUES') or '1') not in ('0', 'no', 'false', 'off'),
         'newsletter': _https('NEWSLETTER_ACTION', env.get('NEWSLETTER_ACTION') or ''),
+        'ask': _https('ASK_ENDPOINT', (env.get('ASK_ENDPOINT') or '').rstrip('/')),
         'analytics': kind, 'cf_token': token if kind == 'cloudflare' else '',
         'plausible_domain': env.get('PLAUSIBLE_DOMAIN', '') if kind == 'plausible' else '',
         'cname': cname,

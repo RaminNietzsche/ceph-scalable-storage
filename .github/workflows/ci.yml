@@ -6,6 +6,7 @@
 #     CF_BEACON_TOKEN    Cloudflare Web Analytics token (public, but kept out of the repository)
 #     FEEDBACK_ENDPOINT  optional, https URL that receives "Was this section helpful?" votes
 #     NEWSLETTER_ACTION  optional, https URL of a newsletter signup form
+#     ASK_ENDPOINT       optional, "Ask the book" Worker (default https://ask.ceph-s3.ir; "none" turns it off)
 name: ci
 
 on:
@@ -88,6 +89,7 @@ jobs:
           CF_BEACON_TOKEN: ${{ github.event_name != 'pull_request' && vars.CF_BEACON_TOKEN || '' }}
           FEEDBACK_ENDPOINT: ${{ github.event_name != 'pull_request' && vars.FEEDBACK_ENDPOINT || '' }}
           NEWSLETTER_ACTION: ${{ github.event_name != 'pull_request' && vars.NEWSLETTER_ACTION || '' }}
+          ASK_ENDPOINT: ${{ github.event_name != 'pull_request' && vars.ASK_ENDPOINT != 'none' && (vars.ASK_ENDPOINT || 'https://ask.ceph-s3.ir') || '' }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
           CNAME: book.ceph-s3.ir
         run: |
