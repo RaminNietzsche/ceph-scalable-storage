@@ -26,11 +26,12 @@ html[data-theme="dark"] .sim, html[data-theme="dark"] .lab-card { --sim-hot: #f5
 .sim-refs span { color: var(--fg-mute); }
 .sim-limit { color: var(--fg-mute); font-size: .84rem; }
 .sim-ctl { display: grid; gap: .6rem; margin-bottom: .8rem; }
-.sim-row { display: flex; flex-wrap: wrap; gap: .6rem .9rem; align-items: flex-end; }
+/* Controls line up on one row: labels sit on top, hints hang below, so a hint never lifts its control. */
+.sim-row { display: flex; flex-wrap: wrap; gap: .6rem .9rem; align-items: flex-start; }
 .sim-f { display: flex; flex-direction: column; gap: .2rem; font-size: .82rem; color: var(--fg-soft); min-width: 7rem; }
 .sim-f > span { font-weight: 600; }
 .sim-f small { color: var(--fg-mute); }
-.sim input[type=number], .sim input[type=text], .sim select { font: inherit; font-size: .88rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .32rem .5rem; min-height: 2.1rem; }
+.sim input[type=number], .sim input[type=text], .sim select { font: inherit; font-size: .88rem; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .32rem .5rem; box-sizing: border-box; height: 2.1rem; }
 .sim input[type=number] { width: 6.5rem; }
 .sim input[type=text] { min-width: 14rem; max-width: 100%; }
 .sim input:focus-visible, .sim select:focus-visible, .sim button:focus-visible, .sim a:focus-visible, .sim [tabindex]:focus-visible { outline: 2px solid var(--sim-a); outline-offset: 2px; }
@@ -78,7 +79,7 @@ ul.sim-warn { padding-inline-start: 1.2rem; }
 .cr-host legend small { color: var(--fg-mute); font-weight: 400; }
 .cr-osd { display: flex; align-items: center; gap: .3rem; margin: .25rem 0; }
 .cr-osd .cr-id { font-family: var(--font-mono); font-size: .78rem; width: 3.6rem; }
-.cr-osd input[type=number] { width: 4.2rem; min-height: 1.9rem; padding: .15rem .35rem; }
+.cr-osd input[type=number] { width: 4.2rem; height: 1.9rem; min-height: 1.9rem; padding: .15rem .35rem; }
 .cr-tg { font: inherit; font-size: .8rem; border: 1px solid var(--line); background: var(--bg); color: var(--sim-ok); border-radius: 6px; padding: 0 .35rem; height: 1.8rem; cursor: pointer; min-width: 2.6rem; }
 .cr-tg[aria-pressed="true"] { color: var(--sim-bad); border-color: var(--sim-bad); background: color-mix(in srgb, var(--sim-bad) 10%, var(--bg)); }
 .cr-osd.is-down .cr-tg[data-act="down"][aria-pressed="true"] { color: var(--sim-hot); border-color: var(--sim-hot); background: color-mix(in srgb, var(--sim-hot) 12%, var(--bg)); }
@@ -131,7 +132,7 @@ ul.sim-warn { padding-inline-start: 1.2rem; }
 .pl-mv b { font-variant-numeric: tabular-nums; }
 .pl-bar { display: inline-block; height: .55rem; width: 5rem; border-radius: 3px; background: var(--bg-soft); position: relative; overflow: hidden; flex: none; }
 .pl-bar::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: calc(var(--f) * 100%); min-width: 2px; background: var(--sim-a); }
-.sim-chk { flex-direction: row; align-items: center; gap: .45rem; align-self: flex-end; min-height: 2.1rem; }
+.sim-chk { flex-direction: row; align-items: center; gap: .45rem; align-self: flex-start; min-height: 2.1rem; margin-top: calc(.82rem * 1.5 + .2rem); }
 .sim-chk input { width: 1.05rem; height: 1.05rem; margin: 0; accent-color: var(--sim-a); }
 .pl-iid { display: flex; gap: .35rem; align-items: stretch; }
 .pl-iid input { flex: 1 1 auto; min-width: 8rem; font-family: var(--font-mono); }
