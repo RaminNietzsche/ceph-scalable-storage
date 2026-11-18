@@ -1,0 +1,32 @@
+# lychee configuration for the weekly external-link report (.github/workflows/weekly.yml).
+# Run locally with:  lychee --config lychee.toml README.md CHANGELOG.md CONTRIBUTING.md NOTICE.md LICENSE docs content templates references CITATION.cff
+# Internal links (chapter cross-references, figures, anchors inside the book) are
+# checked offline by `make check` / `make check-site`; this file is only about the web.
+
+# Only web links. Relative paths in the Markdown sources (figures/..., other chapters)
+# are resolved by the build, not on disk next to the source file, so lychee cannot
+# check them here.
+scheme = ["https", "http"]
+
+# Also check #fragments, so a renamed section in the Ceph docs shows up.
+include_fragments = "anchor-only"
+
+max_concurrency = 8
+timeout = 20
+max_retries = 3
+retry_wait_time = 3
+
+# 429 means "rate limited", not "broken".
+accept = ["200..=299", "429"]
+
+exclude_path = ["(^|/)node_modules/", "(^|/)build/", "(^|/)dist/", "(^|/)\\.git/"]
+
+exclude = [
+  # documentation-only host names (RFC 2606 / RFC 6761) and local endpoints used in examples
+  '^https?://([^/]+\.)?example\.(com|org|net|test|internal)([:/]|$)',
+  '^https?://([^/]+\.)?[^/.]+\.(test|internal|local|localdomain)([:/]|$)',
+  '^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|host)([:/]|$)',
+  # templated URLs filled in at build time
+  '\$\{?[A-Za-z_]',
+  '%7B|\{\{',
+]

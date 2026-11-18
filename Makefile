@@ -57,7 +57,7 @@ export REPO_URL REPO_BRANCH FEEDBACK_ENDPOINT FEEDBACK_ISSUES ASK_ENDPOINT NEWSL
 SITE_SRC    := tools/build_site.py tools/booklib/seo.py tools/booklib/siteconf.py CHANGELOG.md tools/sim_fallback.js $(wildcard templates/site/*) $(wildcard templates/site/sims/*)
 WEBFIG_STAMP := build/webfig/.stamp
 
-.PHONY: help all pdf html epub docx book figures cover lint markdownlint spell \
+.PHONY: help all pdf html epub docx book figures cover lint markdownlint spell check-commands \
         check check-links check-links-online check-refs check-parity check-versions check-tldr check-publish check-sims \
         html-single site check-site shoot-site webfig fonts \
         sync-translations stats clean distclean dist
@@ -165,6 +165,9 @@ check-tldr: ## every chapter opens with a 3-5 bullet TL;DR, fa and en in step
 
 check-versions: ## release labels on command blocks (fa/en) and references/ceph-release-changes.yaml
 	$(PYTHON) tools/check_versions.py
+
+check-commands: ## Ceph command lines vs the Ceph source, main and release branches (network: shallow clones of ceph/ceph)
+	$(PYTHON) tools/check_ceph_commands.py $(if $(CEPH_SRC),--ceph-src $(CEPH_SRC))
 
 sync-translations: ## create/refresh en placeholders for new fa files
 	$(PYTHON) tools/sync_translations.py --lang en

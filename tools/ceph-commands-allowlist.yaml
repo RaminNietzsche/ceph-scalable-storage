@@ -1,0 +1,18 @@
+# Command lines in the book that are correct but that tools/check_ceph_commands.py
+# flags anyway. Each entry: tool, a regular expression searched in the normalised
+# invocation ("ceph osd tier remove ..."), and the reason it is allowed.
+# Keep this list short; fix the book instead whenever the checker is right.
+# Entries that no longer match anything are listed in the weekly report.
+
+- tool: ceph
+  match: '^ceph pgwatch status$'
+  reason: >-
+    Chapter 9 builds a teaching manager module, pybind/mgr/pgwatch, and this is
+    the command that module registers; it is not part of upstream Ceph.
+
+- tool: ceph
+  match: '^ceph osd tier (remove|remove-overlay) '
+  reason: >-
+    Cache tiering is deprecated upstream (Reef and later) and the commands carry
+    FLAG(DEPRECATED). Chapter 16 says so and uses them only to take an existing
+    cache tier apart, which is the migration the upstream docs ask for.
