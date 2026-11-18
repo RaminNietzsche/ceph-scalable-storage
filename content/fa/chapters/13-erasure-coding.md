@@ -247,13 +247,13 @@ ceph osd getcrushmap -o cm && crushtool -i cm --test --rule <id> --num-rep 6 --s
 
 ```bash
 ceph osd pool set ecpool fast_read 1
-ceph pg 5.1as2 query | jq '.info | {last_update, last_complete, log_tail}'   # shard 2 از PG 5.1a
+ceph pg 5.1a query | jq '.peer_info[] | {peer, last_update, last_complete, log_tail}'   # بقیه‌ی shardها؛ peer "12(2)" یعنی shard 2 روی osd.12
 ceph pg 5.1a list_unfound
 ceph daemon osd.4 dump_ops_in_flight | jq '.ops[] | select(.description|test("ECSub"))'
 ```
 
 ::: {.note}
-نام PG در EC پسوند shard دارد: `5.1as2` یعنی shard 2 از PG 5.1a. این پسوند در `ceph pg dump` و در نام collectionها روی OSD (`5.1as2_head`) دیده می‌شود و همان `shard_id` است که در کلید onode با 0x80 جمع می‌شود (فصل ۲۴).
+نام PG در EC پسوند shard دارد: `5.1as2` یعنی shard 2 از PG 5.1a. این پسوند در لاگ‌های OSD و در نام collectionها روی OSD (`5.1as2_head`) دیده می‌شود و همان `shard_id` است که در کلید onode با 0x80 جمع می‌شود (فصل ۲۴). فرمان‌هایی مثل `ceph pg ... query` شناسه‌ی PG را بدون پسوند می‌گیرند (`5.1a`)؛ وضعیت هر shard در فهرست `peer_info` خروجی آمده است.
 :::
 
 # کدگذاری پاک‌شونده با عدد: ماتریس Reed-Solomon، حد MDS، به‌روزرسانی دلتای parity و هزینه‌ی بازسازی {#sec-13-9}

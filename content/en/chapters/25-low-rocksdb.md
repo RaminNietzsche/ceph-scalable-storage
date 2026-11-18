@@ -379,9 +379,9 @@ The default of `level_compaction_dynamic_level_bytes` in RocksDB changed to true
 
 - RocksDBStore: https://github.com/ceph/ceph/blob/main/src/kv/RocksDBStore.cc
 - BlueStore configuration and sharding: https://docs.ceph.com/en/latest/rados/configuration/bluestore-config-ref/
-- RocksDB WAL format: https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-File-Format
-- Block-based table format: https://github.com/facebook/rocksdb/wiki/Rocksdb-BlockBasedTable-Format
-- Leveled compaction: https://github.com/facebook/rocksdb/wiki/Leveled-Compaction
-- Column families: https://github.com/facebook/rocksdb/wiki/Column-Families
-- log_format.h: https://github.com/facebook/rocksdb/blob/main/db/log_format.h
+- RocksDB WAL format: https://github.com/meta/rocksdb/wiki/Write-Ahead-Log-File-Format
+- Block-based table format: https://github.com/meta/rocksdb/wiki/Rocksdb-BlockBasedTable-Format
+- Leveled compaction: https://github.com/meta/rocksdb/wiki/Leveled-Compaction
+- Column families: https://github.com/meta/rocksdb/wiki/Column-Families
+- log_format.h: https://github.com/meta/rocksdb/blob/main/db/log_format.h
 - LSM-tree (O'Neil et al., 1996): https://www.cs.umb.edu/~poneil/lsmtree.pdf

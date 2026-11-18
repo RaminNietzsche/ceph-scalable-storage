@@ -379,9 +379,9 @@ ComputeCompactionScore: for level in 0 .. num_levels−2:
 
 - RocksDBStore: https://github.com/ceph/ceph/blob/main/src/kv/RocksDBStore.cc
 - پیکربندی BlueStore و sharding: https://docs.ceph.com/en/latest/rados/configuration/bluestore-config-ref/
-- قالب WAL مربوط به RocksDB: https://github.com/facebook/rocksdb/wiki/Write-Ahead-Log-File-Format
-- قالب block-based table: https://github.com/facebook/rocksdb/wiki/Rocksdb-BlockBasedTable-Format
-- compaction سطحی: https://github.com/facebook/rocksdb/wiki/Leveled-Compaction
-- column familyها: https://github.com/facebook/rocksdb/wiki/Column-Families
-- log_format.h: https://github.com/facebook/rocksdb/blob/main/db/log_format.h
+- قالب WAL مربوط به RocksDB: https://github.com/meta/rocksdb/wiki/Write-Ahead-Log-File-Format
+- قالب block-based table: https://github.com/meta/rocksdb/wiki/Rocksdb-BlockBasedTable-Format
+- compaction سطحی: https://github.com/meta/rocksdb/wiki/Leveled-Compaction
+- column familyها: https://github.com/meta/rocksdb/wiki/Column-Families
+- log_format.h: https://github.com/meta/rocksdb/blob/main/db/log_format.h
 - LSM-tree (O'Neil و همکاران، 1996): https://www.cs.umb.edu/~poneil/lsmtree.pdf

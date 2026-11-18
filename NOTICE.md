@@ -27,7 +27,7 @@ CC BY-NC-SA 4.0 licence.
 | Ceph | <https://github.com/ceph/ceph> | LGPL-2.1 / LGPL-3.0 (per file; see upstream `COPYING`) |
 | ceph-nvmeof | <https://github.com/ceph/ceph-nvmeof> | LGPL-3.0 |
 | dmclock | <https://github.com/ceph/dmclock> | LGPL-2.1 |
-| RocksDB | <https://github.com/facebook/rocksdb> | GPL-2.0 or Apache-2.0 (dual) |
+| RocksDB | <https://github.com/meta/rocksdb> | GPL-2.0 or Apache-2.0 (dual) |
 | Linux kernel (`net/ceph`, `fs/ceph`, `drivers/block/rbd.c`) | <https://github.com/torvalds/linux> | GPL-2.0 |
 | Seastar | <https://github.com/scylladb/seastar> | Apache-2.0 |
 | SPDK | <https://github.com/spdk/spdk> | BSD-3-Clause |

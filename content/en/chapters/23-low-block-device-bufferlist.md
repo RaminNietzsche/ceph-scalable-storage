@@ -350,4 +350,4 @@ for node in _buffers:
 - crc32c: https://github.com/ceph/ceph/blob/main/src/common/crc32c.cc
 - BlueStore configuration (checksum and compression): https://docs.ceph.com/en/latest/rados/configuration/bluestore-config-ref/
 - io_uring: https://kernel.dk/io_uring.pdf
-- CRC-32C (RFC 3720, appendix B.4): https://www.rfc-editor.org/rfc/rfc3720
+- CRC-32C (RFC 3720, appendix B.4): https://www.rfc-editor.org/rfc/rfc3720.html

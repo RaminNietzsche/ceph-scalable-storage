@@ -402,7 +402,7 @@ Commands:
 ceph orch apply -i osd-hybrid.yaml --dry-run
 ceph orch ls osd --export
 ceph orch device ls --refresh --wide
-ceph log last cephadm 50                 # events of the serve loop
+ceph log last 50 debug cephadm           # events of the serve loop
 ceph config set mgr mgr/cephadm/log_to_cluster_level debug
 ceph mgr fail                            # failover; the loop starts afresh on the new mgr
 ```

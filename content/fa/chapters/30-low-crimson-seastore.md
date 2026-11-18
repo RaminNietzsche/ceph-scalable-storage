@@ -254,5 +254,5 @@ ceph osd dump | grep -E 'allow_crimson|crimson'          # پرچم‌های ن�
 - گزینه‌های Crimson: https://github.com/ceph/ceph/blob/main/src/common/options/crimson.yaml.in
 - Seastar: https://seastar.io/
 - آموزش Seastar: https://github.com/scylladb/seastar/blob/master/doc/tutorial.md
-- پروژه‌ی Crimson در وبلاگ Ceph: https://ceph.io/en/news/crimson/
+- صفحه‌ی پروژه‌ی Crimson در ceph.io: https://ceph.io/en/developers/crimson/
 - Rosenblum و Ousterhout، The Design and Implementation of a Log-Structured File System (1992): https://people.eecs.berkeley.edu/~brewer/cs262/LFS.pdf

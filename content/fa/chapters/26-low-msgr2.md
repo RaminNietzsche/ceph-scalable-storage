@@ -181,7 +181,7 @@ pseudocode: ارسال یک frame در حالت secure (msgr2.1، خلاصه‌�
 
 **چرا فقط سه thread؟** پردازش پروتکل (رمزنگاری یا crc، تجزیه‌ی frame و throttle) سبک است و کار اصلی در thread pool‌های OSD (`osd_op_num_threads_per_shard`) انجام می‌شود. سه worker معمولاً برای ده‌ها هزار اتصال کافی است، ولی با حالت secure روی OSDهای NVMe پرترافیک، این workerها ممکن است گلوگاه CPU شوند. در این صورت `top -H -p <pid>` threadهایی با نام `msgr-worker-N` را نشان می‌دهد که نزدیک ۱۰۰٪ هستند.
 
-```bash
+```bash {since=squid}
 top -H -p $(pidof -s ceph-osd)            # msgr-worker-0..2
 ceph daemon osd.4 perf dump AsyncMessenger::Worker-0 | jq '.[] | {msgr_recv_messages, msgr_send_messages, msgr_running_total_time}'
 ceph daemon osd.4 messenger dump        # بدون آرگومان فهرست messengerها؛ با نام یکی، اتصال‌هایش

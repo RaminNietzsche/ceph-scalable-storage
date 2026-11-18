@@ -292,7 +292,6 @@ openstack endpoint create --region RegionOne object-store public \
   "https://s3.example.com/swift/v1/AUTH_%(project_id)s"
 # In Ceph
 ceph config set client.rgw rgw_keystone_url https://keystone.example.com:5000
-ceph config set client.rgw rgw_keystone_api_version 3
 ceph config set client.rgw rgw_keystone_admin_user rgw
 ceph config set client.rgw rgw_keystone_admin_password_path /etc/ceph/keystone.pass
 ceph config set client.rgw rgw_keystone_admin_domain Default
@@ -304,7 +303,7 @@ ceph config set client.rgw rgw_s3_auth_use_keystone true
 ```
 
 ::: {.tip}
-The RGW documentation prefers the `rgw_keystone_admin_password_path` option to putting the password in plain text in the configuration. With cephadm you can make the file available to the container through `extra_container_args`/a mount or `ceph config-key`. `rgw_s3_auth_use_keystone` makes it possible to use EC2 credentials in Keystone (`openstack ec2 credentials create`) for S3. In Umbrella the old admin-token requirement for Keystone has been removed, and Keystone roles are injected into the IAM policy evaluation environment.
+The RGW documentation prefers the `rgw_keystone_admin_password_path` option to putting the password in plain text in the configuration. With cephadm you can make the file available to the container through `extra_container_args`/a mount or `ceph config-key`. RGW talks to Keystone only through the v3 API; the old `rgw_keystone_api_version` option was removed in Tentacle, and `ceph config set` rejects it there. `rgw_s3_auth_use_keystone` makes it possible to use EC2 credentials in Keystone (`openstack ec2 credentials create`) for S3. In Umbrella the old admin-token requirement for Keystone has been removed, and Keystone roles are injected into the IAM policy evaluation environment.
 :::
 
 # Integrating with Hadoop and Spark through S3A {#sec-04-8}

@@ -247,13 +247,13 @@ In `OSDMonitor::prepare_pool_size`, the default for EC pools is `min_size = k + 
 
 ```bash
 ceph osd pool set ecpool fast_read 1
-ceph pg 5.1as2 query | jq '.info | {last_update, last_complete, log_tail}'   # shard 2 of PG 5.1a
+ceph pg 5.1a query | jq '.peer_info[] | {peer, last_update, last_complete, log_tail}'   # the other shards; peer "12(2)" is shard 2 on osd.12
 ceph pg 5.1a list_unfound
 ceph daemon osd.4 dump_ops_in_flight | jq '.ops[] | select(.description|test("ECSub"))'
 ```
 
 ::: {.note}
-PG names in EC have a shard suffix: `5.1as2` means shard 2 of PG 5.1a. This suffix appears in `ceph pg dump` and in collection names on the OSD (`5.1as2_head`), and it is the same `shard_id` that is added to 0x80 in the onode key (chapter 24).
+PG names in EC have a shard suffix: `5.1as2` means shard 2 of PG 5.1a. This suffix appears in OSD logs and in collection names on the OSD (`5.1as2_head`), and it is the same `shard_id` that is added to 0x80 in the onode key (chapter 24). Commands such as `ceph pg ... query` take the PG id without the suffix (`5.1a`); the state of each shard is in the `peer_info` list of the output.
 :::
 
 # Erasure coding by the numbers: the Reed-Solomon matrix, the MDS limit, parity-delta updates and the cost of rebuilding {#sec-13-9}

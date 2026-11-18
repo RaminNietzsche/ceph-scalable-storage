@@ -254,5 +254,5 @@ If one reactor is close to 100% and the rest are lightly loaded, (1) check poll_
 - Crimson options: https://github.com/ceph/ceph/blob/main/src/common/options/crimson.yaml.in
 - Seastar: https://seastar.io/
 - Seastar tutorial: https://github.com/scylladb/seastar/blob/master/doc/tutorial.md
-- The Crimson project on the Ceph blog: https://ceph.io/en/news/crimson/
+- The Crimson project page on ceph.io: https://ceph.io/en/developers/crimson/
 - Rosenblum and Ousterhout, The Design and Implementation of a Log-Structured File System (1992): https://people.eecs.berkeley.edu/~brewer/cs262/LFS.pdf

@@ -600,7 +600,7 @@ rbd --cluster site-a mirror image promote vms/db01
 
 ```bash {since=squid}
 ceph osd pool create nvmeof-pool && rbd pool init nvmeof-pool
-ceph orch apply nvmeof nvmeof-pool group1 --placement="ceph-node2,ceph-node3"
+ceph orch apply nvmeof --pool nvmeof-pool --group group1 --placement="ceph-node2,ceph-node3"
 ```
 
 ## رمزنگاری سطح image {#sec-02-10-2}

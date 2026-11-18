@@ -96,5 +96,5 @@ It also takes screenshots of each of these.
 - Leitner, S. (1972). *So lernt man lernen*. Herder. (The Leitner box system.)
 - Duolingo Help Center, "What is a streak?" (streak and streak freeze): <https://www.duolingo.com/help/what-is-a-streak>
 - Khan Academy Help Center, "What are energy points, badges, and avatars?": <https://support.khanacademy.org/hc/en-us/articles/202487710-What-are-energy-points-badges-and-avatars>
-- Brignull, H. Deceptive patterns (dark patterns) catalogue: <https://www.deceptive.design/>
+- Brignull, H. Deceptive patterns (dark patterns) catalogue: <https://deceptive.design/>
 - W3C, WCAG 2.2, Success Criterion 2.3.3 Animation from Interactions: <https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html>

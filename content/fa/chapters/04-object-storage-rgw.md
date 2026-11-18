@@ -292,7 +292,6 @@ openstack endpoint create --region RegionOne object-store public \
   "https://s3.example.com/swift/v1/AUTH_%(project_id)s"
 # در Ceph
 ceph config set client.rgw rgw_keystone_url https://keystone.example.com:5000
-ceph config set client.rgw rgw_keystone_api_version 3
 ceph config set client.rgw rgw_keystone_admin_user rgw
 ceph config set client.rgw rgw_keystone_admin_password_path /etc/ceph/keystone.pass
 ceph config set client.rgw rgw_keystone_admin_domain Default
@@ -304,7 +303,7 @@ ceph config set client.rgw rgw_s3_auth_use_keystone true
 ```
 
 ::: {.tip}
-مستندات RGW گزینه‌ی `rgw_keystone_admin_password_path` را به گذاشتن رمز به‌صورت متن ساده در پیکربندی ترجیح می‌دهند. با cephadm می‌توانید فایل را از طریق `extra_container_args`/mount یا `ceph config-key` در اختیار کانتینر بگذارید. `rgw_s3_auth_use_keystone` امکان استفاده از اعتبارنامه‌های EC2 در Keystone (`openstack ec2 credentials create`) برای S3 را فراهم می‌کند. در Umbrella، الزام قدیمی admin token برای Keystone حذف شده و نقش‌های Keystone به محیط ارزیابی سیاست IAM تزریق می‌شوند.
+مستندات RGW گزینه‌ی `rgw_keystone_admin_password_path` را به گذاشتن رمز به‌صورت متن ساده در پیکربندی ترجیح می‌دهند. با cephadm می‌توانید فایل را از طریق `extra_container_args`/mount یا `ceph config-key` در اختیار کانتینر بگذارید. RGW برای Keystone فقط از API نسخه‌ی ۳ استفاده می‌کند؛ گزینه‌ی قدیمی `rgw_keystone_api_version` در Tentacle حذف شد و از آن نسخه به بعد `ceph config set` آن را نمی‌پذیرد. `rgw_s3_auth_use_keystone` امکان استفاده از اعتبارنامه‌های EC2 در Keystone (`openstack ec2 credentials create`) برای S3 را فراهم می‌کند. در Umbrella، الزام قدیمی admin token برای Keystone حذف شده و نقش‌های Keystone به محیط ارزیابی سیاست IAM تزریق می‌شوند.
 :::
 
 # یکپارچه‌سازی با Hadoop و Spark از طریق S3A {#sec-04-8}

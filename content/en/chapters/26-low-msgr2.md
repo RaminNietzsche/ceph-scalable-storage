@@ -181,7 +181,7 @@ Because epoll is registered in `EPOLLET` (edge-triggered) mode, the handler must
 
 **Why only three threads?** Protocol processing (encryption or crc, frame parsing and throttling) is light, and the main work happens in the OSD's thread pools (`osd_op_num_threads_per_shard`). Three workers are usually enough for tens of thousands of connections, but with secure mode on busy NVMe OSDs these workers may become a CPU bottleneck. In that case `top -H -p <pid>` shows threads named `msgr-worker-N` near 100%.
 
-```bash
+```bash {since=squid}
 top -H -p $(pidof -s ceph-osd)            # msgr-worker-0..2
 ceph daemon osd.4 perf dump AsyncMessenger::Worker-0 | jq '.[] | {msgr_recv_messages, msgr_send_messages, msgr_running_total_time}'
 ceph daemon osd.4 messenger dump        # without arguments, the list of messengers; with one's name, its connections

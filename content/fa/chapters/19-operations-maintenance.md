@@ -157,7 +157,7 @@ ceph osd pool autoscale-status
 ceph osd pool set vm-fast target_size_ratio 0.4       # پیش‌بینی سهم آینده
 ceph osd pool set archive bulk true                   # pool بزرگ: سهم کامل از ابتدا
 ceph osd pool set archive pg_num_min 256
-ceph osd pool get threshold
+ceph config get mgr mgr/pg_autoscaler/threshold      # آستانه (از Tentacle: ceph osd pool get threshold)
 ceph osd pool set noautoscale                          # توقف موقت سراسری
 ceph osd pool unset noautoscale
 ```

@@ -402,7 +402,7 @@ spec اوسدی «پایدار» است: پس از apply، هر دیسک خال�
 ceph orch apply -i osd-hybrid.yaml --dry-run
 ceph orch ls osd --export
 ceph orch device ls --refresh --wide
-ceph log last cephadm 50                 # رویدادهای حلقه‌ی serve
+ceph log last 50 debug cephadm           # رویدادهای حلقه‌ی serve
 ceph config set mgr mgr/cephadm/log_to_cluster_level debug
 ceph mgr fail                            # failover؛ حلقه روی mgr جدید از نو شروع می‌شود
 ```
