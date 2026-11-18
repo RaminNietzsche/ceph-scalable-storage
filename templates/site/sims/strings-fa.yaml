@@ -328,7 +328,7 @@ r_rg_man: چیدمان شیء در RADOS
 striping_t: نگاشت striping در RBD
 striping_d: "اندازهٔ شیء، stripe_unit و stripe_count یک image و offset و طول یک I/O را تعیین کنید: ببینید به کدام شیءهای rbd_data و کجای آن‌ها دست می‌زند."
 striping_what: "librbd هر I/O را به Striper می‌سپارد. image به stripe unitهایی بریده می‌شود که به نوبت میان stripe_count شیء پخش می‌شوند؛ وقتی آن شیءها پر شدند object set بعدی آغاز می‌شود. نام هر شیء rbd_data.<image id>. و شمارهٔ آن در ۱۶ رقم hex است. با stripe_count برابر ۱ (پیش‌فرض) stripe_unit همان اندازهٔ شیء است و image به سادگی به شیءهای پشت‌سرهم بریده می‌شود."
-striping_limit: "تنها شیءهای داده؛ شیءهای header، id و object-map نشان داده نمی‌شوند. extentها دقیقاً همان چیزی است که Striper::file_to_extents برمی‌گرداند (با بردارهای آزمون خود Ceph بررسی شده)."
+striping_limit: "تنها شیءهای داده؛ شیءهای header، id و object-map نشان داده نمی‌شوند (آزمایشگاه «از نام شیء تا OSD» در حالت RBD آن‌ها را نشان می‌دهد). extentها دقیقاً همان چیزی است که Striper::file_to_extents برمی‌گرداند (با کد Striper خود Ceph و بردارهای آزمون آن بررسی شده)."
 st_size: اندازهٔ image (GiB)
 st_id: شناسهٔ image
 st_off: offset ی I/O (بایت)
@@ -348,9 +348,9 @@ r_st_prefix: پیشوند نام
 r_st_test: بردارهایی که آزمون‌ها با آن مقایسه می‌کنند
 
 placement_t: از نام شیء تا OSD
-placement_d: "نام یک فایل یا شیء را بنویسید و گام‌به‌گام ببینید Ceph آن را چطور hash می‌کند، در کدام PG می‌گذارد و CRUSH با هر یک از پنج الگوریتم bucket کدام OSDها را برایش برمی‌گزیند؛ سپس ببینید افزودن یک OSD، تغییر وزن یا out کردن آن با هر الگوریتم چه سهمی از داده را جابه‌جا می‌کند."
-placement_what: "کل مسیر ceph osd map، همان‌طور که کلاینت حساب می‌کند. ۱) ceph_str_hash_rjenkins روی بایت‌های UTF-8 نام؛ ۲) ceph_stable_mod با pg_num و ماسک آن شمارهٔ PG را می‌دهد (مقدارهای بزرگ‌تر از pg_num به نیمهٔ پایین تا می‌شوند)؛ ۳) با پرچم hashpspool شمارهٔ PG با pgp_num دوباره کوچک و با شناسهٔ pool درهم می‌شود تا x، ورودی CRUSH، به دست آید؛ ۴) crush_do_rule قاعدهٔ pool (chooseleaf firstn) را روی نقشهٔ root ← host ← OSD اجرا می‌کند که همهٔ bucketهایش الگوریتم انتخابی شما را دارند، و هر قرعهٔ هر bucket نمایش داده می‌شود، همراه با ردشدن‌ها (OSDهای out) و تکرارها که r را بالا می‌برند؛ ۵) OSDMap از مجموعهٔ خام OSDهای down را کنار می‌گذارد تا مجموعهٔ up، مجموعهٔ acting و primary به دست آید. بخش مقایسه اشیای نمونه را پیش و پس از یک تغییر، با هر پنج الگوریتم، جای‌گذاری می‌کند."
-placement_limit: "یک الگوریتم برای همهٔ bucketهای نقشه (Ceph برای هر bucket جداگانه اجازه می‌دهد)؛ فقط poolهای replicated؛ بدون namespace و locator key، pg_temp، upmap، primary affinity، device class و choose_args؛ وزن‌ها اندازه به TiB است. با tunables امروزی دیگر نمی‌توان bucket از نوع tree ساخت و uniform وزن نخستین آیتم را برای همه به کار می‌برد. جابه‌جایی به ازای هر نسخه روی اشیای نمونه شمرده می‌شود. برای این نقشه‌ها نتیجه با هر پنج الگوریتم دقیقاً با کد C خود Ceph یکی است (tests/sims/golden.json)."
+placement_d: "نام یک فایل یا شیء را بنویسید و گام‌به‌گام ببینید Ceph آن را چطور hash می‌کند، در کدام PG می‌گذارد و CRUSH با هر یک از پنج الگوریتم bucket کدام OSDها را برایش برمی‌گزیند؛ سپس ببینید افزودن یک OSD، تغییر وزن یا out کردن آن با هر الگوریتم چه سهمی از داده را جابه‌جا می‌کند. با گزینهٔ image از RBD ببینید یک بازه از بایت‌های image در کدام شیءهای rbd_data می‌افتد و هر کدام از آن‌ها، همراه با شیءهای فرادادهٔ image، کجا قرار می‌گیرند."
+placement_what: "کل مسیر ceph osd map، همان‌طور که کلاینت حساب می‌کند. ۱) ceph_str_hash_rjenkins روی بایت‌های UTF-8 نام؛ ۲) ceph_stable_mod با pg_num و ماسک آن شمارهٔ PG را می‌دهد (مقدارهای بزرگ‌تر از pg_num به نیمهٔ پایین تا می‌شوند)؛ ۳) با پرچم hashpspool شمارهٔ PG با pgp_num دوباره کوچک و با شناسهٔ pool درهم می‌شود تا x، ورودی CRUSH، به دست آید؛ ۴) crush_do_rule قاعدهٔ pool (chooseleaf firstn) را روی نقشهٔ root ← host ← OSD اجرا می‌کند که همهٔ bucketهایش الگوریتم انتخابی شما را دارند، و هر قرعهٔ هر bucket نمایش داده می‌شود، همراه با ردشدن‌ها (OSDهای out) و تکرارها که r را بالا می‌برند؛ ۵) OSDMap از مجموعهٔ خام OSDهای down را کنار می‌گذارد تا مجموعهٔ up، مجموعهٔ acting و primary به دست آید. بخش مقایسه اشیای نمونه را پیش و پس از یک تغییر، با هر پنج الگوریتم، جای‌گذاری می‌کند. در حالت RBD، بازهٔ بایت‌ها نخست از Striper::file_to_extents می‌گذرد (با fancy striping وقتی stripe_count بیش از ۱ است)؛ سپس هر شیء داده با نامی به شکل rbd_data.<id>.<objectno>، که شمارهٔ شیء در آن ۱۶ رقم hex است، و نیز شیءهای rbd_directory، rbd_id، rbd_header و rbd_object_map همان پنج گام را طی می‌کنند."
+placement_limit: "یک الگوریتم برای همهٔ bucketهای نقشه (Ceph برای هر bucket جداگانه اجازه می‌دهد)؛ فقط poolهای replicated؛ بدون namespace و locator key، pg_temp، upmap، primary affinity، device class و choose_args؛ وزن‌ها اندازه به TiB است. با tunables امروزی دیگر نمی‌توان bucket از نوع tree ساخت و uniform وزن نخستین آیتم را برای همه به کار می‌برد. جابه‌جایی به ازای هر نسخه روی اشیای نمونه شمرده می‌شود. برای این نقشه‌ها نتیجه با هر پنج الگوریتم دقیقاً با کد C خود Ceph یکی است (tests/sims/golden.json). حالت RBD: تنها imageهای فرمت ۲؛ بدون clone و هم‌پوشانی با parent، snapshot، journaling، رمزگذاری و جزئیات krbd؛ pool دادهٔ جداگانه همان نقشه و قاعدهٔ replicated را به کار می‌برد (pool دادهٔ واقعی اغلب erasure-coded است). striping و نام شیءها با کد Striper خود Ceph و قالب نام‌های librbd یکی است (tests/sims/golden.json)."
 pl_obj: نام شیء یا فایل
 pl_pool: شناسهٔ pool
 pl_size: تعداد نسخه (size)
@@ -413,5 +413,49 @@ pl_cmp_note: "«کمترین مقدار لازم» جابه‌جایی‌ای ا
 pl_cmp_note_alg: "تبدیل bucketها قرعه‌ها را عوض می‌کند و اندازهٔ جابه‌جایی به جفت الگوریتم‌ها بستگی دارد. وقتی وزن‌های درون یک bucket برابرند، تبدیل straw به straw2 دادهٔ کمی جابه‌جا می‌کند، چون هر دو بزرگ‌ترین hash را برمی‌گزینند (برای همین ceph osd crush set-all-straw-buckets-to-straw2 کم‌هزینه است)؛ با وزن‌های ناهمسان، یا در تبدیل به uniform، list و tree و برعکس، بیشتر داده جابه‌جا می‌شود."
 r_pl_straw: "straw: بلندترین نیِ مقیاس‌شده برنده است؛ طول نی‌ها به همهٔ وزن‌ها بستگی دارد"
 r_pl_old: انتخاب در list، tree و uniform و ساخت bucketها
+pl_mode_l: چه چیزی جای‌گذاری شود
+pl_mode_obj: یک شیء
+pl_mode_rbd: یک image از RBD
+pl_img: نام image
+pl_iid: شناسهٔ image
+pl_newid: شناسهٔ تازه
+pl_gib: اندازهٔ image (GiB)
+pl_off: "offset در image (بایت)"
+pl_len: طول (بایت)
+pl_dp: "شیءهای داده در pool جداگانه (--data-pool)"
+pl_mdpool: شناسهٔ pool (فرادادهٔ image)
+pl_dpool: شناسهٔ pool داده
+pl_dpgn: pg_num در pool داده
+pl_st_objs: شیء در این بازه
+pl_st_pgs: PG
+pl_st_osds: OSD
+pl_st_imgobjs: شیء در کل image
+pl_c_obj: شیء
+pl_c_inobj: "offset و طول در شیء"
+pl_c_img: بایت‌های image
+pl_c_role: نقش
+pl_c_reps: نسخه‌ها
+pl_steps: گام‌ها
+pl_steps_hide: بستن
+pl_steps_for: "پنج گام برای {o}"
+pl_rbd_s1_t: از بایت‌های image تا شیءهای داده
+pl_rbd_s1_n: "librbd بازه را به Striper می‌سپارد (Striper::file_to_extents). image به تکه‌هایی به اندازهٔ stripe_unit بریده می‌شود که به نوبت میان stripe_count شیء پخش می‌شوند؛ وقتی این شیءها پر شدند، دستهٔ بعدی شیءها آغاز می‌شود. هر شیء تنها یک extent از بایت‌های خودش می‌گیرد و بازه‌هایی از image که آن را پر می‌کنند کنارش آمده است. با stripe_count برابر ۱ (پیش‌فرض)، stripe_unit همان اندازهٔ شیء است و image به سادگی به شیءهای پشت‌سرهم بریده می‌شود."
+pl_rbd_s2_t: هر شیء داده تا PG و OSDهایش
+pl_rbd_s2_n: "هر شیء داده یک شیء معمولی RADOS در pool {pool} است و همان پنج گامِ یک شیء تنها را طی می‌کند: hash نام، PG، pps، CRUSH و مجموعهٔ up. با دکمهٔ «گام‌ها» می‌توانید این گام‌ها را برای یک شیء باز کنید."
+pl_rbd_s2_dp: "با --data-pool شیءهای داده در pool {pool} نگه داشته می‌شوند و در نامشان شناسهٔ pool فراداده ({md}) هم می‌آید؛ همان پنج گام را طی می‌کنند، این بار با شناسهٔ pool داده و pg_num آن. با دکمهٔ «گام‌ها» می‌توانید این گام‌ها را برای یک شیء باز کنید."
+pl_rbd_s3_t: شیءهای فرادادهٔ image
+pl_rbd_s3_n: "هر image با فرمت ۲ این شیءها را در pool {md} دارد، حتی وقتی pool داده جداست: rbd_directory نام و شناسهٔ همهٔ imageهای pool را به هم نگاشت می‌کند؛ rbd_id.<name> شناسهٔ image را نگه می‌دارد؛ rbd_header.<id> اندازه، order، featureها، snapshotها و watcherها را (بیشتر در omap) نگه می‌دارد؛ و وقتی قابلیت object-map روشن است (پیش‌فرض)، rbd_object_map.<id> برای هر شیء داده دو بیت دارد. این شیءها درست مثل شیءهای داده جای‌گذاری می‌شوند."
+pl_rbd_s4_t: کل image
+pl_rbd_s4_n: "همهٔ شیءهای image، با این فرض که همه نوشته شده‌اند؛ در واقع RBD فضا را thin-provisioned می‌گیرد و هر شیء تنها وقتی ساخته می‌شود که چیزی در آن نوشته شود. جدول نشان می‌دهد هر OSD چند نسخه از این شیءها را نگه می‌دارد و primary چندتای آن‌هاست."
+pl_rbd_cap: "برای اینکه کند نشود، تنها {n} شیء نخست شمرده می‌شوند."
+pl_rbd_lencap: "بازه به {n} کوتاه شد: آزمایشگاه هر بار حداکثر ۴۰۹۶ تکه به اندازهٔ stripe_unit را نگاشت می‌کند."
+pl_rbd_samepool: "pool داده باید poolی جدا از pool فراداده باشد."
+pl_rbd_more: "{n} شیء دیگر فهرست نشده‌اند؛ شمارش‌های بالا آن‌ها را هم در بر دارند."
+pl_r_dir: "نام ↔ شناسهٔ همهٔ imageهای pool"
+pl_r_id: شناسهٔ image
+pl_r_hdr: "اندازه، order، featureها، snapshotها"
+pl_r_om: "نقشهٔ شیءها (قابلیت object-map)"
+r_pl_rbdname: "نام شیءهای داده، با pool داده و بدون آن، و بررسی‌های striping"
+r_pl_rbdmeta: نام شیءهای فراداده و ساخت شناسهٔ image
 
 xp_sim: "آزمایشگاه: {n}"

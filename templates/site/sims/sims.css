@@ -131,6 +131,17 @@ ul.sim-warn { padding-inline-start: 1.2rem; }
 .pl-mv b { font-variant-numeric: tabular-nums; }
 .pl-bar { display: inline-block; height: .55rem; width: 5rem; border-radius: 3px; background: var(--bg-soft); position: relative; overflow: hidden; flex: none; }
 .pl-bar::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 0; width: calc(var(--f) * 100%); min-width: 2px; background: var(--sim-a); }
+.sim-chk { flex-direction: row; align-items: center; gap: .45rem; align-self: flex-end; min-height: 2.1rem; }
+.sim-chk input { width: 1.05rem; height: 1.05rem; margin: 0; accent-color: var(--sim-a); }
+.pl-iid { display: flex; gap: .35rem; align-items: stretch; }
+.pl-iid input { flex: 1 1 auto; min-width: 8rem; font-family: var(--font-mono); }
+.pl-ot { font-size: .8rem; }
+.pl-ot code { font-size: .76rem; overflow-wrap: anywhere; }
+.pl-ot td:first-child { min-width: 12rem; }
+.pl-ot tr.open td { background: color-mix(in srgb, var(--sim-a) 8%, transparent); }
+.pl-xp { border-inline-start: 3px solid var(--sim-a); padding-inline-start: .6rem; margin: .4rem 0 .8rem; min-width: 0; }
+.pl-xp h5 { margin: .2rem 0 .4rem; font-family: var(--font-mono); font-size: .82rem; overflow-wrap: anywhere; }
+.sim .pl-osdw { max-width: 28rem; }
 
 /* calculators */
 .ec-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .7rem; }

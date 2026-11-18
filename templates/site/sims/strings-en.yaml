@@ -328,7 +328,7 @@ r_rg_man: how the object is laid out in RADOS
 striping_t: RBD striping mapper
 striping_d: "Set an image's object size, stripe_unit and stripe_count and an I/O's offset and length: see which rbd_data objects it touches and where."
 striping_what: "librbd hands every I/O to the Striper. The image is cut into stripe units that are dealt round-robin to stripe_count objects; when those objects are full the next object set starts. Each object is named rbd_data.<image id>. and its number in 16 hex digits. With stripe_count 1 (the default) stripe_unit is the object size and the image is simply cut into consecutive objects."
-striping_limit: "Only the data objects; the header, id and object-map objects are not shown. The extents are exactly what Striper::file_to_extents returns (checked against Ceph's test vectors)."
+striping_limit: "Only the data objects; the header, id and object-map objects are not shown (the From object name to OSD lab shows them in its RBD mode). The extents are exactly what Striper::file_to_extents returns (checked against Ceph's own Striper code and its test vectors)."
 st_size: Image size (GiB)
 st_id: Image id
 st_off: I/O offset (bytes)
@@ -348,9 +348,9 @@ r_st_prefix: the name prefix
 r_st_test: the vectors the tests compare against
 
 placement_t: From object name to OSD
-placement_d: "Type a file or object name and follow, step by step, how Ceph hashes it, which PG it falls into and which OSDs CRUSH picks for it with each of the five bucket algorithms; then see how much data an added OSD, a new weight or an out OSD moves with each algorithm."
-placement_what: "The whole path of ceph osd map, computed the way the client computes it. 1) ceph_str_hash_rjenkins of the name's UTF-8 bytes; 2) ceph_stable_mod with pg_num and its mask gives the PG number (values above pg_num fold into the lower half); 3) with hashpspool the PG number is reduced with pgp_num and hashed with the pool id into x, the CRUSH input; 4) crush_do_rule runs the pool's rule (chooseleaf firstn) on a root -> host -> OSD map whose buckets all use the algorithm you choose, and every draw of every bucket is shown, with rejections (out OSDs) and collisions that raise r; 5) the OSDMap drops down OSDs from the raw set to give the up set, the acting set and the primary. The comparison places sample objects before and after one change, for all five algorithms."
-placement_limit: "One algorithm for every bucket of the map (Ceph allows one per bucket); replicated pools only; no namespace or locator key, pg_temp, upmap, primary affinity, device classes or choose_args; weights are sizes in TiB. tree buckets can no longer be created with today's tunables and uniform uses its first item's weight for all items. Movement is counted per replica over the sample objects. For these maps the result is exactly that of Ceph's own C code for all five algorithms (tests/sims/golden.json)."
+placement_d: "Type a file or object name and follow, step by step, how Ceph hashes it, which PG it falls into and which OSDs CRUSH picks for it with each of the five bucket algorithms; then see how much data an added OSD, a new weight or an out OSD moves with each algorithm. Switch to an RBD image to see which rbd_data objects a byte range of the image falls into, and where each of them and the image's metadata objects land."
+placement_what: "The whole path of ceph osd map, computed the way the client computes it. 1) ceph_str_hash_rjenkins of the name's UTF-8 bytes; 2) ceph_stable_mod with pg_num and its mask gives the PG number (values above pg_num fold into the lower half); 3) with hashpspool the PG number is reduced with pgp_num and hashed with the pool id into x, the CRUSH input; 4) crush_do_rule runs the pool's rule (chooseleaf firstn) on a root -> host -> OSD map whose buckets all use the algorithm you choose, and every draw of every bucket is shown, with rejections (out OSDs) and collisions that raise r; 5) the OSDMap drops down OSDs from the raw set to give the up set, the acting set and the primary. The comparison places sample objects before and after one change, for all five algorithms. In RBD mode the byte range first goes through Striper::file_to_extents (with fancy striping when stripe_count is above 1); each rbd_data.<id>.<16 hex digits> object, and the rbd_directory, rbd_id, rbd_header and rbd_object_map objects, then go through the same five steps."
+placement_limit: "One algorithm for every bucket of the map (Ceph allows one per bucket); replicated pools only; no namespace or locator key, pg_temp, upmap, primary affinity, device classes or choose_args; weights are sizes in TiB. tree buckets can no longer be created with today's tunables and uniform uses its first item's weight for all items. Movement is counted per replica over the sample objects. For these maps the result is exactly that of Ceph's own C code for all five algorithms (tests/sims/golden.json). RBD mode: format 2 images only; no clones or parent overlap, snapshots, journaling, encryption or krbd specifics; a separate data pool uses the same map and replicated rule (a real data pool is often erasure-coded). The striping and the object names match Ceph's own Striper code and librbd's name formats (tests/sims/golden.json)."
 pl_obj: Object or file name
 pl_pool: Pool id
 pl_size: Replicas (size)
@@ -413,5 +413,49 @@ pl_cmp_note: "'Least needed' is what a perfect placement would move to reach the
 pl_cmp_note_alg: "Converting the buckets changes the draws, and how much moves depends on the pair. straw to straw2 moves little when the weights in a bucket are equal, because both then pick the largest hash (that is why ceph osd crush set-all-straw-buckets-to-straw2 is cheap); with unequal weights, or to and from uniform, list and tree, most of the data moves."
 r_pl_straw: "straw: the longest scaled straw wins; straw lengths depend on every weight"
 r_pl_old: the list, tree and uniform choices and how buckets are built
+pl_mode_l: What to place
+pl_mode_obj: One object
+pl_mode_rbd: An RBD image
+pl_img: Image name
+pl_iid: Image id
+pl_newid: New id
+pl_gib: Image size (GiB)
+pl_off: Offset in the image (bytes)
+pl_len: Length (bytes)
+pl_dp: "Data objects in a separate pool (--data-pool)"
+pl_mdpool: Pool id (image metadata)
+pl_dpool: Data pool id
+pl_dpgn: pg_num of the data pool
+pl_st_objs: objects in the range
+pl_st_pgs: PGs
+pl_st_osds: OSDs
+pl_st_imgobjs: objects in the whole image
+pl_c_obj: Object
+pl_c_inobj: "Offset and length in the object"
+pl_c_img: Image bytes
+pl_c_role: Role
+pl_c_reps: Replicas
+pl_steps: Steps
+pl_steps_hide: Hide
+pl_steps_for: "The five steps for {o}"
+pl_rbd_s1_t: From image bytes to data objects
+pl_rbd_s1_n: "librbd hands the range to the Striper (Striper::file_to_extents). The image is cut into stripe units that are dealt round-robin over stripe_count objects; once those objects are full the next object set begins. Each object gets a single extent of its own bytes, and the image ranges that fill it are listed next to it. With stripe_count 1 (the default) the stripe unit is the object size and the image is simply cut into consecutive objects."
+pl_rbd_s2_t: Each data object to a PG and its OSDs
+pl_rbd_s2_n: "Every data object is an ordinary RADOS object in pool {pool} and goes through the same five steps as a single object: the name's hash, the PG, pps, CRUSH and the up set. Use Steps to open them for one object."
+pl_rbd_s2_dp: "With --data-pool the data objects live in pool {pool} and their names carry the metadata pool's id ({md}); they go through the same five steps as a single object, with the data pool's id and pg_num. Use Steps to open them for one object."
+pl_rbd_s3_t: The image's metadata objects
+pl_rbd_s3_n: "Every format 2 image has these objects in pool {md}, even with a separate data pool: rbd_directory maps names to ids for all the images of the pool; rbd_id.<name> holds the image's id; rbd_header.<id> keeps the size, order, features, snapshots and watchers (mostly in omap); rbd_object_map.<id> holds two bits per data object when the object-map feature is on (the default). They are placed exactly like data objects."
+pl_rbd_s4_t: The whole image
+pl_rbd_s4_n: "Every object of the image, counted as if all of them were written: RBD is thin-provisioned, and an object exists only once something has been written into it. The table shows how many replicas of these objects each OSD would hold and for how many it would be the primary."
+pl_rbd_cap: "To stay fast, only the first {n} objects are counted."
+pl_rbd_lencap: "The range is cut to {n}: the lab maps at most 4096 stripe units at once."
+pl_rbd_samepool: "The data pool should be a different pool from the metadata pool."
+pl_rbd_more: "{n} more objects are not listed; the counts above include them."
+pl_r_dir: "name ↔ id of every image in the pool"
+pl_r_id: the image's id
+pl_r_hdr: "size, order, features, snapshots"
+pl_r_om: "object map (object-map feature)"
+r_pl_rbdname: "data object names, with and without a data pool, and the striping checks"
+r_pl_rbdmeta: the metadata object names and how image ids are made
 
 xp_sim: "Lab: {n}"

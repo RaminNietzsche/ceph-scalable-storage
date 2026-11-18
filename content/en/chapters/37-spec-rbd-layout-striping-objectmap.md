@@ -166,6 +166,11 @@ The 300 KB write reaches all four objects. With default striping, the same write
 ::: {.sim name="striping"}
 :::
 
+The lab below follows the same objects one step further, to their PGs and OSDs, together with the image's header, id and object-map objects.
+
+::: {.sim name="placement" mode="rbd"}
+:::
+
 # The object map {#sec-37-4}
 
 ## States and bit packing {#sec-37-4-1}

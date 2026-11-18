@@ -3,7 +3,7 @@
 
 Usage: CEPH_SRC=/path/to/ceph/src tools/simref/gen_golden.py [--table]
 
-Needs an unmodified Ceph source tree and gcc. Writes tests/sims/golden.json:
+Needs an unmodified Ceph source tree, gcc and g++. Writes tests/sims/golden.json:
   * CRUSH mappings from Ceph's own src/crush C code (compiled with crush_ref.c),
     for replicated (chooseleaf firstn) and erasure (chooseleaf indep) rules over
     several hierarchies, weights, reweights and out OSDs, through the pool
@@ -14,6 +14,10 @@ Needs an unmodified Ceph source tree and gcc. Writes tests/sims/golden.json:
     straw2 buckets (with the bucket weights and straw lengths builder.c computes),
     and crush_do_rule over maps built entirely of each bucket algorithm (and maps
     that mix them), with straw_calc_version 1 as set by the jewel tunables;
+  * Striper::file_to_extents, object_truncate_size, get_num_objects and
+    get_file_offset, copied verbatim out of src/osdc/Striper.cc and compiled with
+    g++ (striper_ref.cc), over random layouts including fancy striping, and RBD
+    data object names as librbd builds them (with and without a data pool);
   * pg_autoscaler targets from Ceph's own src/pybind/mgr/pg_autoscaler/module.py
     (imported with small stand-ins for the mgr runtime) for several pool sets.
 With --table it also rewrites templates/site/sims/crush-ln-table.js from
@@ -426,7 +430,74 @@ gold['crush_algs'] = acases
 
 # upstream unit-test vectors for Striper (src/test/test_striper.cc)
 gold['striper_upstream'] = 'src/test/test_striper.cc (Stripe1, EmptyPartialResult, GetNumObj, GetFileOffset)'
+
+# ---------------------------------------------------------------- RBD striping and object names
+# The upstream Striper code is copied out of src/osdc/Striper.cc verbatim and compiled with g++
+# (tools/simref/striper_ref.cc) against the real src/osdc/StriperTypes.h.
+def cut(src, start):
+    i = src.index(start)
+    j = src.index('\n}\n', i)
+    return src[i:j + 3]
+
+
+stc = open(os.path.join(SRC, 'osdc', 'Striper.cc'), encoding='utf-8').read()
+order_by = stc[stc.index('struct OrderByObject {'):stc.index('};', stc.index('struct OrderByObject {')) + 2]
+fte = re.search(r'void Striper::file_to_extents\(\s*CephContext \*cct, const file_layout_t \*layout, uint64_t offset,', stc)
+parts = ['namespace {\n' + order_by + '\n}\n', cut(stc[fte.start():], 'void Striper::file_to_extents(')]
+for sig in ('uint64_t Striper::object_truncate_size(', 'uint64_t Striper::get_num_objects(', 'uint64_t Striper::get_file_offset('):
+    parts.append(cut(stc, sig))
+stmp = tempfile.mkdtemp(prefix='striperref-')
+os.makedirs(os.path.join(stmp, 'boost', 'container'))
+os.makedirs(os.path.join(stmp, 'include'))
+open(os.path.join(stmp, 'boost', 'container', 'small_vector.hpp'), 'w').write(
+    '#pragma once\n#include <vector>\n#include <cstddef>\n'
+    'namespace boost { namespace container { template <class T, std::size_t N> using small_vector = std::vector<T>; } }\n')
+open(os.path.join(stmp, 'include', 'container_ios.h'), 'w').write(
+    '#pragma once\n#include <ostream>\n#include <vector>\n#include <utility>\n'
+    'namespace striper { template <class A, class B> std::ostream& operator<<(std::ostream& o, const std::vector<std::pair<A, B>>&) { return o; } }\n')
+open(os.path.join(stmp, 'striper_extract.inc'), 'w').write('\n'.join(parts))
+sexe = os.path.join(stmp, 'striper_ref')
+subprocess.run([os.environ.get('CXX', 'g++'), '-O1', '-w', '-std=c++17', '-I' + stmp, '-I' + SRC, os.path.join(ROOT, 'tools', 'simref', 'striper_ref.cc'), '-o', sexe], check=True)
+rs = random.Random(1405)                    # its own stream: the data above stays as it was
+scases, sq = [], []
+for t in range(160):
+    order = rs.choice([12, 16, 20, 22, 22, 23, 25])
+    os_ = 1 << order
+    su = os_ >> rs.randint(0, min(6, order - 9))
+    sc = rs.choice([1, 1, 2, 3, 4, 8, 16])
+    off = rs.randint(0, 40 * os_ * sc) if t % 4 else rs.randint(0, 2 ** 40)
+    ln = rs.randint(1, 5 * os_ * sc) if t % 3 else rs.randint(1, su * 2)
+    trunc = 0 if t % 2 else rs.randint(0, off + ln + os_ * sc)
+    bo = rs.choice([0, 0, rs.randint(0, 1 << 20)])
+    scases.append({'layout': [os_, su, sc], 'off': off, 'len': ln, 'trunc': trunc, 'bo': bo})
+    sq.append(f'F {os_} {su} {sc} {off} {ln} {trunc} {bo}')
+ncases = []
+for t in range(80):
+    os_ = 1 << rs.choice([12, 16, 22, 25]); su = os_ >> rs.randint(0, 4); sc = rs.choice([1, 2, 3, 4, 8])
+    if sc == 1:
+        su = os_                            # librbd and Striper treat a stripe_count of 1 as su = os
+    size = rs.choice([rs.randint(1, 3 * os_ * sc), rs.randint(1, 2 ** 42)])
+    o, oo = rs.randint(0, 5000), rs.randint(0, os_ - 1)
+    ncases.append({'layout': [os_, su, sc], 'size': size, 'objno': o, 'ooff': oo})
+    sq += [f'N {os_} {su} {sc} {size}', f'O {os_} {su} {sc} {o} {oo}', f'T {os_} {su} {sc} {o} {size}']
+names = [('10226b8b4567', -1, 0), ('10226b8b4567', -1, 255), ('1d6f2a8c4e93', -1, 2559), ('1d6f2a8c4e93', 2, 2559),
+         ('5e1a9f3c27b44d', 7, 0xfffffffff), ('ab12', 12, 1)]
+sq += [f'D {i} {p} {o}' for i, p, o in names]
+r = subprocess.run([sexe], input='\n'.join(sq) + '\n', capture_output=True, text=True, check=True).stdout.split('\n')
+k = 0
+for c in scases:
+    n = int(r[k]); k += 1
+    c['expect'] = []
+    for _ in range(n):
+        f = r[k].split(); k += 1
+        c['expect'].append([int(x) for x in f[:4]] + [[int(y) for y in b.split(',')] for b in f[4:]])
+for c in ncases:
+    c['num_objects'], c['file_offset'], c['trunc'] = int(r[k]), int(r[k + 1]), int(r[k + 2]); k += 3
+gold['striper'] = {'file_to_extents': scases, 'layout_fns': ncases,
+                   'rbd_data_names': [[i, p, o, r[k + j]] for j, (i, p, o) in enumerate(names)]}
+
 open(os.path.join(ROOT, 'tests', 'sims', 'golden.json'), 'w', encoding='utf-8').write(
     json.dumps(gold, ensure_ascii=False, separators=(',', ':')) + '\n')
 print(json.dumps({'crush_cases': len(cases), 'pgs': sum(c['pgp_num'] for c in cases), 'autoscaler_cases': len(ascases),
-                  'bucket_choose': len(bcases), 'alg_cases': len(acases), 'alg_pgs': sum(c['pgp_num'] for c in acases)}))
+                  'bucket_choose': len(bcases), 'alg_cases': len(acases), 'alg_pgs': sum(c['pgp_num'] for c in acases),
+                  'striper_cases': len(scases), 'striper_layout_cases': len(ncases)}))

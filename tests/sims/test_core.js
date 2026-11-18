@@ -107,6 +107,26 @@ group('Striper (src/test/test_striper.cc vectors)', () => {
   eq([C.numObjects(l, 6999), C.numObjects(l, 793320), C.numObjects(l, 805608)], [2, 5, 6], 'GetNumObj');
   eq(C.fileOffset(l, 100, 200000), 26549568, 'GetFileOffset');
 });
+group('Striper (upstream Striper.cc compiled by gen_golden.py)', () => {
+  G.striper.file_to_extents.forEach((c, i) => {
+    const [os, su, sc] = c.layout;
+    const got = C.fileToExtents({ object_size: os, stripe_unit: su, stripe_count: sc }, c.off, c.len, c.trunc, c.bo)
+      .map((e) => [e.object_no, e.offset, e.length, e.truncate_size].concat(e.buffer_extents));
+    eq(got, c.expect, `file_to_extents #${i} ${c.layout} ${c.off}~${c.len}`);
+  });
+  G.striper.layout_fns.forEach((c, i) => {
+    const [os, su, sc] = c.layout, l = { object_size: os, stripe_unit: su, stripe_count: sc };
+    eq([C.numObjects(l, c.size), C.fileOffset(l, c.objno, c.ooff), C.objectTruncateSize(l, c.objno, c.size)],
+      [c.num_objects, c.file_offset, c.trunc], `layout fns #${i} ${c.layout}`);
+  });
+  G.striper.rbd_data_names.forEach(([id, p, o, want]) => eq(C.rbdDataName(id, o, p), want, `rbd data name ${want}`));
+});
+group('RBD metadata object names and image ids (librbd)', () => {
+  eq(C.rbdMetaNames('vm-disk-1', '1d6f2a8c4e93'), { directory: 'rbd_directory', id: 'rbd_id.vm-disk-1', header: 'rbd_header.1d6f2a8c4e93', objectMap: 'rbd_object_map.1d6f2a8c4e93' }, 'meta names');
+  eq(C.rbdImageId(0x1d6f, 0x2a8c4e93), '1d6f2a8c4e93', 'image id: hex(instance) + hex(random)');
+  eq(C.rbdImageId(0x1d6f, 0xa93), '1d6fa93', 'image id: the random part is not zero padded');
+  eq(C.rbdImageId(0x123456789ab, 0xffffffff), '3456789abffffffff'.slice(-14), 'image id: last 14 characters');
+});
 group('Striper invariants and the book example (chapter 37)', () => {
   // the book: object_size 4 MiB, stripe_unit 64 KiB, stripe_count 4, a 300000-byte write at 1000000
   const l = { object_size: 4 << 20, stripe_unit: 64 << 10, stripe_count: 4 };

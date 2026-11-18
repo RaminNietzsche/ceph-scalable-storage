@@ -535,10 +535,22 @@
     var stripeno = Math.floor(off / su) + objectsetno * spo, blockno = stripeno * sc + stripepos;
     return blockno * su + off % su;
   }
-  // src/librbd/ImageCtx.cc :: format_string "%s.%016llx" with object_prefix "rbd_data.<id>" (include/rbd_types.h RBD_DATA_PREFIX)
-  function rbdDataName(imageId, objectno) {
+  // src/librbd/ImageCtx.cc :: format_string "%s.%016llx" (format 2) with the object prefix of
+  // src/librbd/image/CreateRequest.cc :: create_image, "rbd_data." [+ "<metadata pool id>." with --data-pool] + id
+  function rbdDataName(imageId, objectno, mdPool) {
     var h = objectno.toString(16);
-    return 'rbd_data.' + imageId + '.' + '0000000000000000'.slice(h.length) + h;
+    return 'rbd_data.' + (mdPool != null && mdPool !== -1 ? mdPool + '.' : '') + imageId + '.' + '0000000000000000'.slice(h.length) + h;
+  }
+  // the image's metadata objects (include/rbd_types.h; librbd/Utils.cc :: id_obj_name, header_name;
+  // librbd/ObjectMap.cc :: object_map_name for the head, CEPH_NOSNAP); all live in the metadata pool
+  function rbdMetaNames(name, imageId) {
+    return { directory: 'rbd_directory', id: 'rbd_id.' + name, header: 'rbd_header.' + imageId, objectMap: 'rbd_object_map.' + imageId };
+  }
+  // src/librbd/Utils.cc :: generate_image_id: hex(client instance id) + hex(32-bit random), no padding,
+  // keeping the last RBD_MAX_IMAGE_ID_LENGTH (14) characters
+  function rbdImageId(instanceId, extra) {
+    var id = instanceId.toString(16) + (extra >>> 0).toString(16);
+    return id.length > 14 ? id.slice(id.length - 14) : id;
   }
 
   /* ------------------------------------------------------------ pg_autoscaler */
@@ -765,7 +777,7 @@
     hash2: hash2, hash3: hash3, hash4: hash4, ALG: ALG, calcStraws: calcStraws, treeNodes: treeNodes, bucketChoose: bucketChoose, strHash: strHash, stableMod: stableMod, pgMask: pgMask, crushLn: crushLn, expDraw: expDraw,
     NONE: NONE, OP: OP, JEWEL: JEWEL, makeMap: makeMap, doRule: doRule, simpleRule: simpleRule, iweight: iweight,
     pps: pps, pgToUp: pgToUp, objectToPg: objectToPg,
-    fileToExtents: fileToExtents, objectTruncateSize: objectTruncateSize, numObjects: numObjects, fileOffset: fileOffset, rbdDataName: rbdDataName,
+    fileToExtents: fileToExtents, objectTruncateSize: objectTruncateSize, numObjects: numObjects, fileOffset: fileOffset, rbdDataName: rbdDataName, rbdMetaNames: rbdMetaNames, rbdImageId: rbdImageId,
     nearestPow2: nearestPow2, autoscale: autoscale, pgcalc: pgcalc, ecPool: ecPool, repPool: repPool, rgwLayout: rgwLayout, strHashLinux: strHashLinux, bucketShardIndex: bucketShardIndex,
     bluestoreWrite: bluestoreWrite
   };

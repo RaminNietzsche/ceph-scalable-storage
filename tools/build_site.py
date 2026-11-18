@@ -347,7 +347,11 @@ def sim_fallbacks():
     if not node:
         print('build_site: node not found; simulators get a text-only fallback', file=sys.stderr)
         return {'html': {}, 'icon': {}}
-    r = subprocess.run([node, os.path.join(ROOT, 'tools', 'sim_fallback.js')], input=json.dumps({'lang': LANG, 'strings': SIMY, 'names': SIM_NAMES}),
+    # plus "name:mode" for every simulator a chapter opens in one of its modes
+    modes = set()
+    for f in glob.glob(os.path.join(ROOT, 'content', LANG, '**', '*.md'), recursive=True):
+        modes.update(f'{n}:{m}' for n, m in re.findall(r'\{\.sim name="(\w+)" mode="(\w+)"\}', open(f, encoding='utf-8').read()))
+    r = subprocess.run([node, os.path.join(ROOT, 'tools', 'sim_fallback.js')], input=json.dumps({'lang': LANG, 'strings': SIMY, 'names': SIM_NAMES + sorted(modes)}),
                        capture_output=True, text=True, check=True)
     return json.loads(r.stdout)
 
@@ -402,9 +406,9 @@ def lab_card(name, where=''):
             f'<span class="lab-card-d">{esc(SIMY[name + "_d"])}</span>{where}</a>')
 
 
-def sim_slot_html(name):
-    inner = SIMFB['html'].get(name) or f'<div class="sim-head">{sim_icon(name)}<div class="sim-ttl"><h3>{esc(SIMY[name + "_t"])}</h3></div></div><p class="sim-sub">{esc(SIMY[name + "_d"])}</p>'
-    return (f'<div class="sim-slot" data-sim="{name}" data-href="lab-{name}.html"><figure class="sim-fallback"><div class="sim sim-{name} sim-static">{inner}</div>'
+def sim_slot_html(name, mode=''):
+    inner = SIMFB['html'].get(f'{name}:{mode}' if mode else name) or SIMFB['html'].get(name) or f'<div class="sim-head">{sim_icon(name)}<div class="sim-ttl"><h3>{esc(SIMY[name + "_t"])}</h3></div></div><p class="sim-sub">{esc(SIMY[name + "_d"])}</p>'
+    return (f'<div class="sim-slot" data-sim="{name}"' + (f' data-mode="{esc(mode)}"' if mode else '') + f' data-href="lab-{name}.html"><figure class="sim-fallback"><div class="sim sim-{name} sim-static">{inner}</div>'
             f'<figcaption class="sim-cap">{esc(SIMY["static_note"])} <a href="lab-{name}.html">{esc(SIMY["lab_title"])}: {esc(SIMY[name + "_t"])}</a></figcaption></figure></div>')
 
 
@@ -416,7 +420,7 @@ def decorate_sims(body, page):
         h = div.find_previous(['h2', 'h3'])
         SIM_WHERE[name].append((page, h.get('id', '') if h else '', text_of(frag(heading_inner(h))) if h else page.title_text))
         page.sims = getattr(page, 'sims', []) + [name]
-        div.replace_with(frag(sim_slot_html(name)).find('div'))
+        div.replace_with(frag(sim_slot_html(name, div.get('data-mode', ''))).find('div'))
 
 
 # ---------------------------------------------------------------- pages

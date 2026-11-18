@@ -334,10 +334,10 @@ def render(lines, chap=None, md=None):
             i += 1
             continue
         if l.startswith('!SIM '):
-            nm = l[5:].strip()
+            nm, _, mode = l[5:].strip().partition(' ')
             t = SIMSTR.get(f'{nm}_t', nm)
             # the web edition mounts the simulator here; the print edition keeps a one-line pointer to it
-            H.append(f'<div class="sim-slot" data-sim="{esc(nm)}"><p class="sim-print">{inline(UI["sim_print"].format(t=t))}</p></div>')
+            H.append(f'<div class="sim-slot" data-sim="{esc(nm)}"' + (f' data-mode="{esc(mode.strip())}"' if mode.strip() else '') + '><p class="sim-print">{inline(UI["sim_print"].format(t=t))}</p></div>')
             mdw(f'\n> {UI["sim_print"].format(t=t)}\n')
             i += 1
             continue

@@ -1,9 +1,10 @@
-/* From object name to OSD: the placement pipeline step by step, with the five CRUSH bucket algorithms
- * (sims.js part). CC BY-NC-SA 4.0, Ramin Najarbashi. */
+/* From object name to OSD: the placement pipeline step by step, with the five CRUSH bucket algorithms,
+ * for one object or for the objects of an RBD image (sims.js part). CC BY-NC-SA 4.0, Ramin Najarbashi. */
 (function (root) {
   'use strict';
   var S = (typeof module !== 'undefined' && module.exports) ? require('./sims.js') : root.Sims;
-  var h = S.h, tx = h.tx, rich = h.rich, C = h.C, T = h.T, L = h.L, esc = h.esc, pct = h.pct, sel = h.sel, field = h.field, numIn = h.numIn, seg = h.seg, stat = h.stat, clamp = h.clamp;
+  var h = S.h, tx = h.tx, rich = h.rich, C = h.C, T = h.T, L = h.L, esc = h.esc, pct = h.pct, sel = h.sel, field = h.field, numIn = h.numIn, seg = h.seg, stat = h.stat, clamp = h.clamp, bytes = h.bytes;
+  var K = 1024, G = K * K * K;
   var ALGS = ['straw2', 'straw', 'list', 'tree', 'uniform'];
   var W16 = 65536, P44 = 17592186044416;
   function hx(n) { return '0x' + (n >>> 0).toString(16); }
@@ -126,11 +127,131 @@
     }).join('');
   }
 
+  /* ---------------------------------------------------------- one object, all five steps */
+  function mdPool(st) { return { pool: st.pool, pgn: st.pgn, pgp: st.pgp, name: st.mode === 'rbd' ? 'rbd' : 'pool' + st.pool }; }
+  function dataPool(st) { return st.dp ? { pool: st.dpool, pgn: st.dpgn, pgp: st.dpgn, name: 'rbd-data' } : mdPool(st); }
+  function objPath(st, md, name, P, full) {
+    var hash = C.strHash(name), mask = C.pgMask(P.pgn), ps = C.stableMod(hash, P.pgn, mask), trace = full ? [] : undefined;
+    var r = C.pgToUp(md.m, 0, ps, P.pool, P.pgp, st.size, md.dev, md.down, false, trace);
+    return { hash: hash, mask: mask, ps: ps, pgid: P.pool + '.' + ps.toString(16), r: r, trace: trace };
+  }
+  function mapWarns(st) {
+    var warn = [];
+    if (st.alg === 'uniform' && st.hosts.some(function (ho) { return ho.osds.some(function (o) { return o.w !== ho.osds[0].w; }); })) warn.push(tx('pl_w_uniform'));
+    if (st.alg === 'uniform' && st.hosts.some(function (ho) { return ho.osds.reduce(function (a, o) { return a + o.w; }, 0) !== st.hosts[0].osds.reduce(function (a, o) { return a + o.w; }, 0); })) warn.push(tx('pl_w_uniform_root'));
+    if (st.alg === 'tree') warn.push(tx('pl_w_tree'));
+    return warn;
+  }
+  function warnList(w) { return w.length ? '<ul class="sim-warn">' + w.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' : ''; }
+  function stepsHTML(st, md, name, P, o) {
+    var hash = o.hash, mask = o.mask, ps = o.ps, r = o.r, pgid = o.pgid, low = hash & mask;
+    var pgpMask = C.pgMask(P.pgp), ps2 = C.stableMod(ps, P.pgp, pgpMask);
+    var nbytes = (typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(name) : Buffer.from(name, 'utf8')).length;
+    var s1 = '<div class="sim-formula" dir="ltr">ceph_str_hash_rjenkins("' + esc(name) + '") <span class="pl-dim">(' + nbytes + ' B, UTF-8)</span> = <b>' + hx(hash) + '</b> = ' + hash + '</div><p class="sim-note">' + tx('pl_s1_n') + '</p>';
+    var s2 = '<div class="sim-formula" dir="ltr">pg_num = ' + P.pgn + ' · pg_num_mask = ' + hx(mask) + '<br>' + hx(hash) + ' &amp; ' + hx(mask) + ' = ' + low
+      + (low < P.pgn ? ' &lt; ' + P.pgn + ' ⇒ ps = <b>' + ps + '</b>' : ' ≥ ' + P.pgn + ' ⇒ ' + hx(hash) + ' &amp; ' + hx(mask >> 1) + ' = <b>' + ps + '</b>')
+      + '<br>pgid = ' + pgid + '</div><p class="sim-note">' + tx(low < P.pgn ? 'pl_s2_ok' : 'pl_s2_fold', { v: L(low) }) + ' ' + tx('pl_s2_n', { raw: P.pool + '.' + hash.toString(16), pgid: pgid }) + '</p>';
+    var s3 = '<div class="sim-formula" dir="ltr">ceph_stable_mod(' + ps + ', pgp_num ' + P.pgp + ', ' + hx(pgpMask) + ') = ' + ps2 + '<br>x = crush_hash32_rjenkins1_2(' + ps2 + ', pool ' + P.pool + ') = <b>' + hx(r.pps) + '</b> = ' + r.pps + '</div>'
+      + '<p class="sim-note">' + tx('pl_s3_n') + '</p>';
+    var rule = st.fd === 'host' ? 'step chooseleaf firstn 0 type host' : 'step choose firstn 0 type osd';
+    var s4 = '<pre class="sim-cmd" dir="ltr"><code>rule replicated_rule { step take default; ' + rule + '; step emit }   # ' + st.alg + ', tunables jewel, size ' + st.size + '</code></pre>'
+      + '<p class="sim-note">' + tx('pl_s4_n', { fd: st.fd }) + '</p>' + traceHTML(st, md, o.trace, r.raw);
+    var downs = r.raw.filter(function (x) { return md.down[x]; });
+    var s5 = '<div class="sim-formula" dir="ltr">raw (CRUSH) = ' + setStr(r.raw) + (downs.length ? ' · down: ' + downs.map(function (x) { return 'osd.' + x; }).join(', ') : '')
+      + '<br>up = ' + setStr(r.up) + ' · acting = ' + setStr(r.up) + ' · primary = ' + (r.primary >= 0 ? 'osd.' + r.primary : '–') + '</div>'
+      + '<p class="sim-note">' + tx('pl_s5_n') + '</p>'
+      + '<pre class="sim-cmd" dir="ltr"><code>$ ceph osd map ' + P.name + ' ' + esc(name) + '\nosdmap e1 pool \'' + P.name + '\' (' + P.pool + ') object \'' + esc(name) + '\' -> pg ' + P.pool + '.' + hash.toString(16) + ' (' + pgid + ') -> up (' + setStr(r.up) + ', p' + r.primary + ') acting (' + setStr(r.up) + ', p' + r.primary + ')</code></pre>';
+    var steps = [['pl_s1_t', s1], ['pl_s2_t', s2], ['pl_s3_t', s3], ['pl_s4_t', s4], ['pl_s5_t', s5]];
+    return '<ol class="pl-steps">' + steps.map(function (x, i) { return '<li class="pl-step"><h4><span class="pl-n">' + L(i + 1) + '</span>' + tx(x[0]) + '</h4>' + x[1] + '</li>'; }).join('') + '</ol>';
+  }
+
+  /* ---------------------------------------------------------- RBD: image bytes -> objects -> PGs -> OSDs */
+  var ROWS = 32, MAXBLOCKS = 4096, MAXOBJ = 65536;
+  // librbd's layout: object_size = 2^order; the Striper treats stripe_count 1 as stripe_unit = object size
+  function lay(st) { var os = Math.pow(2, st.order), su = Math.min(st.su, os); return { object_size: os, stripe_unit: st.sc === 1 ? os : su, stripe_count: st.sc }; }
+  function newId() { return C.rbdImageId(4096 + Math.floor(Math.random() * 60000), Math.floor(Math.random() * 4294967296)); }
+  var ICACHE = { key: '', cnt: null };
+  // every object of the image (as if all were written), counted per PG of the data pool
+  function imagePgs(st, l, P) {
+    var n = Math.min(C.numObjects(l, st.gib * G), MAXOBJ), mdp = st.dp ? st.pool : -1, key = [st.iid, mdp, P.pgn, n].join(':');
+    if (ICACHE.key !== key) {
+      var cnt = {}, mask = C.pgMask(P.pgn);
+      for (var i = 0; i < n; i++) { var ps = C.stableMod(C.strHash(C.rbdDataName(st.iid, i, mdp)), P.pgn, mask); cnt[ps] = (cnt[ps] || 0) + 1; }
+      ICACHE = { key: key, cnt: Object.keys(cnt).map(function (k) { return [+k, cnt[k]]; }) };
+    }
+    return ICACHE.cnt;
+  }
+  function xBtn(st, name, fid) {
+    var on = st.open === name;
+    return '<button type="button" class="sim-btn sm" data-act="plx" data-o="' + esc(name) + '" data-fid="' + fid + '" aria-expanded="' + on + '" aria-label="' + esc(T('pl_steps_for', { o: name })) + '">' + esc(T(on ? 'pl_steps_hide' : 'pl_steps')) + '</button>';
+  }
+  // the open object's five steps go in a panel under its table (a row inside it would widen every column)
+  function objRow(st, md, name, P, fid, cells, panel) {
+    var o = objPath(st, md, name, P, st.open === name), r = o.r;
+    var html = '<tr' + (st.open === name ? ' class="open"' : '') + '><td dir="ltr"><code>' + esc(name) + '</code></td>' + cells + '<td dir="ltr">' + o.pgid + '</td><td dir="ltr">' + setStr(r.up) + '</td><td dir="ltr">'
+      + (r.primary >= 0 ? 'osd.' + r.primary : '–') + '</td><td>' + xBtn(st, name, fid) + '</td></tr>';
+    if (st.open === name) panel.push('<div class="pl-xp"><h5><bdi dir="ltr">' + esc(name) + '</bdi></h5>' + stepsHTML(st, md, name, P, o) + '</div>');
+    return { html: html, o: o };
+  }
+  function rbdView(st, md) {
+    var l = lay(st), size = st.gib * G, off = clamp(st.off, 0, size - 1), len = clamp(st.len, 1, size - off), warn = mapWarns(st);
+    var cap = l.stripe_unit * MAXBLOCKS;
+    if (len > cap) { len = cap; warn.push(tx('pl_rbd_lencap', { n: bytes(cap) })); }
+    if (st.dp && st.dpool === st.pool) warn.push(tx('pl_rbd_samepool'));
+    var MP = mdPool(st), DP = dataPool(st), mdp = st.dp ? st.pool : -1, meta = C.rbdMetaNames(st.img, st.iid);
+    var ex = C.fileToExtents(l, off, len, 0), pgs = {}, osdsT = {};
+    ex.forEach(function (e) { pgs[C.stableMod(C.strHash(C.rbdDataName(st.iid, e.object_no, mdp)), DP.pgn, C.pgMask(DP.pgn))] = 1; });
+    Object.keys(pgs).forEach(function (ps) { C.pgToUp(md.m, 0, +ps, DP.pool, DP.pgp, st.size, md.dev, md.down, false).up.forEach(function (x) { if (x !== C.NONE) osdsT[x] = 1; }); });
+    var npg = Object.keys(pgs).length, nosd = Object.keys(osdsT).length;
+    var flow = '<ol class="pl-flow" dir="ltr"><li><b>' + esc(st.img) + '</b><small>image · id ' + esc(st.iid) + '</small></li><li><b>' + off + '~' + len + '</b><small>bytes</small></li>'
+      + '<li><b>' + ex.length + ' objects</b><small>Striper</small></li><li><b>' + npg + ' PGs</b><small>pool ' + DP.pool + '</small></li><li class="pl-to"><b>' + nosd + ' OSDs</b><small>CRUSH · ' + st.alg + '</small></li></ol>';
+    var stats = '<div class="sim-stats">' + stat(L(ex.length), T('pl_st_objs')) + stat(L(npg), T('pl_st_pgs')) + stat(L(nosd), T('pl_st_osds')) + stat(bytes(l.object_size), 'object_size')
+      + stat(l.stripe_count > 1 ? bytes(l.stripe_unit) + ' × ' + l.stripe_count : '–', 'stripe_unit × stripe_count') + '</div>';
+    // step 1: the Striper
+    var pd = [], pm = [], rows = ex.slice(0, ROWS).map(function (e, i) {
+      var be = e.buffer_extents.slice(0, 3).map(function (b) { return '[' + (off + b[0]) + ', ' + (off + b[0] + b[1]) + ')'; }).join(' ') + (e.buffer_extents.length > 3 ? ' … (' + e.buffer_extents.length + ')' : '');
+      return objRow(st, md, C.rbdDataName(st.iid, e.object_no, mdp), DP, 'xd' + i, '<td dir="ltr">' + e.offset + '~' + e.length + '</td><td dir="ltr">' + be + '</td>', pd).html;
+    }).join('');
+    var head = function (cols) { return '<thead><tr>' + cols.map(function (c) { return '<th scope="col">' + esc(c) + '</th>'; }).join('') + '<th scope="col"><span class="vh">' + esc(T('pl_steps')) + '</span></th></tr></thead>'; };
+    var spo = l.object_size / l.stripe_unit;
+    var s1 = '<div class="sim-formula" dir="ltr">os = 1 &lt;&lt; ' + st.order + ' = ' + l.object_size + ' · su = ' + l.stripe_unit + ' · sc = ' + l.stripe_count + (st.sc === 1 && st.su < l.object_size ? ' <span class="pl-dim">(sc = 1 ⇒ su = os)</span>' : '')
+      + '<br>blockno = ⌊off / su⌋ · stripeno = ⌊blockno / sc⌋ · stripepos = blockno % sc<br>objectno = ⌊stripeno / ' + spo + '⌋ × sc + stripepos · offset in object = (stripeno % ' + spo + ') × su + off % su'
+      + '<br>name = "' + esc(C.rbdDataName(st.iid, 0, mdp).replace(/0+$/, '')) + '" + %016llx(objectno)</div><p class="sim-note">' + tx('pl_rbd_s1_n') + '</p>';
+    var s2 = '<p class="sim-note">' + tx(st.dp ? 'pl_rbd_s2_dp' : 'pl_rbd_s2_n', { pool: DP.pool, md: MP.pool }) + '</p><div class="table-wrap"><table class="sim-t pl-ot">'
+      + head([T('pl_c_obj'), T('pl_c_inobj'), T('pl_c_img'), 'PG', T('pl_st_up'), 'primary']) + '<tbody>' + rows + '</tbody></table></div>' + pd.join('')
+      + (ex.length > ROWS ? '<p class="sim-note">' + tx('pl_rbd_more', { n: L(ex.length - ROWS) }) + '</p>' : '');
+    // step 3: metadata objects, always in the metadata pool
+    var mrows = [['directory', 'pl_r_dir'], ['id', 'pl_r_id'], ['header', 'pl_r_hdr'], ['objectMap', 'pl_r_om']].map(function (m, i) {
+      return objRow(st, md, meta[m[0]], MP, 'xm' + i, '<td>' + tx(m[1]) + '</td>', pm).html;
+    }).join('');
+    var s3 = '<p class="sim-note">' + tx('pl_rbd_s3_n', { md: MP.pool }) + '</p><div class="table-wrap"><table class="sim-t pl-ot">' + head([T('pl_c_obj'), T('pl_c_role'), 'PG', T('pl_st_up'), 'primary']) + '<tbody>' + mrows + '</tbody></table></div>' + pm.join('');
+    // step 4: the whole image
+    var nobj = C.numObjects(l, size), cnt = imagePgs(st, l, DP), per = {}, prim = {}, tot = 0, osdsAll = {};
+    cnt.forEach(function (pc) {
+      var r = C.pgToUp(md.m, 0, pc[0], DP.pool, DP.pgp, st.size, md.dev, md.down, false);
+      r.up.forEach(function (x) { if (x !== C.NONE) { per[x] = (per[x] || 0) + pc[1]; osdsAll[x] = 1; } });
+      if (r.primary >= 0) prim[r.primary] = (prim[r.primary] || 0) + pc[1];
+      tot += pc[1];
+    });
+    var ids = Object.keys(per).map(Number).sort(function (a, b) { return a - b; }), mx = Math.max.apply(null, ids.map(function (i) { return per[i]; }).concat([1]));
+    var otab = '<div class="table-wrap pl-osdw"><table class="sim-t pl-osd"><thead><tr><th scope="col">OSD</th><th scope="col">' + esc(T('pl_c_reps')) + '</th><th scope="col">primary</th></tr></thead><tbody>'
+      + ids.map(function (i) { return '<tr><th scope="row" dir="ltr">osd.' + i + '</th><td><span class="pl-mv">' + bar(per[i] / mx) + '<b>' + L(per[i]) + '</b></span></td><td>' + L(prim[i] || 0) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    var s4 = '<div class="sim-stats">' + stat(L(nobj), T('pl_st_imgobjs')) + stat(L(cnt.length) + ' / ' + L(DP.pgn), T('pl_st_pgs')) + stat(L(Object.keys(osdsAll).length) + ' / ' + L(osds(st.hosts).length), T('pl_st_osds')) + '</div>'
+      + '<p class="sim-note">' + tx('pl_rbd_s4_n') + (nobj > MAXOBJ ? ' ' + tx('pl_rbd_cap', { n: L(MAXOBJ) }) : '') + '</p>' + otab;
+    var steps = [['pl_rbd_s1_t', s1], ['pl_rbd_s2_t', s2], ['pl_rbd_s3_t', s3], ['pl_rbd_s4_t', s4]];
+    var cmd = '<pre class="sim-cmd" dir="ltr"><code>$ rbd create ' + (st.dp ? '--data-pool rbd-data ' : '') + '--size ' + st.gib + 'G --object-size ' + bytes(l.object_size).replace(' ', '').replace('iB', '')
+      + (l.stripe_count > 1 ? ' --stripe-unit ' + bytes(l.stripe_unit).replace(' ', '').replace('iB', '') + ' --stripe-count ' + l.stripe_count : '') + ' rbd/' + esc(st.img) + '\n$ rbd info rbd/' + esc(st.img) + '\n\tsize ' + st.gib + ' GiB in ' + nobj + ' objects\n\torder ' + st.order + ' (' + bytes(l.object_size) + ' objects)\n'
+      + (l.stripe_count > 1 ? '\tstripe unit: ' + bytes(l.stripe_unit) + '\n\tstripe count: ' + l.stripe_count + '\n' : '') + '\tid: ' + esc(st.iid) + '\n' + (st.dp ? '\tdata_pool: rbd-data\n' : '') + '\tblock_name_prefix: ' + esc(C.rbdDataName(st.iid, 0, mdp).replace(/\.0+$/, '')) + '\n\tformat: 2</code></pre>';
+    return flow + stats + warnList(warn) + cmd + '<ol class="pl-steps">' + steps.map(function (x, i) { return '<li class="pl-step"><h4><span class="pl-n">' + L(i + 1) + '</span>' + tx(x[0]) + '</h4>' + x[1] + '</li>'; }).join('') + '</ol>';
+  }
+
   S.DEFS.placement = {
     icon: 'M3 5h6v4H3zM9 7h3M12 7v10M12 12h3M12 17h3M15 10h6v4h-6zM15 15h6v4h-6zM15 5h6v4h-6z',
     defaults: function () {
       return { obj: 'photos/2026/11/img_0001.jpg', pool: 1, pgn: 64, pgp: 64, size: 3, fd: 'host', alg: 'straw2', hosts: hosts0(),
-               chg: 'rmhost', co: 4, cw: 4, to: 'straw', n: 1000 };
+               chg: 'rmhost', co: 4, cw: 4, to: 'straw', n: 1000,
+               mode: 'obj', img: 'vm-disk-1', iid: '1d6f2a8c4e93', gib: 10, order: 22, su: 4 << 20, sc: 1, off: 9 << 20, len: 8 << 20,
+               dp: false, dpool: 2, dpgn: 128, open: '' };
     },
     refs: [['src/common/ceph_hash.cc :: ceph_str_hash_rjenkins', 'r_strhash'], ['src/include/rados.h :: ceph_stable_mod; src/osd/osd_types.cc :: pg_pool_t::calc_pg_masks', 'r_stable'],
            ['src/osd/osd_types.cc :: pg_pool_t::raw_pg_to_pps (FLAG_HASHPSPOOL)', 'r_pps'], ['src/crush/hash.c :: crush_hash32_rjenkins1_2, _3, _4', 'r_hash'],
@@ -139,10 +260,27 @@
            ['src/crush/mapper.c :: bucket_straw_choose; builder.c :: crush_calc_straw (straw_calc_version 1)', 'r_pl_straw'],
            ['src/crush/mapper.c :: bucket_list_choose, bucket_tree_choose, bucket_perm_choose; builder.c :: crush_make_bucket', 'r_pl_old'],
            ['src/osd/OSDMap.cc :: _pg_to_raw_osds, _raw_to_up_osds, _pick_primary', 'r_up'],
-           ['src/crush/CrushWrapper.cc :: add_simple_rule_at; CrushWrapper.h :: set_tunables_jewel', 'r_rule']],
+           ['src/crush/CrushWrapper.cc :: add_simple_rule_at; CrushWrapper.h :: set_tunables_jewel', 'r_rule'],
+           ['src/osdc/Striper.cc :: Striper::file_to_extents, get_num_objects', 'r_st_fte'],
+           ['src/librbd/ImageCtx.cc :: init_layout (format_string "%s.%016llx"); librbd/image/CreateRequest.cc :: create_image, validate_striping', 'r_pl_rbdname'],
+           ['src/include/rbd_types.h; librbd/Utils.cc :: generate_image_id, id_obj_name, header_name; librbd/ObjectMap.cc :: object_map_name', 'r_pl_rbdmeta']],
     controls: function (st) {
-      var out = '<div class="sim-row">' + field(T('pl_obj'), '<input type="text" dir="ltr" spellcheck="false" autocomplete="off" data-k="obj" value="' + esc(st.obj) + '">') + '</div>'
-        + '<div class="sim-row">' + field(T('pl_pool'), numIn('pool', st.pool, 0, 9999, 1)) + field('pg_num', numIn('pgn', st.pgn, 1, 4096, 1)) + field('pgp_num', numIn('pgp', st.pgp, 1, 4096, 1))
+      var rbd = st.mode === 'rbd', os = Math.pow(2, st.order);
+      var out = '<div class="sim-row"><div class="sim-f"><span>' + esc(T('pl_mode_l')) + '</span>' + seg('pl_mode', [['obj', T('pl_mode_obj')], ['rbd', T('pl_mode_rbd')]], st.mode) + '</div></div>';
+      if (!rbd) out += '<div class="sim-row">' + field(T('pl_obj'), '<input type="text" dir="ltr" spellcheck="false" autocomplete="off" data-k="obj" value="' + esc(st.obj) + '">') + '</div>';
+      else {
+        var sus = []; for (var su = 4096; su <= os; su *= 2) sus.push([su, bytes(su) + (su === os ? ' (= object_size)' : '')]);
+        out += '<div class="sim-row">' + field(T('pl_img'), '<input type="text" dir="ltr" spellcheck="false" autocomplete="off" data-k="img" value="' + esc(st.img) + '">')
+          + '<div class="sim-f"><span>' + esc(T('pl_iid')) + '</span><span class="pl-iid"><input type="text" dir="ltr" spellcheck="false" autocomplete="off" data-k="iid" maxlength="14" aria-label="' + esc(T('pl_iid')) + '" value="' + esc(st.iid) + '">'
+          + '<button type="button" class="sim-btn sm" data-act="newid">' + esc(T('pl_newid')) + '</button></span></div>'
+          + field(T('pl_gib'), numIn('gib', st.gib, 1, 65536, 1)) + '</div>'
+          + '<div class="sim-row">' + field('order', sel('order', [12, 16, 20, 21, 22, 23, 24, 25].map(function (o) { return [o, o + ' (' + bytes(Math.pow(2, o)) + ')']; }), st.order))
+          + field('stripe_unit', sel('su', sus, Math.min(st.su, os))) + field('stripe_count', sel('sc', [1, 2, 3, 4, 8, 16], st.sc))
+          + field(T('pl_off'), numIn('off', st.off, 0, 1e15, 1), bytes(st.off)) + field(T('pl_len'), numIn('len', st.len, 1, 1e15, 1), bytes(st.len)) + '</div>'
+          + '<div class="sim-row"><label class="sim-f sim-chk"><input type="checkbox" data-k="dp"' + (st.dp ? ' checked' : '') + '><span>' + tx('pl_dp') + '</span></label>'
+          + (st.dp ? field(T('pl_dpool'), numIn('dpool', st.dpool, 0, 9999, 1)) + field(T('pl_dpgn'), numIn('dpgn', st.dpgn, 1, 4096, 1)) : '') + '</div>';
+      }
+      out += '<div class="sim-row">' + field(T(rbd ? 'pl_mdpool' : 'pl_pool'), numIn('pool', st.pool, 0, 9999, 1)) + field('pg_num', numIn('pgn', st.pgn, 1, 4096, 1)) + field('pgp_num', numIn('pgp', st.pgp, 1, 4096, 1))
         + field(T('pl_size'), sel('size', [1, 2, 3, 4, 5], st.size)) + field('Failure domain', sel('fd', [['host', 'host'], ['osd', 'osd']], st.fd)) + '</div>'
         + '<div class="sim-row"><div class="sim-f"><span>' + esc(T('pl_alg')) + '</span>' + seg('pl_alg', ALGS.map(function (a) { return [a, a]; }), st.alg) + '<small>' + tx('pl_alg_all') + '</small></div></div>';
       out += '<div class="cr-hosts" dir="ltr">' + st.hosts.map(function (ho, hi) {
@@ -159,43 +297,38 @@
       return out;
     },
     view: function (st) {
-      var md = model(st.hosts, st.alg, st.fd), all = osds(st.hosts);
-      var hash = C.strHash(st.obj), mask = C.pgMask(st.pgn), low = hash & mask, ps = C.stableMod(hash, st.pgn, mask);
-      var pgpMask = C.pgMask(st.pgp), ps2 = C.stableMod(ps, st.pgp, pgpMask), trace = [], r = place(st, md, ps, trace);
-      var pgid = st.pool + '.' + ps.toString(16), nbytes = (typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(st.obj) : Buffer.from(st.obj, 'utf8')).length;
-      var upN = r.up.filter(function (o) { return o !== C.NONE; });
-      var flow = '<ol class="pl-flow" dir="ltr"><li><b>' + esc(st.obj.length > 28 ? st.obj.slice(0, 27) + '…' : st.obj) + '</b><small>name</small></li><li><b>' + hx(hash) + '</b><small>rjenkins</small></li>'
-        + '<li><b>pg ' + pgid + '</b><small>stable_mod</small></li><li><b>x ' + hx(r.pps) + '</b><small>pps</small></li><li class="pl-to"><b>' + setStr(r.up) + '</b><small>up · ' + st.alg + '</small></li></ol>';
-      var stats = '<div class="sim-stats">' + stat(pgid, T('pl_st_pg')) + stat(hx(r.pps), 'x (pps)') + stat(setStr(r.up), T('pl_st_up')) + stat(r.primary >= 0 ? 'osd.' + r.primary : '–', 'primary', r.primary < 0 ? 'warn' : '') + '</div>';
-      var warn = [];
-      if (st.alg === 'uniform' && st.hosts.some(function (ho) { return ho.osds.some(function (o) { return o.w !== ho.osds[0].w; }); })) warn.push(tx('pl_w_uniform'));
-      if (st.alg === 'uniform' && st.hosts.some(function (ho) { return ho.osds.reduce(function (a, o) { return a + o.w; }, 0) !== st.hosts[0].osds.reduce(function (a, o) { return a + o.w; }, 0); })) warn.push(tx('pl_w_uniform_root'));
-      if (st.alg === 'tree') warn.push(tx('pl_w_tree'));
+      var md = model(st.hosts, st.alg, st.fd);
+      if (st.mode === 'rbd') return rbdView(st, md);
+      var P = mdPool(st), o = objPath(st, md, st.obj, P, true), r = o.r;
+      var flow = '<ol class="pl-flow" dir="ltr"><li><b>' + esc(st.obj.length > 28 ? st.obj.slice(0, 27) + '…' : st.obj) + '</b><small>name</small></li><li><b>' + hx(o.hash) + '</b><small>rjenkins</small></li>'
+        + '<li><b>pg ' + o.pgid + '</b><small>stable_mod</small></li><li><b>x ' + hx(r.pps) + '</b><small>pps</small></li><li class="pl-to"><b>' + setStr(r.up) + '</b><small>up · ' + st.alg + '</small></li></ol>';
+      var stats = '<div class="sim-stats">' + stat(o.pgid, T('pl_st_pg')) + stat(hx(r.pps), 'x (pps)') + stat(setStr(r.up), T('pl_st_up')) + stat(r.primary >= 0 ? 'osd.' + r.primary : '–', 'primary', r.primary < 0 ? 'warn' : '') + '</div>';
+      var upN = r.up.filter(function (x) { return x !== C.NONE; }), warn = mapWarns(st);
       if (upN.length < st.size) warn.push(tx('pl_w_short', { n: L(upN.length), size: L(st.size) }));
-      var s1 = '<div class="sim-formula" dir="ltr">ceph_str_hash_rjenkins("' + esc(st.obj) + '") <span class="pl-dim">(' + nbytes + ' B, UTF-8)</span> = <b>' + hx(hash) + '</b> = ' + hash + '</div><p class="sim-note">' + tx('pl_s1_n') + '</p>';
-      var s2 = '<div class="sim-formula" dir="ltr">pg_num = ' + st.pgn + ' · pg_num_mask = ' + hx(mask) + '<br>' + hx(hash) + ' &amp; ' + hx(mask) + ' = ' + low
-        + (low < st.pgn ? ' &lt; ' + st.pgn + ' ⇒ ps = <b>' + ps + '</b>' : ' ≥ ' + st.pgn + ' ⇒ ' + hx(hash) + ' &amp; ' + hx(mask >> 1) + ' = <b>' + ps + '</b>')
-        + '<br>pgid = ' + st.pool + '.' + ps.toString(16) + '</div><p class="sim-note">' + tx(low < st.pgn ? 'pl_s2_ok' : 'pl_s2_fold', { v: L(low) }) + ' ' + tx('pl_s2_n', { raw: st.pool + '.' + hash.toString(16), pgid: pgid }) + '</p>';
-      var s3 = '<div class="sim-formula" dir="ltr">ceph_stable_mod(' + ps + ', pgp_num ' + st.pgp + ', ' + hx(pgpMask) + ') = ' + ps2 + '<br>x = crush_hash32_rjenkins1_2(' + ps2 + ', pool ' + st.pool + ') = <b>' + hx(r.pps) + '</b> = ' + r.pps + '</div>'
-        + '<p class="sim-note">' + tx('pl_s3_n') + '</p>';
-      var rule = st.fd === 'host' ? 'step chooseleaf firstn 0 type host' : 'step choose firstn 0 type osd';
-      var s4 = '<pre class="sim-cmd" dir="ltr"><code>rule replicated_rule { step take default; ' + rule + '; step emit }   # ' + st.alg + ', tunables jewel, size ' + st.size + '</code></pre>'
-        + '<p class="sim-note">' + tx('pl_s4_n', { fd: st.fd }) + '</p>' + traceHTML(st, md, trace, r.raw);
-      var downs = r.raw.filter(function (o) { return md.down[o]; });
-      var s5 = '<div class="sim-formula" dir="ltr">raw (CRUSH) = ' + setStr(r.raw) + (downs.length ? ' · down: ' + downs.map(function (o) { return 'osd.' + o; }).join(', ') : '')
-        + '<br>up = ' + setStr(r.up) + ' · acting = ' + setStr(r.up) + ' · primary = ' + (r.primary >= 0 ? 'osd.' + r.primary : '–') + '</div>'
-        + '<p class="sim-note">' + tx('pl_s5_n') + '</p>'
-        + '<pre class="sim-cmd" dir="ltr"><code>$ ceph osd map pool' + st.pool + ' ' + esc(st.obj) + '\nosdmap e1 pool \'pool' + st.pool + '\' (' + st.pool + ') object \'' + esc(st.obj) + '\' -> pg ' + st.pool + '.' + hash.toString(16) + ' (' + pgid + ') -> up (' + setStr(r.up) + ', p' + r.primary + ') acting (' + setStr(r.up) + ', p' + r.primary + ')</code></pre>';
-      var steps = [['pl_s1_t', s1], ['pl_s2_t', s2], ['pl_s3_t', s3], ['pl_s4_t', s4], ['pl_s5_t', s5]];
-      var stepsHTML = '<ol class="pl-steps">' + steps.map(function (s, i) { return '<li class="pl-step"><h4><span class="pl-n">' + L(i + 1) + '</span>' + tx(s[0]) + '</h4>' + s[1] + '</li>'; }).join('') + '</ol>';
-      return flow + stats + (warn.length ? '<ul class="sim-warn">' + warn.map(function (w) { return '<li>' + w + '</li>'; }).join('') + '</ul>' : '') + stepsHTML + compare(st, md);
+      return flow + stats + warnList(warn) + stepsHTML(st, md, st.obj, P, o) + compare(st, md);
     },
+    preset: function (st, mode) { if (mode === 'rbd') st.mode = 'rbd'; return st; },
     say: function (st) {
+      if (st.mode === 'rbd') {
+        var l = lay(st), off = clamp(st.off, 0, st.gib * G - 1);
+        return st.img + ': ' + C.fileToExtents(l, off, clamp(Math.min(st.len, l.stripe_unit * MAXBLOCKS), 1, st.gib * G - off), 0).length + ' objects';
+      }
       var md = model(st.hosts, st.alg, st.fd), hash = C.strHash(st.obj), ps = C.stableMod(hash, st.pgn, C.pgMask(st.pgn)), r = place(st, md, ps);
       return st.obj + ' → pg ' + st.pool + '.' + ps.toString(16) + ' → ' + setStr(r.up);
     },
     input: function (st, k, v, el) {
       if (k === 'obj') { st.obj = String(v).slice(0, 200); return 'out'; }
+      if (k === 'pl_mode') { st.mode = v; st.open = ''; return 'all'; }
+      if (k === 'img') { st.img = String(v).replace(/[\s\/@]/g, '').slice(0, 64) || 'img'; return 'out'; }
+      if (k === 'iid') { st.iid = String(v).toLowerCase().replace(/[^0-9a-f]/g, '').slice(0, 14) || '0'; return 'out'; }
+      if (k === 'gib') { st.gib = clamp(parseInt(v, 10) || 1, 1, 65536); return 'out'; }
+      if (k === 'order') { st.order = +v; st.su = Math.min(st.su, Math.pow(2, st.order)); return 'all'; }
+      if (k === 'su' || k === 'sc') { st[k] = +v; return 'out'; }
+      if (k === 'off') { st.off = Math.max(0, Math.floor(+v || 0)); return 'out'; }
+      if (k === 'len') { st.len = Math.max(1, Math.floor(+v || 1)); return 'out'; }
+      if (k === 'dp') { st.dp = !!v; return 'all'; }
+      if (k === 'dpool') { st.dpool = clamp(parseInt(v, 10) || 0, 0, 9999); return 'out'; }
+      if (k === 'dpgn') { st.dpgn = clamp(parseInt(v, 10) || 1, 1, 4096); return 'out'; }
       if (k === 'pool') { st.pool = clamp(parseInt(v, 10) || 0, 0, 9999); return 'out'; }
       if (k === 'pgn') { var n = clamp(parseInt(v, 10) || 1, 1, 4096), follow = st.pgp === st.pgn; st.pgn = n; st.pgp = follow ? n : Math.min(st.pgp, n); return follow ? 'all' : 'out'; }
       if (k === 'pgp') { st.pgp = clamp(parseInt(v, 10) || 1, 1, st.pgn); return 'out'; }
@@ -214,6 +347,8 @@
       return null;
     },
     act: function (st, a, el) {
+      if (a === 'plx') { var nmx = el.getAttribute('data-o'); st.open = st.open === nmx ? '' : nmx; return 'out'; }
+      if (a === 'newid') { st.iid = newId(); return 'all'; }
       var p = (el.getAttribute('data-p') || '').split('.'), ho = st.hosts[+p[0]], o = ho && p.length > 1 ? ho.osds[+p[1]] : null;
       if (a === 'out') { o.out = !o.out; return 'all'; }
       if (a === 'down') { o.down = !o.down; return 'all'; }

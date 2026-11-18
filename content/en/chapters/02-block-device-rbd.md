@@ -53,6 +53,11 @@ For each image (in format 2, which has been the default for years) these objects
 Because each 4 MB object is placed on the OSDs independently by CRUSH, a large image is effectively spread over every OSD in the pool. This is why RBD scales very well for parallel I/O (for example at a high queue depth), but for single-threaded I/O at queue depth 1 it pays the full latency of a network round trip plus replication. Custom striping (`--stripe-unit` and `--stripe-count`) can help large sequential workloads, but krbd supports only some combinations; do not change the default without a reason.
 :::
 
+In the lab below you can give an image a name, a size and a striping layout, pick a byte range, and see which `rbd_data` objects it falls into and which OSDs each of them, and the image's metadata objects, land on.
+
+::: {.sim name="placement" mode="rbd"}
+:::
+
 ## Image features {#sec-02-2-2}
 
 Each image has a set of **features**, chosen at creation time; some of them can be enabled or disabled later:

@@ -27,9 +27,10 @@
       + '<div class="sim-ctl"></div><div class="sim-out"></div><div class="vh" aria-live="polite"></div>';
   }
   // the figure for print and no-JS readers: the same view, of a fixed state, with every step shown
-  S.staticHTML = function (name, strings, lang) {
+  S.staticHTML = function (name, strings, lang, mode) {
     S.setStrings(strings, lang);
     var def = S.DEFS[name], st = def.defaults();
+    if (mode && def.preset) st = def.preset(st, mode);
     if (def.fallbackState) st = def.fallbackState(st);
     return '<div class="sim-head">' + icon(def.icon) + '<div class="sim-ttl"><span class="sim-tag">' + esc(T('lab_tag')) + '</span><h3>' + esc(T(name + '_t')) + '</h3></div></div>'
       + '<p class="sim-sub">' + tx(name + '_d') + '</p><div class="sim-out">' + def.view(st, true) + '</div>'
@@ -41,7 +42,9 @@
   function mount(slot, lab) {
     var name = slot.getAttribute('data-sim'), def = S.DEFS[name];
     if (!def || slot.__sim) return;
-    var st = def.defaults(), used = false, timer = null, deb = null;
+    // data-mode (from ::: {.sim name="..." mode="..."}) opens a simulator in one of its modes
+    var mode = slot.getAttribute('data-mode'), init = function () { var s = def.defaults(); return mode && def.preset ? def.preset(s, mode) : s; };
+    var st = init(), used = false, timer = null, deb = null;
     slot.__sim = true;
     var box = document.createElement('section');
     box.className = 'sim sim-' + name; box.setAttribute('aria-label', T(name + '_t'));
@@ -81,7 +84,7 @@
         var p = box.querySelector('.sim-info'), open = el.getAttribute('aria-expanded') === 'true';
         el.setAttribute('aria-expanded', String(!open)); p.hidden = open; return;
       }
-      if (a === '__reset') { stop(); st = def.defaults(); apply('all'); live.textContent = T('reset_done'); return; }
+      if (a === '__reset') { stop(); st = init(); apply('all'); live.textContent = T('reset_done'); return; }
       if (a === 'prev') { stop(); step(-1); return; }
       if (a === 'next') { stop(); step(1); return; }
       if (a === 'play') {

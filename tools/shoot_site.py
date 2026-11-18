@@ -590,6 +590,18 @@ with sync_playwright() as pw:
             pg.wait_for_timeout(300)
             if box.locator('.pl-cmp tbody tr').count() != 5:
                 problems.append('[sim placement] marking an OSD out did not compare the five algorithms')
+            box.locator('[data-set="pl_mode"][data-v="rbd"]').click()
+            pg.wait_for_timeout(150)
+            box.locator('select[data-k="sc"]').select_option('4')
+            box.locator('select[data-k="su"]').select_option(str(64 << 10))
+            pg.wait_for_timeout(300)
+            txt = box.locator('.sim-out').inner_text()
+            if box.locator('.pl-ot').count() != 2 or 'rbd_header.' not in txt or 'rbd_data.' not in txt or box.locator('.pl-ot').first.locator('tbody tr').count() < 2:
+                problems.append('[sim placement] RBD mode did not list the striped data objects and the metadata objects')
+            box.locator('.pl-ot [data-act="plx"]').first.click()
+            pg.wait_for_timeout(200)
+            if box.locator('.pl-xp .pl-step').count() != 5:
+                problems.append('[sim placement] the Steps button of an RBD object did not open its five steps')
         elif name == 'pgcalc':
             box.locator('input[data-k="osds"]').fill('120')
             pg.wait_for_timeout(450)

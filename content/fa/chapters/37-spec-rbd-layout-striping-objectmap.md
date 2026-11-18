@@ -166,6 +166,11 @@ while left > 0:
 ::: {.sim name="striping"}
 :::
 
+آزمایشگاه زیر همین اشیا را یک گام جلوتر دنبال می‌کند، تا PG و OSDهایشان، همراه با اشیای header، id و object map همان image.
+
+::: {.sim name="placement" mode="rbd"}
+:::
+
 # object map {#sec-37-4}
 
 ## حالت‌ها و بسته‌بندی بیت {#sec-37-4-1}

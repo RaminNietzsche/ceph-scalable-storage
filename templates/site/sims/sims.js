@@ -27,8 +27,8 @@
     if (n >= 1024 && i < u.length - 1) { while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; } return L(Math.round(n * 100) / 100) + ' ' + u[i]; }
     return L(n) + ' ' + u[i];
   }
-  // prose with Latin tokens (versions like 40'4, function names, [0,1,2]) isolated so the Persian bidi order holds
-  var TOK = /[A-Za-z0-9_\[{(<\/.$?][\w.:'\[\]{},+\-\/=&#?…()<>$*^%|]*/g;
+  // prose with Latin tokens (versions like 40'4, function names, [0,1,2], --flags) isolated so the Persian bidi order holds
+  var TOK = /[A-Za-z0-9_\[{(<\/.$?-][\w.:'\[\]{},+\-\/=&#?…()<>$*^%|]*/g;
   function rich(s) {
     s = String(s);
     if (!FA) return esc(s);
