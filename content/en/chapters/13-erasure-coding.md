@@ -51,6 +51,11 @@ In EC, data is split into **k data chunks**, and **m parity chunks** are compute
 ::: {.sim name="ecprofile"}
 :::
 
+In the lab below, make the pool erasure-coded and pick k and m to see which OSD CRUSH gives each shard with `indep`, what hole a failed OSD leaves, and how many lost shards the PG survives while staying active.
+
+::: {.sim name="placement" mode="ec"}
+:::
+
 ## The mathematics in plain terms {#sec-13-2-2}
 
 Reed-Solomon codes (which ISA-L and Jerasure implement) work over a **Galois field** (usually $\mathrm{GF}(2^8)$): each byte is a field element, and addition is XOR. Treat k data bytes as a vector d; the shards are the product of a (k+m)×k generator matrix G and d. The first k rows of G are the identity matrix (so the data shards are the data itself), and the next m rows are the parity coefficients. To rebuild, we take the k×k submatrix that corresponds to any k available shards and invert it. The condition for this to work is that **every** k×k submatrix is invertible; Vandermonde (`reed_sol_van`) and Cauchy (`cauchy`) matrices have this property.

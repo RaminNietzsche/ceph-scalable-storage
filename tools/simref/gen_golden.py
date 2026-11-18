@@ -3,7 +3,7 @@
 
 Usage: CEPH_SRC=/path/to/ceph/src tools/simref/gen_golden.py [--table]
 
-Needs an unmodified Ceph source tree, gcc and g++. Writes tests/sims/golden.json:
+Needs an unmodified Ceph source tree, gcc and g++ (C++20; set CXX if g++ has another name). Writes tests/sims/golden.json:
   * CRUSH mappings from Ceph's own src/crush C code (compiled with crush_ref.c),
     for replicated (chooseleaf firstn) and erasure (chooseleaf indep) rules over
     several hierarchies, weights, reweights and out OSDs, through the pool
@@ -18,6 +18,11 @@ Needs an unmodified Ceph source tree, gcc and g++. Writes tests/sims/golden.json
     get_file_offset, copied verbatim out of src/osdc/Striper.cc and compiled with
     g++ (striper_ref.cc), over random layouts including fancy striping, and RBD
     data object names as librbd builds them (with and without a data pool);
+  * erasure coding: ECUtil::stripe_info_t (ro_range_to_shards, object_size_to_shard_size,
+    ro_offset_to_shard_offset, shard_offset_to_ro_offset), jerasure reed_sol_van
+    get_chunk_size and OSDMap::_raw_to_up_osds/_pick_primary, copied verbatim and
+    compiled with g++ (ec_ref.cc), and CRUSH indep rules for k+m shards with out
+    OSDs and NONE holes, with down OSDs applied for EC and replicated pools;
   * pg_autoscaler targets from Ceph's own src/pybind/mgr/pg_autoscaler/module.py
     (imported with small stand-ins for the mgr runtime) for several pool sets.
 With --table it also rewrites templates/site/sims/crush-ln-table.js from
@@ -496,8 +501,135 @@ for c in ncases:
 gold['striper'] = {'file_to_extents': scases, 'layout_fns': ncases,
                    'rbd_data_names': [[i, p, o, r[k + j]] for j, (i, p, o) in enumerate(names)]}
 
+# ---------------------------------------------------------------- erasure coding
+# ECUtil stripe_info_t arithmetic, jerasure's chunk size and OSDMap's raw -> up step, copied verbatim
+# out of the Ceph tree and compiled with g++ (tools/simref/ec_ref.cc); CRUSH indep rules from crush_ref.c.
+def block(src, sig):
+    """The text from sig to the brace that closes its body."""
+    i = src.index(sig)
+    j = src.index('{', i)
+    depth = 0
+    for q in range(j, len(src)):
+        if src[q] == '{':
+            depth += 1
+        elif src[q] == '}':
+            depth -= 1
+            if depth == 0:
+                return src[i:q + 1] + '\n'
+    raise ValueError(sig)
+
+
+ech = open(os.path.join(SRC, 'osd', 'ECUtil.h'), encoding='utf-8').read()
+ecc = open(os.path.join(SRC, 'osd', 'ECUtil.cc'), encoding='utf-8').read()
+jer = open(os.path.join(SRC, 'erasure-code', 'jerasure', 'ErasureCodeJerasure.cc'), encoding='utf-8').read()
+osm = open(os.path.join(SRC, 'osd', 'OSDMap.cc'), encoding='utf-8').read()
+etmp = tempfile.mkdtemp(prefix='ecref-')
+open(os.path.join(etmp, 'ec_extract_inline.inc'), 'w').write(block(ech, 'inline uint64_t align_next(uint64_t val)'))
+open(os.path.join(etmp, 'ec_extract_methods.inc'), 'w').write(''.join(block(ech, sig) for sig in (
+    'uint64_t object_size_to_shard_size(', 'uint64_t ro_offset_to_shard_offset(', 'uint64_t shard_offset_to_ro_offset(')))
+open(os.path.join(etmp, 'ec_extract_cc.inc'), 'w').write(block(ecc, 'void ECUtil::stripe_info_t::ro_range_to_shards('))
+open(os.path.join(etmp, 'ec_extract_jerasure.inc'), 'w').write(
+    block(jer, 'unsigned int ErasureCodeJerasure::get_chunk_size(') + block(jer, 'unsigned ErasureCodeJerasureReedSolomonVandermonde::get_alignment()'))
+open(os.path.join(etmp, 'ec_extract_osdmap.inc'), 'w').write(
+    block(osm, 'void OSDMap::_raw_to_up_osds(') + block(osm, 'int OSDMap::_pick_primary('))
+eexe = os.path.join(etmp, 'ec_ref')
+subprocess.run([os.environ.get('CXX', 'g++'), '-O1', '-w', '-std=c++20', '-I' + etmp, '-I' + SRC, os.path.join(ROOT, 'tools', 'simref', 'ec_ref.cc'), '-o', eexe], check=True)
+
+
+def erun(cmds):
+    out = subprocess.run([eexe], input='\n'.join(cmds) + '\n', capture_output=True, text=True, check=True).stdout.split('\n')
+    res, cur = [], []
+    for ln in out:
+        if ln == '.':
+            res.append(cur); cur = []
+        elif ln:
+            cur.append(ln)
+    return res
+
+
+re_ = random.Random(1407)                   # its own stream: the data above stays as it was
+# jerasure reed_sol_van chunk sizes: the pool's stripe_width is k * get_chunk_size(stripe_unit * k)
+chunk_cases = []
+for t in range(60):
+    k = re_.choice([2, 3, 4, 5, 6, 8, 10, 12])
+    su = re_.choice([4096, 8192, 16384, 65536, 1000, 4000, 512, 12345]) if t % 3 else 4096
+    chunk_cases.append([k, re_.choice([8, 8, 16, 32]), re_.choice([0, 0, 1]), su * k])
+r = erun([f'C {k} {w} {p} {sw}' for k, w, p, sw in chunk_cases])
+chunk_cases = [c + [int(x[0])] for c, x in zip(chunk_cases, r)]
+# stripe_info_t: ranges to shard extents, shard sizes, offsets
+lay_cases, cmds = [], []
+for t in range(120):
+    k, m = re_.choice([(2, 1), (2, 2), (3, 2), (4, 2), (4, 3), (6, 3), (8, 3), (8, 4), (10, 4)])
+    chunk = re_.choice([4096, 4096, 8192, 16384, 65536])
+    sw = k * chunk
+    off = re_.choice([0, re_.randint(0, 8 * sw), re_.randint(0, 64) * chunk, re_.randint(0, 2 ** 32)])
+    ln = re_.choice([1, re_.randint(1, sw), re_.randint(1, 5 * sw), re_.randint(1, 3) * sw, 4 << 20])
+    size = re_.choice([0, 1, re_.randint(1, sw), re_.randint(1, 40 * sw), 4 << 20, re_.randint(1, 2 ** 34)])
+    so = re_.randint(0, 50 * chunk)
+    sh = re_.randint(0, k - 1)
+    lay_cases.append({'k': k, 'm': m, 'chunk': chunk, 'off': off, 'len': ln, 'size': size, 'shard': sh, 'shard_off': so})
+    cmds += [f'S {k} {m} {chunk} {off} {ln}', f'Z {k} {m} {chunk} {size}', f'O {k} {m} {chunk} {off}', f'R {k} {m} {chunk} {sh} {so}']
+r = erun(cmds)
+for i, c in enumerate(lay_cases):
+    S, Z, O, R = r[4 * i:4 * i + 4]
+    c['extents'] = [[int(a), int(b), int(cc)] for a, b, cc in (x.split() for x in S if not x.startswith('s '))]
+    c['superset'] = [[int(a), int(b)] for _, a, b in (x.split() for x in S if x.startswith('s '))]
+    c['shard_sizes'] = [int(x) for x in Z[0].split()]
+    c['shard_offsets'] = [int(x) for x in O[0].split()]
+    c['ro_offset'] = int(R[0])
+# CRUSH indep (and firstn for comparison) for k+m shards, with out OSDs and too few hosts (NONE holes),
+# then OSDMap::_raw_to_up_osds with down OSDs for an EC pool (no shift) and a replicated one (shift)
+ec_cases = []
+especs = [('4 hosts x 3 (the lab)', [3, 3, 3, 3], lambda: W1), ('6 hosts', [2, 2, 3, 2, 2, 3], lambda: re_.choice([W1, 2 * W1, 0x18000])),
+          ('3 hosts', [4, 4, 4], lambda: W1), ('8 hosts small', [1, 1, 2, 1, 1, 2, 1, 1], lambda: re_.choice([W1, 0x8000]))]
+for name, hosts, rw in especs:
+    m = mk_map(hosts, rw)
+    nd = m['ndev']
+    for variant in ('all in', 'outs', 'reweight'):
+        wv = [0x10000] * nd
+        if variant == 'outs':
+            for q in re_.sample(range(nd), max(1, nd // 4)):
+                wv[q] = 0
+        elif variant == 'reweight':
+            for q in re_.sample(range(nd), max(1, nd // 3)):
+                wv[q] = re_.choice([0x8000, 0x4000, 0xc000])
+        for rno, size in ((1, 3), (1, 6), (1, 7), (1, 11), (3, 6), (3, 9), (0, 6), (2, 6)):
+            ec_cases.append({'name': f'{name} / {variant} / rule {rno} size {size}', 'map': m, 'weights': wv, 'rule': rno, 'size': size,
+                             'pgp_num': 16, 'pool': re_.randint(1, 9),
+                             'down': sorted(re_.sample(range(nd), re_.choice([0, 1, 2])))})
+lines = []
+for c in ec_cases:
+    m = c['map']
+    lines += ['MAP', 'TUN 0 0 50 1 1 1']
+    for b in m['buckets']:
+        lines.append(f'B {b["id"]} {b["type"]} {len(b["items"])} ' + ' '.join(f'{i} {w}' for i, w in b['items']))
+    for no, rr in rules().items():
+        lines.append(f'R {no} {rr["type"]} {len(rr["steps"])} ' + ' '.join(f'{a} {b} {cc}' for a, b, cc in rr['steps']))
+    lines += ['FIN', f'W {m["ndev"]} ' + ' '.join(str(x) for x in c['weights']),
+              f'Q {c["rule"]} 0 {c["pgp_num"]} {c["size"]} {c["pgp_num"]} {c["pool"]}', 'END']
+out = run(lines)
+k, ucmds = 0, []
+for c in ec_cases:
+    c['raw'] = []
+    for _ in range(c['pgp_num']):
+        raw = [int(x) for x in out[k].split()][1:]; k += 1
+        c['raw'].append(raw)
+        for shift in (0, 1):
+            ucmds.append(f'U {shift} {len(raw)} ' + ' '.join(map(str, raw)) + ' d ' + ' '.join(map(str, c['down'])))
+r = erun(ucmds)
+q = 0
+for c in ec_cases:
+    c['up_ec'], c['up_rep'] = [], []
+    for _ in range(c['pgp_num']):
+        for key in ('up_ec', 'up_rep'):
+            a, b = r[q][0].split('|'); q += 1
+            c[key].append([[int(x) for x in a.split()], int(b)])
+gold['ec'] = {'chunk_size': chunk_cases, 'stripe_info': lay_cases, 'crush_up': ec_cases,
+              'nones': sum(raw.count(0x7fffffff) for c in ec_cases for raw in c['raw'])}
+
 open(os.path.join(ROOT, 'tests', 'sims', 'golden.json'), 'w', encoding='utf-8').write(
     json.dumps(gold, ensure_ascii=False, separators=(',', ':')) + '\n')
 print(json.dumps({'crush_cases': len(cases), 'pgs': sum(c['pgp_num'] for c in cases), 'autoscaler_cases': len(ascases),
                   'bucket_choose': len(bcases), 'alg_cases': len(acases), 'alg_pgs': sum(c['pgp_num'] for c in acases),
-                  'striper_cases': len(scases), 'striper_layout_cases': len(ncases)}))
+                  'striper_cases': len(scases), 'striper_layout_cases': len(ncases),
+                  'ec_chunk': len(chunk_cases), 'ec_layout': len(lay_cases), 'ec_crush': len(ec_cases), 'ec_nones': gold['ec']['nones']}))

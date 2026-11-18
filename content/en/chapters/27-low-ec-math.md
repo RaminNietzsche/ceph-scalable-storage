@@ -96,6 +96,11 @@ All the numbers in these two sections were computed and checked with an independ
 `ceph osd pool create` rejects the profile without `--yes-i-really-mean-it` if `stripe_unit` is not a multiple of 4K. Choosing a larger stripe_unit means more writes smaller than one stripe, but more efficient sequential reads. With optimized EC this trade-off has moved towards 16K, because a partial write no longer reads the whole stripe.
 :::
 
+The lab below shows the same split for any offset and length: which byte ranges go to which data shard, which stripes need their parity recomputed, and which OSD holds each shard.
+
+::: {.sim name="placement" mode="ec"}
+:::
+
 # read-modify-write in the old EC {#sec-27-5}
 
 Up to Squid, and in pools without optimizations in later releases, the EC backend does the following for every write that does not cover a whole stripe and lands on existing data (`allow_ec_overwrites=true`, required for RBD and CephFS):

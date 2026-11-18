@@ -382,7 +382,7 @@
           if (inb.items.length === 0) break;
           var info = trace ? [] : null;
           item = bucketChoose(m, inb, x, r, info);
-          if (trace) trace.push({ k: 'pick', b: inb.id, alg: inb.alg, r: r, rep: rep, item: item, info: info });
+          if (trace) trace.push({ k: 'pick', b: inb.id, alg: inb.alg, r: r, rep: rep, item: item, info: info, inner: out2 === null, ftotal: ftotal });
           if (item >= m.maxDevices) { out[ob + rep] = NONE; if (out2) out2[o2b + rep] = NONE; left--; break; }
           itype = itemType(m, item);
           if (itype !== type) {
@@ -391,14 +391,14 @@
           }
           collide = 0;
           for (i = outpos; i < endpos; i++) if (out[ob + i] === item) { collide = 1; break; }
-          if (collide) { if (trace) trace.push({ k: 'collide', item: item, r: r }); break; }
+          if (collide) { if (trace) trace.push({ k: 'collide', item: item, r: r, rep: rep, inner: out2 === null, ftotal: ftotal }); break; }
           if (recurseToLeaf) {
             if (item < 0) {
               chooseIndep(m, bucket(m, item), weight, x, 1, numrep, 0, out2, o2b, rep, recurseTries, 0, 0, null, 0, r, trace);
-              if (out2 && out2[o2b + rep] === NONE) break;
+              if (out2 && out2[o2b + rep] === NONE) { if (trace) trace.push({ k: 'reject', why: 'leaf', item: item, r: r, rep: rep, ftotal: ftotal }); break; }
             } else if (out2) out2[o2b + rep] = item;
           }
-          if (itype === 0 && isOut(weight, item, x)) { if (trace) trace.push({ k: 'reject', item: item, r: r }); break; }
+          if (itype === 0 && isOut(weight, item, x)) { if (trace) trace.push({ k: 'reject', why: 'out', item: item, r: r, rep: rep, inner: out2 === null, ftotal: ftotal }); break; }
           out[ob + rep] = item; left--; break;
         }
       }
@@ -472,13 +472,17 @@
   // src/osd/osd_types.cc :: pg_pool_t::raw_pg_to_pps (FLAG_HASHPSPOOL, the default)
   function pps(ps, pgpNum, pool) { return hash2(stableMod(ps, pgpNum, pgMask(pgpNum)), pool); }
   // src/osd/OSDMap.cc :: _pg_to_raw_osds + _raw_to_up_osds + _pick_primary (no pg_temp / primary affinity)
+  // src/osd/OSDMap.cc :: _raw_to_up_osds: a replicated pool (can_shift_osds) drops down and missing OSDs,
+  // an erasure-coded one puts CRUSH_ITEM_NONE in their place so that every shard keeps its position
+  function rawToUp(raw, down, canShift, maxOsd) {
+    var gone = function (o) { return o === NONE || o < 0 || (maxOsd != null && o >= maxOsd) || !!down[o]; };
+    return canShift ? raw.filter(function (o) { return !gone(o); }) : raw.map(function (o) { return gone(o) ? NONE : o; });
+  }
+  // src/osd/OSDMap.cc :: _pick_primary: the first entry that is not CRUSH_ITEM_NONE
+  function pickPrimary(up) { for (var i = 0; i < up.length; i++) if (up[i] !== NONE) return up[i]; return -1; }
   function pgToUp(m, ruleno, ps, pool, pgpNum, size, weight, down, ec, trace) {
-    var x = pps(ps, pgpNum, pool), raw = doRule(m, ruleno, x, size, weight, trace), up;
-    if (!ec) up = raw.filter(function (o) { return o !== NONE && !down[o]; });
-    else up = raw.map(function (o) { return o === NONE || down[o] ? NONE : o; });
-    var primary = -1;
-    for (var i = 0; i < up.length; i++) if (up[i] !== NONE) { primary = up[i]; break; }
-    return { pps: x, raw: raw, up: up, primary: primary };
+    var x = pps(ps, pgpNum, pool), raw = doRule(m, ruleno, x, size, weight, trace), up = rawToUp(raw, down, !ec);
+    return { pps: x, raw: raw, up: up, primary: pickPrimary(up) };
   }
   // src/osd/OSDMap.cc :: object_locator_to_pg + pg_pool_t::raw_pg_to_pg (object name -> pg; no namespace)
   function objectToPg(name, pgNum) { var h = strHash(name); return { hash: h, ps: stableMod(h, pgNum, pgMask(pgNum)) }; }
@@ -552,6 +556,59 @@
     var id = instanceId.toString(16) + (extra >>> 0).toString(16);
     return id.length > 14 ? id.slice(id.length - 14) : id;
   }
+
+  /* ------------------------------------------------------------ erasure coding */
+  // src/erasure-code/jerasure/ErasureCodeJerasure.cc :: ErasureCodeJerasureReedSolomonVandermonde::get_alignment
+  // and ErasureCodeJerasure::get_chunk_size (LARGEST_VECTOR_WORDSIZE 16)
+  function ecChunkSize(k, w, perChunk, stripeWidth) {
+    var al;
+    if (perChunk) al = w * 16; else { al = k * w * 4; if ((w * 4) % 16) al = k * w * 16; }
+    if (perChunk) { var cs = Math.floor(stripeWidth / k); if (stripeWidth % k) cs++; var mod = cs % al; if (mod) cs += al - mod; return cs; }
+    var tail = stripeWidth % al, padded = stripeWidth + (tail ? al - tail : 0);
+    return padded / k;
+  }
+  // src/mon/OSDMonitor.cc :: prepare_pool_stripe_width (stripe_width = k * get_chunk_size(stripe_unit * k))
+  // and prepare_pool_size (size = k + m, min_size = k + min(1, m - 1))
+  function ecStripe(k, m, stripeUnit) {
+    var chunk = ecChunkSize(k, 8, false, stripeUnit * k);
+    return { k: k, m: m, chunk: chunk, stripe_width: k * chunk, size: k + m, min_size: k + Math.min(1, m - 1) };
+  }
+  // src/osd/ECUtil.cc :: stripe_info_t::ro_range_to_shards (identity chunk mapping, as jerasure and isa have):
+  // one extent per data shard in shard offsets, and their union (the parity shards' extent)
+  function ecRangeToShards(k, chunk, off, len) {
+    var res = { extents: [], superset: [] };
+    if (!len) return res;
+    var sw = k * chunk, beginDiv = Math.floor(off / sw), endDiv = Math.floor((off + len + sw - 1) / sw) - 1;
+    var start = beginDiv * chunk, end = endDiv * chunk, startShard = Math.floor((off - beginDiv * sw) / chunk);
+    var count = Math.floor((off + len + chunk - 1) / chunk) - Math.floor(off / chunk);
+    var endShard = startShard + Math.min(count, k), lastShard = (startShard + count - 1) % k, iv = [];
+    for (var i = startShard; i < endShard; i++) {
+      var raw = i >= k ? i - k : i, sa = 0, ea = 0;
+      if (raw < startShard) sa = chunk; else if (raw === startShard) sa = off % chunk;
+      if (raw < lastShard) ea = chunk; else if (raw === lastShard) ea = (off + len - 1) % chunk + 1;
+      var o = start + sa, l = end + ea - start - sa;
+      res.extents.push([raw, o, l]); iv.push([o, o + l]);
+    }
+    res.extents.sort(function (a, b) { return a[0] - b[0]; });
+    iv.sort(function (a, b) { return a[0] - b[0]; }).forEach(function (x) {
+      var last = res.superset[res.superset.length - 1];
+      if (last && last[0] + last[1] >= x[0]) last[1] = Math.max(last[1], x[1] - last[0]); else res.superset.push([x[0], x[1] - x[0]]);
+    });
+    return res;
+  }
+  // src/osd/ECUtil.h :: stripe_info_t::object_size_to_shard_size (rounded up to EC_ALIGN_SIZE, 4096)
+  function ecShardSize(k, chunk, size, shard) {
+    var sw = k * chunk, rem = size % sw, ss = (size - rem) / k, raw = shard >= k ? 0 : shard;
+    if (rem > raw * chunk) { rem -= raw * chunk; if (rem > chunk) rem = chunk; ss += rem; }
+    return Math.ceil(ss / 4096) * 4096;
+  }
+  // src/osd/ECUtil.h :: stripe_info_t::ro_offset_to_shard_offset and shard_offset_to_ro_offset
+  function ecRoToShardOffset(k, chunk, off, raw) {
+    var full = Math.floor(off / (k * chunk)) * chunk, os = Math.floor(off / chunk) % k;
+    if (raw === os) return full + off % chunk;
+    return raw < os ? full + chunk : full;
+  }
+  function ecShardToRoOffset(k, chunk, shard, off) { return Math.floor(off / chunk) * k * chunk + shard * chunk + off % chunk; }
 
   /* ------------------------------------------------------------ pg_autoscaler */
   // src/pybind/mgr/pg_autoscaler/module.py :: is_power_of_two / nearest_power_of_two
@@ -777,7 +834,7 @@
     hash2: hash2, hash3: hash3, hash4: hash4, ALG: ALG, calcStraws: calcStraws, treeNodes: treeNodes, bucketChoose: bucketChoose, strHash: strHash, stableMod: stableMod, pgMask: pgMask, crushLn: crushLn, expDraw: expDraw,
     NONE: NONE, OP: OP, JEWEL: JEWEL, makeMap: makeMap, doRule: doRule, simpleRule: simpleRule, iweight: iweight,
     pps: pps, pgToUp: pgToUp, objectToPg: objectToPg,
-    fileToExtents: fileToExtents, objectTruncateSize: objectTruncateSize, numObjects: numObjects, fileOffset: fileOffset, rbdDataName: rbdDataName, rbdMetaNames: rbdMetaNames, rbdImageId: rbdImageId,
+    fileToExtents: fileToExtents, objectTruncateSize: objectTruncateSize, numObjects: numObjects, fileOffset: fileOffset, rbdDataName: rbdDataName, rawToUp: rawToUp, pickPrimary: pickPrimary, ecChunkSize: ecChunkSize, ecStripe: ecStripe, ecRangeToShards: ecRangeToShards, ecShardSize: ecShardSize, ecRoToShardOffset: ecRoToShardOffset, ecShardToRoOffset: ecShardToRoOffset, rbdMetaNames: rbdMetaNames, rbdImageId: rbdImageId,
     nearestPow2: nearestPow2, autoscale: autoscale, pgcalc: pgcalc, ecPool: ecPool, repPool: repPool, rgwLayout: rgwLayout, strHashLinux: strHashLinux, bucketShardIndex: bucketShardIndex,
     bluestoreWrite: bluestoreWrite
   };

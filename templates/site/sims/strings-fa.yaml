@@ -327,17 +327,17 @@ r_rg_man: چیدمان شیء در RADOS
 
 striping_t: نگاشت striping در RBD
 striping_d: "اندازهٔ شیء، stripe_unit و stripe_count یک image و offset و طول یک I/O را تعیین کنید: ببینید به کدام شیءهای rbd_data و کجای آن‌ها دست می‌زند."
-striping_what: "librbd هر I/O را به Striper می‌سپارد. image به stripe unitهایی بریده می‌شود که به نوبت میان stripe_count شیء پخش می‌شوند؛ وقتی آن شیءها پر شدند object set بعدی آغاز می‌شود. نام هر شیء rbd_data.<image id>. و شمارهٔ آن در ۱۶ رقم hex است. با stripe_count برابر ۱ (پیش‌فرض) stripe_unit همان اندازهٔ شیء است و image به سادگی به شیءهای پشت‌سرهم بریده می‌شود."
+striping_what: "librbd هر I/O را به Striper می‌سپارد. image به تکه‌هایی به اندازهٔ stripe_unit بریده می‌شود که به نوبت میان stripe_count شیء پخش می‌شوند؛ وقتی آن شیءها پر شدند، مجموعهٔ بعدی شیءها آغاز می‌شود. نام هر شیء rbd_data.<id>. و شمارهٔ آن در ۱۶ رقم hex است. با stripe_count برابر ۱ (پیش‌فرض) stripe_unit همان اندازهٔ شیء است و image به سادگی به شیءهای پشت‌سرهم بریده می‌شود."
 striping_limit: "تنها شیءهای داده؛ شیءهای header، id و object-map نشان داده نمی‌شوند (آزمایشگاه «از نام شیء تا OSD» در حالت RBD آن‌ها را نشان می‌دهد). extentها دقیقاً همان چیزی است که Striper::file_to_extents برمی‌گرداند (با کد Striper خود Ceph و بردارهای آزمون آن بررسی شده)."
 st_size: اندازهٔ image (GiB)
 st_id: شناسهٔ image
-st_off: offset ی I/O (بایت)
+st_off: offset در I/O (بایت)
 st_len: طول I/O (بایت)
 st_obj: شیء
 st_ooff: offset در شیء
 st_olen: طول
 st_s_objs: شیء در حالت پر
-st_s_set: اندازهٔ object set
+st_s_set: اندازهٔ هر مجموعهٔ شیء
 st_s_touched: شیءهایی که این I/O به آن‌ها دست می‌زند
 st_grouped: "{n} stripe در هر ردیف"
 st_more: "{n} شیء دیگر فهرست نشده است."
@@ -348,9 +348,9 @@ r_st_prefix: پیشوند نام
 r_st_test: بردارهایی که آزمون‌ها با آن مقایسه می‌کنند
 
 placement_t: از نام شیء تا OSD
-placement_d: "نام یک فایل یا شیء را بنویسید و گام‌به‌گام ببینید Ceph آن را چطور hash می‌کند، در کدام PG می‌گذارد و CRUSH با هر یک از پنج الگوریتم bucket کدام OSDها را برایش برمی‌گزیند؛ سپس ببینید افزودن یک OSD، تغییر وزن یا out کردن آن با هر الگوریتم چه سهمی از داده را جابه‌جا می‌کند. با گزینهٔ image از RBD ببینید یک بازه از بایت‌های image در کدام شیءهای rbd_data می‌افتد و هر کدام از آن‌ها، همراه با شیءهای فرادادهٔ image، کجا قرار می‌گیرند."
-placement_what: "کل مسیر ceph osd map، همان‌طور که کلاینت حساب می‌کند. ۱) ceph_str_hash_rjenkins روی بایت‌های UTF-8 نام؛ ۲) ceph_stable_mod با pg_num و ماسک آن شمارهٔ PG را می‌دهد (مقدارهای بزرگ‌تر از pg_num به نیمهٔ پایین تا می‌شوند)؛ ۳) با پرچم hashpspool شمارهٔ PG با pgp_num دوباره کوچک و با شناسهٔ pool درهم می‌شود تا x، ورودی CRUSH، به دست آید؛ ۴) crush_do_rule قاعدهٔ pool (chooseleaf firstn) را روی نقشهٔ root ← host ← OSD اجرا می‌کند که همهٔ bucketهایش الگوریتم انتخابی شما را دارند، و هر قرعهٔ هر bucket نمایش داده می‌شود، همراه با ردشدن‌ها (OSDهای out) و تکرارها که r را بالا می‌برند؛ ۵) OSDMap از مجموعهٔ خام OSDهای down را کنار می‌گذارد تا مجموعهٔ up، مجموعهٔ acting و primary به دست آید. بخش مقایسه اشیای نمونه را پیش و پس از یک تغییر، با هر پنج الگوریتم، جای‌گذاری می‌کند. در حالت RBD، بازهٔ بایت‌ها نخست از Striper::file_to_extents می‌گذرد (با fancy striping وقتی stripe_count بیش از ۱ است)؛ سپس هر شیء داده با نامی به شکل rbd_data.<id>.<objectno>، که شمارهٔ شیء در آن ۱۶ رقم hex است، و نیز شیءهای rbd_directory، rbd_id، rbd_header و rbd_object_map همان پنج گام را طی می‌کنند."
-placement_limit: "یک الگوریتم برای همهٔ bucketهای نقشه (Ceph برای هر bucket جداگانه اجازه می‌دهد)؛ فقط poolهای replicated؛ بدون namespace و locator key، pg_temp، upmap، primary affinity، device class و choose_args؛ وزن‌ها اندازه به TiB است. با tunables امروزی دیگر نمی‌توان bucket از نوع tree ساخت و uniform وزن نخستین آیتم را برای همه به کار می‌برد. جابه‌جایی به ازای هر نسخه روی اشیای نمونه شمرده می‌شود. برای این نقشه‌ها نتیجه با هر پنج الگوریتم دقیقاً با کد C خود Ceph یکی است (tests/sims/golden.json). حالت RBD: تنها imageهای فرمت ۲؛ بدون clone و هم‌پوشانی با parent، snapshot، journaling، رمزگذاری و جزئیات krbd؛ pool دادهٔ جداگانه همان نقشه و قاعدهٔ replicated را به کار می‌برد (pool دادهٔ واقعی اغلب erasure-coded است). striping و نام شیءها با کد Striper خود Ceph و قالب نام‌های librbd یکی است (tests/sims/golden.json)."
+placement_d: "نام یک فایل یا شیء را بنویسید و گام‌به‌گام ببینید Ceph آن را چطور hash می‌کند، در کدام PG می‌گذارد و CRUSH با هر یک از پنج الگوریتم bucket کدام OSDها را برایش برمی‌گزیند؛ سپس ببینید افزودن یک OSD، تغییر وزن یا out کردن آن با هر الگوریتم چه سهمی از داده را جابه‌جا می‌کند. با گزینهٔ image از RBD ببینید یک بازه از بایت‌های image در کدام شیءهای rbd_data می‌افتد و هر کدام از آن‌ها، همراه با شیءهای فرادادهٔ image، کجا قرار می‌گیرند. با گزینهٔ erasure-coded ببینید k+m shard کجا می‌روند، جای OSDهای از کار افتاده چطور NONE می‌ماند و یک نوشتن چطور به stripeها و تکه‌ها بریده می‌شود."
+placement_what: "کل مسیر ceph osd map، همان‌طور که کلاینت حساب می‌کند. ۱) ceph_str_hash_rjenkins روی بایت‌های UTF-8 نام؛ ۲) ceph_stable_mod با pg_num و ماسک آن شمارهٔ PG را می‌دهد (مقدارهای بزرگ‌تر از pg_num به نیمهٔ پایین تا می‌شوند)؛ ۳) با پرچم hashpspool شمارهٔ PG با pgp_num دوباره کوچک و با شناسهٔ pool درهم می‌شود تا x، ورودی CRUSH، به دست آید؛ ۴) crush_do_rule قاعدهٔ pool (chooseleaf firstn) را روی نقشهٔ root ← host ← OSD اجرا می‌کند که همهٔ bucketهایش الگوریتم انتخابی شما را دارند، و هر قرعهٔ هر bucket نمایش داده می‌شود، همراه با ردشدن‌ها (OSDهای out) و تکرارها که r را بالا می‌برند؛ ۵) OSDMap از مجموعهٔ خام OSDهای down را کنار می‌گذارد تا مجموعهٔ up، مجموعهٔ acting و primary به دست آید. بخش مقایسه اشیای نمونه را پیش و پس از یک تغییر، با هر پنج الگوریتم، جای‌گذاری می‌کند. در حالت RBD، بازهٔ بایت‌ها نخست از Striper::file_to_extents می‌گذرد (با fancy striping وقتی stripe_count بیش از ۱ است)؛ سپس هر شیء داده با نامی به شکل rbd_data.<id>.<objectno>، که شمارهٔ شیء در آن ۱۶ رقم hex است، و نیز شیءهای rbd_directory، rbd_id، rbd_header و rbd_object_map همان پنج گام را طی می‌کنند. در pool از نوع erasure-coded قاعده indep است (crush_choose_indep جایگاه‌ها را دور به دور پر می‌کند)، مجموعهٔ up به جای OSDهای down مقدار NONE را نگه می‌دارد، هر shard نمونه‌ای از PG با نامی مانند 1.2as0 است و stripe_info_t در ECUtil بازه‌های بایت، extentها و اندازهٔ هر shard را می‌دهد؛ در حالت RBD، pool از نوع erasure-coded همان pool داده است و فراداده replicated می‌ماند."
+placement_limit: "یک الگوریتم برای همهٔ bucketهای نقشه (Ceph برای هر bucket جداگانه اجازه می‌دهد)؛ poolهای replicated، یا poolهای erasure-coded با reed_sol_van از jerasure یا isa و نگاشت مستقیم تکه‌ها (بدون LRC، SHEC و CLAY؛ نام plugin تنها یک برچسب است و chunk_size با قاعدهٔ jerasure حساب می‌شود؛ بدون بهینه‌سازی‌های تازهٔ EC، خواندن جزئی و نوشتن parity به روش delta)؛ بدون namespace و locator key، pg_temp، upmap، primary affinity، device class و choose_args؛ وزن‌ها اندازه به TiB است. با tunables امروزی دیگر نمی‌توان bucket از نوع tree ساخت و uniform وزن نخستین آیتم را برای همه به کار می‌برد. جابه‌جایی به ازای هر نسخه روی اشیای نمونه شمرده می‌شود. برای این نقشه‌ها نتیجه با هر پنج الگوریتم دقیقاً با کد C خود Ceph یکی است (tests/sims/golden.json). حالت RBD: تنها imageهای فرمت ۲؛ بدون clone و هم‌پوشانی با parent، snapshot، journaling، رمزگذاری و جزئیات krbd؛ pool دادهٔ جداگانه همان نقشه را با قاعدهٔ replicated یا erasure به کار می‌برد. striping و نام شیءها با کد Striper خود Ceph و قالب نام‌های librbd یکی است (tests/sims/golden.json). جای‌گذاری indep با OSDهای out و down، جایگاه‌های NONE، primary و حساب stripeها و تکه‌ها با کد خود Ceph یکی است (crush_choose_indep، OSDMap، ECUtil و jerasure). min_size و وضعیت active ساده شده‌اند: peering، pg_temp و جزئیات بازسازی زیر min_size شبیه‌سازی نمی‌شوند."
 pl_obj: نام شیء یا فایل
 pl_pool: شناسهٔ pool
 pl_size: تعداد نسخه (size)
@@ -457,5 +457,68 @@ pl_r_hdr: "اندازه، order، featureها، snapshotها"
 pl_r_om: "نقشهٔ شیءها (قابلیت object-map)"
 r_pl_rbdname: "نام شیءهای داده، با pool داده و بدون آن، و بررسی‌های striping"
 r_pl_rbdmeta: نام شیءهای فراداده و ساخت شناسهٔ image
+pl_ptype_l: "نوع pool"
+pl_ptype_rep: "replicated"
+pl_ptype_ec: "erasure-coded"
+pl_default: "پیش‌فرض"
+pl_woff: "offset نوشتن در شیء (بایت)"
+pl_wlen: "طول نوشتن (بایت)"
+pl_dp_ec: "شیءهای داده در pool جداگانه‌ای از نوع erasure-coded (--data-pool)؛ فراداده در poolی از نوع replicated می‌ماند"
+pl_size_md: "تعداد نسخه در pool فراداده (size)"
+pl_round: "دور {f}"
+pl_more_draws: "{n} قرعهٔ دیگر در دورهای بعد نشان داده نشده است."
+pl_rej_coll_i: "{o} را پیش‌تر shard دیگری گرفته است؛ این جایگاه در این دور خالی می‌ماند و در دور {f} با r+n دوباره قرعه می‌کشد، بی‌آنکه shardهای دیگر جابه‌جا شوند."
+pl_rej_out_i: "{o} out است؛ این جایگاه خالی می‌ماند و در دور {f} با r+n دوباره قرعه می‌کشد."
+pl_rej_leaf_i: "زیر {o} هیچ OSD قابل استفاده‌ای پیدا نشد؛ این جایگاه در دور {f} دوباره قرعه می‌کشد."
+pl_data: "داده d{n}"
+pl_coding: "parity c{n}"
+pl_shard: "shard {s} ({c}) ← {o}"
+pl_shard_none: "shard {s} ({c}): جایی پیدا نشد (CRUSH_ITEM_NONE)"
+pl_c_chunk: "تکه"
+pl_hole_crush: "CRUSH جایی پیدا نکرد"
+pl_hole_down: "OSD آن down است"
+pl_st_shards: "shard در دسترس"
+pl_st_io: "I/O"
+pl_ok_active: "active"
+pl_no_active: "peered، بدون I/O"
+pl_st_data: "داده"
+pl_ok_read: "قابل بازسازی"
+pl_no_read: "در دسترس نیست"
+pl_ec_tol: "این PG از دست رفتن {m} shard را تاب می‌آورد، چون هر k shard از k+m برای بازسازی داده کافی است. اکنون {lost} shard در دسترس نیست؛ {io} shard دیگر می‌تواند از دست برود و I/O همچنان ادامه یابد (min_size)، و {more} shard دیگر پیش از آنکه داده در دسترس نباشد."
+pl_ix_t: "indep در برابر firstn: همین PG وقتی همهٔ OSDها in و up هستند، و با نقشهٔ فعلی"
+pl_ix_all: "همه in و up"
+pl_ix_now: "اکنون"
+pl_ix_n: "با indep تنها {a} جایگاه از {n} جایگاه OSD تازه‌ای گرفته‌اند و جایگاه‌هایی که جایی پیدا نکرده‌اند NONE مانده‌اند؛ با firstn، که OSDهای down را حذف می‌کند، {b} جایگاه عوض می‌شود، چون عضوهای بعدی یک خانه جلو می‌آیند."
+pl_ix_hint: "یک OSD را در نقشهٔ بالا out یا down کنید تا تفاوت را ببینید."
+pl_ix_why: "در pool از نوع erasure-coded جایگاه هر عضو همان شمارهٔ shard است: OSDی که از s1 به s0 برود باید تکهٔ دیگری نگه دارد و همهٔ آن را از نو بسازد. برای همین Ceph در این poolها indep را به کار می‌برد و OSDMap به جای OSD از کار افتاده NONE می‌گذارد. firstn برای نسخه‌های یکسان مناسب است که ترتیبشان اهمیتی ندارد."
+pl_s5e_t: "shardها، مجموعهٔ up و acting و primary"
+pl_s5e_n: "در pool از نوع erasure-coded هر جایگاه مجموعهٔ up یک shard است: k جایگاه نخست (از s0) تکه‌های داده را نگه می‌دارند و m جایگاه بعدی تکه‌های parity را. تابع OSDMap::_raw_to_up_osds در این poolها OSDهای down را حذف نمی‌کند، بلکه CRUSH_ITEM_NONE را جایشان می‌گذارد که Ceph آن را 2147483647 چاپ می‌کند؛ primary نخستین عضوی است که NONE نیست. هر shard نمونهٔ جداگانه‌ای از PG است و نامش پسوند s و شمارهٔ shard را دارد."
+pl_s4e_n: "قاعدهٔ erasure با indep برای هر یک از {n} جایگاه یک {fd} و یک OSD زیر آن برمی‌گزیند. جایگاه‌ها دور به دور پر می‌شوند: در دور f، مقدار r برابر شمارهٔ جایگاه به‌علاوهٔ n*f است (در mapper.c همان r+n*ftotal)، و جایگاهی که انتخابش رد یا تکراری شود تا دور بعد خالی می‌ماند و جایگاه‌های دیگر OSD خود را نگه می‌دارند. اگر پس از choose_tries دور (۱۰۰) جایی پیدا نشود، آن جایگاه NONE می‌شود. سطر برندهٔ هر جدول برجسته است."
+pl_s6e_t: "از بایت تا تکه: stripeها و shardها"
+pl_s6e_n: "شیء به stripeهایی بریده می‌شود که پهنای هر کدام، stripe_width، برابر k تکه به اندازهٔ chunk_size است. در هر stripe، نخستین chunk_size بایت به shard داده d0 می‌رسد، بعدی به d1 و همین‌طور تا آخر، و m تکهٔ parity از همین k تکه حساب می‌شوند؛ پس stripe شمارهٔ t در هر shard از offset برابر حاصل‌ضرب t در chunk_size نوشته می‌شود. جدول و بازه‌ها همان چیزی است که stripe_info_t در ECUtil حساب می‌کند."
+pl_s6e_rmw: "این نوشتن همهٔ stripe را نمی‌پوشاند: در poolی با allow_ec_overwrites، OSD primary بخش دست‌نخوردهٔ آن stripeها را می‌خواند، parity را از نو حساب می‌کند و هر دو را می‌نویسد (read-modify-write)."
+pl_grid_more: "{n} stripe دیگر"
+pl_every: "(یک تکه در هر {n})"
+pl_parity: "parity همهٔ stripeهای دست‌خورده"
+pl_c_bytes: "بایت‌های شیء"
+pl_c_shext: "extent در shard"
+pl_c_shsize: "اندازهٔ shard برای شیء {n}"
+pl_w_ecdom: "این pool به k+m یعنی {n} failure domain از نوع {fd} نیاز دارد، ولی تنها {d} تا هست؛ جایگاه‌هایی که جایی پیدا نکنند NONE می‌مانند."
+pl_w_ecinactive: "تنها {n} shard در دسترس است، کمتر از min_size ({min})؛ PG در وضعیت peered می‌ماند و I/O نمی‌پذیرد، هرچند با دست‌کم k shard هنوز می‌تواند بازسازی شود."
+pl_w_ecdead: "تنها {n} shard در دسترس است، کمتر از k ({k})؛ دادهٔ این PG تا برگشتن OSDها در دسترس نیست."
+pl_rbd_s2_ec: "شیءهای داده در pool {pool} از نوع erasure-coded نگه داشته می‌شوند و در نامشان شناسهٔ pool فراداده ({md}) هم می‌آید. هر کدام همان گام‌های یک شیء تنها را طی می‌کند، این بار با قاعدهٔ indep و {n} shard؛ با دکمهٔ «گام‌ها» shardهای یک شیء و تقسیم بازهٔ آن به stripeها را ببینید."
+pl_c_shards: "shardها"
+pl_rbd_s4_ec: "در pool از نوع erasure-coded هر شیء k+m shard دارد، یکی روی هر OSD از مجموعهٔ up آن؛ جایگاه‌های NONE شمرده نمی‌شوند."
+pl_rbd_ec_n: "RBD نمی‌تواند فراداده و omap را در poolی از نوع erasure-coded نگه دارد، پس image در poolی از نوع replicated ساخته می‌شود و تنها شیءهای داده با --data-pool به pool از نوع erasure-coded می‌روند. RBD بخش‌هایی از شیءها را بازنویسی می‌کند، پس allow_ec_overwrites باید روی آن pool روشن باشد (تنها روی BlueStore)."
+pl_ecc_t: "replicated در برابر erasure-coded با {a}"
+pl_ecc_moved: "shardها یا نسخه‌های جابه‌جاشده"
+pl_ecc_bytes: "دادهٔ منتقل‌شده به ازای هر شیء"
+pl_ecc_rep: "replicated"
+pl_ecc_ec: "erasure-coded"
+pl_ecc_ecf: "erasure-coded با firstn (فرضی)"
+pl_ecc_n: "در pool از نوع replicated نسخه‌ای جابه‌جا شده است که OSD تازه‌اش پیش‌تر در مجموعه نبوده؛ در pool از نوع erasure-coded هر shard که OSD جایگاهش عوض شود جابه‌جا شده است، چون هر جایگاه تکهٔ متفاوتی دارد. ردیف سوم نشان می‌دهد اگر Ceph در این poolها firstn را به کار می‌برد، چند shard بیشتر جابه‌جا می‌شد. هر shard تنها 1/k اندازهٔ شیء است، پس ستون آخر حجم دادهٔ منتقل‌شده به ازای هر شیء را بر حسب اندازهٔ شیء نشان می‌دهد؛ ساختن هر shard در جای تازه به خواندن k shard دیگر هم نیاز دارد."
+r_pl_indep: "indep: پر کردن جایگاه‌ها دور به دور و NONE برای جایگاه‌های خالی"
+r_pl_ecutil: "stripeها، تکه‌ها و اندازهٔ shardها در pool از نوع erasure-coded"
+r_pl_ecpool: "size، min_size و stripe_width در pool از نوع erasure-coded و نام shardها"
 
 xp_sim: "آزمایشگاه: {n}"

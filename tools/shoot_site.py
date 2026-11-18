@@ -602,6 +602,22 @@ with sync_playwright() as pw:
             pg.wait_for_timeout(200)
             if box.locator('.pl-xp .pl-step').count() != 5:
                 problems.append('[sim placement] the Steps button of an RBD object did not open its five steps')
+            box.locator('[data-set="pl_ptype"][data-v="ec"]').click()
+            pg.wait_for_timeout(200)
+            if 'allow_ec_overwrites' not in box.locator('.sim-out').inner_text():
+                problems.append('[sim placement] an erasure-coded RBD data pool did not show allow_ec_overwrites')
+            box.locator('.pl-ot [data-act="plx"]').first.click()
+            pg.wait_for_timeout(200)
+            if box.locator('.pl-xp .pl-step').count() != 6 or box.locator('.pl-xp .pl-grid').count() != 1:
+                problems.append('[sim placement] an RBD object in an erasure-coded pool did not show its shards and stripes')
+            box.locator('[data-set="pl_mode"][data-v="obj"]').click()
+            pg.wait_for_timeout(200)
+            for i in (3, 4, 5):
+                box.locator(f'.cr-tg[data-act="down"][data-fid="d{i}"]').click()
+                pg.wait_for_timeout(120)
+            txt = box.locator('.sim-out').inner_text()
+            if box.locator('.pl-sh td.none').count() == 0 or '2147483647' not in txt or box.locator('.pl-cmp').count() != 2:
+                problems.append('[sim placement] down OSDs in an erasure-coded pool did not leave NONE holes or compare EC with replicated')
         elif name == 'pgcalc':
             box.locator('input[data-k="osds"]').fill('120')
             pg.wait_for_timeout(450)

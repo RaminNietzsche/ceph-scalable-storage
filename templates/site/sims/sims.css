@@ -142,6 +142,19 @@ ul.sim-warn { padding-inline-start: 1.2rem; }
 .pl-xp { border-inline-start: 3px solid var(--sim-a); padding-inline-start: .6rem; margin: .4rem 0 .8rem; min-width: 0; }
 .pl-xp h5 { margin: .2rem 0 .4rem; font-family: var(--font-mono); font-size: .82rem; overflow-wrap: anywhere; }
 .sim .pl-osdw { max-width: 28rem; }
+.pl-sh { font-size: .8rem; }
+.pl-sh td, .pl-sh th[scope="row"] { font-family: var(--font-mono); }
+.pl-sh td, .pl-sh th { text-align: start; }
+html[dir="rtl"] .pl-sh td[dir="ltr"], html[dir="rtl"] .pl-sh th[dir="ltr"] { text-align: right; }
+.pl-sh td.none { color: var(--sim-bad); font-weight: 700; }
+.pl-sh td.chg { background: color-mix(in srgb, var(--sim-hot) 16%, transparent); font-weight: 700; }
+.pl-step h5, .pl-cmp-box h5 { margin: .7rem 0 .3rem; font-size: .9rem; }
+.pl-grid { font-family: var(--font-mono); font-size: .72rem; }
+.pl-grid th small { display: block; color: var(--fg-mute); font-weight: 400; font-size: .66rem; }
+.pl-grid td { white-space: nowrap; text-align: center; }
+.pl-grid td.d.on { background: linear-gradient(to right, color-mix(in srgb, var(--sim-a) 22%, transparent) calc(var(--f) * 100%), transparent 0); }
+.pl-grid td.p.on { background: color-mix(in srgb, var(--sim-ok) 16%, transparent); }
+.pl-grid th.p { color: var(--sim-ok); }
 
 /* calculators */
 .ec-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .7rem; }

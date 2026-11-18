@@ -32,15 +32,18 @@
   function rich(s) {
     s = String(s);
     if (!FA) return esc(s);
-    var out = '', last = 0, m;
+    var out = '', last = 0, m, runs = [];
     TOK.lastIndex = 0;
     while ((m = TOK.exec(s))) {
       if (!/[A-Za-z0-9]/.test(m[0])) continue;
       var t = m[0], tail = '';
       while (/[.,:;)]$/.test(t) && !/\(\)$/.test(t) && (t.slice(-1) !== ')' || (t.split('(').length < t.split(')').length))) { tail = t.slice(-1) + tail; t = t.slice(0, -1); }
-      out += esc(s.slice(last, m.index)) + '<bdi dir="ltr">' + esc(t) + '</bdi>' + esc(tail);
-      last = m.index + m[0].length;
+      // Latin words joined by one space ("object set", "ceph osd map") stay one left-to-right run
+      var prev = runs[runs.length - 1];
+      if (prev && !prev.tail && s.slice(prev.end, m.index) === ' ') { prev.t += ' ' + t; prev.tail = tail; prev.end = m.index + m[0].length; }
+      else runs.push({ start: m.index, end: m.index + m[0].length, t: t, tail: tail });
     }
+    runs.forEach(function (r) { out += esc(s.slice(last, r.start)) + '<bdi dir="ltr">' + esc(r.t) + '</bdi>' + esc(r.tail); last = r.end; });
     return out + esc(s.slice(last));
   }
   function tx(k, v) { return rich(T(k, v)); }

@@ -149,6 +149,33 @@ group('Striper invariants and the book example (chapter 37)', () => {
   }
   eq(C.rbdDataName('10226b8b4567', 255), 'rbd_data.10226b8b4567.00000000000000ff', 'rbd_data name');
 });
+group('erasure coding: ECUtil stripe_info_t, jerasure chunk size (upstream code compiled by gen_golden.py)', () => {
+  G.ec.chunk_size.forEach(([k, w, pca, sw, want]) => eq(C.ecChunkSize(k, w, !!pca, sw), want, `get_chunk_size k=${k} w=${w} pca=${pca} ${sw}`));
+  G.ec.stripe_info.forEach((c, i) => {
+    const r = C.ecRangeToShards(c.k, c.chunk, c.off, c.len);
+    eq(r.extents, c.extents, `ro_range_to_shards #${i} k=${c.k} ${c.off}~${c.len}`);
+    eq(r.superset, c.superset, `superset #${i}`);
+    eq(Array.from({ length: c.k + c.m }, (_, s) => C.ecShardSize(c.k, c.chunk, c.size, s)), c.shard_sizes, `object_size_to_shard_size #${i} ${c.size}`);
+    eq(Array.from({ length: c.k }, (_, s) => C.ecRoToShardOffset(c.k, c.chunk, c.off, s)), c.shard_offsets, `ro_offset_to_shard_offset #${i}`);
+    eq(C.ecShardToRoOffset(c.k, c.chunk, c.shard, c.shard_off), c.ro_offset, `shard_offset_to_ro_offset #${i}`);
+  });
+  eq(C.ecStripe(2, 2, 4096), { k: 2, m: 2, chunk: 4096, stripe_width: 8192, size: 4, min_size: 3 }, 'ecPool 2+2');
+  eq(C.ecStripe(4, 1, 4096).min_size, 4, 'min_size with m = 1 is k');
+});
+group('erasure coding: crush_choose_indep with out OSDs and NONE holes, then _raw_to_up_osds and _pick_primary', () => {
+  G.ec.crush_up.forEach((c) => {
+    const m = C.makeMap(c.map.buckets.map((b) => ({ id: b.id, type: b.type, alg: 'straw2', items: b.items.map((x) => x[0]), weights: b.items.map((x) => x[1]) })), G.crush_rules);
+    const down = {}; c.down.forEach((o) => { down[o] = 1; });
+    for (let ps = 0; ps < c.pgp_num; ps++) {
+      const x = C.pps(ps, c.pgp_num, c.pool), raw = C.doRule(m, c.rule, x, c.size, c.weights);
+      eq(raw, c.raw[ps], `${c.name} ps ${ps} raw`);
+      const ue = C.rawToUp(c.raw[ps], down, false, c.map.ndev), ur = C.rawToUp(c.raw[ps], down, true, c.map.ndev);
+      eq([ue, C.pickPrimary(ue)], c.up_ec[ps], `${c.name} ps ${ps} up (EC)`);
+      eq([ur, C.pickPrimary(ur)], c.up_rep[ps], `${c.name} ps ${ps} up (replicated)`);
+    }
+  });
+  eq(G.ec.nones > 0, true, 'the vectors contain NONE holes');
+});
 group('EC and replication formulas', () => {
   eq(C.ecPool(4, 2, 'jerasure', {}).minSize, 5, 'k=4 m=2 min_size (book ch. 13)');
   eq(C.ecPool(2, 1, 'isa', {}).minSize, 2, 'k=2 m=1 min_size');
