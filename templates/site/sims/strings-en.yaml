@@ -1,6 +1,6 @@
 # Strings of the interactive simulators, English edition (a translation of strings-fa.yaml).
 lab_title: Interactive lab
-lab_intro: "Seven small simulators that run the book's algorithms in your browser: no network, no installation. The arithmetic is a line-by-line port of Ceph's own code and is checked against it by the tests in tests/sims (make check-sims)."
+lab_intro: "Eight small simulators that run the book's algorithms in your browser: no network, no installation. The arithmetic is a line-by-line port of Ceph's own code and is checked against it by the tests in tests/sims (make check-sims)."
 lab_tag: Lab
 lab_in: "In the book:"
 lab_open: Open
@@ -346,5 +346,72 @@ r_st_misc: object counts and the reverse mapping
 r_st_name: the data object name
 r_st_prefix: the name prefix
 r_st_test: the vectors the tests compare against
+
+placement_t: From object name to OSD
+placement_d: "Type a file or object name and follow, step by step, how Ceph hashes it, which PG it falls into and which OSDs CRUSH picks for it with each of the five bucket algorithms; then see how much data an added OSD, a new weight or an out OSD moves with each algorithm."
+placement_what: "The whole path of ceph osd map, computed the way the client computes it. 1) ceph_str_hash_rjenkins of the name's UTF-8 bytes; 2) ceph_stable_mod with pg_num and its mask gives the PG number (values above pg_num fold into the lower half); 3) with hashpspool the PG number is reduced with pgp_num and hashed with the pool id into x, the CRUSH input; 4) crush_do_rule runs the pool's rule (chooseleaf firstn) on a root -> host -> OSD map whose buckets all use the algorithm you choose, and every draw of every bucket is shown, with rejections (out OSDs) and collisions that raise r; 5) the OSDMap drops down OSDs from the raw set to give the up set, the acting set and the primary. The comparison places sample objects before and after one change, for all five algorithms."
+placement_limit: "One algorithm for every bucket of the map (Ceph allows one per bucket); replicated pools only; no namespace or locator key, pg_temp, upmap, primary affinity, device classes or choose_args; weights are sizes in TiB. tree buckets can no longer be created with today's tunables and uniform uses its first item's weight for all items. Movement is counted per replica over the sample objects. For these maps the result is exactly that of Ceph's own C code for all five algorithms (tests/sims/golden.json)."
+pl_obj: Object or file name
+pl_pool: Pool id
+pl_size: Replicas (size)
+pl_alg: Bucket algorithm
+pl_alg_l: Bucket algorithm
+pl_alg_all: for every bucket (root and hosts)
+pl_st_pg: PG id
+pl_st_up: up set
+pl_s1_t: Hash the object name
+pl_s1_n: "The client (librados) feeds the name's UTF-8 bytes to ceph_str_hash_rjenkins, the default object_hash of a pool. The result is a 32-bit number; no table is looked up anywhere."
+pl_s2_t: From the hash to a PG
+pl_s2_ok: "{v} is below pg_num, so it is the PG number."
+pl_s2_fold: "{v} is not below pg_num, so ceph_stable_mod folds it into the lower half with half the mask."
+pl_s2_n: "The PG id is the pool id and the PG number in hex; ceph osd map also prints the full hash: pg {raw} ({pgid})."
+pl_s3_t: From the PG to the CRUSH input (pps)
+pl_s3_n: "With the hashpspool flag (the default) the PG number is reduced again with pgp_num and then hashed with the pool id, so that PGs with the same number in different pools do not land on the same OSDs."
+pl_s4_t: "CRUSH: one draw per bucket"
+pl_s4_n: "The rule starts at the root and, for each replica, picks a {fd} and an OSD under it. r is the attempt number, r = replica + ftotal: every rejected or repeated choice adds one to r and the draw is made again. The winning row of each table is highlighted."
+pl_s5_t: Up set, acting set and primary
+pl_s5_n: "CRUSH returns the raw set; the OSDMap drops the down OSDs from it (the up set). Without pg_temp and upmap the acting set is the up set, and its first member is the primary."
+pl_rep: "Replica {n} → {o}"
+pl_rep_none: "Replica {n}: no place found"
+pl_win: "winner: {o}"
+pl_rej_out: "{o} is out (reweight 0, or the is_out draw); try again with {r}."
+pl_rej_leaf: "No usable OSD under {o}; try again with {r}."
+pl_rej_coll: "{o} was already chosen (a collision); try again with {r}."
+pl_rej_empty: "The bucket is empty; try again with {r}."
+pl_c_item: Item
+pl_c_w: Weight
+pl_c_ok: Result
+pl_c_node: Node
+pl_c_lw: Left weight
+pl_c_dir: Way
+pl_w_uniform: "uniform ignores weights: each host bucket uses its first OSD's weight for all of its OSDs (crush_make_bucket), so the unequal weights inside a host are not taken into account."
+pl_w_uniform_root: "The hosts do not weigh the same, but the uniform root gives them equal shares."
+pl_w_tree: "With today's tunables Ceph refuses to create tree buckets (allowed_bucket_algs); it runs here for study only."
+pl_w_short: "Only {n} of {size} replicas found a place."
+pl_cmp_t: What moves when the map changes?
+pl_cmp_d: "{n} sample objects (obj-0, obj-1, …) are placed with this pool and pg_num; then one change is applied and every replica is placed again, with each of the five algorithms."
+pl_chg: Change
+pl_chg_add: add an OSD to the last host
+pl_chg_host: add a host with three OSDs
+pl_chg_w: change an OSD's weight
+pl_chg_out: mark an OSD out
+pl_chg_rm: remove an OSD from the map
+pl_chg_rmhost: remove the second host
+pl_chg_alg: convert every bucket to another algorithm
+pl_chg_wv: Weight (TiB)
+pl_chg_to: Target algorithm
+pl_samples: Sample objects
+pl_t_alg: Algorithm
+pl_t_from: "From {a} to"
+pl_t_moved: Replicas moved
+pl_t_min: Least needed
+pl_t_objs: Objects affected
+pl_cur: current
+pl_cmp_obj: "Object {o}: before {a}, after {b}"
+pl_cmp_same: (unchanged)
+pl_cmp_note: "'Least needed' is what a perfect placement would move to reach the new per-OSD shares: the sum of what each OSD gains. No hierarchical placement reaches it exactly, because objects that enter or leave a host are drawn again inside it, and with several replicas a host that wins an earlier slot pushes the others along. What separates the algorithms is the rest (in orange): straw2 never moves data between two items whose weights did not change; uniform redraws everything when a bucket grows or shrinks (add a host) and ignores weights; list and tree depend on where the item sits (remove the second host, or an OSD in the middle of a host). Marking an OSD out costs the same with all five, since CRUSH only rejects it and draws again."
+pl_cmp_note_alg: "Converting the buckets changes the draws, and how much moves depends on the pair. straw to straw2 moves little when the weights in a bucket are equal, because both then pick the largest hash (that is why ceph osd crush set-all-straw-buckets-to-straw2 is cheap); with unequal weights, or to and from uniform, list and tree, most of the data moves."
+r_pl_straw: "straw: the longest scaled straw wins; straw lengths depend on every weight"
+r_pl_old: the list, tree and uniform choices and how buckets are built
 
 xp_sim: "Lab: {n}"

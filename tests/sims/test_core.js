@@ -50,6 +50,41 @@ group('crush_do_rule: replicated firstn and EC indep, through raw_pg_to_pps', ()
     }
   });
 });
+group('crush_hash32_4 (rjenkins1; list and tree buckets)', () => G.hash32_4.forEach(([a, b, c, d, h]) => eq(C.hash4(a, b, c, d), h, `hash4(${a},${b},${c},${d})`)));
+group('crush_bucket_choose: uniform, list, tree, straw, straw2 (one bucket, r = 0..size+2)', () => {
+  G.bucket_choose.forEach((c) => {
+    const m = C.makeMap([{ id: c.id, type: 1, alg: c.alg, items: c.items, weights: c.weights }], {}), b = m.buckets[c.id];
+    eq(b.weight, c.weight, `${c.alg} size ${c.items.length} bucket weight`);
+    if (c.straws) eq(b.straws, c.straws, `straw lengths (crush_calc_straw v1) size ${c.items.length}`);
+    c.xs.forEach((x, i) => {
+      m.work = {};                                   /* one workspace per x, as in crush_do_rule */
+      const got = [];
+      for (let r = 0; r < c.rmax; r++) got.push(C.bucketChoose(m, b, x >>> 0, r));
+      eq(got, c.expect[i], `${c.alg} size ${c.items.length} x ${x}`);
+    });
+  });
+});
+group('bucket algorithms: the book\'s chapter 28 worked examples (figures 28-5, 28-6, 28-7)', () => {
+  const W = 0x10000, x = 0x1234ABCD;
+  const pick = (alg, id, items, ws, rs) => { const m = C.makeMap([{ id, type: 1, alg, items, weights: ws }], {}); return rs.map((r) => C.bucketChoose(m, m.buckets[id], x, r)); };
+  eq(pick('uniform', -5, [10, 11, 12, 13], [W, W, W, W], [0, 1, 2, 3]), [13, 12, 10, 11], 'uniform -5: permutation [3 2 0 1]');
+  eq(pick('list', -6, [20, 21, 22], [W, W, 2 * W], [0, 1, 2]), [21, 20, 20], 'list -6: r=0 item 21, r=1 and r=2 item 20');
+  const m = C.makeMap([{ id: -6, type: 1, alg: 'list', items: [20, 21, 22], weights: [W, W, 2 * W] }], {}), info = [];
+  C.bucketChoose(m, m.buckets[-6], x, 0, info);
+  eq(info.map((e) => [e.item, e.u]), [[22, 0xF9C9], [21, 0x2D95]], 'list -6 r=0 draws 0xF9C9 and 0x2D95');
+  const t = C.makeMap([{ id: -7, type: 1, alg: 'tree', items: [30, 31, 32, 33], weights: [W, 2 * W, 3 * W, 4 * W] }], {}), ti = [];
+  eq(C.bucketChoose(t, t.buckets[-7], x, 0, ti), 32, 'tree 1:2:3:4: r=0 item 32');
+  eq(ti.map((e) => [e.node, e.dir, Math.round(e.t / 655.36) / 100]), [[4, 'R', 4.22], [6, 'L', 0.79]], 'tree path n4 -> n6 -> n5');
+});
+group('crush_do_rule over every bucket algorithm (and mixed maps), through raw_pg_to_pps', () => {
+  G.crush_algs.forEach((c) => {
+    const m = C.makeMap(c.map.buckets.map((b) => ({ id: b.id, type: b.type, alg: b.alg, items: b.items.map((x) => x[0]), weights: b.items.map((x) => x[1]) })), G.crush_rules);
+    for (let ps = 0; ps < c.pgp_num; ps++) {
+      const x = C.pps(ps, c.pgp_num, c.pool);
+      eq(C.doRule(m, c.rule, x, c.size, c.weights), c.expect[ps], `${c.name} ps ${ps}`);
+    }
+  });
+});
 group('pg_autoscaler (module.py four passes)', () => {
   G.autoscaler.forEach((c, i) => {
     const r = C.autoscale(c.osds, c.target, c.pools);

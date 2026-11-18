@@ -48,6 +48,18 @@
     s = [y, c, hash]; mix(s); y = s[0]; c = s[1]; hash = s[2];
     return hash;
   }
+  // src/crush/hash.c :: crush_hash32_rjenkins1_4 (list and tree buckets)
+  function hash4(a, b, c, d) {
+    a >>>= 0; b >>>= 0; c >>>= 0; d >>>= 0;
+    var hash = (SEED ^ a ^ b ^ c ^ d) >>> 0, x = 231232, y = 1232, s;
+    s = [a, b, hash]; mix(s); a = s[0]; b = s[1]; hash = s[2];
+    s = [c, d, hash]; mix(s); c = s[0]; d = s[1]; hash = s[2];
+    s = [a, x, hash]; mix(s); a = s[0]; x = s[1]; hash = s[2];
+    s = [y, b, hash]; mix(s); y = s[0]; b = s[1]; hash = s[2];
+    s = [c, x, hash]; mix(s); c = s[0]; x = s[1]; hash = s[2];
+    s = [y, d, hash]; mix(s); y = s[0]; d = s[1]; hash = s[2];
+    return hash;
+  }
   function utf8(str) {
     if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(str);
     return Buffer.from(str, 'utf8');
@@ -108,13 +120,159 @@
     return Math.trunc(ln / weight);
   }
   // src/crush/mapper.c :: bucket_straw2_choose (no choose_args)
-  function straw2(b, x, r) {
+  // info (optional) receives every candidate's draw, for the step-by-step lab
+  function straw2(b, x, r, info) {
     var high = 0, highDraw = 0, draw;
     for (var i = 0; i < b.items.length; i++) {
       draw = b.weights[i] ? expDraw(x, b.items[i], r, b.weights[i]) : -Infinity;   /* S64_MIN */
+      if (info) info.push({ item: b.items[i], w: b.weights[i], u: hash3(x, b.items[i], r) & 0xffff, draw: draw });
       if (i === 0 || draw > highDraw) { high = i; highDraw = draw; }
     }
     return b.items[high];
+  }
+
+  /* ------------------------------------------------------------ the four older bucket algorithms */
+  // src/crush/mapper.c :: bucket_straw_choose: the longest scaled straw (hash & 0xffff) * straws[i] wins
+  function straw(b, x, r, info) {
+    var high = 0, highDraw = 0, draw, u;
+    for (var i = 0; i < b.items.length; i++) {
+      u = hash3(x, b.items[i], r) & 0xffff;
+      draw = u * b.straws[i];                          /* < 2^48: exact */
+      if (info) info.push({ item: b.items[i], w: b.weights[i], u: u, straw: b.straws[i], draw: draw });
+      if (i === 0 || draw > highDraw) { high = i; highDraw = draw; }
+    }
+    return b.items[high];
+  }
+  // src/crush/builder.c :: crush_calc_straw (straw_calc_version 1, set by the jewel and later tunables)
+  function calcStraws(weights, version) {
+    var size = weights.length, rev = [], i, j, k, straws = new Array(size);
+    if (size) rev[0] = 0;
+    for (i = 1; i < size; i++) {                        /* reverse sort by weight (insertion sort) */
+      for (j = 0; j < i; j++) {
+        if (weights[i] < weights[rev[j]]) { for (k = i; k > j; k--) rev[k] = rev[k - 1]; rev[j] = i; break; }
+      }
+      if (j === i) rev[i] = i;
+    }
+    var numleft = size, st = 1.0, wbelow = 0, lastw = 0, wnext, pbelow;
+    i = 0;
+    while (i < size) {
+      if (version === 0) {
+        if (weights[rev[i]] === 0) { straws[rev[i]] = 0; i++; continue; }
+        straws[rev[i]] = Math.trunc(st * 0x10000) >>> 0;
+        i++;
+        if (i === size) break;
+        if (weights[rev[i]] === weights[rev[i - 1]]) continue;
+        wbelow += (weights[rev[i - 1]] - lastw) * numleft;
+        for (j = i; j < size; j++) { if (weights[rev[j]] === weights[rev[i]]) numleft--; else break; }
+        wnext = numleft * (weights[rev[i]] - weights[rev[i - 1]]);
+      } else {
+        if (weights[rev[i]] === 0) { straws[rev[i]] = 0; i++; numleft--; continue; }
+        straws[rev[i]] = Math.trunc(st * 0x10000) >>> 0;
+        i++;
+        if (i === size) break;
+        wbelow += (weights[rev[i - 1]] - lastw) * numleft;
+        numleft--;
+        wnext = numleft * (weights[rev[i]] - weights[rev[i - 1]]);
+      }
+      pbelow = wbelow / (wbelow + wnext);
+      st *= Math.pow(1.0 / pbelow, 1.0 / numleft);
+      lastw = weights[rev[i - 1]];
+    }
+    return straws;
+  }
+  // src/crush/mapper.c :: bucket_list_choose: walk from the tail; item i keeps the draw with probability w_i / sum_i
+  function list(b, x, r, info) {
+    for (var i = b.items.length - 1; i >= 0; i--) {
+      var u = hash4(x, b.items[i], r, b.id) & 0xffff;
+      var sc = Math.floor(u * b.sum[i] / 65536);       /* (u * sum_weights[i]) >> 16, < 2^48 */
+      var ok = sc < b.weights[i];
+      if (info) info.push({ item: b.items[i], w: b.weights[i], u: u, sum: b.sum[i], scaled: sc, ok: ok });
+      if (ok) return b.items[i];
+    }
+    return b.items[0];
+  }
+  // src/crush/mapper.c :: height, left, right, terminal (node numbers of the tree bucket)
+  function theight(n) { var h = 0; while ((n & 1) === 0) { h++; n >>= 1; } return h; }
+  function tleft(n) { return n - (1 << (theight(n) - 1)); }
+  function tright(n) { return n + (1 << (theight(n) - 1)); }
+  // ((u64)hash * w) >> 32 without losing bits: split w into 16-bit halves (every partial product < 2^48)
+  function mulHi32(h, w) {
+    var a = h * (w >>> 16), bb = h * (w & 0xffff), aq = Math.floor(a / 65536), ar = a - aq * 65536;
+    return aq + Math.floor((ar * 65536 + bb) / 4294967296);
+  }
+  // src/crush/mapper.c :: bucket_tree_choose: descend a weighted binary tree from the root node
+  function tree(b, x, r, info) {
+    var n = b.numNodes >> 1;
+    while (!(n & 1)) {
+      var w = b.nodes[n], t = mulHi32(hash4(x, n, r, b.id), w), l = tleft(n), goLeft = t < b.nodes[l];
+      if (info) info.push({ node: n, w: w, t: t, left: l, lw: b.nodes[l], right: tright(n), dir: goLeft ? 'L' : 'R' });
+      n = goLeft ? l : tright(n);
+    }
+    return b.items[n >> 1];
+  }
+  // src/crush/builder.c :: calc_depth, crush_make_tree_bucket (crush.h :: crush_calc_tree_node)
+  function treeNodes(weights) {
+    var size = weights.length, depth = 0;
+    if (size) { depth = 1; for (var t = size - 1; t; t >>= 1) depth++; }
+    var num = 1 << depth, nodes = new Array(num).fill(0);
+    function parent(n) { var h = theight(n); return (n & (1 << (h + 1))) ? n - (1 << h) : n + (1 << h); }
+    for (var i = 0; i < size; i++) {
+      var node = ((i + 1) << 1) - 1;
+      nodes[node] = weights[i];
+      for (var j = 1; j < depth; j++) { node = parent(node); nodes[node] += weights[i]; }
+    }
+    return { numNodes: size ? num : 0, nodes: nodes };
+  }
+  // src/crush/mapper.c :: bucket_perm_choose (uniform buckets): a Fisher-Yates permutation driven by the hash,
+  // kept in the per-call workspace (crush_work_bucket) so that r = 1, 2, ... extend it instead of redoing it
+  function permChoose(b, wk, x, r, info) {
+    var size = b.items.length, pr = r % size, i, s;
+    x >>>= 0;
+    if (wk.permX !== x || wk.permN === 0) {
+      wk.permX = x;
+      if (pr === 0) {
+        s = hash3(x, b.id, 0) % size;
+        wk.perm[0] = s; wk.permN = 0xffff;
+        if (info) info.push({ p: 0, h: hash3(x, b.id, 0), mod: size, swap: s, fast: true, perm: [s] });
+        return b.items[s];
+      }
+      for (i = 0; i < size; i++) wk.perm[i] = i;
+      wk.permN = 0;
+    } else if (wk.permN === 0xffff) {
+      for (i = 1; i < size; i++) wk.perm[i] = i;
+      wk.perm[wk.perm[0]] = 0;
+      wk.permN = 1;
+    }
+    while (wk.permN <= pr) {
+      var p = wk.permN;
+      if (p < size - 1) {
+        var hh = hash3(x, b.id, p);
+        i = hh % (size - p);
+        if (i) { var t = wk.perm[p + i]; wk.perm[p + i] = wk.perm[p]; wk.perm[p] = t; }
+        if (info) info.push({ p: p, h: hh, mod: size - p, swap: p + i, perm: wk.perm.slice(0, size) });
+      }
+      wk.permN++;
+    }
+    s = wk.perm[pr];
+    if (info) info.push({ pr: pr, pick: s });
+    return b.items[s];
+  }
+  var ALG = { uniform: 1, list: 2, tree: 3, straw: 4, straw2: 5 };
+  // src/crush/mapper.c :: crush_bucket_choose
+  function bucketChoose(m, b, x, r, info) {
+    switch (b.alg) {
+      case 'uniform': return permChoose(b, work(m, b), x, r, info);
+      case 'list': return list(b, x, r, info);
+      case 'tree': return tree(b, x, r, info);
+      case 'straw': return straw(b, x, r, info);
+      default: return straw2(b, x, r, info);
+    }
+  }
+  // src/crush/mapper.c :: crush_init_workspace (perm_x = perm_n = 0 for every bucket, once per crush_do_rule)
+  function work(m, b) {
+    var w = m.work[b.id];
+    if (!w) w = m.work[b.id] = { permX: 0, permN: 0, perm: new Array(b.items.length).fill(0) };
+    return w;
   }
 
   /* ------------------------------------------------------------ CRUSH map and rules */
@@ -123,14 +281,22 @@
              SET_CHOOSE_TRIES: 8, SET_CHOOSELEAF_TRIES: 9, SET_CHOOSE_LOCAL_TRIES: 10, SET_CHOOSE_LOCAL_FALLBACK_TRIES: 11,
              SET_CHOOSELEAF_VARY_R: 12, SET_CHOOSELEAF_STABLE: 13 };
   // src/crush/CrushWrapper.h :: set_tunables_jewel (also the "optimal" and "default" profiles)
-  var JEWEL = { local: 0, fallback: 0, total: 50, descendOnce: 1, varyR: 1, stable: 1 };
+  var JEWEL = { local: 0, fallback: 0, total: 50, descendOnce: 1, varyR: 1, stable: 1, strawCalc: 1 };
 
-  // buckets: [{id (<0), type, items:[id], weights:[16.16]}]; builder.c sums item weights into the bucket weight
+  // buckets: [{id (<0), type, alg ('straw2' when absent), items:[id], weights:[16.16]}]
+  // src/crush/builder.c :: crush_make_bucket: the bucket weight is the sum of the item weights, except
+  // uniform (size * the first item's weight; the other weights are ignored); list keeps running sums,
+  // tree the node weights and straw the scaled straw lengths
+  function bucketWeight(alg, ws) { return alg === 'uniform' ? (ws.length ? ws.length * ws[0] : 0) : ws.reduce(function (s, w) { return s + w; }, 0); }
   function makeMap(buckets, rules, tun) {
-    var m = { buckets: {}, rules: rules || {}, tun: tun || JEWEL, maxDevices: 0, maxBuckets: 0 };
+    var m = { buckets: {}, rules: rules || {}, tun: tun || JEWEL, maxDevices: 0, maxBuckets: 0, work: {} };
     buckets.forEach(function (b) {
-      m.buckets[b.id] = { id: b.id, type: b.type, items: b.items.slice(), weights: b.weights.slice(),
-                          weight: b.weights.reduce(function (s, w) { return s + w; }, 0) };
+      var alg = b.alg || 'straw2', ws = b.weights.slice();
+      var nb = m.buckets[b.id] = { id: b.id, type: b.type, alg: alg, items: b.items.slice(), weights: ws, weight: bucketWeight(alg, ws) };
+      if (alg === 'uniform') nb.weights = ws.map(function () { return ws[0]; });
+      if (alg === 'list') { var acc = 0; nb.sum = ws.map(function (w) { acc += w; return acc; }); }
+      if (alg === 'tree') { var tn = treeNodes(ws); nb.numNodes = tn.numNodes; nb.nodes = tn.nodes; }
+      if (alg === 'straw') nb.straws = calcStraws(ws, m.tun.strawCalc == null ? 1 : m.tun.strawCalc);
       m.maxBuckets = Math.max(m.maxBuckets, -b.id);
       b.items.forEach(function (it) { if (it >= m.maxDevices) m.maxDevices = it + 1; });   /* crush_finalize */
     });
@@ -157,11 +323,14 @@
         do {
           collide = 0; retryBucket = 0;
           r = rep + parentR + ftotal;
-          if (inb.items.length === 0) { reject = 1; }
+          var why = '';
+          if (inb.items.length === 0) { reject = 1; why = 'empty'; }
           else {
+            var info = trace ? [] : null;
             if (localFallback > 0 && flocal >= (inb.items.length >> 1) && flocal > localFallback)
-              throw new Error('bucket_perm_choose is not used with the jewel tunables');
-            item = straw2(inb, x, r);
+              item = permChoose(inb, work(m, inb), x, r, info);
+            else item = bucketChoose(m, inb, x, r, info);
+            if (trace) trace.push({ k: 'pick', b: inb.id, alg: inb.alg, r: r, rep: rep, item: item, info: info, inner: out2 === null });
             if (item >= m.maxDevices) { skipRep = 1; break; }
             itype = itemType(m, item);
             if (itype !== type) {
@@ -178,11 +347,12 @@
                   reject = 1;
               } else out2[o2b + outpos] = item;
             }
-            if (!reject && !collide && itype === 0) reject = isOut(weight, item, x) ? 1 : 0;
+            if (reject) why = 'leaf';
+            if (!reject && !collide && itype === 0) { reject = isOut(weight, item, x) ? 1 : 0; if (reject) why = 'out'; }
           }
           if (reject || collide) {
             ftotal++; flocal++;
-            if (trace) trace.push({ k: collide ? 'collide' : 'reject', item: item, r: r });
+            if (trace) trace.push({ k: collide ? 'collide' : 'reject', why: collide ? '' : why, item: item, r: r, ftotal: ftotal });
             if (collide && flocal <= localRetries) retryBucket = 1;
             else if (localFallback > 0 && flocal <= inb.items.length + localFallback) retryBucket = 1;
             else if (ftotal < tries) retryDescent = 1;
@@ -207,9 +377,12 @@
         inb = bkt;
         for (;;) {
           r = rep + parentR;
-          r += numrep * ftotal;            /* straw2 buckets: r' = r + n * f_total */
+          if (inb.alg === 'uniform' && inb.items.length % numrep === 0) r += (numrep + 1) * ftotal;   /* r' = r + (n+1) * f_total */
+          else r += numrep * ftotal;                                                              /* r' = r + n * f_total */
           if (inb.items.length === 0) break;
-          item = straw2(inb, x, r);
+          var info = trace ? [] : null;
+          item = bucketChoose(m, inb, x, r, info);
+          if (trace) trace.push({ k: 'pick', b: inb.id, alg: inb.alg, r: r, rep: rep, item: item, info: info });
           if (item >= m.maxDevices) { out[ob + rep] = NONE; if (out2) out2[o2b + rep] = NONE; left--; break; }
           itype = itemType(m, item);
           if (itype !== type) {
@@ -239,6 +412,7 @@
   // src/crush/mapper.c :: crush_do_rule / crush_do_rule_no_retry (non-MSR rules)
   function doRule(m, ruleno, x, resultMax, weight, trace) {
     var rule = m.rules[ruleno]; if (!rule) return [];
+    m.work = {};                                    /* crush_init_workspace */
     var t = m.tun, result = [], a = new Array(resultMax), b = new Array(resultMax), c = new Array(resultMax);
     var w = a, o = b, wsize = 0, osize, tmp;
     var chooseTries = t.total + 1, chooseLeafTries = 0, localR = t.local, fallbackR = t.fallback, varyR = t.varyR, stable = t.stable;
@@ -298,8 +472,8 @@
   // src/osd/osd_types.cc :: pg_pool_t::raw_pg_to_pps (FLAG_HASHPSPOOL, the default)
   function pps(ps, pgpNum, pool) { return hash2(stableMod(ps, pgpNum, pgMask(pgpNum)), pool); }
   // src/osd/OSDMap.cc :: _pg_to_raw_osds + _raw_to_up_osds + _pick_primary (no pg_temp / primary affinity)
-  function pgToUp(m, ruleno, ps, pool, pgpNum, size, weight, down, ec) {
-    var x = pps(ps, pgpNum, pool), raw = doRule(m, ruleno, x, size, weight), up;
+  function pgToUp(m, ruleno, ps, pool, pgpNum, size, weight, down, ec, trace) {
+    var x = pps(ps, pgpNum, pool), raw = doRule(m, ruleno, x, size, weight, trace), up;
     if (!ec) up = raw.filter(function (o) { return o !== NONE && !down[o]; });
     else up = raw.map(function (o) { return o === NONE || down[o] ? NONE : o; });
     var primary = -1;
@@ -588,7 +762,7 @@
   }
 
   var API = {
-    hash2: hash2, hash3: hash3, strHash: strHash, stableMod: stableMod, pgMask: pgMask, crushLn: crushLn, expDraw: expDraw,
+    hash2: hash2, hash3: hash3, hash4: hash4, ALG: ALG, calcStraws: calcStraws, treeNodes: treeNodes, bucketChoose: bucketChoose, strHash: strHash, stableMod: stableMod, pgMask: pgMask, crushLn: crushLn, expDraw: expDraw,
     NONE: NONE, OP: OP, JEWEL: JEWEL, makeMap: makeMap, doRule: doRule, simpleRule: simpleRule, iweight: iweight,
     pps: pps, pgToUp: pgToUp, objectToPg: objectToPg,
     fileToExtents: fileToExtents, objectTruncateSize: objectTruncateSize, numObjects: numObjects, fileOffset: fileOffset, rbdDataName: rbdDataName,

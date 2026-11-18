@@ -9,7 +9,7 @@
 const path = require('path');
 const dir = path.join(__dirname, '..', 'templates', 'site', 'sims');
 const S = require(path.join(dir, 'sims.js'));
-for (const part of ['crush', 'calc', 'peering', 'flow', 'striping', 'ui']) require(path.join(dir, `sim-${part}.js`));
+for (const part of ['crush', 'placement', 'calc', 'peering', 'flow', 'striping', 'ui']) require(path.join(dir, `sim-${part}.js`));
 let buf = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (c) => { buf += c; });

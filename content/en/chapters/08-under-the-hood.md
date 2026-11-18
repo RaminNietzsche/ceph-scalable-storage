@@ -247,6 +247,11 @@ static inline int ceph_stable_mod(int x, int b, int bmask)
 For this reason, when pg_num is not a power of 2, PG sizes are unequal: the "folded" PGs have roughly twice as much data. This is one of the reasons for the power-of-2 recommendation and for the autoscaler's behaviour (chapter 19).
 :::
 
+In the lab below you can follow these three stages for any object name, down to every CRUSH draw in every bucket.
+
+::: {.sim name="placement"}
+:::
+
 ## straw2: choosing by drawing exponential lots {#sec-08-6-2}
 
 ![The straw2 algorithm in three stages: for each bucket item a sixteen-bit pseudo-random number is built from the input hash, the item id and the attempt number, and its natural logarithm is computed with a table and divided by the weight; the item with the largest value is chosen, which is mathematically equivalent to picking the minimum of exponential variables with rate equal to the weight and makes each item's selection probability exactly proportional to its weight; the consequence is minimal data movement when weights change](figures/ch08/s02_straw2.png){#fig-08-s02_straw2}

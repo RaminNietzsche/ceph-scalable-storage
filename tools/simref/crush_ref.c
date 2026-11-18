@@ -45,6 +45,38 @@ int main(void)
 			struct crush_bucket *b = crush_make_bucket(m, CRUSH_BUCKET_STRAW2, CRUSH_HASH_DEFAULT, type, n, items, ws);
 			if (crush_add_bucket(m, id, b, &idout) < 0) return 3;
 			free(items); free(ws);
+		} else if (!strcmp(cmd, "SCV")) {       /* SCV v: straw_calc_version (set_tunables_jewel sets 1) */
+			unsigned v;
+			if (scanf("%u", &v) != 1) return 2;
+			m->straw_calc_version = v;
+		} else if (!strcmp(cmd, "BA")) {        /* BA alg id type n (item weight)*: any bucket algorithm */
+			int alg, id, type, n, idout;
+			if (scanf("%d %d %d %d", &alg, &id, &type, &n) != 4) return 2;
+			int *items = calloc(n ? n : 1, sizeof(int)), *ws = calloc(n ? n : 1, sizeof(int));
+			for (int i = 0; i < n; i++) if (scanf("%d %d", &items[i], &ws[i]) != 2) return 2;
+			struct crush_bucket *b = crush_make_bucket(m, alg, CRUSH_HASH_DEFAULT, type, n, items, ws);
+			if (!b || crush_add_bucket(m, id, b, &idout) < 0) return 3;
+			free(items); free(ws);
+		} else if (!strcmp(cmd, "BW")) {        /* BW id: the bucket weight builder.c computed */
+			int id;
+			if (scanf("%d", &id) != 1) return 2;
+			printf("%u\n", m->buckets[-1 - id]->weight);
+		} else if (!strcmp(cmd, "BS")) {        /* BS id: the straw lengths of a straw bucket */
+			int id;
+			if (scanf("%d", &id) != 1) return 2;
+			struct crush_bucket_straw *sb = (struct crush_bucket_straw *)m->buckets[-1 - id];
+			for (unsigned i = 0; i < sb->h.size; i++) printf(i ? " %u" : "%u", sb->straws[i]);
+			printf("\n");
+		} else if (!strcmp(cmd, "BC")) {        /* BC id x rmax: crush_bucket_choose for r = 0..rmax-1, one workspace */
+			int id, x, rmax;
+			if (scanf("%d %d %d", &id, &x, &rmax) != 3) return 2;
+			struct crush_work *cw = malloc(crush_work_size(m, 1));
+			crush_init_workspace(m, cw);
+			const struct crush_bucket *b = m->buckets[-1 - id];
+			for (int r = 0; r < rmax; r++)
+				printf(r ? " %d" : "%d", crush_bucket_choose(b, cw->work[-1 - id], x, r, NULL, 0));
+			printf("\n");
+			free(cw);
 		} else if (!strcmp(cmd, "R")) {
 			int no, type, n;
 			if (scanf("%d %d %d", &no, &type, &n) != 3) return 2;
@@ -82,6 +114,10 @@ int main(void)
 			unsigned a, b;
 			if (scanf("%u %u", &a, &b) != 2) return 2;
 			printf("%u\n", crush_hash32_2(CRUSH_HASH_RJENKINS1, a, b));
+		} else if (!strcmp(cmd, "H4")) {
+			unsigned a, b, c, d;
+			if (scanf("%u %u %u %u", &a, &b, &c, &d) != 4) return 2;
+			printf("%u\n", crush_hash32_4(CRUSH_HASH_RJENKINS1, a, b, c, d));
 		} else if (!strcmp(cmd, "H3")) {
 			unsigned a, b, c;
 			if (scanf("%u %u %u", &a, &b, &c) != 3) return 2;

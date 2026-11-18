@@ -86,8 +86,8 @@ CARD_VIS = r"""() => [...document.querySelectorAll('.lab-card')].map(c => {
 
 def check_cards(page, where):
     cards = page.evaluate(CARD_VIS)
-    if len(cards) != 7:
-        problems.append(f'[{where}] {len(cards)} lab cards (expected 7)')
+    if len(cards) != 8:
+        problems.append(f'[{where}] {len(cards)} lab cards (expected 8)')
     for c in cards:
         if not c['icon']:
             problems.append(f'[{where}] {c["href"]}: icon not drawn (stroke {c["stroke"]})')
@@ -548,7 +548,7 @@ with sync_playwright() as pw:
             problems.append('[motion] scroll reveal never revealed anything')
         ctx.close()
     # interactive lab: drive every simulator once; desktop fa, one mobile, one dark, en, print media and no-JS fallback
-    SIMS = ['crush', 'pgcalc', 'ecprofile', 'peering', 'bluestore', 'rgwput', 'striping']
+    SIMS = ['crush', 'placement', 'pgcalc', 'ecprofile', 'peering', 'bluestore', 'rgwput', 'striping']
     HIDE = '.topbar, .g-toasts, .totop { visibility: hidden !important; }'
 
     def sim_ctx(w=1440, h=900, scheme='light', js=True, tag='sim'):
@@ -581,6 +581,15 @@ with sync_playwright() as pw:
             pg.wait_for_timeout(150)
             if box.locator('.cr-pgs li.chg').count() == 0 or box.locator('.sim-stat.hot').count() == 0:
                 problems.append('[sim crush] marking an OSD out moved no PG')
+        elif name == 'placement':
+            box.locator('[data-set="pl_alg"][data-v="list"]').click()
+            pg.wait_for_timeout(150)
+            if 'bucket default (list)' not in box.locator('.pl-steps').inner_text() or box.locator('.pl-cmp tr.cur').count() != 1:
+                problems.append('[sim placement] choosing list did not redraw the CRUSH draws and the comparison')
+            box.locator('select[data-k="chg"]').select_option('out')
+            pg.wait_for_timeout(300)
+            if box.locator('.pl-cmp tbody tr').count() != 5:
+                problems.append('[sim placement] marking an OSD out did not compare the five algorithms')
         elif name == 'pgcalc':
             box.locator('input[data-k="osds"]').fill('120')
             pg.wait_for_timeout(450)

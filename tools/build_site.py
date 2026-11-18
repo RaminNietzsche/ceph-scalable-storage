@@ -337,8 +337,8 @@ def code_block(div):
 # by tools/sim_fallback.js (the same view code, run in node) is what print and no-JS readers see.
 SIMDIR = os.path.join(TPL, 'sims')
 SIMY = yaml.safe_load(open(os.path.join(SIMDIR, f'strings-{LANG}.yaml'), encoding='utf-8'))
-SIM_PARTS = ['crush-ln-table.js', 'sim-core.js', 'sims.js', 'sim-crush.js', 'sim-calc.js', 'sim-peering.js', 'sim-flow.js', 'sim-striping.js', 'sim-ui.js']
-SIM_NAMES = ['crush', 'pgcalc', 'ecprofile', 'peering', 'bluestore', 'rgwput', 'striping']
+SIM_PARTS = ['crush-ln-table.js', 'sim-core.js', 'sims.js', 'sim-crush.js', 'sim-placement.js', 'sim-calc.js', 'sim-peering.js', 'sim-flow.js', 'sim-striping.js', 'sim-ui.js']
+SIM_NAMES = ['crush', 'placement', 'pgcalc', 'ecprofile', 'peering', 'bluestore', 'rgwput', 'striping']
 SIM_WHERE = {n: [] for n in SIM_NAMES}   # name -> [(page, section id, section title)]
 
 
@@ -361,7 +361,7 @@ def sim_icon(name):
 
 
 # the parts of each static figure that make a readable preview (first match of each)
-THUMB_PARTS = {'crush': ('sim-stats', 'sim-fig'), 'pgcalc': ('sim-stats', 'table-wrap'), 'ecprofile': ('sim-stats', 'ec-cards'),
+THUMB_PARTS = {'crush': ('sim-stats', 'sim-fig'), 'placement': ('pl-flow', 'sim-stats'), 'pgcalc': ('sim-stats', 'table-wrap'), 'ecprofile': ('sim-stats', 'ec-cards'),
                'peering': ('ps-top', 'ps-osds'), 'bluestore': ('sim-stats', 'sim-fig'), 'rgwput': ('sim-stats', 'sim-fig'),
                'striping': ('sim-stats', 'st-sets')}
 

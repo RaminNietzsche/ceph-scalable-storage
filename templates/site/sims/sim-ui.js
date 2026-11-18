@@ -56,7 +56,10 @@
     }
     function drawOut() {
       if (def.steps) st.i = Math.max(0, Math.min(st.i, def.steps(st) - 1));
+      // controls that live in the output (e.g. the placement lab's comparison) keep keyboard focus too
+      var a = document.activeElement, f = a && out.contains(a) ? a.getAttribute('data-fid') || a.getAttribute('data-k') : null;
       try { out.innerHTML = def.view(st, false); } catch (e) { out.innerHTML = '<p class="sim-warn">' + esc(T('error')) + '</p>'; }
+      if (f) { var el = out.querySelector('[data-fid="' + f + '"]') || out.querySelector('[data-k="' + f + '"]'); if (el) el.focus(); }
       if (def.say) live.textContent = def.say(st);
     }
     function apply(r) {

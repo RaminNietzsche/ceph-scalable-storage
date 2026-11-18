@@ -10,6 +10,10 @@ Needs an unmodified Ceph source tree and gcc. Writes tests/sims/golden.json:
     path pps = crush_hash32_2(ceph_stable_mod(ps, pgp_num, mask), pool);
   * crush_hash32_2/_3, ceph_str_hash_rjenkins, straw2 draws and a checksum of
     all 65536 crush_ln() values;
+  * crush_hash32_4, crush_bucket_choose of single uniform, list, tree, straw and
+    straw2 buckets (with the bucket weights and straw lengths builder.c computes),
+    and crush_do_rule over maps built entirely of each bucket algorithm (and maps
+    that mix them), with straw_calc_version 1 as set by the jewel tunables;
   * pg_autoscaler targets from Ceph's own src/pybind/mgr/pg_autoscaler/module.py
     (imported with small stand-ins for the mgr runtime) for several pool sets.
 With --table it also rewrites templates/site/sims/crush-ln-table.js from
@@ -316,8 +320,113 @@ ascases = [
 ]
 gold['autoscaler'] = [{'osds': o, 'target': t, 'pools': p, 'expect': autoscale(o, t, p)} for o, t, p in ascases]
 
+# ---------------------------------------------------------------- the five bucket algorithms
+# Its own random stream, so everything above stays byte-for-byte what it was.
+ra = random.Random(20261118)
+ALGS = {'uniform': 1, 'list': 2, 'tree': 3, 'straw': 4, 'straw2': 5}
+ALGS_LIST = list(ALGS)[::-1]
+h4 = [[ra.getrandbits(32), ra.getrandbits(32) if i % 3 else (-ra.randint(1, 40)) & 0xffffffff, ra.randint(0, 60), (-ra.randint(1, 40)) & 0xffffffff] for i in range(150)]
+out = run([f'H4 {a} {b} {c} {d}' for a, b, c, d in h4])
+gold['hash32_4'] = [[a, b, c, d, int(out[k])] for k, (a, b, c, d) in enumerate(h4)]
+
+
+def bweight(alg, ws):
+    """builder.c: bucket weight (uniform: size * first item weight)."""
+    return (len(ws) * ws[0] if ws else 0) if alg == 'uniform' else sum(ws)
+
+
+# one bucket at a time: crush_bucket_choose for r = 0 .. size+2 in one workspace (uniform keeps its permutation)
+bcases = []
+for alg in ALGS:
+    for size in (1, 2, 3, 4, 5, 7, 8, 12):
+        items = ra.sample(range(0, 60), size)
+        if alg == 'uniform':
+            ws = [ra.choice([W1, 0x20000, 0x3ccc0])] * size
+        else:
+            ws = [ra.choice([W1, 2 * W1, 0x1999a, 0x8000, 0x3ccc0, 0x74666, 0]) for _ in range(size)]
+            if not any(ws):
+                ws[0] = W1
+        bid = -1 - ra.randint(0, 6)
+        bcases.append({'alg': alg, 'id': bid, 'items': items, 'weights': ws,
+                       'xs': [ra.getrandbits(32) if k % 4 else ra.randint(0, 1000) for k in range(40)], 'rmax': size + 3})
+lines = []
+for c in bcases:
+    lines += ['MAP', 'TUN 0 0 50 1 1 1', 'SCV 1',
+              f'BA {ALGS[c["alg"]]} {c["id"]} 1 {len(c["items"])} ' + ' '.join(f'{i} {w}' for i, w in zip(c['items'], c['weights'])),
+              'FIN', f'BW {c["id"]}']
+    if c['alg'] == 'straw':
+        lines.append(f'BS {c["id"]}')
+    lines += [f'BC {c["id"]} {x} {c["rmax"]}' for x in c['xs']]
+    lines.append('END')
+out = run(lines)
+k = 0
+for c in bcases:
+    c['weight'] = int(out[k]); k += 1
+    if c['alg'] == 'straw':
+        c['straws'] = [int(v) for v in out[k].split()]; k += 1
+    c['expect'] = []
+    for _ in c['xs']:
+        c['expect'].append([int(v) for v in out[k].split()]); k += 1
+gold['bucket_choose'] = bcases
+
+# whole maps: root -> hosts -> osds with every bucket of one algorithm (and some mixed maps), through crush_do_rule
+acases = []
+aspecs = [
+    ('3x3 equal', [3, 3, 3], lambda: W1),
+    ('4 hosts mixed', [2, 3, 4, 3], lambda: ra.choice([W1, 2 * W1, 0x1999a, 0x8000, 0x3ccc0])),
+    ('5x2', [2, 2, 2, 2, 2], lambda: ra.choice([W1, W1, 0x20000])),
+    ('6 hosts uneven', [1, 2, 3, 4, 2, 3], lambda: ra.choice([0x3a333, 0x74666, 0xe8ccc, W1])),
+    ('2 hosts tight', [2, 2], lambda: W1),
+    ('8x4 equal', [4] * 8, lambda: W1),
+]
+for alg in list(ALGS) + ['mixed']:
+    for name, hosts, rw in aspecs:
+        osd, buckets, hitems = 0, [], []
+        for hi, n in enumerate(hosts):
+            halg = ALGS_LIST[hi % 5] if alg == 'mixed' else alg
+            items = []
+            for _ in range(n):
+                items.append([osd, rw()]); osd += 1
+            if halg == 'uniform':
+                items = [[i, items[0][1]] for i, _ in items]
+            buckets.append({'id': -2 - hi, 'type': 1, 'alg': halg, 'items': items})
+            hitems.append([-2 - hi, bweight(halg, [w for _, w in items])])
+        ralg = 'straw2' if alg == 'mixed' else alg
+        buckets.append({'id': -1, 'type': 11, 'alg': ralg, 'items': hitems})
+        m = {'ndev': osd, 'buckets': buckets}
+        for variant in ('all in', 'outs', 'reweight'):
+            wv = [0x10000] * osd
+            if variant == 'outs':
+                for kk in ra.sample(range(osd), max(1, osd // 5)):
+                    wv[kk] = 0
+            elif variant == 'reweight':
+                for kk in ra.sample(range(osd), max(1, osd // 3)):
+                    wv[kk] = ra.choice([0x8000, 0xc000, 0x4000, 0xe666])
+            for rno, size in ((0, 3), (0, 2), (2, 3), (1, 4)):
+                pgp = ra.choice([16, 32, 48, 64])
+                acases.append({'name': f'{alg} / {name} / {variant} / rule {rno} size {size}', 'map': m, 'weights': wv,
+                               'rule': rno, 'size': size, 'pgp_num': pgp, 'pool': ra.randint(1, 9)})
+lines = []
+for c in acases:
+    m = c['map']
+    lines += ['MAP', 'TUN 0 0 50 1 1 1', 'SCV 1']
+    for b in m['buckets']:
+        lines.append(f'BA {ALGS[b["alg"]]} {b["id"]} {b["type"]} {len(b["items"])} ' + ' '.join(f'{i} {w}' for i, w in b['items']))
+    for no, r in rules().items():
+        lines.append(f'R {no} {r["type"]} {len(r["steps"])} ' + ' '.join(f'{a} {b} {cc}' for a, b, cc in r['steps']))
+    lines += ['FIN', f'W {m["ndev"]} ' + ' '.join(str(x) for x in c['weights']),
+              f'Q {c["rule"]} 0 {c["pgp_num"]} {c["size"]} {c["pgp_num"]} {c["pool"]}', 'END']
+out = run(lines)
+k = 0
+for c in acases:
+    c['expect'] = []
+    for _ in range(c['pgp_num']):
+        c['expect'].append([int(x) for x in out[k].split()][1:]); k += 1
+gold['crush_algs'] = acases
+
 # upstream unit-test vectors for Striper (src/test/test_striper.cc)
 gold['striper_upstream'] = 'src/test/test_striper.cc (Stripe1, EmptyPartialResult, GetNumObj, GetFileOffset)'
 open(os.path.join(ROOT, 'tests', 'sims', 'golden.json'), 'w', encoding='utf-8').write(
     json.dumps(gold, ensure_ascii=False, separators=(',', ':')) + '\n')
-print(json.dumps({'crush_cases': len(cases), 'pgs': sum(c['pgp_num'] for c in cases), 'autoscaler_cases': len(ascases)}))
+print(json.dumps({'crush_cases': len(cases), 'pgs': sum(c['pgp_num'] for c in cases), 'autoscaler_cases': len(ascases),
+                  'bucket_choose': len(bcases), 'alg_cases': len(acases), 'alg_pgs': sum(c['pgp_num'] for c in acases)}))

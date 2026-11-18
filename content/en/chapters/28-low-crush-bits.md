@@ -259,6 +259,11 @@ The removal simulation rebuilds the bucket without the removed item. In practice
 ::: {.sim name="crush"}
 :::
 
+The lab below runs the same comparison on a small three-level map (root, hosts and OSDs): pick an algorithm, follow the draws for one object step by step, and see how much data a new host, the removal of the second host or an out OSD moves with each of the five algorithms.
+
+::: {.sim name="placement"}
+:::
+
 # The balancer in upmap mode: calc_pg_upmaps {#sec-28-9}
 
 The mgr balancer in upmap mode (chapter 19) hands the main work to `OSDMap::calc_pg_upmaps` in C++. This function makes a copy of the OSDMap, experiments with `pg_upmap_items` pairs and returns the result in an Incremental.
