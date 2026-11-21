@@ -47,3 +47,105 @@ lang: fa
 ::: {.warn}
 فرمان‌هایی مثل `mark_unfound_lost delete`، `osd lost`، `ceph-objectstore-tool --op remove` و `osd force-create-pg` داده را به‌طور دائم حذف می‌کنند. فقط پس از خروج همه‌ی گزینه‌های دیگر، با پشتیبان و با تأیید فرد دوم اجرا شوند.
 :::
+
+# گام‌به‌گام: PGی که active نمی‌شود
+
+این روال از صفحه‌ی رسمی «Troubleshooting PGs» و کد peering در `src/osd/PeeringState.cc` پیروی می‌کند. ماشین حالتی که پشت آن است در فصل ۱۷ توضیح داده شده است.
+
+## 1. PGها و نوع «گیرکردن» را پیدا کنید
+
+```bash
+ceph health detail | grep -E "PG_AVAILABILITY|stuck|down|incomplete"
+ceph pg dump_stuck stale # هیچ OSDی وضعیت PG را گزارش نکرده است: احتمالاً همه‌ی OSDهایش down هستند
+ceph pg dump_stuck inactive # مشکل peering
+ceph pg dump_stuck unclean # recovery تمام نمی‌شود (اغلب شیء unfound)
+ceph osd blocked-by # هر OSD جلوی چند PG را گرفته است
+```
+
+`stale` معمولاً یعنی OSDهایی که PG را نگه می‌دارند اجرا نمی‌شوند؛ پیش از هر کاری آن‌ها را راه بیندازید. `inactive` به peering و `unclean` به recovery اشاره دارد.
+
+## 2. علت را از خود PG بپرسید و پیش از هر تغییری یک نسخه از پاسخ نگه دارید
+
+```bash
+ceph pg 2.1f query > pg-2.1f.json
+jq '.state, .up, .acting' pg-2.1f.json
+jq '.recovery_state[] | {name, comment, blocked, down_osds_we_would_probe, peering_blocked_by, peering_blocked_by_detail}' pg-2.1f.json
+jq '.info.stats.blocked_by' pg-2.1f.json
+```
+
+## 3. پاسخ را بخوانید
+
+رشته‌های ستون اول را حالت‌های peering در `PeeringState.cc` چاپ می‌کنند.
+
+| آنچه `query` نشان می‌دهد | معنا | اقدام |
+|---|---|---|
+| `Started/Primary/Peering/GetInfo` برای مدت طولانی، `"blocked": "peering is blocked due to down osds"`، `down_osds_we_would_probe` | OSDهایی از یک بازه‌ی قبلی که ممکن است نوشتن پذیرفته باشند down هستند، پس peering نمی‌تواند وجود داده‌ی تازه‌تر روی آن‌ها را رد کند | آن OSDها را راه بیندازید؛ `ceph osd tree down` و لاگ‌هایشان علت down بودن را نشان می‌دهند |
+| `peering_blocked_by` با `"starting or marking this osd lost may let us proceed"` | peering منتظر آن OSD است | آن را برگردانید. فقط اگر دیسکش قطعاً از دست رفته است: `ceph osd lost <id> --yes-i-really-mean-it` (هشدار بالا را ببینید) |
+| `Started/Primary/Peering/Down` با `"not enough up instances of this PG to go active"` | تعداد نمونه‌های up از PG کم است | OSDها را برگردانید؛ `min_size` و دامنه‌های خرابی را بررسی کنید |
+| `Started/Primary/Peering/Incomplete` با `"not enough complete instances of this PG"` | هیچ OSD upی تاریخچه‌ی کامل PG را ندارد | همه‌ی OSDهای ازکارافتاده‌ای را که ممکن است PG را داشته باشند راه بیندازید. برای pool با EC، صفحه‌ی رسمی حالت‌های PG یادآوری می‌کند که کاهش موقت `min_size` ممکن است recovery را ممکن کند؛ بعد آن را برگردانید |
+| `Started/Primary/Peering/WaitUpThru` با `"waiting for osdmap to reflect a new up_thru for this osd"` | primary منتظر است MONها `up_thru` آن را ثبت کنند | quorum در MONها و شبکه‌ی میان این OSD و MONها را بررسی کنید |
+| `peering_blocked_by_detail` شامل `peering_blocked_by_history_les_bound` | تازه‌ترین لاگ کامل روی OSDهای up از epochی که PG آخرین بار در آن active شد (`history.last_epoch_started`) قدیمی‌تر است؛ پس نوشتن‌هایی که پس از آن تأیید شده‌اند ممکن است گم شده باشند | OSDی را که نسخه‌ی تازه‌تر را داشت پیدا کنید: دیسک‌های قدیمی، OSDهایی که حذف شده‌اند یا هنوز down هستند |
+
+## 4. درباره‌ی `osd_find_best_info_ignore_history_les`
+
+توصیه‌هایی در اینترنت گاهی این گزینه را برای ردیف آخر پیشنهاد می‌کنند. در `PeeringState::find_best_info`، این گزینه باعث می‌شود peering از قید `history.last_epoch_started` بگذرد و یک لاگ قدیمی به‌عنوان مرجع انتخاب شود. سطح این گزینه `dev` است و توضیح خودش در `src/common/options/osd.yaml.in` می‌گوید: «THIS IS AN EXTREMELY DANGEROUS OPTION THAT SHOULD ONLY BE USED AT THE DIRECTION OF A DEVELOPER … typically leading to data loss». این از دست رفتن بی‌صداست: نوشتن‌هایی که به کلاینت گفته شده موفق بوده‌اند، بدون هیچ خطایی ناپدید می‌شوند. پیش از آنکه حتی به آن فکر کنید، همه‌ی OSDهایی را که ممکن است PG را داشته باشند برگردانید، PG را از هر نسخه با `ceph-objectstore-tool` استخراج کنید (فصل ۱۷) و در فهرست `ceph-users` بپرسید. هرگز آن را سراسری تنظیم نکنید و به محض peer شدن PG حذفش کنید.
+
+# گام‌به‌گام: slow ops
+
+این روال از بخش‌های «Blocked Requests or Slow Requests» و «Debugging Slow Requests» در صفحه‌ی رسمی عیب‌یابی OSD پیروی می‌کند. ردیاب op در کد در فصل ۱۷ توضیح داده شده است.
+
+## 1. OSDها را پیدا کنید
+
+```bash
+ceph health detail | grep -A5 SLOW_OPS
+ceph osd perf | sort -n -k2 | tail # تأخیر commit (میلی‌ثانیه) برای هر OSD
+```
+
+## 2. عملیات را از راه admin socket خود OSD ببینید
+
+این فرمان‌ها را روی میزبان OSD اجرا کنید (در cephadm، داخل `cephadm shell --name osd.7`).
+
+```bash
+ceph daemon osd.7 dump_blocked_ops
+ceph daemon osd.7 dump_ops_in_flight | jq '.ops[] | {age, description, flag: .type_data.flag_point}'
+ceph daemon osd.7 dump_historic_slow_ops | jq '.ops[0].type_data.events'
+ceph daemon osd.7 dump_historic_ops_by_duration | jq '.ops[0:3][] | {duration, description}'
+```
+
+| فرمان | خروجی (مقادیر پیش‌فرض از مستندات) |
+|---|---|
+| `dump_blocked_ops` | opهای در جریانی که از `osd_op_complaint_time` (۳۰ ثانیه) قدیمی‌ترند؛ همان آستانه‌ی هشدار |
+| `dump_ops_in_flight` | همه‌ی opهایی که اکنون پردازش می‌شوند، با `age` و `flag_point` فعلی |
+| `dump_historic_slow_ops` | opهای تمام‌شده‌ای که دست‌کم `osd_op_history_slow_op_threshold` (۱۰ ثانیه) طول کشیده‌اند؛ حداکثر `osd_op_history_slow_op_size` (۲۰) مورد نگه داشته می‌شود |
+| `dump_historic_ops_by_duration` | opهای تمام‌شده‌ی `osd_op_history_duration` (۶۰۰ ثانیه) اخیر، حداکثر `osd_op_history_size` (۲۰) مورد، به ترتیب طولانی‌ترین |
+
+هر چهار فرمان به `osd_enable_op_tracker` نیاز دارند (به‌طور پیش‌فرض روشن است).
+
+## 3. رویداد با بیشترین مدت را پیدا کنید
+
+در آرایه‌ی `type_data.events` هر op، رویدادی را که بیشترین مدت را دارد پیدا کنید و آن را با این جدول بخوانید:
+
+| طولانی‌ترین رویداد | معنا | گام بعدی |
+|---|---|---|
+| `queued_for_pg` | صف PG انباشته شده است: بار هم‌زمان زیاد، یا چیدمان shard برای HDD زیر mClock | CPU و بار میزبان؛ نکته‌ی mClock در پایین |
+| `waiting for peered`، `waiting for active`، `waiting for readable` | PG فعال نیست | روال بالا |
+| `waiting for missing object`، `waiting for degraded object` | شیء منتظر recovery است | وضعیت recovery در PG |
+| `waiting for rw locks`، یا تکرار `reached_pg` و `waiting for rw locks` | کلاینت‌های زیادی روی یک شیء می‌نویسند | کاهش نوشتن هم‌زمان روی آن شیء (اغلب یک shard شاخص RGW یا header یک image در RBD) |
+| `started` (پیش از `op_commit`) | ورودی/خروجی کند روی دستگاه خود primary | `iostat`، داده‌ی SMART دستگاه، `BLUESTORE_SLOW_OP_ALERT` |
+| `waiting for subops from [X,Y]` | رونوشت X یا Y کند است | همین گام‌ها روی OSD X یا Y و شبکه‌ی میان آن‌ها |
+
+مدت رویداد `throttled` را نادیده بگیرید: مستندات توضیح می‌دهد که به دلیل یک تفریق بدون علامت، اغلب حدود ۴٬۲۹۴٬۹۶۷٬۲۹۵ ثانیه نشان داده می‌شود.
+
+## 4. علت‌های رایج را بررسی کنید
+
+صفحه‌ی رسمی این علت‌ها را فهرست کرده است:
+
+- درایو رو به خرابی: `dmesg -T`، `smartctl -a <device>`، یا برای NVMe `nvme smart-log <device>`.
+- شبکه: عضو ازکارافتاده‌ی bond، سیاست hash که فقط یک لینک را به کار می‌گیرد، ناهمخوانی MTU، خطای پورت یا لینک اشباع‌شده (فصل ۲۱).
+- recovery با تنظیم بیش از حد: افزایش `osd_max_backfills` یا `osd_recovery_max_active`. زیر mClock این‌ها فقط با `osd_mclock_override_recovery_settings=true` اثر دارند، و پروفایل `high_recovery_ops` هم recovery را بر کلاینت‌ها مقدم می‌کند.
+- میزبان پربار، مثلاً ماشین‌های مجازی که کنار OSDها اجرا می‌شوند.
+- در کلاسترهای HDD با mClock، اگر بیشتر slow opها به `queued_for_pg` ختم می‌شوند: راه‌حل رسمی `osd_op_num_shards_hdd=1` همراه با `osd_op_num_threads_per_shard_hdd=5` است که به راه‌اندازی دوباره‌ی پلکانی OSDها نیاز دارد. این چیدمان از Squid 19.2.1 پیش‌فرض است (پیوست ح).
+
+::: {.tip}
+یک slow op روی یک OSD اغلب نشانه‌ی یک رونوشت کند یا یک لینک کند در جای دیگر است. برای «پاک کردن» slow opها چند OSD را هم‌زمان راه‌اندازی دوباره نکنید: ابتدا همان یک OSD یا لینکی را که پشت آن‌هاست پیدا کنید.
+:::

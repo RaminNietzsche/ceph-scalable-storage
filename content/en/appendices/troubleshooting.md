@@ -47,3 +47,105 @@ This appendix is a compact guide to handling the most common unhealthy states. E
 ::: {.warn}
 Commands such as `mark_unfound_lost delete`, `osd lost`, `ceph-objectstore-tool --op remove` and `osd force-create-pg` remove data permanently. Run them only when every other option has been exhausted, with a backup, and with a second person's approval.
 :::
+
+# Step by step: a PG that does not become active
+
+This procedure follows the official "Troubleshooting PGs" page and the peering code in `src/osd/PeeringState.cc`. Chapter 17 explains the state machine behind it.
+
+## 1. Find the PGs and the kind of "stuck"
+
+```bash
+ceph health detail | grep -E "PG_AVAILABILITY|stuck|down|incomplete"
+ceph pg dump_stuck stale # no OSD has reported the PG: its OSDs are probably all down
+ceph pg dump_stuck inactive # a peering problem
+ceph pg dump_stuck unclean # recovery cannot finish (often unfound objects)
+ceph osd blocked-by # how many PGs each OSD is blocking
+```
+
+`stale` usually means that the OSDs holding the PG are not running, so start them before anything else. `inactive` points to peering and `unclean` to recovery.
+
+## 2. Ask the PG why, and keep a copy of the answer before you change anything
+
+```bash
+ceph pg 2.1f query > pg-2.1f.json
+jq '.state, .up, .acting' pg-2.1f.json
+jq '.recovery_state[] | {name, comment, blocked, down_osds_we_would_probe, peering_blocked_by, peering_blocked_by_detail}' pg-2.1f.json
+jq '.info.stats.blocked_by' pg-2.1f.json
+```
+
+## 3. Read the answer
+
+The strings in the first column are printed by the peering states in `PeeringState.cc`.
+
+| What `query` shows | Meaning | What to do |
+|---|---|---|
+| `Started/Primary/Peering/GetInfo` for a long time, `"blocked": "peering is blocked due to down osds"`, `down_osds_we_would_probe` | OSDs of an earlier interval that may have accepted writes are down, so peering cannot rule out newer data on them | Start those OSDs; `ceph osd tree down` and their logs show why they are down |
+| `peering_blocked_by` with `"starting or marking this osd lost may let us proceed"` | Peering is waiting for that OSD | Bring it back. Only if its disk is certainly gone: `ceph osd lost <id> --yes-i-really-mean-it` (see the warning above) |
+| `Started/Primary/Peering/Down` with `"not enough up instances of this PG to go active"` | Too few instances of the PG are up | Bring the OSDs back; check `min_size` and the failure domains |
+| `Started/Primary/Peering/Incomplete` with `"not enough complete instances of this PG"` | No up OSD has a complete history of the PG | Start every failed OSD that may hold the PG. For an EC pool, the official PG-states page notes that temporarily lowering `min_size` may allow recovery; set it back afterwards |
+| `Started/Primary/Peering/WaitUpThru` with `"waiting for osdmap to reflect a new up_thru for this osd"` | The primary is waiting for the MONs to record its `up_thru` | Check MON quorum and the network between this OSD and the MONs |
+| `peering_blocked_by_detail` containing `peering_blocked_by_history_les_bound` | The newest complete log on the up OSDs is older than the epoch at which the PG last went active (`history.last_epoch_started`), so writes acknowledged after it may be missing | Find the OSD that held the newer copy: old disks, OSDs that were removed or are still down |
+
+## 4. About `osd_find_best_info_ignore_history_les`
+
+Advice on the internet sometimes suggests this option for the last row. In `PeeringState::find_best_info`, it makes peering skip the `history.last_epoch_started` bound, so an old log can be chosen as authoritative. The option has level `dev`, and its own description in `src/common/options/osd.yaml.in` reads: "THIS IS AN EXTREMELY DANGEROUS OPTION THAT SHOULD ONLY BE USED AT THE DIRECTION OF A DEVELOPER … typically leading to data loss". The loss is silent: writes that clients were told had succeeded can disappear without an error. Before you even consider it, bring back every OSD that might hold the PG, export the PG from each copy with `ceph-objectstore-tool` (chapter 17), and ask on the `ceph-users` list. Never set it globally, and remove it as soon as the PG has peered.
+
+# Step by step: slow ops
+
+This procedure follows the "Blocked Requests or Slow Requests" and "Debugging Slow Requests" sections of the official OSD troubleshooting page. Chapter 17 describes the op tracker in the code.
+
+## 1. Find the OSDs
+
+```bash
+ceph health detail | grep -A5 SLOW_OPS
+ceph osd perf | sort -n -k2 | tail # commit latency (ms) per OSD
+```
+
+## 2. Look at the operations through the OSD's admin socket
+
+Run these on the OSD host (with cephadm, inside `cephadm shell --name osd.7`).
+
+```bash
+ceph daemon osd.7 dump_blocked_ops
+ceph daemon osd.7 dump_ops_in_flight | jq '.ops[] | {age, description, flag: .type_data.flag_point}'
+ceph daemon osd.7 dump_historic_slow_ops | jq '.ops[0].type_data.events'
+ceph daemon osd.7 dump_historic_ops_by_duration | jq '.ops[0:3][] | {duration, description}'
+```
+
+| Command | What it returns (defaults from the documentation) |
+|---|---|
+| `dump_blocked_ops` | In-flight ops older than `osd_op_complaint_time` (30 s), the same threshold as the warning |
+| `dump_ops_in_flight` | Every op being processed now, with `age` and the current `flag_point` |
+| `dump_historic_slow_ops` | Completed ops that took at least `osd_op_history_slow_op_threshold` (10 s); up to `osd_op_history_slow_op_size` (20) are kept |
+| `dump_historic_ops_by_duration` | Completed ops of the last `osd_op_history_duration` (600 s), at most `osd_op_history_size` (20), longest first |
+
+All four need `osd_enable_op_tracker` (on by default).
+
+## 3. Find the event with the longest duration
+
+In the `type_data.events` array of each op, find the event with the largest duration and read it from this table:
+
+| Longest event | Meaning | Next step |
+|---|---|---|
+| `queued_for_pg` | Backlog in the PG queue: high concurrent load, or the HDD shard layout under mClock | CPU and load on the host; the mClock note below |
+| `waiting for peered`, `waiting for active`, `waiting for readable` | The PG is not active | The procedure above |
+| `waiting for missing object`, `waiting for degraded object` | The object is waiting for recovery | Recovery state of the PG |
+| `waiting for rw locks`, or `reached_pg` and `waiting for rw locks` repeating | Many clients writing to the same object | Reduce concurrent writes to that object (often an RGW index shard or an RBD header) |
+| `started` (before `op_commit`) | Slow I/O on the primary's own device | `iostat`, the device's SMART data, `BLUESTORE_SLOW_OP_ALERT` |
+| `waiting for subops from [X,Y]` | Replica X or Y is slow | The same steps on OSD X or Y, and the network between them |
+
+Ignore the duration of the `throttled` event: the documentation explains that it often shows about 4,294,967,295 seconds because of an unsigned subtraction.
+
+## 4. Check the common causes
+
+The official page lists these causes:
+
+- A failing drive: `dmesg -T`, `smartctl -a <device>`, or `nvme smart-log <device>` for NVMe.
+- The network: a failed bond member, a hash policy that uses one link, an MTU mismatch, port errors or a saturated link (chapter 21).
+- Recovery set too high: raised `osd_max_backfills` or `osd_recovery_max_active`. Under mClock these take effect only with `osd_mclock_override_recovery_settings=true`, and the `high_recovery_ops` profile also favours recovery over clients.
+- An overloaded host, for example virtual machines running next to the OSDs.
+- On HDD clusters with mClock, if most slow ops end in `queued_for_pg`: the official resolution is `osd_op_num_shards_hdd=1` with `osd_op_num_threads_per_shard_hdd=5`, which needs a staggered OSD restart. This layout is the default from Squid 19.2.1 (appendix H).
+
+::: {.tip}
+A slow op on one OSD is often the symptom of a slow replica or a slow link elsewhere. Do not restart many OSDs at once to "clear" slow ops: find the one OSD or link behind them first.
+:::
