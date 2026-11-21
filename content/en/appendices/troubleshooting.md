@@ -32,6 +32,17 @@ This appendix is a compact guide to handling the most common unhealthy states. E
 | `RECENT_CRASH` | `ceph crash ls-new`, `ceph crash info <id>` | Analyse the backtrace; then `ceph crash archive <id>` | 17 |
 | `MGR_MODULE_ERROR` | `ceph mgr module ls`, the mgr log | Disable and re-enable the module; `ceph mgr fail` | 9 |
 | `CEPHADM_*` (e.g. HOST_CHECK_FAILED) | `ceph orch host ls`, `ceph cephadm check-host <host>` | SSH, time, packages and podman/docker on the host | 11 |
+| `OSDMAP_FLAGS` / `OSD_FLAGS` | `ceph health detail`, `ceph osd dump \| grep flags` | Remove flags left over from maintenance: `ceph osd unset <flag>`, or `ceph osd unset-group <flags> <who>` for OSDs, hosts or classes | 7, 19 |
+| `POOL_APP_NOT_ENABLED` | `ceph osd pool ls detail` | Tag the pool: `rbd pool init <pool>` for RBD, or `ceph osd pool application enable <pool> <app>` | 2, 8 |
+| `PG_NOT_SCRUBBED` / `PG_NOT_DEEP_SCRUBBED` | `ceph health detail`, `ceph osd dump \| grep flags`, `ceph config get osd osd_deep_scrub_interval` | Only clean PGs are scrubbed: fix degraded or misplaced PGs and `noscrub`/`nodeep_scrub` first; then `ceph pg deep-scrub <pgid>` | 19, 32 |
+| `POOL_TOO_FEW_PGS` / `POOL_TOO_MANY_PGS` | `ceph osd pool autoscale-status` | Raised only in `warn` mode: `ceph osd pool set <pool> pg_autoscale_mode on`, or set `pg_num` by hand | 19 |
+| `POOL_NEAR_FULL` / `POOL_FULL` | `ceph df detail`, `ceph osd pool get-quota <pool>` | Raise or remove the quota (`ceph osd pool set-quota <pool> max_bytes <bytes>`, 0 removes it), or add capacity | 7, 19 |
+| `PG_BACKFILL_FULL` / `PG_RECOVERY_FULL` | `ceph pg ls backfill_toofull`, `ceph osd df tree` | Recovery is blocked by full OSDs: handle as `OSD_BACKFILLFULL` / `OSD_FULL` above | 19 |
+| `OSD_TOO_MANY_REPAIRS` | `ceph health detail`, `ceph device ls-by-daemon osd.N` | Many read repairs point to a failing disk even without scrub errors: check and replace it, then `ceph tell osd.N clear_shards_repaired` | 17, 19 |
+| `BLUESTORE_SLOW_OP_ALERT` | `ceph health detail`, the OSD log ("slow operation observed") | Usually a failing or overloaded drive: check the device and replace it if needed | 12, 17 |
+| `DEVICE_HEALTH` | `ceph device ls`, `ceph device info <devid>` | Mark the OSD out, let the data move, then replace the disk; `mgr/devicehealth/self_heal` can do the mark-out | 7, 19 |
+| `AUTH_INSECURE_GLOBAL_ID_RECLAIM_ALLOWED` | `ceph health detail` (is `AUTH_INSECURE_GLOBAL_ID_RECLAIM` also raised?) | If not, `ceph config set mon auth_allow_insecure_global_id_reclaim false`; otherwise upgrade the old clients first | 8 |
+| `MDS_ALL_DOWN` / `FS_DEGRADED` | `ceph fs status`, `ceph orch ps --daemon-type mds` | Bring an MDS (or a standby) back for every failed rank; look at the MDS log for the reason | 6 |
 
 ::: {.warn}
 Commands such as `mark_unfound_lost delete`, `osd lost`, `ceph-objectstore-tool --op remove` and `osd force-create-pg` remove data permanently. Run them only when every other option has been exhausted, with a backup, and with a second person's approval.
