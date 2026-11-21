@@ -7,6 +7,13 @@ restructures the book.
 
 ## [Unreleased]
 
+### Added
+
+- Chapter 4, new §4.12.3 "The Admin Ops REST API": when to use the HTTP admin API instead of `radosgw-admin`, the caps each operation needs, a least-privilege automation user, signed `curl --aws-sigv4` examples for user info, bucket statistics and a read-change-write user quota, the error responses, and why `rgw_admin_entry` stays `admin` (both editions; roadmap item 5).
+- Chapter 8, new §8.10.1 "Primary on SSD, replicas on HDD: pattern and pitfall": primary affinity (with how `OSDMap::_apply_primary_affinity` picks the primary), the SSD-first CRUSH rule from the official documentation, why writes do not get faster, shared hosts and the N+1 selection, reads after an SSD failure, how the read balancer weighs primary affinity, and why a separate pool per device class is usually better (both editions; roadmap item 6).
+- Chapter 21, new §21.8.1 "sysctl settings managed by cephadm": `ceph orch tuned-profile` specs, where the file is written, name ordering, maintenance hosts, and the difference from the `tuned` daemon (both editions; part of roadmap item 9).
+- Troubleshooting appendix: eleven more health checks from the official health-check reference (cluster and OSD flags, pools without an application, late scrubs, PG count warnings, pool quotas, backfill/recovery blocked by full OSDs, read repairs, BlueStore slow operations, device health, insecure global_id reclaim, and MDS ranks down), each with first commands, the direction of the fix and the chapter.
+
 ### Corrected
 
 - Command lines that Ceph does not accept as written (found by the new command check, both editions): `ceph orch apply nvmeof` takes the pool and group as `--pool`/`--group` (the positional form is rejected since Tentacle; chapters 2 and 31); `rgw_keystone_api_version` was removed in Tentacle and `ceph config set` rejects it, so the Keystone example no longer sets it and the tip says why (chapter 4); `ceph log last 50 debug cephadm` instead of `ceph log last cephadm 50` (chapter 11); `ceph pg 5.1a query` with the shards read from `peer_info`, because `ceph pg` does not take a shard id such as `5.1as2` (chapter 13).
