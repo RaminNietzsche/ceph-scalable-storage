@@ -844,3 +844,4 @@ Ceph ابزار قدرتمندی است، اما برای هر مسئله‌ای
 - Weil et al., «CRUSH: Controlled, Scalable, Decentralized Placement of Replicated Data», SC 2006: https://ceph.io/assets/pdfs/weil-crush-sc06.pdf
 - Weil et al., «RADOS: A Scalable, Reliable Storage Service for Petabyte-scale Storage Clusters», PDSW 2007: https://ceph.io/assets/pdfs/weil-rados-pdsw07.pdf
 - مستندات Rook: https://rook.io/docs/rook/latest-release/
+- Weil, «Ceph: Reliable, Scalable, and High-Performance Distributed Storage»، رساله‌ی دکتری، UC Santa Cruz، 2007: https://ceph.io/assets/pdfs/weil-thesis.pdf

@@ -115,7 +115,7 @@ setfattr -n ceph.dir.pin.distributed -v 1 /mnt/fs01/scratch
 ![چند MDS فعال: زیردرخت‌ها با pin صریح یا pin توزیع‌شده بین rankها تقسیم می‌شوند](figures/ch06/f02_multi_mds.png){#fig-06-f02_multi_mds}
 
 ::: {.warn}
-متعادل‌کننده‌ی خودکار MDS (که زیردرخت‌ها را بر اساس بار بین rankها جابه‌جا می‌کند) در گذشته منبع ناپایداری بوده است. توصیه‌ی رایج جامعه و مستندات این است که در production از **pinning صریح** استفاده کنید. همچنین در Tentacle تغییر `max_mds` روی کلاستر ناسالم نیازمند پرچم تأیید `--yes-i-really-mean-it` شده است، چون افزودن MDS در حین مشکل معمولاً حالت را بدتر می‌کند.
+متعادل‌کننده‌ی خودکار MDS (که زیردرخت‌ها را بر اساس بار بین rankها جابه‌جا می‌کند) در گذشته منبع ناپایداری بوده است. توصیه‌ی رایج جامعه و مستندات این است که در production از **pinning صریح** استفاده کنید. همچنین در Tentacle تغییر `max_mds` روی کلاستر ناسالم نیازمند پرچم تأیید `--yes-i-really-mean-it` شده است، چون افزودن MDS در حین مشکل معمولاً حالت را بدتر می‌کند. ایده‌ی balancer به مقاله‌ی ۲۰۰۴ با عنوان «Dynamic Metadata Management for Petabyte-Scale File Systems» برمی‌گردد که تقسیم‌بندی پویای زیردرخت (dynamic subtree partitioning) را برای بارهای فراداده‌ای که با زمان تغییر می‌کنند پیشنهاد داد و آن را در محیط شبیه‌سازی ارزیابی کرد؛ رساله‌ی دکتری Sage Weil در ۲۰۰۷ هم MDS و RADOS و CRUSH را با هم شرح می‌دهد.
 :::
 
 # دسترسی کلاینت‌ها {#sec-06-3}
@@ -653,3 +653,5 @@ ceph osd blocklist ls
 - BeeGFS documentation — Client side caching modes: https://doc.beegfs.io/latest/advanced_topics/client_caching.html
 - BeeGFS documentation — License and Licensing: https://doc.beegfs.io/latest/license.html
 - BeeGFS documentation — Licensing in BeeGFS 8: https://doc.beegfs.io/latest/advanced_topics/licensing.html
+- Weil et al., «Dynamic Metadata Management for Petabyte-Scale File Systems», SC 2004: https://ceph.io/assets/pdfs/weil-mds-sc04.pdf
+- Weil, «Ceph: Reliable, Scalable, and High-Performance Distributed Storage»، رساله‌ی دکتری، UC Santa Cruz، 2007: https://ceph.io/assets/pdfs/weil-thesis.pdf

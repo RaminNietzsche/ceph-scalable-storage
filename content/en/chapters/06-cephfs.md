@@ -115,7 +115,7 @@ setfattr -n ceph.dir.pin.distributed -v 1 /mnt/fs01/scratch
 ![Multiple active MDSs: subtrees are divided between ranks with an explicit pin or a distributed pin](figures/ch06/f02_multi_mds.png){#fig-06-f02_multi_mds}
 
 ::: {.warn}
-The automatic MDS balancer (which moves subtrees between ranks based on load) has been a source of instability in the past. The common recommendation of the community and the documentation is to use **explicit pinning** in production. Also, in Tentacle changing `max_mds` on an unhealthy cluster requires the confirmation flag `--yes-i-really-mean-it`, because adding MDSs during a problem usually makes things worse.
+The automatic MDS balancer (which moves subtrees between ranks based on load) has been a source of instability in the past. The common recommendation of the community and the documentation is to use **explicit pinning** in production. Also, in Tentacle changing `max_mds` on an unhealthy cluster requires the confirmation flag `--yes-i-really-mean-it`, because adding MDSs during a problem usually makes things worse. The idea behind the balancer goes back to the 2004 paper "Dynamic Metadata Management for Petabyte-Scale File Systems", which proposed dynamic subtree partitioning for metadata workloads that change over time and evaluated it in a simulation environment; Sage Weil's 2007 dissertation describes the MDS, RADOS and CRUSH together.
 :::
 
 # Client access {#sec-06-3}
@@ -653,3 +653,5 @@ Read the details of each release in the official release notes; this chapter inc
 - BeeGFS documentation — Client side caching modes: https://doc.beegfs.io/latest/advanced_topics/client_caching.html
 - BeeGFS documentation — License and Licensing: https://doc.beegfs.io/latest/license.html
 - BeeGFS documentation — Licensing in BeeGFS 8: https://doc.beegfs.io/latest/advanced_topics/licensing.html
+- Weil et al., "Dynamic Metadata Management for Petabyte-Scale File Systems", SC 2004: https://ceph.io/assets/pdfs/weil-mds-sc04.pdf
+- Weil, "Ceph: Reliable, Scalable, and High-Performance Distributed Storage", Ph.D. dissertation, UC Santa Cruz, 2007: https://ceph.io/assets/pdfs/weil-thesis.pdf
