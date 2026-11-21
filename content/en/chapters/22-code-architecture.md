@@ -247,6 +247,26 @@ Practical lesson: when analysing a slow op (chapter 17), first see which two eve
 4. On a stopped OSD, find the last pg log entry with `ceph-objectstore-tool --op log` and compare the `version`, `prior_version` and `reqid` fields with the table in chapter 1.
 5. During a `rados bench` test, run `thread apply all bt` on an OSD with `gdb -p` and identify the `tp_osd_tp`, `msgr-worker` and `bstore_kv_sync` threads.
 
+## Capstone project for the Special Part: follow one write through the code {#sec-22-14-1}
+
+**Goal.** Connect one real write, as Ceph recorded it, to the functions in the source that handled it, so that the "full path of a write" in this chapter becomes something you have seen rather than read.
+
+**Requirements.**
+
+1. A vstart cluster built from a Ceph commit that you record (the hash, not a branch name).
+2. One write, either `rados put` or a write to an RBD image, with `debug_osd` raised on the primary OSD for that write only.
+3. The OpTracker record of that operation (`dump_historic_ops`) and the matching part of the OSD log.
+4. A diagram or table of the path from the client to the BlueStore commit, built from what you collected.
+
+**Acceptance criteria.**
+
+- Every event in the OpTracker record is tied to a function, with its file and line at the recorded commit.
+- The order of the functions in your table matches the order in the log.
+- You can point to the longest gap between two events and explain which part of the path it covers.
+- Someone else can repeat the exercise from your notes and get the same table.
+
+**Hints.** This chapter's sections on the write path and on OpTracker timings; librados (chapter 14); BlueStore and its transaction (chapter 12); for the messenger part of the path, chapter 26.
+
 # Review questions {#sec-22-15}
 
 1. Why does the OSD not write directly to disk, and why does it use ObjectStore::Transaction?

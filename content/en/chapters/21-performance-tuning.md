@@ -478,6 +478,31 @@ Benchmarking on a production cluster disrupts real user load, and `rados bench` 
 5. Mismatch the MTU on one host (in a lab) and see the effect on heartbeats and alerts.
 6. In `dmclock_server.h`, find the function that chooses the next request and compare it with this chapter's pseudocode.
 
+## Capstone project for chapters 1–21: build, break and recover {#sec-21-12-1}
+
+This project brings together chapters 1–21. It has no worked solution in the book: the goal is that you make the decisions and can defend them.
+
+**Goal.** Run a small cluster that serves block, object and file storage, take it through planned failures without losing data, and leave a runbook that someone else could follow.
+
+**Requirements.**
+
+1. At least three hosts (virtual machines are fine) deployed with cephadm, with host as the CRUSH failure domain. The single-host lab in the repository's `labs/` directory is a good warm-up, but it cannot show a host failure.
+2. One RBD image used by a client, one RGW user with a bucket, and one CephFS file system with a client restricted to its own directory.
+3. The cephadm monitoring stack (Prometheus, Alertmanager, Grafana) running, with alerts delivered somewhere you can see them.
+4. A known test data set written through all three interfaces, with checksums recorded outside the cluster.
+5. A baseline benchmark of each interface, recorded with its exact command and parameters.
+6. Three drills, one after another: stop one OSD; power off one whole host and bring it back; replace one OSD as if its disk had failed.
+
+**Acceptance criteria.**
+
+- After every drill the cluster returns to HEALTH_OK with all PGs active+clean, and every checksum still matches.
+- For each drill you recorded when the failure started, when Ceph noticed it, which alert fired and cleared, and when the cluster was clean again.
+- You can say whether client I/O paused during the host failure, and for how long, from your own measurements.
+- The benchmark after the drills is compared with the baseline, and any difference is explained.
+- A runbook of one or two pages lists what you did, the commands, what went differently from plan and what you would change.
+
+**Hints.** Planning and the first cluster: chapters 1 and 11. Interfaces and users: chapters 2, 4 and 6. Failure domains and CRUSH rules: chapter 8. Benchmarks: chapter 10. Reading health and stuck PGs: chapter 17 and appendix C. Replacing an OSD and other day-to-day work: chapter 19. Alerts: chapter 20. What to do when a drill goes wrong: chapter 18.
+
 # Review questions {#sec-21-13}
 
 1. Why should performance tuning be done with a baseline and one change at a time?

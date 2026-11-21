@@ -256,6 +256,25 @@ The 80 bytes for bluestore_alloc is the same as the size of range_seg_t that we 
 4. Build a flame graph of the OSD with `perf record` during `rados bench -t 64 write` and read the shares of crc32c, RocksDB and tcmalloc.
 5. Run `ceph osd numa-status` and explain for each OSD why NUMA affinity was or was not set.
 
+## Capstone project for Part III: recompute one result yourself {#sec-33-10-1}
+
+**Goal.** Check one low-level result of this part with your own code, against a real cluster, instead of trusting the book or the tools.
+
+**Requirements.** Choose one of these and write a small program for it, in any language, without linking Ceph libraries for the part you are checking:
+
+1. The parity chunks of an object in an erasure-coded pool with `k=4, m=2`, compared with the shards read back from the OSDs.
+2. The placement of objects computed by your own CRUSH implementation, compared with `ceph osd map`.
+3. The fields of msgr2 frames decoded from a packet capture of a test cluster without encryption, compared with what the daemons logged.
+
+**Acceptance criteria.**
+
+- Your program agrees with Ceph for at least ten different inputs, and the inputs are kept with the code.
+- If any input disagreed at first, you explain why and what you fixed.
+- Each step of your program is tied to the algorithm box or figure in the chapter it implements.
+- The write-up states the Ceph version and the exact pool, CRUSH rule or connection settings used.
+
+**Hints.** Erasure-coding mathematics: chapter 27 (and chapter 13 for the pool side). CRUSH at the bit level: chapter 28 (and chapter 8). msgr2 frames: chapter 26. Reading shards and objects from a stopped OSD: chapters 24 and 32.
+
 # Review questions {#sec-33-11}
 
 1. Why does mempool use shards instead of one shared atomic counter, and how is the shard chosen?

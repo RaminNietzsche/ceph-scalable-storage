@@ -227,6 +227,27 @@ example (output):
 3. Write one object in the same second in both zones and see which version wins; compare the result with the two zones' `zone_short_id` (in `zonegroup get`).
 4. Reshard a bucket in the source zone and follow the destination's `bucket sync status` until it moves to the new generation.
 
+## Capstone project for Part IV: trace one object through RGW and RADOS {#sec-42-10-1}
+
+**Goal.** For one S3 object in a two-zone setup, show every RADOS object and index entry that represents it, and how they change through upload, overwrite, sync and deletion.
+
+**Requirements.**
+
+1. A lab with two zones in one zonegroup and a versioned bucket.
+2. One multipart upload of a file larger than the part size, then an overwrite of the same key.
+3. The RADOS objects (head, tail and multipart parts), the bucket index entries, and the bilog and datalog entries for that key, each found with the tools of this part.
+4. The object followed to the second zone through the sync markers.
+5. A deletion, then the garbage collector or lifecycle followed until the tail objects are gone.
+
+**Acceptance criteria.**
+
+- A table lists each RADOS object and omap key you found, its pool, and its role, and each row was verified with a command whose output you kept.
+- You can show the point at which the second zone had the object, using the sync status and markers rather than only listing the bucket there.
+- After deletion you show which objects were removed at once and which waited for gc, and why.
+- Anything you expected but did not observe is listed, with your explanation.
+
+**Hints.** The RGW data model and bucket index: chapter 40. The request path, gc and lifecycle: chapter 41. Multisite internals and sync status: this chapter. Basic RGW and multisite setup: chapters 4 and 5. How the OSD applies the operations underneath: chapter 34.
+
 # Review questions {#sec-42-11}
 
 1. What three conditions does committing a period check before anything else?
