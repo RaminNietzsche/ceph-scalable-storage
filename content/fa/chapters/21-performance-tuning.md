@@ -356,6 +356,36 @@ ethtool -S ens1f0 | grep -iE "drop|err" | grep -v ": 0"
 هشدار ceph-mixin با نام CephNodeInconsistentMTU و CephNodeNetworkPacketDrops دقیقاً برای همین مسائل است. اگر OSDها «wrongly marked me down» گزارش می‌دهند و همه‌ی میزبان‌ها سالم به نظر می‌رسند، MTU و خطاهای کارت شبکه را اول بررسی کنید.
 :::
 
+## تنظیمات sysctl با مدیریت cephadm {#sec-21-8-1}
+
+از Quincy به بعد، cephadm می‌تواند تنظیمات `sysctl` میزبان‌ها را خودش مدیریت کند تا مقدارهای یکسان به همه‌ی میزبان‌های یک نقش برسد و با تعویض یک میزبان از دست نرود. یک پروفایل تنظیم، specی است با یک نام، یک placement و فهرستی از تنظیمات. cephadm آن را روی هر میزبان منطبق در `/etc/sysctl.d/<profile_name>-cephadm-tuned-profile.conf` می‌نویسد و `sysctl --system` را اجرا می‌کند.
+
+```yaml
+# نام و مقدار تنظیمات، همان مثال مستندات cephadm است، نه یک توصیه
+profile_name: 23-osd-host-profile
+placement:
+  label: osd
+settings:
+  fs.file-max: 1000000
+  vm.swappiness: '13'
+```
+
+```bash
+ceph orch tuned-profile apply -i osd-sysctl.yaml
+ceph orch tuned-profile ls --format yaml          # قالبی که می‌توان ویرایش و دوباره اعمال کرد
+ceph orch tuned-profile add-setting 23-osd-host-profile <setting> <value>
+ceph orch tuned-profile rm-setting 23-osd-host-profile <setting>
+sysctl vm.swappiness                              # بررسی روی یک میزبان
+```
+
+نکته‌هایی که باید به خاطر داشت:
+
+- فایل‌های `/etc/sysctl.d/` به ترتیب نام اعمال می‌شوند؛ پس پیشوند `NN-` در `profile_name` تعیین می‌کند که پروفایل بر فایل‌های دیگر غلبه کند یا آن‌ها بر پروفایل.
+- تنظیمات روی کل میزبان اعمال می‌شود، نه روی یک daemon یا container خاص.
+- میزبان‌هایی که در حالت maintenance هستند فایل پروفایل را دریافت نمی‌کنند.
+- با وجود نام فرمان، این همان daemon `tuned` نیست: پروفایل CPU جدول بالا (`tuned-adm profile …`) و تنظیمات BIOS همچنان بیرون از cephadm تنظیم می‌شوند.
+- فقط تنظیماتی را در پروفایل بگذارید که روی سخت‌افزار خودتان اندازه گرفته‌اید، و هر بار فقط یک تنظیم را تغییر دهید (روش ابتدای همین فصل).
+
 # طراحی pool و کلاینت {#sec-21-9}
 
 - **تکثیری در مقابل EC**: برای نوشتن‌های کوچک تصادفی (پایگاه داده روی RBD)، تکثیری تأخیر کمتری دارد؛ EC برای داده‌ی بزرگ و ترتیبی. در Tentacle، FastEC فاصله را برای بارهای ترکیبی کم کرده است (فصل ۱۳).
@@ -451,6 +481,7 @@ numjobs=4
 - OSD config reference: https://docs.ceph.com/en/latest/rados/configuration/osd-config-ref/
 - BlueStore config reference: https://docs.ceph.com/en/latest/rados/configuration/bluestore-config-ref/
 - cephadm OSD service (memory autotune): https://docs.ceph.com/en/latest/cephadm/services/osd/
+- cephadm host management (OS tuning profiles): https://docs.ceph.com/en/latest/cephadm/host-management/
 - Hardware recommendations: https://docs.ceph.com/en/latest/start/hardware-recommendations/
 - Network config reference: https://docs.ceph.com/en/latest/rados/configuration/network-config-ref/
 - CBT (Ceph Benchmarking Tool): https://github.com/ceph/cbt

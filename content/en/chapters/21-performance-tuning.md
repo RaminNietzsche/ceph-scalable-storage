@@ -356,6 +356,36 @@ ethtool -S ens1f0 | grep -iE "drop|err" | grep -v ": 0"
 The ceph-mixin alerts named CephNodeInconsistentMTU and CephNodeNetworkPacketDrops are exactly for these problems. If OSDs report "wrongly marked me down" and all hosts look healthy, check the MTU and network card errors first.
 :::
 
+## sysctl settings managed by cephadm {#sec-21-8-1}
+
+In Quincy and later, cephadm can manage host `sysctl` settings itself, so the same values reach every host of a role and survive the replacement of a host. A tuning profile is a spec with a name, a placement and a list of settings. cephadm writes it to `/etc/sysctl.d/<profile_name>-cephadm-tuned-profile.conf` on each matching host and runs `sysctl --system`.
+
+```yaml
+# the setting names and values are the example from the cephadm documentation, not a recommendation
+profile_name: 23-osd-host-profile
+placement:
+  label: osd
+settings:
+  fs.file-max: 1000000
+  vm.swappiness: '13'
+```
+
+```bash
+ceph orch tuned-profile apply -i osd-sysctl.yaml
+ceph orch tuned-profile ls --format yaml          # the form to edit and re-apply
+ceph orch tuned-profile add-setting 23-osd-host-profile <setting> <value>
+ceph orch tuned-profile rm-setting 23-osd-host-profile <setting>
+sysctl vm.swappiness                              # check on one host
+```
+
+Points to remember:
+
+- Files in `/etc/sysctl.d/` are applied in name order, so the `NN-` prefix of `profile_name` decides whether the profile overrides other files or is overridden by them.
+- The settings apply to the whole host, not to one daemon or container.
+- Hosts in maintenance mode do not receive the profile file.
+- Despite the command name, this is not the `tuned` daemon: the CPU profile from the table above (`tuned-adm profile …`) and the BIOS settings are still set outside cephadm.
+- Put only settings that you have measured on your own hardware into a profile, and change one setting at a time (the method at the start of this chapter).
+
 # Pool and client design {#sec-21-9}
 
 - **Replicated vs EC**: for small random writes (a database on RBD), replication has lower latency; EC is for large, sequential data. In Tentacle, FastEC has narrowed the gap for mixed workloads (chapter 13).
@@ -451,6 +481,7 @@ Benchmarking on a production cluster disrupts real user load, and `rados bench` 
 - OSD config reference: https://docs.ceph.com/en/latest/rados/configuration/osd-config-ref/
 - BlueStore config reference: https://docs.ceph.com/en/latest/rados/configuration/bluestore-config-ref/
 - cephadm OSD service (memory autotune): https://docs.ceph.com/en/latest/cephadm/services/osd/
+- cephadm host management (OS tuning profiles): https://docs.ceph.com/en/latest/cephadm/host-management/
 - Hardware recommendations: https://docs.ceph.com/en/latest/start/hardware-recommendations/
 - Network config reference: https://docs.ceph.com/en/latest/rados/configuration/network-config-ref/
 - CBT (Ceph Benchmarking Tool): https://github.com/ceph/cbt
