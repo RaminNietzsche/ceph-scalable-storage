@@ -657,6 +657,27 @@ esxcli nvme namespace list
 
 Repeat the first two lines for a second NIC to get a second path. Broadcom's guidance is one VMkernel adapter per physical NIC, without LACP or teaming, because NVMe/TCP relies on VMware's own multipathing. The Ceph documentation does not describe an NVMe/TCP initiator for Windows; for Windows hosts, use the native RBD client above.
 
+## CloudStack: RBD as primary storage {#sec-02-10-6}
+
+Apache CloudStack (4.0 and later) uses RBD through libvirt, which configures QEMU's librbd interface, so it applies to KVM hosts. RBD serves as CloudStack's primary storage, where VM disks live. The Ceph side is a pool and a user limited to it:
+
+```bash
+ceph osd pool create cloudstack
+rbd pool init cloudstack
+ceph auth get-or-create client.cloudstack mon 'profile rbd' osd 'profile rbd pool=cloudstack'
+ceph auth get-key client.cloudstack          # the value for the RADOS Secret field
+```
+
+In the CloudStack UI, go to Infrastructure → Primary Storage → Add Primary Storage, choose the scope (cluster or zone-wide), zone, pod and cluster, set Protocol to `RBD`, and fill in:
+
+- **RADOS Monitor:** MON addresses or DNS names. A comma-separated list is only supported from CloudStack 4.18.0.0; up to 4.17.1.0 CloudStack binds to one monitor at a time, and the official workaround is several DNS A or AAAA records for one name, used round-robin.
+- **RADOS Pool:** `cloudstack`.
+- **RADOS User:** `cloudstack`, without the `client.` prefix.
+- **RADOS Secret:** the key from the last command.
+- **Storage Tags:** optional, but useful: give the pool a tag such as `rbd` and create a disk offering with the same tag, so that CloudStack's allocator places those volumes on Ceph and not on another primary storage.
+
+On KVM hosts, the distribution's libvirt already has RBD pool support. Snapshots, clones and the other RBD features are driven by CloudStack itself; the operational points of this chapter, such as a least-privilege user per consumer and monitoring the pool, apply unchanged.
+
 # Summary and review {#sec-02-11}
 
 ## Chapter summary {#sec-02-11-1}
@@ -721,3 +742,5 @@ Repeat the first two lines for a second NIC to get a second path. Broadcom's gui
 - Ceph documentation — Installing the Ceph client on Windows: https://docs.ceph.com/en/latest/install/windows-install/
 - Ceph documentation — NVMe/TCP initiator for VMware ESX: https://docs.ceph.com/en/latest/rbd/nvmeof-initiator-esx/
 - Broadcom KB 405925 — enabling NVMe over TCP with esxcli: https://knowledge.broadcom.com/external/article/405925/nvme-over-tcp-adapter-option-not-availab.html
+- Ceph documentation — Block Devices and CloudStack: https://docs.ceph.com/en/latest/rbd/rbd-cloudstack/
+- Apache CloudStack documentation — Storage tags: https://docs.cloudstack.apache.org/en/latest/adminguide/storage.html#storage-tags

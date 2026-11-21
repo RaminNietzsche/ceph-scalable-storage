@@ -16,7 +16,7 @@ The comparison was only a way to find topics: no prose, command list or figure f
 | 4 | Windows access, the modern way — SMB for CephFS, the official Ceph client for Windows, and an NVMe/TCP initiator for Windows and VMware | ch06 and ch02 | done (§2.10.5 Windows RBD and ESXi NVMe/TCP, §6.4.3 ceph-dokan, SMB already in §6.4.2; no Windows NVMe/TCP initiator, because the Ceph documentation describes none) |
 | 5 | RGW Admin Ops REST API — when to use it instead of the CLI, the caps it needs, and a few user, bucket and quota examples | ch04 (with a pointer to the signing material in ch41) | done (§4.12.3) |
 | 6 | Primary on SSD, replicas on HDD — a "pattern and pitfall" box with primary-affinity and the CRUSH rule, and why a separate pool is usually better | ch08 or ch16 | done (§8.10.1) |
-| 7 | CloudStack with RBD — RBD as primary storage, short, and not given equal weight with OpenStack | ch02 (referenced in ch03) | planned |
+| 7 | CloudStack with RBD — RBD as primary storage, short, and not given equal weight with OpenStack | ch02 (referenced in ch03) | done (§2.10.6) |
 | 8 | CephFS for HPC — when to use CephFS and when Lustre or BeeGFS, and metadata pressure with many clients | ch06 | in progress (§6.8.3 covers what the Ceph documentation supports; a comparison with Lustre or BeeGFS needs sources outside Ceph and is not written) |
 | 9 | OS and BIOS tuning additions — irqbalance, tuned profiles and a few network sysctl settings | ch21 (§21.8) | in progress (§21.8.1: cephadm-managed sysctl profiles; irqbalance and specific network values still open, since the Ceph documentation gives no values to cite) |
 

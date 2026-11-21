@@ -657,6 +657,27 @@ esxcli nvme namespace list
 
 برای مسیر دوم، دو خط اول را برای کارت شبکه‌ی دوم تکرار کنید. راهنمای Broadcom یک آداپتور VMkernel برای هر کارت شبکه‌ی فیزیکی است، بدون LACP یا teaming، چون NVMe/TCP به multipathing خود VMware تکیه دارد. مستندات Ceph آغازگر NVMe/TCP برای Windows را شرح نمی‌دهد؛ برای میزبان‌های Windows از کلاینت بومی RBD در بالا استفاده کنید.
 
+## CloudStack: RBD به‌عنوان primary storage {#sec-02-10-6}
+
+Apache CloudStack (نسخه‌ی 4.0 و بالاتر) از راه libvirt، که رابط librbd در QEMU را پیکربندی می‌کند، از RBD استفاده می‌کند؛ پس برای میزبان‌های KVM کاربرد دارد. RBD نقش primary storage در CloudStack را دارد، یعنی جایی که دیسک‌های VM قرار می‌گیرند. سمت Ceph یک pool و یک کاربر محدود به آن است:
+
+```bash
+ceph osd pool create cloudstack
+rbd pool init cloudstack
+ceph auth get-or-create client.cloudstack mon 'profile rbd' osd 'profile rbd pool=cloudstack'
+ceph auth get-key client.cloudstack          # مقدار فیلد RADOS Secret
+```
+
+در رابط CloudStack به Infrastructure → Primary Storage → Add Primary Storage بروید، دامنه (cluster یا zone-wide)، zone، pod و cluster را انتخاب کنید، Protocol را `RBD` بگذارید و این‌ها را پر کنید:
+
+- **RADOS Monitor:** نشانی یا نام DNS مانیتورها. فهرست جداشده با ویرگول فقط از CloudStack 4.18.0.0 پشتیبانی می‌شود؛ تا 4.17.1.0، CloudStack هر بار فقط به یک مانیتور وصل می‌شود و راه‌حل رسمی چند رکورد DNS از نوع A یا AAAA برای یک نام است که به‌صورت round-robin به کار می‌روند.
+- **RADOS Pool:** `cloudstack`.
+- **RADOS User:** `cloudstack`، بدون پیشوند `client.`.
+- **RADOS Secret:** کلید خروجی فرمان آخر.
+- **Storage Tags:** اختیاری اما سودمند: به pool یک برچسب مانند `rbd` بدهید و یک disk offering با همان برچسب بسازید تا تخصیص‌دهنده‌ی CloudStack آن volumeها را روی Ceph بگذارد و نه روی primary storage دیگری.
+
+روی میزبان‌های KVM، libvirt توزیع از پیش از pool نوع RBD پشتیبانی می‌کند. snapshotها، cloneها و دیگر قابلیت‌های RBD را خود CloudStack به کار می‌گیرد؛ نکته‌های عملیاتی این فصل، مانند یک کاربر با کمترین دسترسی برای هر مصرف‌کننده و پایش pool، بدون تغییر برقرارند.
+
 # جمع‌بندی و مرور {#sec-02-11}
 
 ## خلاصه‌ی فصل {#sec-02-11-1}
@@ -721,3 +742,5 @@ esxcli nvme namespace list
 - Ceph documentation — Installing the Ceph client on Windows: https://docs.ceph.com/en/latest/install/windows-install/
 - Ceph documentation — NVMe/TCP initiator for VMware ESX: https://docs.ceph.com/en/latest/rbd/nvmeof-initiator-esx/
 - Broadcom KB 405925 — enabling NVMe over TCP with esxcli: https://knowledge.broadcom.com/external/article/405925/nvme-over-tcp-adapter-option-not-availab.html
+- Ceph documentation — Block Devices and CloudStack: https://docs.ceph.com/en/latest/rbd/rbd-cloudstack/
+- Apache CloudStack documentation — Storage tags: https://docs.cloudstack.apache.org/en/latest/adminguide/storage.html#storage-tags
