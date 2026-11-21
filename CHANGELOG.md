@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Chapter 21, new §21.8.2 "Interrupts and irqbalance" (both editions): IRQ affinity from the kernel documentation, what irqbalance does and its banned CPU and IRQ settings, the link to `osd_numa_auto_affinity` and `ceph osd numa-status`, checks to run first, and the measure-before-and-after rule; no values are prescribed, since the Ceph documentation gives none (roadmap item 9).
 - Chapter 4, new §4.11.7 "Video on demand: HLS and DASH from RGW" (both editions): manifest media types from RFC 8216 and IANA, Cache-Control at upload, a GetObject-only public policy with a warning and PublicAccessBlock, a bucket CORS rule for browser players, a CDN in front, and lifecycle for stale segments with its day granularity and work window (roadmap item 3).
 - Chapter 4, new §4.11.6 "Nextcloud on RGW" (both editions): primary storage versus external storage from the Nextcloud administration manual, a `config.php` object store example, path-style versus virtual-host and its DNS needs, bucket naming, multipart defaults with an abort-incomplete lifecycle rule, multibucket mapping, and why no CORS rule is needed (roadmap item 1).
 - Chapter 2, new §2.10.6 "CloudStack: RBD as primary storage" (both editions): pool and least-privilege user, the RADOS fields in the Add Primary Storage form, the single-monitor limit before 4.18 and its DNS workaround, and storage tags with a matching disk offering (roadmap item 7).

@@ -386,6 +386,22 @@ Points to remember:
 - Despite the command name, this is not the `tuned` daemon: the CPU profile from the table above (`tuned-adm profile …`) and the BIOS settings are still set outside cephadm.
 - Put only settings that you have measured on your own hardware into a profile, and change one setting at a time (the method at the start of this chapter).
 
+## Interrupts and irqbalance {#sec-21-8-2}
+
+Every NIC queue and every NVMe queue raises hardware interrupts, and on a busy OSD host their handling is a real share of CPU time. The kernel decides which CPUs may handle an interrupt through `/proc/irq/<N>/smp_affinity` (a bitmask) and `/proc/irq/<N>/smp_affinity_list` (a CPU list); `/proc/interrupts` shows how many interrupts each CPU has handled. Most distributions run `irqbalance`, a daemon that, in its own project's words, finds the highest-volume interrupt sources and isolates each on a single CPU, to spread the load while keeping cache misses in the handlers low. By default it leaves alone the CPUs isolated with `isolcpus=` or `nohz_full=`.
+
+The Ceph documentation gives no irqbalance recommendation, so there is no "right" value to copy. What Ceph does have is NUMA awareness: with `osd_numa_auto_affinity` (on by default), an OSD pins itself to a NUMA node when its storage device and its network interface are on that node (chapter 33). Interrupts from that NVMe and that NIC are then best handled on the same node. Check first, before changing anything:
+
+```bash
+ceph osd numa-status                               # NUMA node of each OSD, its network and its storage
+cat /sys/class/net/ens1f0/device/numa_node          # NUMA node of the NIC
+grep -E "CPU|ens1f0|nvme0" /proc/interrupts | cut -c1-120
+grep . /proc/irq/*/smp_affinity_list | head
+systemctl status irqbalance
+```
+
+If the counts show the interrupts of a node-0 NIC landing on node-1 CPUs, there are two ways forward. Keep irqbalance and exclude CPUs from it (`IRQBALANCE_BANNED_CPULIST` in the environment of the irqbalance service) or exclude specific interrupts (`--banirq=<N>`) that you pin by hand; or stop irqbalance and set `smp_affinity_list` yourself. A manual pin does not survive a reboot and irqbalance overrides it unless that interrupt is banned, so manage it with configuration management, not a one-off `echo`. As with every item in this chapter, measure before and after with the tools in "Benchmarking" below; if latency and the per-CPU softirq load do not change, keep the default.
+
 # Pool and client design {#sec-21-9}
 
 - **Replicated vs EC**: for small random writes (a database on RBD), replication has lower latency; EC is for large, sequential data. In Tentacle, FastEC has narrowed the gap for mixed workloads (chapter 13).
@@ -490,3 +506,5 @@ Benchmarking on a production cluster disrupts real user load, and `rados bench` 
 - Source: src/common/options/osd.yaml.in: https://github.com/ceph/ceph/blob/main/src/common/options/osd.yaml.in
 - Gulati, Merchant, Varman, "mClock: Handling Throughput Variability for Hypervisor IO Scheduling" (OSDI 2010): https://www.usenix.org/conference/osdi10/mclock-handling-throughput-variability-hypervisor-io-scheduling
 - tracker 69078: https://tracker.ceph.com/issues/69078
+- Linux kernel documentation — SMP IRQ affinity: https://docs.kernel.org/core-api/irq/irq-affinity.html
+- irqbalance project — README and irqbalance(1): https://github.com/Irqbalance/irqbalance

@@ -386,6 +386,22 @@ sysctl vm.swappiness                              # بررسی روی یک می�
 - با وجود نام فرمان، این همان daemon `tuned` نیست: پروفایل CPU جدول بالا (`tuned-adm profile …`) و تنظیمات BIOS همچنان بیرون از cephadm تنظیم می‌شوند.
 - فقط تنظیماتی را در پروفایل بگذارید که روی سخت‌افزار خودتان اندازه گرفته‌اید، و هر بار فقط یک تنظیم را تغییر دهید (روش ابتدای همین فصل).
 
+## وقفه‌ها و irqbalance {#sec-21-8-2}
+
+هر صف کارت شبکه و هر صف NVMe وقفه‌ی سخت‌افزاری ایجاد می‌کند و روی میزبان OSD پرکار، رسیدگی به آن‌ها سهم واقعی از زمان CPU است. kernel از راه `/proc/irq/<N>/smp_affinity` (یک bitmask) و `/proc/irq/<N>/smp_affinity_list` (یک فهرست CPU) تعیین می‌کند کدام CPUها به یک وقفه رسیدگی کنند؛ `/proc/interrupts` نشان می‌دهد هر CPU به چند وقفه رسیدگی کرده است. بیشتر توزیع‌ها `irqbalance` را اجرا می‌کنند، daemonی که به گفته‌ی پروژه‌ی خودش پرحجم‌ترین منبع‌های وقفه را پیدا می‌کند و هر کدام را روی یک CPU جدا می‌گذارد تا بار پخش شود و cache miss در رسیدگی‌کننده‌ها کم بماند. به‌طور پیش‌فرض به CPUهایی که با `isolcpus=` یا `nohz_full=` جدا شده‌اند دست نمی‌زند.
+
+مستندات Ceph توصیه‌ای درباره‌ی irqbalance ندارد، پس مقدار «درستی» برای کپی کردن وجود ندارد. آنچه Ceph دارد آگاهی از NUMA است: با `osd_numa_auto_affinity` (به‌طور پیش‌فرض روشن)، OSD وقتی دستگاه ذخیره‌سازی و رابط شبکه‌اش روی یک NUMA node باشند، خود را به آن node سنجاق می‌کند (فصل ۳۳). در این حالت بهتر است وقفه‌های همان NVMe و همان کارت شبکه هم روی همان node رسیدگی شوند. پیش از هر تغییری، ابتدا بررسی کنید:
+
+```bash
+ceph osd numa-status                               # NUMA node هر OSD، شبکه و ذخیره‌سازی آن
+cat /sys/class/net/ens1f0/device/numa_node          # NUMA node کارت شبکه
+grep -E "CPU|ens1f0|nvme0" /proc/interrupts | cut -c1-120
+grep . /proc/irq/*/smp_affinity_list | head
+systemctl status irqbalance
+```
+
+اگر شمارنده‌ها نشان دهند وقفه‌های کارت شبکه‌ی node 0 روی CPUهای node 1 رسیدگی می‌شوند، دو راه هست. irqbalance را نگه دارید و CPUهایی را از آن کنار بگذارید (`IRQBALANCE_BANNED_CPULIST` در محیط سرویس irqbalance) یا وقفه‌های مشخصی را که دستی سنجاق می‌کنید کنار بگذارید (`--banirq=<N>`)؛ یا irqbalance را متوقف کنید و `smp_affinity_list` را خودتان تنظیم کنید. سنجاق دستی پس از راه‌اندازی دوباره نمی‌ماند و irqbalance آن را بازنویسی می‌کند مگر آن وقفه کنار گذاشته شده باشد، پس آن را با ابزار مدیریت پیکربندی نگه دارید و نه با یک `echo` یک‌باره. مانند هر مورد دیگر این فصل، پیش و پس از تغییر با ابزارهای بخش «سنجش» در پایین اندازه بگیرید؛ اگر تأخیر و بار softirq هر CPU تغییری نکرد، پیش‌فرض را نگه دارید.
+
 # طراحی pool و کلاینت {#sec-21-9}
 
 - **تکثیری در مقابل EC**: برای نوشتن‌های کوچک تصادفی (پایگاه داده روی RBD)، تکثیری تأخیر کمتری دارد؛ EC برای داده‌ی بزرگ و ترتیبی. در Tentacle، FastEC فاصله را برای بارهای ترکیبی کم کرده است (فصل ۱۳).
@@ -490,3 +506,5 @@ numjobs=4
 - Source: src/common/options/osd.yaml.in: https://github.com/ceph/ceph/blob/main/src/common/options/osd.yaml.in
 - Gulati, Merchant, Varman, "mClock: Handling Throughput Variability for Hypervisor IO Scheduling" (OSDI 2010): https://www.usenix.org/conference/osdi10/mclock-handling-throughput-variability-hypervisor-io-scheduling
 - tracker 69078: https://tracker.ceph.com/issues/69078
+- Linux kernel documentation — SMP IRQ affinity: https://docs.kernel.org/core-api/irq/irq-affinity.html
+- irqbalance project — README and irqbalance(1): https://github.com/Irqbalance/irqbalance
