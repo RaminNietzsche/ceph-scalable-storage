@@ -228,6 +228,18 @@ ceph smb show
 رمز عبور در مثال بالا نمونه است؛ در محیط واقعی از Active Directory استفاده کنید یا رمز را از یک مخزن امن بخوانید تا در تاریخچه‌ی shell نماند. Tentacle همچنین پوشه‌های **غیرحساس به بزرگی و کوچکی حروف** (case-insensitive) را به CephFS اضافه کرد که برای سازگاری با کلاینت‌های ویندوز اهمیت دارد؛ دستورهای subvolume پرچم `--casesensitive` را برای همین دارند.
 :::
 
+## CephFS روی Windows با ceph-dokan {#sec-06-4-3}
+
+برای کلاینت‌های Windows دو راه وجود دارد. ماژول SMB در بالا CephFS را از راه Samba ارائه می‌کند، پس هر ماشین Windows با کلاینت SMB داخلی خود وصل می‌شود. راه دیگر `ceph-dokan` است، یک کلاینت بومی از نصب‌کننده‌ی MSI در Ceph که CephFS را از راه Dokany، درایوری شبیه FUSE برای Windows، mount می‌کند (صفحه‌ی نصب Dokany 2.0.5 یا بالاتر را می‌خواهد). این کلاینت مانند ceph-fuse مستقیم با MONها، MDSها و OSDها حرف می‌زند.
+
+```powershell
+ceph-dokan.exe --id winclient -l x                          # mount فایل‌سیستم پیش‌فرض روی X:
+ceph-dokan.exe --id winclient --client_fs fs01 --root-path /projects -l y
+ceph-dokan.exe unmap -l x                                   # همان نقطه‌ی mount هنگام mount را بدهید
+```
+
+نکته‌های صفحه‌ی رسمی: uid و gid نقطه‌ی mount به‌طور پیش‌فرض ۰ است و با `client_mount_uid` و `client_mount_gid` در بخش `[client]` تنظیم می‌شود؛ ACLهای Windows نادیده گرفته می‌شوند و ACLهای POSIX رعایت می‌شوند ولی از این کلاینت قابل تغییر نیستند. از یک کاربر cephx محدود به مسیر استفاده کنید (`ceph fs authorize`، بخش «ساختن کاربر با دسترسی محدود»). وقتی کاربران ACLهای Windows، Active Directory و رفتار معمول SMB را لازم دارند، ماژول SMB انتخاب بهتری است؛ `ceph-dokan` برای سرورهای Windows مناسب است که دسترسی مستقیم و سریع با مالکیت POSIX می‌خواهند.
+
 # از درون کد: capabilityها، journal و dirfrag در MDS {#sec-06-5}
 
 ## capability: قرارداد کش بین MDS و کلاینت {#sec-06-5-1}
@@ -609,3 +621,4 @@ ceph osd blocklist ls
 - Tentacle release notes: https://docs.ceph.com/en/latest/releases/tentacle/
 - LazyIO: https://docs.ceph.com/en/latest/cephfs/lazyio/
 - Differences from POSIX: https://docs.ceph.com/en/latest/cephfs/posix/
+- Ceph documentation — Mount CephFS on Windows: https://docs.ceph.com/en/latest/cephfs/ceph-dokan/

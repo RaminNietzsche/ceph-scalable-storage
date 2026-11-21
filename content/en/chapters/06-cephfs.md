@@ -228,6 +228,18 @@ ceph smb show
 The password in the example above is a sample; in a real environment use Active Directory, or read the password from a secure store so that it does not stay in the shell history. Tentacle also added **case-insensitive** directories to CephFS, which matter for compatibility with Windows clients; the subvolume commands have the `--casesensitive` flag for this.
 :::
 
+## CephFS on Windows with ceph-dokan {#sec-06-4-3}
+
+For Windows clients there are two paths. The SMB module above serves CephFS through Samba, so any Windows machine connects with its built-in SMB client. The other path is `ceph-dokan`, a native client from the Ceph MSI installer that mounts CephFS through Dokany, a FUSE-like driver for Windows (the installation page asks for Dokany 2.0.5 or later). It talks to the MONs, MDSs and OSDs directly, like ceph-fuse.
+
+```powershell
+ceph-dokan.exe --id winclient -l x                          # mount the default file system on X:
+ceph-dokan.exe --id winclient --client_fs fs01 --root-path /projects -l y
+ceph-dokan.exe unmap -l x                                   # give the same mount point as when mounting
+```
+
+Points from the official page: the uid and gid of the mount default to 0 and are set with `client_mount_uid` and `client_mount_gid` in the `[client]` section; Windows ACLs are ignored, and POSIX ACLs are honoured but cannot be changed from this client. Use a cephx user restricted to the path (`ceph fs authorize`, "Creating a user with restricted access"). When users need Windows ACLs, Active Directory and the usual SMB behaviour, the SMB module is the better choice; `ceph-dokan` suits Windows servers that need direct, fast access with POSIX ownership.
+
 # From the code: capabilities, the journal and dirfrags in the MDS {#sec-06-5}
 
 ## Capabilities: the cache contract between MDS and client {#sec-06-5-1}
@@ -609,3 +621,4 @@ Read the details of each release in the official release notes; this chapter inc
 - Tentacle release notes: https://docs.ceph.com/en/latest/releases/tentacle/
 - LazyIO: https://docs.ceph.com/en/latest/cephfs/lazyio/
 - Differences from POSIX: https://docs.ceph.com/en/latest/cephfs/posix/
+- Ceph documentation — Mount CephFS on Windows: https://docs.ceph.com/en/latest/cephfs/ceph-dokan/

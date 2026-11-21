@@ -632,6 +632,31 @@ rbd config image ls rbd/vm01 | grep qos
 - **diff-iterate محلی:** در Squid، `diff-iterate` می‌تواند محلی اجرا شود که کارایی همگام‌سازی زنده‌ی دیسک در QEMU و ابزارهای پشتیبان‌گیری مبتنی بر تفاضل را به‌شدت بهتر کرده است.
 - **دروازه‌ی iSCSI:** در حالت نگه‌داری است؛ برای استقرار تازه NVMe-oF را انتخاب کنید.
 
+## میزبان‌های Windows و VMware {#sec-02-10-5}
+
+میزبان‌های Windows می‌توانند بدون دروازه‌ی iSCSI و به‌صورت بومی از RBD استفاده کنند. نصب‌کننده‌ی MSI در Ceph برای Windows ابزار `rbd`، `librbd.dll` و درایور WNBD (Windows Network Block Device) را دارد که یک image را به شکل دیسک محلی نشان می‌دهد. صفحه‌ی رسمی نصب، Windows Server 2019 و 2022 را پشتیبانی‌شده و Windows 10 LTSC و Windows 11 را فقط برای توسعه و آزمون فهرست می‌کند. درایور WNBD امضای Microsoft را ندارد، پس Secure Boot باید خاموش باشد؛ همان صفحه هشدار می‌دهد که تغییر Secure Boot روی میزبانی با BitLocker ممکن است بازیابی BitLocker را آغاز کند، پس ابتدا BitLocker را معلق کنید و کلید بازیابی را در دسترس نگه دارید.
+
+```powershell
+rbd device map vms/win-data --id windows      # شماره‌ی دیسک را Windows انتخاب می‌کند
+rbd device list                               # در Windows ستون status هم دارد
+rbd device show vms/win-data                  # فقط در Windows: مسیر دیسک یک نگاشت
+rbd device unmap vms/win-data
+```
+
+نگاشت‌ها به‌طور پیش‌فرض ماندگارند: سرویس Windows با نام `ceph-rbd`، که MSI آن را می‌سازد، آن‌ها را هنگام راه‌اندازی دوباره می‌سازد و ترتیب شروع آن را می‌توان طوری تنظیم کرد که imageها پیش از سرویس‌هایی مانند VMMS در Hyper-V نگاشته شوند. image نگاشته‌شده را میزبان می‌تواند به کار ببرد یا مانند یک دیسک iSCSI به یک ماشین مجازی Hyper-V وصل کند. به‌جای `client.admin` از کاربری با کمترین دسترسی (`profile rbd`، مانند بخش «ساختن کاربر با دسترسی حداقلی») استفاده کنید.
+
+VMware ESXi نمی‌تواند librbd را اجرا کند، پس از راه دروازه‌ی NVMe-oF به Ceph می‌رسد (بخش «دروازه‌ی NVMe-oF» در بالا و فصل ۳۱). مستندات Ceph نسخه‌ی ESXi 7.0U3 یا بالاتر را لازم می‌داند. سمت میزبان، با نحو `esxcli` از مستندات Broadcom:
+
+```text
+esxcli nvme fabrics enable --protocol TCP --device vmnic2                 # یک آداپتور vmhba می‌سازد
+esxcli network ip interface tag add --interface-name vmk1 --tagname NVMeTCP
+esxcli nvme adapter list
+esxcli nvme fabrics discover -a vmhba65 -i 10.0.5.21 -p 8009 -c          # کشف و اتصال
+esxcli nvme namespace list
+```
+
+برای مسیر دوم، دو خط اول را برای کارت شبکه‌ی دوم تکرار کنید. راهنمای Broadcom یک آداپتور VMkernel برای هر کارت شبکه‌ی فیزیکی است، بدون LACP یا teaming، چون NVMe/TCP به multipathing خود VMware تکیه دارد. مستندات Ceph آغازگر NVMe/TCP برای Windows را شرح نمی‌دهد؛ برای میزبان‌های Windows از کلاینت بومی RBD در بالا استفاده کنید.
+
 # جمع‌بندی و مرور {#sec-02-11}
 
 ## خلاصه‌ی فصل {#sec-02-11-1}
@@ -692,3 +717,7 @@ rbd config image ls rbd/vm01 | grep qos
 - مستندات Ceph — krbd: https://docs.ceph.com/en/latest/rbd/rbd-ko/
 - مستندات cephadm — استقرار rbd-mirror: https://docs.ceph.com/en/latest/rbd/rbd-mirroring/
 - یادداشت‌های انتشار Squid: https://docs.ceph.com/en/latest/releases/squid/
+- Ceph documentation — RBD on Windows: https://docs.ceph.com/en/latest/rbd/rbd-windows/
+- Ceph documentation — Installing the Ceph client on Windows: https://docs.ceph.com/en/latest/install/windows-install/
+- Ceph documentation — NVMe/TCP initiator for VMware ESX: https://docs.ceph.com/en/latest/rbd/nvmeof-initiator-esx/
+- Broadcom KB 405925 — enabling NVMe over TCP with esxcli: https://knowledge.broadcom.com/external/article/405925/nvme-over-tcp-adapter-option-not-availab.html

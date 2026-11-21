@@ -632,6 +632,31 @@ These limits apply only to librbd, not krbd. For krbd clients, control must happ
 - **Local diff-iterate:** in Squid, `diff-iterate` can run locally, which has greatly improved the performance of live disk synchronisation in QEMU and of diff-based backup tools.
 - **The iSCSI gateway:** is in maintenance mode; choose NVMe-oF for new deployments.
 
+## Windows and VMware hosts {#sec-02-10-5}
+
+Windows hosts can use RBD natively, without an iSCSI gateway. The Ceph MSI installer for Windows contains the `rbd` tool, `librbd.dll` and the WNBD (Windows Network Block Device) driver, which shows an image as a local disk. The official installation page lists Windows Server 2019 and 2022 as supported, and Windows 10 LTSC and Windows 11 only for development and testing. The WNBD driver is not signed by Microsoft, so Secure Boot must be off; the same page warns that changing Secure Boot on a BitLocker host can start BitLocker recovery, so suspend BitLocker and keep the recovery key at hand first.
+
+```powershell
+rbd device map vms/win-data --id windows      # the disk number is chosen by Windows
+rbd device list                               # includes a status column on Windows
+rbd device show vms/win-data                  # Windows-only: the disk path of a mapping
+rbd device unmap vms/win-data
+```
+
+Mappings are persistent by default: the `ceph-rbd` Windows service, which the MSI creates, recreates them at boot, and its start order can be set so that images are mapped before services such as Hyper-V's VMMS. A mapped image can be used by the host or attached to a Hyper-V virtual machine like an iSCSI disk. Use a least-privilege user (`profile rbd`, as in "Creating a least-privilege user") instead of `client.admin`.
+
+VMware ESXi cannot run librbd, so it reaches Ceph through the NVMe-oF gateway ("The NVMe-oF gateway" above and chapter 31). The Ceph documentation requires ESXi 7.0U3 or later. The host side, with the `esxcli` syntax from the Broadcom documentation:
+
+```text
+esxcli nvme fabrics enable --protocol TCP --device vmnic2                 # creates a vmhba adapter
+esxcli network ip interface tag add --interface-name vmk1 --tagname NVMeTCP
+esxcli nvme adapter list
+esxcli nvme fabrics discover -a vmhba65 -i 10.0.5.21 -p 8009 -c          # discover and connect
+esxcli nvme namespace list
+```
+
+Repeat the first two lines for a second NIC to get a second path. Broadcom's guidance is one VMkernel adapter per physical NIC, without LACP or teaming, because NVMe/TCP relies on VMware's own multipathing. The Ceph documentation does not describe an NVMe/TCP initiator for Windows; for Windows hosts, use the native RBD client above.
+
 # Summary and review {#sec-02-11}
 
 ## Chapter summary {#sec-02-11-1}
@@ -692,3 +717,7 @@ These limits apply only to librbd, not krbd. For krbd clients, control must happ
 - Ceph documentation — krbd: https://docs.ceph.com/en/latest/rbd/rbd-ko/
 - cephadm documentation — Deploying rbd-mirror: https://docs.ceph.com/en/latest/rbd/rbd-mirroring/
 - Squid release notes: https://docs.ceph.com/en/latest/releases/squid/
+- Ceph documentation — RBD on Windows: https://docs.ceph.com/en/latest/rbd/rbd-windows/
+- Ceph documentation — Installing the Ceph client on Windows: https://docs.ceph.com/en/latest/install/windows-install/
+- Ceph documentation — NVMe/TCP initiator for VMware ESX: https://docs.ceph.com/en/latest/rbd/nvmeof-initiator-esx/
+- Broadcom KB 405925 — enabling NVMe over TCP with esxcli: https://knowledge.broadcom.com/external/article/405925/nvme-over-tcp-adapter-option-not-availab.html
