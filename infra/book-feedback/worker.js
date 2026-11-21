@@ -386,7 +386,7 @@ function visitsSection(visits) {
   const cached = visits.cached ? ' · نتایج تا ۱۰ دقیقه کش می‌شوند' : ' · تازه‌خوانی‌شده، تا ۱۰ دقیقه کش می‌شود';
   return `<section>
     <h2>آمار بازدید سایت</h2>
-    <p class="meta">۳۰ روز گذشته · منبع: Cloudflare Web Analytics (RUM)${esc(cached)}</p>
+    <p class="meta">۳۰ روز گذشته (روزهای UTC، با امروز) · منبع: Cloudflare Web Analytics (RUM)${esc(cached)}</p>
     <div class="cards">
       <div class="card"><span>بازدیدها</span><b>${totals.visits}</b></div>
       <div class="card"><span>نمایش صفحات</span><b>${totals.pageviews}</b></div>
@@ -537,7 +537,7 @@ async function loadStats(env) {
             SUM(CASE WHEN helpful = 1 THEN 1 ELSE 0 END) AS yes,
             SUM(CASE WHEN helpful = 0 THEN 1 ELSE 0 END) AS no
        FROM votes
-      WHERE day >= date('now', '-30 days')
+      WHERE day >= date('now', '-29 days')
       GROUP BY page, section, lang
       ORDER BY CAST(yes AS REAL) / (yes + no) ASC, no DESC, page, section, lang`,
   ).all();
@@ -568,90 +568,107 @@ async function loadSubscriberStats(env) {
   };
 }
 
-function mapGroups(rows, dim) {
-  return (rows || []).map((r) => ({
-    [dim]: (r.dimensions && r.dimensions[dim]) || '',
-    pageviews: Number(r.count) || 0,
-    visits: Number(r.sum && r.sum.visits) || 0,
-  }));
+const WINDOW_DAYS = 30;
+
+// UTC calendar days of the window, oldest first, ending with today (partial).
+function windowDays(now) {
+  const out = [];
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  for (let i = WINDOW_DAYS - 1; i >= 0; i--) out.push(new Date(today - i * 86400000).toISOString().slice(0, 10));
+  return out;
 }
 
+// Merge per-day groups into top-N rows keyed by one dimension.
+function mergeGroups(dayRows, dim, limit) {
+  const m = new Map();
+  for (const rows of dayRows) {
+    for (const r of rows || []) {
+      const key = (r.dimensions && r.dimensions[dim]) || '';
+      const cur = m.get(key) || { key, pageviews: 0, visits: 0 };
+      cur.pageviews += Number(r.count) || 0;
+      cur.visits += Number((r.sum && r.sum.visits)) || 0;
+      m.set(key, cur);
+    }
+  }
+  return [...m.values()].sort((x, y) => y.pageviews - x.pageviews || y.visits - x.visits).slice(0, limit);
+}
+
+// Cloudflare RUM data is sampled adaptively, and a wide time range is sampled far more
+// coarsely (counts come back rounded to tens, and a 30-day query can be off by 3x for a
+// quiet day). So ask one query per UTC day, which keeps the sampling fine, and combine
+// the days here. Empty days are zero-filled and today is included.
 async function fetchVisits(env) {
   const token = env.CF_ANALYTICS_TOKEN || '';
   if (!token) return { available: false, reason: 'no_token' };
   const accountTag = env.CF_ACCOUNT_ID || ACCOUNT_ID_DEFAULT;
   const siteTag = env.CF_SITE_TAG || SITE_TAG_DEFAULT;
-  const until = new Date();
-  const since = new Date(until.getTime() - 30 * 86400000);
-  const query = `query BookVisits($accountTag: String!, $siteTag: String!, $since: Time!, $until: Time!) {
-    viewer {
-      accounts(filter: { accountTag: $accountTag }) {
-        daily: rumPageloadEventsAdaptiveGroups(
-          limit: 40
-          filter: { siteTag: $siteTag, datetime_geq: $since, datetime_lt: $until }
-          orderBy: [date_ASC]
-        ) { count sum { visits } dimensions { date } }
-        pages: rumPageloadEventsAdaptiveGroups(
-          limit: 20
-          filter: { siteTag: $siteTag, datetime_geq: $since, datetime_lt: $until }
-          orderBy: [count_DESC]
-        ) { count sum { visits } dimensions { requestPath } }
-        countries: rumPageloadEventsAdaptiveGroups(
-          limit: 15
-          filter: { siteTag: $siteTag, datetime_geq: $since, datetime_lt: $until }
-          orderBy: [count_DESC]
-        ) { count sum { visits } dimensions { countryName } }
-        referrers: rumPageloadEventsAdaptiveGroups(
-          limit: 15
-          filter: { siteTag: $siteTag, datetime_geq: $since, datetime_lt: $until }
-          orderBy: [count_DESC]
-        ) { count sum { visits } dimensions { refererHost } }
-      }
-    }
+  const days = windowDays(new Date());
+  const group = (alias, d, dim, orderBy) => {
+    const next = new Date(Date.parse(`${d}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+    return `${alias}: rumPageloadEventsAdaptiveGroups(
+          limit: 200
+          filter: { siteTag: $siteTag, datetime_geq: "${d}T00:00:00Z", datetime_lt: "${next}T00:00:00Z" }
+          orderBy: [${orderBy}]
+        ) { count sum { visits } dimensions { ${dim} } }`;
+  };
+  // Cloudflare caps the nodes per request, so one request per dimension (30 days each).
+  const runKind = async (prefix, dim) => {
+    const fields = days.map((d, i) => group(`${prefix}${i}`, d, dim, 'count_DESC'));
+    const query = `query BookVisits($accountTag: String!, $siteTag: String!) {
+    viewer { accounts(filter: { accountTag: $accountTag }) { ${fields.join('\n')} } }
   }`;
-  const res = await fetch('https://api.cloudflare.com/client/v4/graphql', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      query,
-      variables: {
-        accountTag,
-        siteTag,
-        since: since.toISOString(),
-        until: until.toISOString(),
+    const res = await fetch('https://api.cloudflare.com/client/v4/graphql', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
-    }),
-  });
-  const raw = await res.text();
-  let data;
-  try { data = JSON.parse(raw); } catch {
-    return { available: false, error: `پاسخ غیرقابل‌خواندن از API (${res.status})` };
-  }
-  if (!res.ok || data.errors) {
-    const msg = (data.errors && data.errors[0] && data.errors[0].message)
-      ? String(data.errors[0].message)
-      : `HTTP ${res.status}`;
-    return { available: false, error: msg.slice(0, 240) };
-  }
-  const acc = data.data && data.data.viewer && data.data.viewer.accounts && data.data.viewer.accounts[0];
-  if (!acc) return { available: false, error: 'حساب یا داده‌ای برنگشت.' };
-  const daily = mapGroups(acc.daily, 'date').map((r) => ({ date: r.date, pageviews: r.pageviews, visits: r.visits }));
-  const pages = mapGroups(acc.pages, 'requestPath').map((r) => ({ path: r.requestPath, pageviews: r.pageviews, visits: r.visits }));
-  const countries = mapGroups(acc.countries, 'countryName').map((r) => ({ country: r.countryName, pageviews: r.pageviews, visits: r.visits }));
-  const referrers = mapGroups(acc.referrers, 'refererHost').map((r) => ({ referrer: r.refererHost, pageviews: r.pageviews, visits: r.visits }));
+      body: JSON.stringify({ query, variables: { accountTag, siteTag } }),
+    });
+    const raw = await res.text();
+    let data;
+    try { data = JSON.parse(raw); } catch {
+      return { error: `پاسخ غیرقابل‌خواندن از API (${res.status})` };
+    }
+    if (!res.ok || data.errors) {
+      const msg = (data.errors && data.errors[0] && data.errors[0].message)
+        ? String(data.errors[0].message)
+        : `HTTP ${res.status}`;
+      return { error: msg.slice(0, 240) };
+    }
+    const acc = data.data && data.data.viewer && data.data.viewer.accounts && data.data.viewer.accounts[0];
+    if (!acc) return { error: 'حساب یا داده‌ای برنگشت.' };
+    return { rows: days.map((_, i) => acc[`${prefix}${i}`] || []) };
+  };
+  const [pRes, cRes, rRes] = await Promise.all([
+    runKind('p', 'requestPath'),
+    runKind('c', 'countryName'),
+    runKind('r', 'refererHost'),
+  ]);
+  const failed = [pRes, cRes, rRes].find((x) => x.error);
+  if (failed) return { available: false, error: failed.error };
+  const pathRows = pRes.rows;
+  const daily = days.map((date, i) => ({
+    date,
+    pageviews: pathRows[i].reduce((s, r) => s + (Number(r.count) || 0), 0),
+    visits: pathRows[i].reduce((s, r) => s + (Number(r.sum && r.sum.visits) || 0), 0),
+  }));
+  const pages = mergeGroups(pathRows, 'requestPath', 20).map((r) => ({ path: r.key, pageviews: r.pageviews, visits: r.visits }));
+  const countries = mergeGroups(cRes.rows, 'countryName', 15).map((r) => ({ country: r.key, pageviews: r.pageviews, visits: r.visits }));
+  const referrers = mergeGroups(rRes.rows, 'refererHost', 15).map((r) => ({ referrer: r.key, pageviews: r.pageviews, visits: r.visits }));
   const langs = { fa: { visits: 0, pageviews: 0 }, en: { visits: 0, pageviews: 0 }, other: { visits: 0, pageviews: 0 } };
-  for (const row of pages) {
-    const bucket = langBucket(row.path);
-    langs[bucket].pageviews += row.pageviews;
-    langs[bucket].visits += row.visits;
+  for (const rows of pathRows) {
+    for (const r of rows) {
+      const bucket = langBucket((r.dimensions && r.dimensions.requestPath) || '');
+      langs[bucket].pageviews += Number(r.count) || 0;
+      langs[bucket].visits += Number(r.sum && r.sum.visits) || 0;
+    }
   }
   const totals = daily.reduce((s, r) => ({ pageviews: s.pageviews + r.pageviews, visits: s.visits + r.visits }), { pageviews: 0, visits: 0 });
   return {
     available: true,
-    window_days: 30,
+    window_days: WINDOW_DAYS,
+    timezone: 'UTC',
     source: 'cloudflare-web-analytics',
     totals,
     daily,
@@ -664,7 +681,7 @@ async function fetchVisits(env) {
 
 async function loadVisits(env) {
   const cache = caches.default;
-  const cacheReq = new Request('https://feedback.ceph-s3.ir/__cache/visits-v1');
+  const cacheReq = new Request('https://feedback.ceph-s3.ir/__cache/visits-v2');
   try {
     const hit = await cache.match(cacheReq);
     if (hit) {
