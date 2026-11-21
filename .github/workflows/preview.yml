@@ -25,6 +25,10 @@ env:
 jobs:
   preview:
     runs-on: ubuntu-24.04
+    env:
+      # The secrets context is not allowed in a step's if:, so expose only
+      # whether the token is set and test that instead.
+      HAS_CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -59,7 +63,7 @@ jobs:
           rm -f build/site/CNAME
       - name: Deploy to Cloudflare Pages
         id: deploy
-        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+        if: env.HAS_CF_TOKEN == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ env.CF_ACCOUNT_ID }}
