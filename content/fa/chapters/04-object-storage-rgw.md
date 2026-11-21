@@ -650,6 +650,56 @@ Nextcloud به دو شکل می‌تواند از RGW استفاده کند و �
 
 مرورگرها و کلاینت‌های همگام‌سازی فقط با Nextcloud حرف می‌زنند و هرگز مستقیم با RGW، پس این راه‌اندازی به قاعده‌ی CORS روی bucket نیاز ندارد. External storage همین مقدارها را در فرم خود می‌خواهد: bucket، key، secret، Hostname و گزینه‌ی Enable Path Style.
 
+## ویدیوی درخواستی: HLS و DASH از RGW {#sec-04-11-7}
+
+HLS و DASH یک ویدیو را به قطعه‌های کوتاه تقسیم می‌کنند و آن‌ها را در یک manifest متنی شرح می‌دهند: یک playlist با پسوند `.m3u8` برای HLS (RFC 8216) و یک فایل `.mpd` برای DASH. پخش‌کننده manifest و سپس قطعه‌ها را با درخواست‌های ساده‌ی HTTP GET می‌گیرد، پس RGW می‌تواند آن‌ها را مانند هر شیء دیگری ارائه کند. کدگذاری و بسته‌بندی بیرون از Ceph انجام می‌شود؛ RGW نتیجه را نگه می‌دارد و ارائه می‌کند.
+
+**Content-Type.** RGW همان Content-Type را برمی‌گرداند که هنگام بارگذاری شیء ذخیره شده است. RFC 8216 برای playlistهای HLS نوع `application/vnd.apple.mpegurl` یا `audio/mpegurl` را لازم می‌داند و نوع IANA برای MPD در DASH برابر `application/dash+xml` است. هنگام بارگذاری آن‌ها را صریح تعیین کنید:
+
+```bash
+aws $EP s3 cp master.m3u8 s3://vod/movies/m1001/master.m3u8 \
+  --content-type application/vnd.apple.mpegurl --cache-control "max-age=60"
+aws $EP s3 cp manifest.mpd s3://vod/movies/m1001/manifest.mpd --content-type application/dash+xml
+aws $EP s3 sync ./segments s3://vod/movies/m1001/ --cache-control "max-age=86400"
+```
+
+**دسترسی خواندن.** یک presigned URL فقط یک شیء را مجاز می‌کند، پس با playlistی که به صدها قطعه ارجاع می‌دهد جور نیست. الگوی رایج، خواندن ناشناس روی یک پیشوند است (RGW درخواست‌های احرازنشده را از کاربر anonymous می‌داند) با یک bucket policy که فقط `s3:GetObject` را می‌دهد:
+
+```json
+{"Version":"2012-10-17","Statement":[{
+  "Effect":"Allow","Principal":{"AWS":["*"]},
+  "Action":["s3:GetObject"],
+  "Resource":["arn:aws:s3:::vod/movies/*"]}]}
+```
+
+::: {.warn}
+bucket عمومی برای همه‌ی کسانی که به endpoint دسترسی دارند عمومی است. فقط `s3:GetObject` را بدهید، هرگز `s3:ListBucket` یا هیچ کنش نوشتنی را، `Resource` را به پیشوند منتشرشده محدود کنید و فایل‌های منبع و پیش‌نویس‌ها را در یک bucket خصوصی جدا نگه دارید. RGW تنظیم‌های `PublicAccessBlock` در سطح bucket و account را پشتیبانی می‌کند؛ آن را برای همه‌ی bucketها و accountهای دیگر روشن کنید تا یک policy اشتباه در جای دیگر داده‌ای را آشکار نکند. اگر محتوا نباید عمومی باشد، یک CDN یا proxy با احراز هویت جلوی یک bucket خصوصی بگذارید.
+:::
+
+**CORS.** وقتی صفحه‌ی پخش‌کننده (hls.js، dash.js و پخش‌کننده‌های مشابه از fetch یا XHR استفاده می‌کنند) از originی جز endpoint در RGW بارگذاری می‌شود، مرورگر به یک قاعده‌ی CORS روی bucket نیاز دارد. RGW رابط CORS برای bucket در S3 را پیاده کرده است (`PutBucketCors`، تا `rgw_cors_rules_max_num` قاعده که پیش‌فرض آن ۱۰۰ است):
+
+```json
+{"CORSRules":[{"AllowedOrigins":["https://www.example.com"],
+  "AllowedMethods":["GET","HEAD"],"AllowedHeaders":["Range"],
+  "ExposeHeaders":["Content-Length","Content-Range","ETag"],"MaxAgeSeconds":3600}]}
+```
+
+```bash
+aws $EP s3api put-bucket-cors --bucket vod --cors-configuration file://cors.json
+```
+
+**CDN.** در مقیاس بزرگ یک CDN یا cache جلوی RGW بگذارید تا خواندن‌های تکراری قطعه‌ها را جذب کند؛ مقدارهای `Cache-Control` که هنگام بارگذاری تعیین شد، به manifestها عمر کوتاه و به قطعه‌ها، که پس از بسته‌بندی تغییر نمی‌کنند، عمر بلند می‌دهد. جداسازی خواندن و نوشتن که پیش‌تر در همین فصل آمد می‌تواند بارگذاری‌های بسته‌بندی را از gatewayهایی که به بینندگان سرویس می‌دهند دور نگه دارد.
+
+**قطعه‌های کهنه.** پنجره‌های time-shift، ضبط‌های live-to-VOD و کدگذاری‌های آزمایشی قطعه‌هایی بر جا می‌گذارند که کسی پخششان نمی‌کند. یک قاعده‌ی lifecycle روی پیشوند آن‌ها، همراه با بارگذاری‌های multipart ناتمام، آن‌ها را پاک می‌کند (بخش «lifecycle، storage class و placement» در بالا):
+
+```json
+{"Rules":[{"ID":"live-window","Status":"Enabled","Filter":{"Prefix":"live/"},
+  "Expiration":{"Days":2},
+  "AbortIncompleteMultipartUpload":{"DaysAfterInitiation":1}}]}
+```
+
+lifecycle بر حسب روز می‌شمارد و فقط درون `rgw_lifecycle_work_time` (به‌طور پیش‌فرض 00:00 تا 06:00) اجرا می‌شود، پس ابزار پاک‌سازی است و نه انقضای دقیق؛ پنجره‌ی زنده‌ای که با دقیقه سنجیده می‌شود باید با پاک کردن قطعه‌های قدیمی به دست خود packager مدیریت شود.
+
 # عملیات روزمره‌ی RGW {#sec-04-12}
 
 ## دستورهای پرکاربرد {#sec-04-12-1}
@@ -798,3 +848,6 @@ curl -s --aws-sigv4 "$SIG" --user "$AUTH" -X PUT --data-binary @quota.json \
 - قالب ingress در cephadm (ceph/ceph, LGPL — src/pybind/mgr/cephadm/templates/services/ingress/haproxy.cfg.j2): https://github.com/ceph/ceph/blob/main/src/pybind/mgr/cephadm/templates/services/ingress/haproxy.cfg.j2
 - Nextcloud Administration Manual — Configuring Object Storage as Primary Storage: https://docs.nextcloud.com/server/latest/admin_manual/configuration_files/primary_storage.html
 - Nextcloud Administration Manual — External Storage, Amazon S3: https://docs.nextcloud.com/server/latest/admin_manual/configuration_files/external_storage/amazons3.html
+- RFC 8216 — HTTP Live Streaming (playlist media types): https://www.rfc-editor.org/rfc/rfc8216
+- IANA media type application/dash+xml: https://www.iana.org/assignments/media-types/application/dash+xml
+- Ceph documentation — RGW S3 authentication and anonymous requests: https://docs.ceph.com/en/latest/radosgw/s3/authentication/

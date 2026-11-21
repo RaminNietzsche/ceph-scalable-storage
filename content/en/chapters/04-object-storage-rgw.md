@@ -650,6 +650,56 @@ Prepare a dedicated RGW user (and a quota, as in "Quotas and rate limits" above)
 
 Browsers and sync clients talk only to Nextcloud, never to RGW directly, so this setup needs no CORS rule on the bucket. External storage asks for the same values in its form: bucket, key, secret, Hostname and the Enable Path Style checkbox.
 
+## Video on demand: HLS and DASH from RGW {#sec-04-11-7}
+
+HLS and DASH split a video into short segments and describe them in a text manifest: an `.m3u8` playlist for HLS (RFC 8216) and an `.mpd` file for DASH. The player fetches the manifest and then the segments with plain HTTP GET requests, so RGW can serve them like any other object. Encoding and packaging happen outside Ceph; RGW stores and serves the result.
+
+**Content-Type.** RGW returns the Content-Type stored when the object was uploaded. RFC 8216 requires `application/vnd.apple.mpegurl` or `audio/mpegurl` for HLS playlists, and the IANA type for a DASH MPD is `application/dash+xml`. Set them explicitly when uploading:
+
+```bash
+aws $EP s3 cp master.m3u8 s3://vod/movies/m1001/master.m3u8 \
+  --content-type application/vnd.apple.mpegurl --cache-control "max-age=60"
+aws $EP s3 cp manifest.mpd s3://vod/movies/m1001/manifest.mpd --content-type application/dash+xml
+aws $EP s3 sync ./segments s3://vod/movies/m1001/ --cache-control "max-age=86400"
+```
+
+**Read access.** A presigned URL authorises one object, so it does not fit a playlist that refers to hundreds of segments. The usual pattern is anonymous read on a prefix (RGW treats unauthenticated requests as the anonymous user) through a bucket policy that grants only `s3:GetObject`:
+
+```json
+{"Version":"2012-10-17","Statement":[{
+  "Effect":"Allow","Principal":{"AWS":["*"]},
+  "Action":["s3:GetObject"],
+  "Resource":["arn:aws:s3:::vod/movies/*"]}]}
+```
+
+::: {.warn}
+A public bucket is public to everyone who can reach the endpoint. Grant only `s3:GetObject`, never `s3:ListBucket` or any write action, restrict the `Resource` to the published prefix, and keep sources and drafts in a separate private bucket. RGW supports the bucket and account `PublicAccessBlock` settings; turn them on for every other bucket and account so that a mistaken policy elsewhere cannot expose data. If content must not be public, put an authenticating CDN or proxy in front of a private bucket.
+:::
+
+**CORS.** When the player page (hls.js, dash.js and similar players use fetch or XHR) is served from another origin than the RGW endpoint, the browser needs a CORS rule on the bucket. RGW implements the S3 bucket CORS API (`PutBucketCors`, up to `rgw_cors_rules_max_num` rules, 100 by default):
+
+```json
+{"CORSRules":[{"AllowedOrigins":["https://www.example.com"],
+  "AllowedMethods":["GET","HEAD"],"AllowedHeaders":["Range"],
+  "ExposeHeaders":["Content-Length","Content-Range","ETag"],"MaxAgeSeconds":3600}]}
+```
+
+```bash
+aws $EP s3api put-bucket-cors --bucket vod --cors-configuration file://cors.json
+```
+
+**CDN.** At scale, put a CDN or cache in front of RGW and let it absorb repeated segment reads; the `Cache-Control` values set at upload give it a short life for manifests and a long one for segments, which do not change after packaging. The read/write split earlier in this chapter can keep packaging uploads off the gateways that serve viewers.
+
+**Stale segments.** Time-shift windows, live-to-VOD recordings and test encodes leave segments that nobody plays. A lifecycle rule on their prefix removes them ("Lifecycle, storage classes and placement" above), together with incomplete multipart uploads:
+
+```json
+{"Rules":[{"ID":"live-window","Status":"Enabled","Filter":{"Prefix":"live/"},
+  "Expiration":{"Days":2},
+  "AbortIncompleteMultipartUpload":{"DaysAfterInitiation":1}}]}
+```
+
+Lifecycle counts in days and runs only inside `rgw_lifecycle_work_time` (00:00–06:00 by default), so it is cleanup, not an exact expiry; a live window measured in minutes must be handled by the packager deleting its own old segments.
+
 # Day-to-day RGW operations {#sec-04-12}
 
 ## Frequently used commands {#sec-04-12-1}
@@ -798,3 +848,6 @@ A user with `users=write` can create keys for any user, including itself, so tre
 - cephadm ingress template (ceph/ceph, LGPL — src/pybind/mgr/cephadm/templates/services/ingress/haproxy.cfg.j2): https://github.com/ceph/ceph/blob/main/src/pybind/mgr/cephadm/templates/services/ingress/haproxy.cfg.j2
 - Nextcloud Administration Manual — Configuring Object Storage as Primary Storage: https://docs.nextcloud.com/server/latest/admin_manual/configuration_files/primary_storage.html
 - Nextcloud Administration Manual — External Storage, Amazon S3: https://docs.nextcloud.com/server/latest/admin_manual/configuration_files/external_storage/amazons3.html
+- RFC 8216 — HTTP Live Streaming (playlist media types): https://www.rfc-editor.org/rfc/rfc8216
+- IANA media type application/dash+xml: https://www.iana.org/assignments/media-types/application/dash+xml
+- Ceph documentation — RGW S3 authentication and anonymous requests: https://docs.ceph.com/en/latest/radosgw/s3/authentication/

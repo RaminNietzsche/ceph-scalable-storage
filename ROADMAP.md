@@ -12,7 +12,7 @@ The comparison was only a way to find topics: no prose, command list or figure f
 |---:|---|---|---|
 | 1 | Cloud drive: Nextcloud on RGW/S3 — external storage, virtual bucket in DNS, CORS and path-style | ch04 | done (§4.11.6: primary vs external storage, path-style vs virtual-host, multipart and lifecycle; CORS is not needed because clients only talk to Nextcloud) |
 | 2 | Read/write split in front of RGW — ACLs on HTTP methods in HAProxy next to the ingress service, and consistency pitfalls after PUT | ch04 (beside §4.3.2) | done (§4.3.3) |
-| 3 | VOD with HLS/DASH on RGW — lifecycle for stale segments, CDN, CORS and the public-bucket warning | ch04 | planned |
+| 3 | VOD with HLS/DASH on RGW — lifecycle for stale segments, CDN, CORS and the public-bucket warning | ch04 | done (§4.11.7) |
 | 4 | Windows access, the modern way — SMB for CephFS, the official Ceph client for Windows, and an NVMe/TCP initiator for Windows and VMware | ch06 and ch02 | done (§2.10.5 Windows RBD and ESXi NVMe/TCP, §6.4.3 ceph-dokan, SMB already in §6.4.2; no Windows NVMe/TCP initiator, because the Ceph documentation describes none) |
 | 5 | RGW Admin Ops REST API — when to use it instead of the CLI, the caps it needs, and a few user, bucket and quota examples | ch04 (with a pointer to the signing material in ch41) | done (§4.12.3) |
 | 6 | Primary on SSD, replicas on HDD — a "pattern and pitfall" box with primary-affinity and the CRUSH rule, and why a separate pool is usually better | ch08 or ch16 | done (§8.10.1) |
