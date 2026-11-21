@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Chapter 10, benchmark reporting now cites the Pilot framework (MASCOTS 2016) on accuracy, precision, comparability, repeatability and overhead control (both editions).
 - Chapter 6 now traces the MDS balancer to the SC 2004 paper on dynamic subtree partitioning, and chapters 1 and 6 cite Sage Weil's 2007 dissertation in their sources (both editions).
 - Chapter 16, new §16.7.5 "Deduplication: manifest objects in RADOS and full-object dedup in RGW" (both editions): the base-pool and chunk-pool design with double hashing from the developer documentation, the TiDedup design (USENIX ATC 2023), `ceph-dedup-tool --op estimate` as the safe first step, why RBD and CephFS favour background dedup, and the Umbrella technical preview `radosgw-admin dedup` with its data-loss warning and skipped objects; both marked experimental.
 

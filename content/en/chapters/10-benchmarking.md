@@ -302,7 +302,7 @@ A number without context is worthless. Every benchmark report should include the
 | State | `ceph -s` output before and after the test; was recovery or scrub in progress? |
 
 ::: {.tip}
-Repeat each test at least three times and report the median. If the repetitions differ widely, something in the environment is not stable (scrub, other load, cache or disk thermal throttling). Keep Grafana open during the test to see each OSD's latency; a slow OSD usually shows itself there.
+Repeat each test at least three times and report the median. If the repetitions differ widely, something in the environment is not stable (scrub, other load, cache or disk thermal throttling). Keep Grafana open during the test to see each OSD's latency; a slow OSD usually shows itself there. The authors of the Pilot framework (MASCOTS 2016) argue that many published performance measurements fall short on accuracy, precision, comparability, repeatability or control of overhead, and their tool automates the collection, storage, analysis and comparison of results; when a decision rests on a small difference, use a tool like that or a proper statistical test rather than eyeballing three runs.
 :::
 
 # Inside the code: osd bench, rados bench and the mClock capacity measurement {#sec-10-9}
@@ -596,3 +596,4 @@ ceph health detail | grep -i cephadm
 - IOR and mdtest: https://github.com/hpc/ior
 - ceph-medic repository: https://github.com/ceph/ceph-medic
 - Tentacle release notes: https://docs.ceph.com/en/latest/releases/tentacle/
+- Li et al., "Pilot: A Framework that Understands How to Do Performance Benchmarks The Right Way", MASCOTS 2016: https://www.ssrc.us/pub/li-mascots16.html

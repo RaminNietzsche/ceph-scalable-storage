@@ -302,7 +302,7 @@ ceph tell mds.fs01:0 perf dump mds_server | jq '.mds_server | {req: .handle_clie
 | وضعیت | خروجی `ceph -s` پیش و پس از آزمایش؛ آیا recovery یا scrub در جریان بود؟ |
 
 ::: {.tip}
-هر آزمایش را دست‌کم سه بار تکرار کنید و میانه را گزارش دهید. اگر اختلاف تکرارها زیاد است، چیزی در محیط ثابت نیست (scrub، بار دیگر، cache یا thermal throttling دیسک). در طول آزمایش، Grafana را باز نگه دارید تا تأخیر هر OSD را ببینید؛ OSD کند معمولاً همان‌جا خودش را نشان می‌دهد.
+هر آزمایش را دست‌کم سه بار تکرار کنید و میانه را گزارش دهید. اگر اختلاف تکرارها زیاد است، چیزی در محیط ثابت نیست (scrub، بار دیگر، cache یا thermal throttling دیسک). در طول آزمایش، Grafana را باز نگه دارید تا تأخیر هر OSD را ببینید؛ OSD کند معمولاً همان‌جا خودش را نشان می‌دهد. نویسندگان چارچوب Pilot (MASCOTS 2016) نشان می‌دهند بسیاری از اندازه‌گیری‌های کارایی منتشرشده در دقت (accuracy)، صحت تکرار (precision)، مقایسه‌پذیری، تکرارپذیری یا کنترل سربار کم می‌آورند، و ابزارشان جمع‌آوری، ذخیره، تحلیل و مقایسه‌ی نتایج را خودکار می‌کند؛ وقتی تصمیمی به یک اختلاف کوچک بسته است، از چنین ابزاری یا یک آزمون آماری درست استفاده کنید، نه از نگاه چشمی به سه اجرا.
 :::
 
 # از درون کد: osd bench، rados bench و سنجش ظرفیت mClock {#sec-10-9}
@@ -596,3 +596,4 @@ ceph health detail | grep -i cephadm
 - IOR and mdtest: https://github.com/hpc/ior
 - ceph-medic repository: https://github.com/ceph/ceph-medic
 - Tentacle release notes: https://docs.ceph.com/en/latest/releases/tentacle/
+- Li et al., «Pilot: A Framework that Understands How to Do Performance Benchmarks The Right Way»، MASCOTS 2016: https://www.ssrc.us/pub/li-mascots16.html
