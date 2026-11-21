@@ -9,3 +9,5 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+# lab settings (copied from lab.env.example)
+/labs/*/lab.env

@@ -58,7 +58,7 @@ SITE_SRC    := tools/build_site.py tools/booklib/seo.py tools/booklib/siteconf.p
 WEBFIG_STAMP := build/webfig/.stamp
 
 .PHONY: help all pdf html epub docx book figures cover lint markdownlint spell check-commands \
-        check check-links check-links-online check-refs check-parity check-versions check-tldr check-publish check-sims \
+        check check-labs check-links check-links-online check-refs check-parity check-versions check-tldr check-publish check-sims \
         html-single site check-site shoot-site webfig fonts \
         sync-translations stats clean distclean dist
 
@@ -139,6 +139,9 @@ spell: ## codespell (en + tooling) and Persian orthography rules (fa)
 	$(PYTHON) tools/lint_prose.py --lang fa
 	$(PYTHON) tools/lint_prose.py --lang en
 	codespell --ignore-words .codespell-ignore README.md CONTRIBUTING.md CHANGELOG.md tools figures/scripts
+
+check-labs: ## shellcheck every lab script under labs/ (needs shellcheck; run in CI)
+	shellcheck -x $(wildcard labs/*/*.sh)
 
 check-links: ## URL syntax/https check (offline)
 	$(PYTHON) tools/check_links.py --lang all

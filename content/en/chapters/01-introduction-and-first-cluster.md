@@ -550,6 +550,10 @@ ceph orch ls
 
 # Hands-on work with the cluster {#sec-01-9}
 
+::: {.tip}
+To repeat this chapter on one virtual machine, the repository has a lab with scripts for each step: preflight checks, installing cephadm, bootstrap with `--single-host-defaults`, three OSDs, an RBD pool, a CephFS volume and RGW, verification and teardown (`labs/cephadm-single-host`, https://github.com/RaminNietzsche/ceph-scalable-storage/tree/main/labs/cephadm-single-host). Its README states what has and has not been tested.
+:::
+
 ## Pools, objects and rados {#sec-01-9-1}
 
 Let us start at the lowest layer, RADOS. We create a test pool, write a few objects to it and see where they are stored:

@@ -550,6 +550,10 @@ ceph orch ls
 
 # کار عملی با کلاستر {#sec-01-9}
 
+::: {.tip}
+برای تکرار این فصل روی یک ماشین مجازی، مخزن یک آزمایشگاه با اسکریپتی برای هر گام دارد: بررسی‌های پیش از کار، نصب cephadm، bootstrap با `--single-host-defaults`، سه OSD، یک pool در RBD، یک volume در CephFS و RGW، بررسی نهایی و پاک‌سازی (`labs/cephadm-single-host`، https://github.com/RaminNietzsche/ceph-scalable-storage/tree/main/labs/cephadm-single-host). README آن می‌گوید چه چیزی آزموده شده و چه چیزی نه.
+:::
+
 ## pool، شیء و rados {#sec-01-9-1}
 
 بیایید با پایین‌ترین لایه، یعنی RADOS، شروع کنیم. یک pool آزمایشی می‌سازیم، چند شیء در آن می‌نویسیم و می‌بینیم کجا ذخیره شده‌اند:

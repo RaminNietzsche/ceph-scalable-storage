@@ -71,6 +71,7 @@ content/<lang>/
   answers/NN.md               answers to each chapter's review questions
   appendices/                 troubleshooting guide, release table
   data/tools.yaml             command cheat sheet
+labs/                         hands-on labs with scripts (see labs/README.md)
 figures/
   chNN/                       committed PNGs + sources (.mmd Mermaid, .bf.json byte layouts)
   i18n/en.yaml                English label strings for Mermaid figures

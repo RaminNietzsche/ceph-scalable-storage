@@ -637,6 +637,10 @@ Drift is not always bad: disk replacements or memory autotune may create changes
 5. In a test Kubernetes cluster (for example with three VMs), install Rook and create an RBD PVC.
 6. Run the drift-check script, then change a setting by hand and see the drift reported.
 
+::: {.tip}
+The single-host lab in the repository (`labs/cephadm-single-host`, https://github.com/RaminNietzsche/ceph-scalable-storage/tree/main/labs/cephadm-single-host) shows the same steps as idempotent scripts with `--dry-run`; reading them next to this chapter's spec-based deployment is a useful comparison. A single host cannot show host failures; use at least three VMs for that.
+:::
+
 # Review questions {#sec-11-13}
 
 1. Why is ceph-deploy no longer a suitable option?

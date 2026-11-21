@@ -47,6 +47,15 @@ jobs:
         run: make check
 
 
+  labs:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck labs/ (ShellCheck is preinstalled on the runner image)
+        run: |
+          shellcheck --version
+          make check-labs
+
   translation-pr:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
