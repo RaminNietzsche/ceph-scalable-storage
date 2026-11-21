@@ -505,6 +505,43 @@ ceph pg ls-by-pool tenant-a-db | head
 In the cephadm OSD spec you can also set `crush_device_class` so that new OSDs get the right class from the start and you do not need to rerun the commands above.
 :::
 
+## Primary on SSD, replicas on HDD: pattern and pitfall {#sec-08-10-1}
+
+Some clusters put SSD and HDD OSDs in one replicated pool so that reads come from SSD and capacity comes from HDD. The official CRUSH documentation describes two ways to do this.
+
+- **Primary affinity.** Every OSD has a primary affinity between 0 and 1, and the default is 1. With `ceph osd primary-affinity <osd> 0` on the HDD OSDs, CRUSH avoids them as primaries. In the code (`OSDMap::_apply_primary_affinity`), the up set is walked in order, and an OSD with a lowered affinity is skipped as primary for a share of its PGs that depends on a hash of the PG seed and the OSD id. If every OSD in the set is skipped, the first skipped one becomes the primary anyway, so a PG with no SSD in its set still gets an HDD primary.
+- **A rule that takes an SSD first.** The rule first takes one host from class `ssd` and then the remaining copies from class `hdd`.
+
+```text
+rule mixed_replicated_rule {
+    id 11
+    type replicated
+    step take default class ssd
+    step chooseleaf firstn 1 type host
+    step emit
+    step take default class hdd
+    step chooseleaf firstn 0 type host
+    step emit
+}
+```
+
+```bash
+ceph osd primary-affinity osd.12 0     # an HDD OSD: avoid it as primary
+ceph osd tree                          # the PRI-AFF column shows the value
+ceph pg ls-by-primary osd.12 | head    # should now be (almost) empty
+```
+
+The pitfalls of this pattern:
+
+1. **Writes do not get faster.** The primary acknowledges a write only after every replica has committed it (the write path earlier in this chapter), so write latency still follows the slowest HDD replica. Only reads, which the primary serves, gain.
+2. **Hosts can be shared.** In the rule above, the SSD and one of the HDDs can sit on the same host. The documentation notes that for an N-times replicated pool the rule selects N+1 OSDs for this reason. The alternative is separate SSD and HDD hosts under separate roots, with `firstn -1` in the second step; then every client request lands on the SSD hosts, which need the faster CPUs.
+3. **When the SSD fails, reads move to an HDD.** Until the replacement SSD has the PG's data, its requests are served by a slower HDD OSD.
+4. **The read balancer respects the value.** In Reef and later, the read balancer weighs each OSD's target share of primaries by its primary affinity (`OSDMap::calc_desired_primary_distribution`), so it does not undo the setting.
+
+::: {.tip}
+A separate pool for each device class is usually the better design: a `ssd` rule for hot data (a database RBD image, the RGW index pool) and an `hdd` rule for bulk data. Both reads and writes then have predictable latency, a failure stays inside one class, and capacity is reported per pool. Keep the mixed pattern for a read-heavy pool when the SSDs cannot hold a full copy of the data.
+:::
+
 ::: {.summary title="SRE notes for this chapter"}
 
 - Data location is computed, not looked up; `ceph osd map` is your first tool.
@@ -561,6 +598,7 @@ In the cephadm OSD spec you can also set `crush_device_class` so that new OSDs g
 - Architecture: https://docs.ceph.com/en/latest/architecture/
 - Health checks: https://docs.ceph.com/en/latest/rados/operations/health-checks/
 - Read balancer: https://docs.ceph.com/en/latest/rados/operations/read-balancer/
+- Source: src/osd/OSDMap.cc: https://github.com/ceph/ceph/blob/main/src/osd/OSDMap.cc
 - Squid release notes: https://docs.ceph.com/en/latest/releases/squid/
 - Umbrella release notes: https://docs.ceph.com/en/latest/releases/umbrella/
 - Weil et al., CRUSH (SC 2006): https://ceph.io/assets/pdfs/weil-crush-sc06.pdf

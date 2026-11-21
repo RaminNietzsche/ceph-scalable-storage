@@ -505,6 +505,43 @@ ceph pg ls-by-pool tenant-a-db | head
 در spec OSD در cephadm هم می‌توانید `crush_device_class` را تعیین کنید تا OSDهای تازه از ابتدا کلاس درست را بگیرند و نیازی به اجرای دوباره‌ی دستورهای بالا نباشد.
 :::
 
+## نسخه‌ی اصلی روی SSD، رونوشت‌ها روی HDD: الگو و دام {#sec-08-10-1}
+
+بعضی کلاسترها OSDهای SSD و HDD را در یک pool تکثیری می‌گذارند تا خواندن از SSD انجام شود و ظرفیت از HDD بیاید. مستندات رسمی CRUSH دو راه برای این کار شرح می‌دهد.
+
+- **primary affinity.** هر OSD یک primary affinity بین ۰ و ۱ دارد و مقدار پیش‌فرض ۱ است. با `ceph osd primary-affinity <osd> 0` روی OSDهای HDD، CRUSH از انتخاب آن‌ها به‌عنوان primary پرهیز می‌کند. در کد (`OSDMap::_apply_primary_affinity`)، مجموعه‌ی up به ترتیب پیموده می‌شود و OSDی که affinity کمتری دارد، برای سهمی از PGهایش که به hash بذر PG و شناسه‌ی OSD بستگی دارد، به‌عنوان primary کنار گذاشته می‌شود. اگر همه‌ی OSDهای مجموعه کنار گذاشته شوند، اولین OSD کنارگذاشته‌شده در هر حال primary می‌شود؛ پس PGی که هیچ SSDی در مجموعه‌اش ندارد، باز هم یک primary از نوع HDD می‌گیرد.
+- **قاعده‌ای که اول یک SSD برمی‌دارد.** این قاعده ابتدا یک میزبان از کلاس `ssd` و سپس بقیه‌ی نسخه‌ها را از کلاس `hdd` انتخاب می‌کند.
+
+```text
+rule mixed_replicated_rule {
+    id 11
+    type replicated
+    step take default class ssd
+    step chooseleaf firstn 1 type host
+    step emit
+    step take default class hdd
+    step chooseleaf firstn 0 type host
+    step emit
+}
+```
+
+```bash
+ceph osd primary-affinity osd.12 0     # یک OSD از نوع HDD: به‌عنوان primary انتخاب نشود
+ceph osd tree                          # ستون PRI-AFF مقدار را نشان می‌دهد
+ceph pg ls-by-primary osd.12 | head    # اکنون باید (تقریباً) خالی باشد
+```
+
+دام‌های این الگو:
+
+1. **نوشتن سریع‌تر نمی‌شود.** primary نوشتن را فقط پس از commit شدن در همه‌ی رونوشت‌ها تأیید می‌کند (مسیر نوشتن در همین فصل)؛ پس تأخیر نوشتن همچنان تابع کندترین رونوشت HDD است. فقط خواندن، که primary به آن پاسخ می‌دهد، سود می‌برد.
+2. **میزبان‌ها ممکن است مشترک باشند.** در قاعده‌ی بالا، SSD و یکی از HDDها می‌توانند روی یک میزبان باشند. مستندات یادآوری می‌کند که به همین دلیل این قاعده برای یک pool با N نسخه، N+1 OSD انتخاب می‌کند. راه دیگر، میزبان‌های جدا برای SSD و HDD زیر ریشه‌های جدا و `firstn -1` در گام دوم است؛ در این حالت همه‌ی درخواست‌های کلاینت به میزبان‌های SSD می‌رسد و آن‌ها CPU سریع‌تری لازم دارند.
+3. **با خرابی SSD، خواندن به HDD منتقل می‌شود.** تا وقتی SSD جایگزین داده‌ی PG را دریافت نکرده است، درخواست‌های آن PG را یک OSD کندتر از نوع HDD پاسخ می‌دهد.
+4. **read balancer این مقدار را رعایت می‌کند.** از Reef به بعد، read balancer سهم هدف هر OSD از primaryها را در primary affinity آن ضرب می‌کند (`OSDMap::calc_desired_primary_distribution`)؛ پس تنظیم شما را خنثی نمی‌کند.
+
+::: {.tip}
+معمولاً طراحی بهتر، یک pool جدا برای هر کلاس دستگاه است: قاعده‌ی `ssd` برای داده‌ی داغ (image RBD پایگاه داده، pool شاخص RGW) و قاعده‌ی `hdd` برای داده‌ی حجیم. در این حالت هم خواندن و هم نوشتن تأخیر قابل پیش‌بینی دارند، خرابی در یک کلاس می‌ماند و ظرفیت به تفکیک pool گزارش می‌شود. الگوی ترکیبی را برای poolی نگه دارید که بیشتر خواندنی است و SSDها گنجایش یک نسخه‌ی کامل از داده را ندارند.
+:::
+
 ::: {.summary title="نکات SRE این فصل"}
 
 - محل داده محاسبه می‌شود، نه جست‌وجو؛ `ceph osd map` ابزار اول شماست.
@@ -561,6 +598,7 @@ ceph pg ls-by-pool tenant-a-db | head
 - Architecture: https://docs.ceph.com/en/latest/architecture/
 - Health checks: https://docs.ceph.com/en/latest/rados/operations/health-checks/
 - Read balancer: https://docs.ceph.com/en/latest/rados/operations/read-balancer/
+- Source: src/osd/OSDMap.cc: https://github.com/ceph/ceph/blob/main/src/osd/OSDMap.cc
 - Squid release notes: https://docs.ceph.com/en/latest/releases/squid/
 - Umbrella release notes: https://docs.ceph.com/en/latest/releases/umbrella/
 - Weil et al., CRUSH (SC 2006): https://ceph.io/assets/pdfs/weil-crush-sc06.pdf
