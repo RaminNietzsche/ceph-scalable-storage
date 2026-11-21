@@ -605,6 +605,44 @@ radosgw-admin bucket check --bucket=photos --check-objects --fix
 برای دیدن جزئیات یک درخواست، موقتاً `debug_rgw` را بالا ببرید: `ceph config set client.rgw debug_rgw 20` و پس از بازتولید مشکل، برگردانید.
 :::
 
+## API مدیریتی REST (Admin Ops) {#sec-04-12-3}
+
+`radosgw-admin` مستقیم با RADOS حرف می‌زند؛ پس روی ماشینی که اجرا می‌شود به کلید cephx و پیکربندی کلاستر نیاز دارد. RGW بیشتر همین عملیات کاربر، باکت، سهمیه و مصرف را از راه HTTP هم ارائه می‌کند، زیر مسیری که `rgw_admin_entry` تعیین می‌کند (پیش‌فرض `admin`) و با امضایی دقیقاً مثل یک درخواست S3. وقتی یک پورتال سلف‌سرویس، یک سامانه‌ی صورت‌حساب یا یک کار خودکار باید کاربران و سهمیه‌ها را بدون کلید cephx و بدون دسترسی به شبکه‌ی کلاستر مدیریت کند، از این API استفاده کنید. CLI را برای کارهای تعمیری (بررسی index، reshard، gc، multisite) و ساختن نخستین کاربر مدیر نگه دارید. `rgw_admin_entry` را روی `admin` باقی بگذارید، چون تکثیر multisite به همین مقدار وابسته است.
+
+دسترسی با caps کاربر کنترل می‌شود، نه با bucket policy. مستندات cap لازم برای هر عملیات را نام برده است: `info=read`، `usage=read` یا `write`، `users=read` یا `write` (یا گزینه‌ی محدودتر `user-info-without-keys=read`)، `buckets=read` یا `write` و `accounts=read` یا `write`. به کاربر خودکارسازی فقط همان چیزی را بدهید که لازم دارد:
+
+```bash
+radosgw-admin user create --uid=portal --display-name="Self-service portal"
+radosgw-admin caps add --uid=portal --caps="users=*;buckets=read"
+radosgw-admin user info --uid=portal | jq .caps
+```
+
+هر کلاینت S3 که SigV4 را پشتیبانی کند می‌تواند درخواست را امضا کند. curl (نسخه‌ی ۷٫۷۵ به بعد) این کار را با `--aws-sigv4` انجام می‌دهد؛ RGW امضا را با region درج‌شده در credential scope خود درخواست محاسبه می‌کند، پس نام zonegroup انتخاب طبیعی است:
+
+```bash
+EP=https://s3.example.com
+SIG="aws:amz:default:s3"                # provider:service-prefix:region:service
+AUTH="$PORTAL_ACCESS_KEY:$PORTAL_SECRET_KEY"
+
+# اطلاعات کاربر (users=read)
+curl -s --aws-sigv4 "$SIG" --user "$AUTH" "$EP/admin/user?format=json&uid=alice" | jq .
+
+# باکت‌های یک کاربر همراه با آمار (buckets=read)
+curl -s --aws-sigv4 "$SIG" --user "$AUTH" "$EP/admin/bucket?format=json&uid=alice&stats=true" | jq '.[].bucket'
+
+# تنظیم سهمیه‌ی کاربر (users=write): بخوانید، تغییر دهید، برگردانید
+curl -s --aws-sigv4 "$SIG" --user "$AUTH" "$EP/admin/user?quota&uid=alice&quota-type=user" \
+  | jq '.enabled = true | .max_size = 107374182400' > quota.json   # مثال: ۱۰۰ گیبی‌بایت
+curl -s --aws-sigv4 "$SIG" --user "$AUTH" -X PUT --data-binary @quota.json \
+  "$EP/admin/user?quota&uid=alice&quota-type=user"
+```
+
+بدنه‌ی سهمیه همان JSONی است که خواندن برمی‌گرداند (`enabled`، `check_on_raw`، `max_size`، `max_size_kb`، `max_objects`)؛ پس به‌جای ساختن دستی آن، بخوانید، تغییر دهید و برگردانید. خطاها به شکل `AccessDenied` (۴۰۳) برای cap ناکافی و `NoSuchUser`، `NoSuchBucket` یا `NoSuchKey` (۴۰۴) برمی‌گردند. برای برنامه‌های بزرگ‌تر، مستندات کتابخانه‌هایی مانند `go-ceph` (Go) و `rgwadmin` (Python) را فهرست کرده است.
+
+::: {.warn}
+کاربری که `users=write` دارد می‌تواند برای هر کاربری، از جمله خودش، کلید بسازد؛ پس کلیدهای او را مثل گذرواژه‌ی مدیر نگه دارید: در یک مخزن رازها، با کاربر جداگانه برای پورتال، و فقط روی TLS. عملیات مصرف (usage) فقط وقتی داده برمی‌گرداند که `rgw_enable_usage_log` فعال باشد.
+:::
+
 # تکمیلی و به‌روز {#sec-04-13}
 
 - **ingress و certmgr در cephadm:** load balancer و گواهی‌ها حالا بخشی از ارکستراتورند.
@@ -664,6 +702,7 @@ radosgw-admin bucket check --bucket=photos --check-objects --fix
 - مستندات Ceph — Ceph Object Gateway: https://docs.ceph.com/en/latest/radosgw/
 - مستندات cephadm — سرویس RGW و ingress: https://docs.ceph.com/en/latest/cephadm/services/rgw/
 - مستندات Ceph — مدیریت RGW با radosgw-admin: https://docs.ceph.com/en/latest/radosgw/admin/
+- مستندات Ceph — Admin Operations API: https://docs.ceph.com/en/latest/radosgw/adminops/
 - مستندات Ceph — User Accounts: https://docs.ceph.com/en/latest/radosgw/account/
 - مستندات Ceph — یکپارچه‌سازی Keystone: https://docs.ceph.com/en/latest/radosgw/keystone/
 - مستندات Ceph — placement و storage class: https://docs.ceph.com/en/latest/radosgw/placement/

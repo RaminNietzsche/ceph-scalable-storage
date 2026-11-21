@@ -605,6 +605,44 @@ The `LARGE_OMAP_OBJECTS` warning: large index shards; find the guilty bucket wit
 To see the details of a request, temporarily raise `debug_rgw`: `ceph config set client.rgw debug_rgw 20`, and put it back after reproducing the problem.
 :::
 
+## The Admin Ops REST API {#sec-04-12-3}
+
+`radosgw-admin` talks to RADOS directly, so it needs a cephx key and the cluster configuration on the machine where it runs. RGW also offers most of the same user, bucket, quota and usage operations over HTTP, under the path set by `rgw_admin_entry` (default `admin`), signed exactly like an S3 request. Use it when a self-service portal, a billing system or an automation job must manage users and quotas without a cephx key or access to the cluster network. Keep the CLI for repair work (index check, reshard, gc, multisite) and for creating the first administrative user. Leave `rgw_admin_entry` at `admin`, because multisite replication depends on that value.
+
+Access is controlled by user caps, not by bucket policy. The documentation names the cap each operation needs: `info=read`, `usage=read` or `write`, `users=read` or `write` (or the narrower `user-info-without-keys=read`), `buckets=read` or `write`, and `accounts=read` or `write`. Give the automation user only what it needs:
+
+```bash
+radosgw-admin user create --uid=portal --display-name="Self-service portal"
+radosgw-admin caps add --uid=portal --caps="users=*;buckets=read"
+radosgw-admin user info --uid=portal | jq .caps
+```
+
+Any S3 SigV4 client can sign the request. curl (7.75 and later) can do it with `--aws-sigv4`; RGW computes the signature from the region in the request's credential scope, so the zonegroup name is a natural choice:
+
+```bash
+EP=https://s3.example.com
+SIG="aws:amz:default:s3"                # provider:service-prefix:region:service
+AUTH="$PORTAL_ACCESS_KEY:$PORTAL_SECRET_KEY"
+
+# user info (users=read)
+curl -s --aws-sigv4 "$SIG" --user "$AUTH" "$EP/admin/user?format=json&uid=alice" | jq .
+
+# buckets of a user with their statistics (buckets=read)
+curl -s --aws-sigv4 "$SIG" --user "$AUTH" "$EP/admin/bucket?format=json&uid=alice&stats=true" | jq '.[].bucket'
+
+# set the user quota (users=write): read it, change it, write it back
+curl -s --aws-sigv4 "$SIG" --user "$AUTH" "$EP/admin/user?quota&uid=alice&quota-type=user" \
+  | jq '.enabled = true | .max_size = 107374182400' > quota.json   # example: 100 GiB
+curl -s --aws-sigv4 "$SIG" --user "$AUTH" -X PUT --data-binary @quota.json \
+  "$EP/admin/user?quota&uid=alice&quota-type=user"
+```
+
+The quota body is the same JSON that the read returns (`enabled`, `check_on_raw`, `max_size`, `max_size_kb`, `max_objects`), so read, change and write back instead of building it by hand. Errors come back as `AccessDenied` (403) for a missing cap, and `NoSuchUser`, `NoSuchBucket` or `NoSuchKey` (404). For larger programs, the documentation lists client libraries such as `go-ceph` (Go) and `rgwadmin` (Python).
+
+::: {.warn}
+A user with `users=write` can create keys for any user, including itself, so treat its keys like an admin password: keep them in a secret store, give the portal its own user, and send the API only over TLS. The usage operations return data only when `rgw_enable_usage_log` is enabled.
+:::
+
 # Supplementary and up to date {#sec-04-13}
 
 - **ingress and certmgr in cephadm:** the load balancer and certificates are now part of the orchestrator.
@@ -664,6 +702,7 @@ To see the details of a request, temporarily raise `debug_rgw`: `ceph config set
 - Ceph documentation — Ceph Object Gateway: https://docs.ceph.com/en/latest/radosgw/
 - cephadm documentation — The RGW and ingress services: https://docs.ceph.com/en/latest/cephadm/services/rgw/
 - Ceph documentation — Managing RGW with radosgw-admin: https://docs.ceph.com/en/latest/radosgw/admin/
+- Ceph documentation — Admin Operations API: https://docs.ceph.com/en/latest/radosgw/adminops/
 - Ceph documentation — User Accounts: https://docs.ceph.com/en/latest/radosgw/account/
 - Ceph documentation — Keystone integration: https://docs.ceph.com/en/latest/radosgw/keystone/
 - Ceph documentation — Placement and storage classes: https://docs.ceph.com/en/latest/radosgw/placement/
