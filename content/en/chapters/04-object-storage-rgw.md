@@ -144,6 +144,56 @@ In production, terminate TLS either at the load balancer or in Beast itself (wit
 If an RGW instance does not come up after apply, look at `ceph orch ps --daemon-type rgw` and `ceph health detail`. The most common reason on small clusters is a `TOO_MANY_PGS` warning or a pool creation error because `mon_max_pg_per_osd` has been reached, since RGW creates several new pools. Another way to investigate is `cephadm logs --name rgw.objstore.ceph-node4.xxxx` on the host.
 :::
 
+## Splitting reads and writes in front of RGW {#sec-04-3-3}
+
+The ingress service above puts every RGW of a service behind one HAProxy backend; the cephadm template (`haproxy.cfg.j2`) has a single `default_backend`. Some installations want two groups instead: one set of RGW daemons for reads (for example the origin of a CDN or of many downloaders) and another for writes (ingestion), so that a burst of one kind does not take the threads and connections of the other. RGW keeps no state of its own ("RGW on RADOS" above), so inside one zone both groups read and write the same RADOS pools: the split is a tool for capacity and isolation, not a different copy of the data.
+
+With cephadm, deploy the two groups as two RGW services in the same zone, for example `rgw.s3-read` and `rgw.s3-write` with their own placement and port, and put an HAProxy that you manage in front of them. The directives below were checked against the HAProxy 3.2 configuration manual:
+
+```text
+frontend s3
+    mode http
+    bind :443 ssl crt /etc/haproxy/s3.pem
+    option forwardfor
+    timeout client 60s
+    # METH_GET is a predefined ACL: it matches GET and HEAD
+    acl is_read METH_GET
+    acl is_cors METH_OPTIONS
+    use_backend rgw_read if is_read or is_cors
+    default_backend rgw_write          # PUT, POST, DELETE and everything else
+
+backend rgw_read
+    mode http
+    balance leastconn
+    timeout connect 5s
+    timeout server 60s
+    option httpchk
+    http-check send meth HEAD uri / ver HTTP/1.1 hdr host s3.example.com
+    server rgw-r1 10.0.1.11:8080 check
+    server rgw-r2 10.0.1.12:8080 check
+
+backend rgw_write
+    mode http
+    balance leastconn
+    timeout connect 5s
+    timeout server 60s
+    option httpchk
+    http-check send meth HEAD uri / ver HTTP/1.1 hdr host s3.example.com
+    server rgw-w1 10.0.1.21:8080 check
+    server rgw-w2 10.0.1.22:8080 check
+```
+
+Points that the method alone does not tell you:
+
+- **POST is not always a write.** In S3, POST starts and completes multipart uploads and deletes many objects at once, but it also carries a few read requests such as S3 Select. Sending all POST to the writers is safe because both groups see the same data; it only means those reads use the writers' capacity.
+- **Multipart uploads stay together.** The parts are PUT requests and the start and completion are POST, so the whole upload goes to the write group.
+- **Signatures are not affected.** A SigV4 signature covers the Host header and the path. HAProxy in HTTP mode does not change them in this configuration, and `rgw_dns_name` or the zonegroup host names must still match the name clients use ("DNS and virtual-host access" below).
+- **Health checks.** `HEAD /` is what the cephadm ingress template uses for RGW (`option httpchk HEAD / HTTP/1.0`); here it is written with `http-check send`, the form the 3.2 manual describes.
+
+::: {.warn}
+**Do not point the read backend at another zone without accepting stale reads.** In multisite, data moves between zones asynchronously: `radosgw-admin sync status` on the secondary shows shards that are "behind" and the "oldest incremental change not applied" (chapter 5 and the multisite documentation). A client that writes through the master zone and immediately reads through a secondary can get `404 NoSuchKey` or the previous version of the object. Keep a read-after-write path (the same zone) for clients that need it, and use another zone for reads only where the application tolerates delay. A secondary created with `--read-only` rejects writes, so a misrouted PUT fails instead of being written there.
+:::
+
 # Users, keys and tenants {#sec-04-4}
 
 ## Creating a radosgw user {#sec-04-4-1}
@@ -712,3 +762,6 @@ A user with `users=write` can create keys for any user, including itself, so tre
 - Ceph documentation — S3 API compatibility: https://docs.ceph.com/en/latest/radosgw/s3/
 - Apache Hadoop documentation — The S3A connector: https://hadoop.apache.org/docs/stable/hadoop-aws/tools/hadoop-aws/index.html
 - AWS documentation — S3 Object Lock: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html
+- HAProxy 3.2 configuration manual: https://docs.haproxy.org/3.2/configuration.html
+- Ceph documentation — Multi-site: https://docs.ceph.com/en/latest/radosgw/multisite/
+- cephadm ingress template (ceph/ceph, LGPL — src/pybind/mgr/cephadm/templates/services/ingress/haproxy.cfg.j2): https://github.com/ceph/ceph/blob/main/src/pybind/mgr/cephadm/templates/services/ingress/haproxy.cfg.j2

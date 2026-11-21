@@ -144,6 +144,56 @@ ceph orch ls ingress
 اگر پس از apply نمونه‌ای از RGW بالا نیامد، `ceph orch ps --daemon-type rgw` و `ceph health detail` را ببینید. شایع‌ترین دلیل در کلاسترهای کوچک، هشدار `TOO_MANY_PGS` یا خطای ساخت pool به دلیل رسیدن به `mon_max_pg_per_osd` است، چون RGW چند pool تازه می‌سازد. راه دیگر بررسی، `cephadm logs --name rgw.objstore.ceph-node4.xxxx` روی میزبان است.
 :::
 
+## جدا کردن خواندن و نوشتن جلوی RGW {#sec-04-3-3}
+
+سرویس ingress بالا همه‌ی RGWهای یک سرویس را پشت یک backend در HAProxy می‌گذارد؛ قالب cephadm (`haproxy.cfg.j2`) فقط یک `default_backend` دارد. بعضی نصب‌ها به‌جای آن دو گروه می‌خواهند: یک دسته daemon RGW برای خواندن (مثلاً مبدأ یک CDN یا دانلودکننده‌های زیاد) و دسته‌ای دیگر برای نوشتن (ورود داده)، تا هجوم یک نوع درخواست threadها و اتصال‌های نوع دیگر را نگیرد. RGW وضعیتی در خودش نگه نمی‌دارد (بخش «RGW روی RADOS» در بالا)؛ پس درون یک zone هر دو گروه روی همان poolهای RADOS می‌خوانند و می‌نویسند: این جداسازی ابزاری برای ظرفیت و جداسازی بار است، نه یک نسخه‌ی دیگر از داده.
+
+با cephadm، دو گروه را به‌صورت دو سرویس RGW در همان zone مستقر کنید، مثلاً `rgw.s3-read` و `rgw.s3-write` با placement و پورت خودشان، و یک HAProxy که خودتان مدیریت می‌کنید جلوی آن‌ها بگذارید. دستورهای زیر با راهنمای پیکربندی HAProxy 3.2 بررسی شده‌اند:
+
+```text
+frontend s3
+    mode http
+    bind :443 ssl crt /etc/haproxy/s3.pem
+    option forwardfor
+    timeout client 60s
+    # METH_GET is a predefined ACL: it matches GET and HEAD
+    acl is_read METH_GET
+    acl is_cors METH_OPTIONS
+    use_backend rgw_read if is_read or is_cors
+    default_backend rgw_write          # PUT, POST, DELETE and everything else
+
+backend rgw_read
+    mode http
+    balance leastconn
+    timeout connect 5s
+    timeout server 60s
+    option httpchk
+    http-check send meth HEAD uri / ver HTTP/1.1 hdr host s3.example.com
+    server rgw-r1 10.0.1.11:8080 check
+    server rgw-r2 10.0.1.12:8080 check
+
+backend rgw_write
+    mode http
+    balance leastconn
+    timeout connect 5s
+    timeout server 60s
+    option httpchk
+    http-check send meth HEAD uri / ver HTTP/1.1 hdr host s3.example.com
+    server rgw-w1 10.0.1.21:8080 check
+    server rgw-w2 10.0.1.22:8080 check
+```
+
+نکته‌هایی که فقط از روی متد معلوم نمی‌شود:
+
+- **POST همیشه نوشتن نیست.** در S3، POST بارگذاری چندبخشی را آغاز و کامل می‌کند و چند شیء را یک‌جا حذف می‌کند، ولی چند درخواست خواندنی مانند S3 Select را هم حمل می‌کند. فرستادن همه‌ی POSTها به نویسنده‌ها امن است، چون هر دو گروه همان داده را می‌بینند؛ فقط آن خواندن‌ها از ظرفیت نویسنده‌ها استفاده می‌کنند.
+- **بارگذاری چندبخشی یک‌جا می‌ماند.** بخش‌ها درخواست PUT هستند و آغاز و پایان POST است؛ پس کل بارگذاری به گروه نوشتن می‌رود.
+- **امضا تحت تأثیر قرار نمی‌گیرد.** امضای SigV4 سرآیند Host و مسیر را پوشش می‌دهد. HAProxy در حالت HTTP با این پیکربندی آن‌ها را تغییر نمی‌دهد، و `rgw_dns_name` یا نام‌های میزبان zonegroup همچنان باید با نامی که کلاینت‌ها به کار می‌برند یکی باشد (بخش «DNS و دسترسی virtual-host» در پایین).
+- **بررسی سلامت.** `HEAD /` همان چیزی است که قالب ingress در cephadm برای RGW به کار می‌برد (`option httpchk HEAD / HTTP/1.0`)؛ اینجا با `http-check send` نوشته شده است، شکلی که راهنمای 3.2 شرح می‌دهد.
+
+::: {.warn}
+**backend خواندن را بدون پذیرفتن خواندن کهنه به zone دیگری نفرستید.** در multisite داده میان zoneها ناهم‌گام جابه‌جا می‌شود: `radosgw-admin sync status` روی zone ثانویه shardهایی را که «behind» هستند و «oldest incremental change not applied» را نشان می‌دهد (فصل ۵ و مستندات multisite). کلاینتی که از راه zone اصلی می‌نویسد و بلافاصله از راه zone ثانویه می‌خواند، ممکن است `404 NoSuchKey` یا نسخه‌ی قبلی شیء را بگیرد. برای کلاینت‌هایی که خواندن پس از نوشتن لازم دارند یک مسیر در همان zone نگه دارید، و zone دیگر را فقط جایی برای خواندن به کار ببرید که برنامه تأخیر را تحمل می‌کند. zone ثانویه‌ای که با `--read-only` ساخته شده باشد نوشتن را رد می‌کند؛ پس یک PUT که اشتباه هدایت شده باشد به‌جای نوشته شدن در آنجا شکست می‌خورد.
+:::
+
 # کاربران، کلیدها و مستاجرها {#sec-04-4}
 
 ## ساختن کاربر radosgw {#sec-04-4-1}
@@ -712,3 +762,6 @@ curl -s --aws-sigv4 "$SIG" --user "$AUTH" -X PUT --data-binary @quota.json \
 - مستندات Ceph — سازگاری API S3: https://docs.ceph.com/en/latest/radosgw/s3/
 - مستندات Apache Hadoop — کانکتور S3A: https://hadoop.apache.org/docs/stable/hadoop-aws/tools/hadoop-aws/index.html
 - مستندات AWS — S3 Object Lock: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html
+- راهنمای پیکربندی HAProxy 3.2: https://docs.haproxy.org/3.2/configuration.html
+- مستندات Ceph — Multi-site: https://docs.ceph.com/en/latest/radosgw/multisite/
+- قالب ingress در cephadm (ceph/ceph, LGPL — src/pybind/mgr/cephadm/templates/services/ingress/haproxy.cfg.j2): https://github.com/ceph/ceph/blob/main/src/pybind/mgr/cephadm/templates/services/ingress/haproxy.cfg.j2
