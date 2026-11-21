@@ -443,6 +443,34 @@ RGW از **cloud transition** هم پشتیبانی می‌کند: storage class
 
 :::
 
+## ۵. Deduplication: اشیای manifest در RADOS و dedup کامل شیء در RGW {#sec-16-7-5}
+
+Deduplication راه دیگر صرفه‌جویی در فضاست و Ceph دو پیاده‌سازی جدا از آن دارد که هر دو هنوز در حال پختگی‌اند.
+
+**Deduplication در RADOS با اشیای manifest.** سند طراحی دو pool را شرح می‌دهد: pool پایه هر شیء را نگه می‌دارد که اکنون فقط فراداده‌ی dedup (offset و fingerprint هر chunk) را دارد، و یک pool از chunkها chunkها را نگه می‌دارد. نام شیء هر chunk هش محتوای آن است («double hashing»: CRUSH شیء را پیدا می‌کند و هش محتوا نام chunk را می‌سازد)، پس chunkهای یکسان از هر شیئی روی یک شیء chunk می‌نشینند و به نمایه‌ی fingerprint بیرونی نیازی نیست. هر pool replication یا erasure coding و device class خود را جداگانه انتخاب می‌کند. طراحی کد امروزی در مقاله‌ی TiDedup (USENIX ATC 2023) شرح داده شده است که سه تغییر نسبت به طراحی پیشین را نام می‌برد: پیمایش گزینشی کلاستر، لایه‌بندی رویدادمحور با chunkبندی وابسته به محتوا (content-defined chunking)، و اصلاح شمارش ارجاع با یک back pointer ارجاع مشترک به‌جای پیمایش کامل.
+
+صفحه‌ی رسمی صریحاً می‌گوید این قابلیت «بسیار آزمایشی است و ممکن است تغییر کند یا حذف شود» و `ceph-dedup-tool` در بسته‌ی `ceph-test` می‌آید. گام اول آن چیزی را تغییر نمی‌دهد و راه درست تصمیم‌گیری درباره‌ی ارزش بقیه است:
+
+```bash
+ceph-dedup-tool --op estimate --pool base --chunk-size 8192 \
+  --chunk-algorithm fastcdc --fingerprint-algorithm sha256 --max-thread 4
+```
+
+`dedup_bytes_ratio` در خروجی سهم بایت‌های تکراری از بایت‌های بررسی‌شده است؛ مستندات پیشنهاد می‌کند estimate را با چند اندازه‌ی chunk اجرا کنید. عملیات بعدی (`sample-dedup` به یک pool از chunkها، و `chunk-scrub` و `chunk-repair` برای ناهم‌خوانی ارجاع‌ها) جایشان در آزمایشگاه است. یادداشت‌های طراحی همچنین توضیح می‌دهند dedup کجا می‌نشیند: اشیای RGW یک بار نوشته می‌شوند و به‌ندرت بازنویسی می‌شوند، ولی اشیای RBD و CephFS بازنویسی و snapshot دارند، پس برای آن‌ها dedup اشیای سرد در پس‌زمینه بر dedup در مسیر نوشتن ترجیح دارد.
+
+**Dedup کامل شیء در RGW.** جدا از این، RGW فرمان‌های `radosgw-admin dedup` را به دست آورده است که اشیای tail یکسان RADOS را در bucketهای مختلف پیدا می‌کنند. یادداشت‌های انتشار Umbrella آن را پیش‌نمایش فنی می‌دانند. `dedup estimate` فقط آمار جمع می‌کند؛ `dedup exec --yes-i-really-mean-it` داده را تغییر می‌دهد و مستندات آن هشدار می‌دهد که ممکن است به از دست رفتن داده بینجامد و در نسخه‌هایی که هنوز آزمایشی است نباید روی داده‌ی تولیدی به کار رود:
+
+```bash {since=umbrella}
+radosgw-admin dedup estimate
+radosgw-admin dedup stats
+```
+
+thread مربوط به dedup باید دست‌کم روی یک daemon در RGW در هر zone روشن باشد (`rgw_enable_dedup_threads` که هنگام راه‌اندازی خوانده می‌شود). اشیای کوچک‌تر از یک اندازه‌ی کمینه، اشیا در poolها، placementها یا storage classهای متفاوت، و در اجرای کامل، اشیای رمزنگاری‌شده به دست کاربر رد می‌شوند.
+
+::: {.warn}
+هر دو سازوکار در زمان نگارش آزمایشی‌اند. روی داده‌ی واقعی فقط فرمان‌های estimate را به کار ببرید و پیش از هر چیز دیگری مستندات نسخه‌ی دقیق خود را بخوانید.
+:::
+
 # تکمیلی و به‌روز {#sec-16-8}
 
 - از ۲۰۱۹ تاکنون، مهم‌ترین تغییر این حوزه منسوخ شدن cache tiering در Reef است؛ مستندات latest همچنان این هشدار را دارد.
@@ -484,3 +512,6 @@ RGW از **cloud transition** هم پشتیبانی می‌کند: storage class
 - Source: src/osd/TierAgentState.h: https://github.com/ceph/ceph/blob/main/src/osd/TierAgentState.h
 - Source: src/osd/HitSet.h: https://github.com/ceph/ceph/blob/main/src/osd/HitSet.h
 - ceph-devel (2017-11), «About the "temperature histogram" of tier-agent»: https://www.spinics.net/lists/ceph-devel/msg39274.html
+- Ceph developer documentation — Deduplication: https://docs.ceph.com/en/latest/dev/deduplication/
+- Ceph documentation — Full RGW Object Dedup: https://docs.ceph.com/en/latest/radosgw/s3_objects_dedup/
+- Oh et al., "TiDedup: A New Distributed Deduplication Architecture for Ceph", USENIX ATC 2023: https://www.usenix.org/system/files/atc23-oh.pdf

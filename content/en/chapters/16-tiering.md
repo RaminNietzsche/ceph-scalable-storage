@@ -443,6 +443,34 @@ RGW also supports **cloud transition**: a storage class of type `cloud-s3` that 
 
 :::
 
+## 5. Deduplication: manifest objects in RADOS and full-object dedup in RGW {#sec-16-7-5}
+
+Deduplication is the other way to save space, and Ceph has two separate, still-maturing implementations of it.
+
+**RADOS deduplication with manifest objects.** The design document describes two pools: the base pool keeps each object, now holding only dedup metadata (chunk offsets and fingerprints), and a chunk pool holds the chunks. A chunk's object name is the hash of its content ("double hashing": CRUSH finds the object, and the content hash names the chunk), so identical chunks from any object land on the same chunk object, and no external fingerprint index is needed. Each pool chooses its own replication or erasure coding and its own device class. The design behind today's code is described in the TiDedup paper (USENIX ATC 2023), which names three changes over the earlier design: selective crawling of the cluster, event-driven tiering with content-defined chunking, and correcting reference counts with a shared reference back pointer instead of full scans.
+
+The official page says plainly that the feature "is highly experimental and is subject to change or removal", and `ceph-dedup-tool` comes in the `ceph-test` package. Its first step changes nothing and is the right way to decide whether the rest is worth it:
+
+```bash
+ceph-dedup-tool --op estimate --pool base --chunk-size 8192 \
+  --chunk-algorithm fastcdc --fingerprint-algorithm sha256 --max-thread 4
+```
+
+`dedup_bytes_ratio` in the output is the share of the examined bytes that is redundant; the documentation suggests running the estimate with several chunk sizes. The later operations (`sample-dedup` into a chunk pool, `chunk-scrub` and `chunk-repair` for reference mismatches) belong in a lab. The design notes also explain where dedup fits: RGW objects are written once and rarely overwritten, while RBD and CephFS objects see overwrites and snapshots, so for them deduplicating cold objects in the background is preferred over dedup in the write path.
+
+**Full-object dedup in RGW.** Separately, RGW gained `radosgw-admin dedup` commands that find identical RADOS tail objects across buckets. The Umbrella release notes list it as a technical preview. `dedup estimate` only collects statistics; `dedup exec --yes-i-really-mean-it` changes data, and its documentation warns that it can lead to data loss and must not be used on production data in the releases where it is still marked experimental:
+
+```bash {since=umbrella}
+radosgw-admin dedup estimate
+radosgw-admin dedup stats
+```
+
+The dedup thread must be enabled on at least one RGW daemon per zone (`rgw_enable_dedup_threads`, read at startup). Objects below a minimum size, objects in different pools, placements or storage classes, and, for the full pass, user-encrypted objects are skipped.
+
+::: {.warn}
+Both mechanisms are experimental at the time of writing. Use only the estimate commands on real data, and read the documentation of your exact release before anything else.
+:::
+
 # Supplementary and up to date {#sec-16-8}
 
 - From 2019 to today, the most important change in this area is the deprecation of cache tiering in Reef; the latest documentation still carries this warning.
@@ -484,3 +512,6 @@ RGW also supports **cloud transition**: a storage class of type `cloud-s3` that 
 - Source: src/osd/TierAgentState.h: https://github.com/ceph/ceph/blob/main/src/osd/TierAgentState.h
 - Source: src/osd/HitSet.h: https://github.com/ceph/ceph/blob/main/src/osd/HitSet.h
 - ceph-devel (2017-11), "About the "temperature histogram" of tier-agent": https://www.spinics.net/lists/ceph-devel/msg39274.html
+- Ceph developer documentation — Deduplication: https://docs.ceph.com/en/latest/dev/deduplication/
+- Ceph documentation — Full RGW Object Dedup: https://docs.ceph.com/en/latest/radosgw/s3_objects_dedup/
+- Oh et al., "TiDedup: A New Distributed Deduplication Architecture for Ceph", USENIX ATC 2023: https://www.usenix.org/system/files/atc23-oh.pdf
