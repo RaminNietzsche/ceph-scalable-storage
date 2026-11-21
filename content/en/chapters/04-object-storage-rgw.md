@@ -619,6 +619,37 @@ aws $EP s3api put-bucket-notification-configuration --bucket photos \
 
 **Bucket logging** (recording each bucket's requests in another bucket) was added in Tentacle according to the documentation, and in Umbrella it gained a journal mode, support for EC pools and management commands.
 
+## Nextcloud on RGW {#sec-04-11-6}
+
+Nextcloud can use RGW in two ways, and its administration manual (Nextcloud 36 at the time of writing) treats them differently:
+
+- **Primary storage:** all user files go to one bucket (or a set of buckets). Nextcloud needs exclusive access to the bucket; file names, folders and other metadata live only in the Nextcloud database, and the bucket holds the content under internal identifiers. This usually performs better, but the files cannot be read from outside Nextcloud, and a backup must cover the database and the bucket together. The manual warns that switching an existing instance to an object store makes all its existing files inaccessible, so decide before the first user logs in.
+- **External storage:** an existing bucket is mounted as a folder through the External Storage app. Objects keep their names and stay usable by other S3 clients, at the cost of speed.
+
+Prepare a dedicated RGW user (and a quota, as in "Quotas and rate limits" above), then add the object store to `config.php`:
+
+```text
+'objectstore' => [
+    'class' => '\\OC\\Files\\ObjectStore\\S3',
+    'arguments' => [
+        'bucket' => 'nextcloud-data',
+        'hostname' => 's3.example.com',
+        'port' => 443,
+        'use_ssl' => true,
+        'use_path_style' => true,
+        'key' => 'ACCESS_KEY',
+        'secret' => 'SECRET_KEY',
+    ],
+],
+```
+
+- **hostname** is the generic RGW endpoint, never a name with the bucket in it. With `use_path_style` set to true, Nextcloud sends `https://s3.example.com/bucket/...`, which works without wildcard DNS. To use virtual-host requests (the default, `use_path_style` false), RGW needs `rgw_dns_name` or zonegroup host names, wildcard DNS and a wildcard certificate ("DNS and virtual-host access" above).
+- **Bucket names** must follow the AWS naming rules even on RGW; no underscores.
+- **Large files** go up as multipart uploads above `putSizeLimit` (100 MiB by default), in parts of `uploadPartSize` (500 MiB by default), with up to `concurrency` (5) parts in parallel. Incomplete uploads are left behind if Nextcloud is interrupted, so add an `AbortIncompleteMultipartUpload` lifecycle rule to the bucket ("Lifecycle, storage classes and placement" above).
+- **multibucket** spreads users over `num_buckets` buckets. The user-to-bucket mapping is fixed when a user is created, so changing the count only affects new users.
+
+Browsers and sync clients talk only to Nextcloud, never to RGW directly, so this setup needs no CORS rule on the bucket. External storage asks for the same values in its form: bucket, key, secret, Hostname and the Enable Path Style checkbox.
+
 # Day-to-day RGW operations {#sec-04-12}
 
 ## Frequently used commands {#sec-04-12-1}
@@ -765,3 +796,5 @@ A user with `users=write` can create keys for any user, including itself, so tre
 - HAProxy 3.2 configuration manual: https://docs.haproxy.org/3.2/configuration.html
 - Ceph documentation — Multi-site: https://docs.ceph.com/en/latest/radosgw/multisite/
 - cephadm ingress template (ceph/ceph, LGPL — src/pybind/mgr/cephadm/templates/services/ingress/haproxy.cfg.j2): https://github.com/ceph/ceph/blob/main/src/pybind/mgr/cephadm/templates/services/ingress/haproxy.cfg.j2
+- Nextcloud Administration Manual — Configuring Object Storage as Primary Storage: https://docs.nextcloud.com/server/latest/admin_manual/configuration_files/primary_storage.html
+- Nextcloud Administration Manual — External Storage, Amazon S3: https://docs.nextcloud.com/server/latest/admin_manual/configuration_files/external_storage/amazons3.html
