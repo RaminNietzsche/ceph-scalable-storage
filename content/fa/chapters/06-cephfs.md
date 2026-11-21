@@ -512,6 +512,30 @@ ceph fs snapshot mirror peer_list fs01
 **LazyIO** این هم‌خوانی را سست می‌کند: کلاینت حتی وقتی میزبان‌های دیگر روی همان فایل می‌نویسند، به buffer و cache ادامه می‌دهد و برنامه خودش `lazyio_propagate()` و `lazyio_synchronize()` را فراخوانی می‌کند و barrierهای خودش را به کار می‌برد. می‌توانید آن را برای یک فایل با `ceph_lazyio()` در libcephfs، برای همه‌ی فایل‌های یک mount از نوع ceph-fuse یا libcephfs با `client_force_lazyio`، یا روی mount هسته با گزینه‌ی `lazyio` (به گفته‌ی مستندات، افزوده‌شده در Linux 7.4) فعال کنید. هشدار رسمی صریح است: برنامه‌ها ممکن است داده‌ی کهنه بخوانند و نوشتن‌های هم‌پوشان از کلاینت‌های مختلف می‌تواند به خرابی بی‌صدای داده بینجامد. آن را فقط برای برنامه‌هایی فعال کنید که ورودی/خروجی خود را هماهنگ می‌کنند، هرگز برای کل یک دایرکتوری خانگی.
 :::
 
+## CephFS، Lustre و BeeGFS: یک مقایسه‌ی کیفی {#sec-06-8-4}
+
+مقایسه‌ی زیر کیفی است و فقط از مستندات خود هر پروژه استفاده می‌کند: مستندات Ceph، راهنمای عملیاتی Lustre و صفحه‌ی معرفی ویکی Lustre، و مستندات BeeGFS 8.4. چیزی درباره‌ی سرعت نمی‌گوید. کارایی به سخت‌افزار، شبکه و بار کاری بستگی دارد و هیچ‌یک از این منابع عددی نمی‌دهد که بتوان منصفانه مقایسه کرد؛ بار کاری خودتان را اندازه بگیرید (فصل ۱۰).
+
+| جنبه | CephFS | Lustre | BeeGFS |
+|---|---|---|---|
+| اجزای سازنده | MONها، daemonهای MDS و OSDها؛ داده و فراداده‌ی فایل هر دو در poolهای RADOS | MGS، MDS با MDTها، OSS با OSTها، متصل با LNet | سرویس مدیریت، سرویس فراداده، سرویس ذخیره‌سازی، کلاینت‌ها؛ یک سرویس پایش اختیاری |
+| فراداده | MDS فراداده را در یک pool فراداده در RADOS cache و journal می‌کند؛ چند rank فعال MDS، با سنجاق کردن زیردرخت و dirfrag برای دایرکتوری‌های بزرگ | روی MDTها؛ DNE زیردرخت‌ها را روی MDTهای اضافی می‌گذارد و از 2.8 یک دایرکتوری را روی چند MDT تقسیم می‌کند | توزیع بر پایه‌ی دایرکتوری: محتوای یک دایرکتوری همیشه روی یک گره‌ی فراداده است که برای هر دایرکتوری به‌تصادف انتخاب می‌شود |
+| مسیر داده | کلاینت‌ها مستقیم روی OSDها می‌خوانند و می‌نویسند | کلاینت‌ها مستقیم با OSSها حرف می‌زنند؛ پس از باز شدن فایل، MDS در I/O نقشی ندارد | کلاینت‌ها مستقیم با سرورهای ذخیره‌سازی حرف می‌زنند؛ فایل‌ها روی targetها stripe می‌شوند |
+| حفاظت از داده | replication یا erasure coding در RADOS روی failure domainها (فصل‌های ۸ و ۱۳) | طبق طراحی بین سرورها افزونگی ندارد؛ حفاظت از ذخیره‌ساز زیر هر target می‌آید (RAID سخت‌افزاری، MDRAID یا ZFS). File Level Redundancy (از 2.11) فایل‌های انتخابی را mirror می‌کند، با نوشتن تأخیری: فقط یک mirror به‌روز می‌شود و بقیه تا همگام‌سازی دوباره stale می‌شوند | buddy mirroring اختیاری: جفت‌هایی از targetهای ذخیره‌سازی یا سرورهای فراداده که هم‌زمان (synchronous) mirror می‌شوند؛ داده‌ی بدون mirror هم می‌تواند روی همان targetها باشد |
+| دسترس‌پذیری بالا | daemonهای standby در MDS جای rank از کار افتاده را می‌گیرند (standby-replay برای جایگزینی سریع‌تر)؛ RADOS از دست رفتن OSD را خودش مدیریت می‌کند | failover فعال/غیرفعال هر target بین سرورها روی ذخیره‌ساز مشترک چنددرگاهی، با یک مدیر HA مانند Pacemaker؛ HA اختیاری است ولی روال معمول است | failover درون یک buddy group به secondary؛ به در حال اجرا بودن سرویس مدیریت نیاز دارد، پس مستندات ماشین جدایی برای آن توصیه می‌کند |
+| معناشناسی POSIX | «تا جای ممکن به معناشناسی POSIX پایبند است» با همدوسی قوی cache؛ تفاوت‌های مستند شامل نوشتن‌های مشترک غیراتمی روی مرز شیء، `mmap` مشترک ناهمدوس، `st_blocks` و `atime` است؛ LazyIO در صورت درخواست همدوسی را سست می‌کند | راهنما می‌گوید مجموعه‌ی کامل آزمون POSIX مانند ext4 محلی پاس می‌شود «با استثناهای محدود روی کلاینت‌های Lustre»؛ یک مدیر قفل توزیع‌شده cache کلاینت‌ها را همدوس نگه می‌دارد | یک نقطه‌ی mount معمولی از راه یک ماژول kernel؛ مستندات دو حالت cache کلاینت (buffered که پیش‌فرض است، و native page cache) و طراحی برای نوشتن بسیاری از کلاینت‌ها روی یک فایل مشترک را شرح می‌دهد |
+| کلاینت‌ها | کلاینت kernel، ceph-fuse، libcephfs؛ دروازه‌های NFS و SMB (فصل ۶) | کلاینت Lustre روی Linux؛ export دوباره با NFS یا Samba مستند شده است | ماژول kernel بدون patch برای Linux؛ export با NFS و Samba مستند شده است |
+| مجوز | LGPL 2.1 یا 3 | GPL 2.0 | سرورها زیر BeeGFS License Agreement (کد منبع در دسترس)؛ ماژول کلاینت زیر GPLv2. از BeeGFS 8، قابلیت‌های enterprise مانند storage pool و quota به مجوز enterprise یا موقت نیاز دارند و از 8.3 برای رعایت مجوز یک مجوز community لازم است |
+
+آنچه از جدول برمی‌آید، بی‌آنکه درباره‌ی سرعت حدس بزنیم:
+
+- **تفاوت اصلی جای افزونگی است.** CephFS و buddy mirroring در BeeGFS داده را در نرم‌افزار و بین سرورها حفاظت می‌کنند. Lustre آن را به ذخیره‌ساز زیر هر target و جفت‌های failover روی محفظه‌های مشترک می‌سپارد و FLR گزینه‌ای در سطح فایل است. همین سخت‌افزار را تعیین می‌کند: JBOD روی میزبان‌های بسیار برای CephFS، و محفظه‌های دودرگاهی در جفت‌های HA برای یک طراحی معمول Lustre.
+- **فراداده به شکل‌های متفاوت مقیاس می‌گیرد.** CephFS زیردرخت‌ها را بین rankهای فعال MDS جابه‌جا می‌کند (و دایرکتوری‌های بزرگ را تقسیم می‌کند)، Lustre زیردرخت‌ها یا دایرکتوری‌های stripe‌شده را روی MDTها می‌گذارد و BeeGFS هر دایرکتوری را به یک گره‌ی فراداده ثابت می‌کند.
+- **یک سامانه‌ی ذخیره‌سازی یا یک فایل‌سیستم scratch اختصاصی.** CephFS یک کلاستر RADOS را با RBD و RGW به اشتراک می‌گذارد (فصل‌های ۲ و ۴)؛ Lustre و BeeGFS فقط فایل‌سیستم‌اند.
+- **مجوز و مدل پشتیبانی** بخشی از تصمیم‌اند، به‌ویژه الزام‌های مجوز BeeGFS از نسخه‌ی 8.
+
+پیش از تصمیم، مستندات جاری هر پروژه را بخوانید، چون این ویژگی‌ها بین نسخه‌ها تغییر می‌کنند.
+
 # عملیات و عیب‌یابی {#sec-06-9}
 
 ## پایش روزانه {#sec-06-9-1}
@@ -622,3 +646,10 @@ ceph osd blocklist ls
 - LazyIO: https://docs.ceph.com/en/latest/cephfs/lazyio/
 - Differences from POSIX: https://docs.ceph.com/en/latest/cephfs/posix/
 - Ceph documentation — Mount CephFS on Windows: https://docs.ceph.com/en/latest/cephfs/ceph-dokan/
+- Lustre Operations Manual: https://doc.lustre.org/lustre_manual.xhtml
+- Lustre wiki — Introduction to Lustre: https://wiki.lustre.org/Introduction_to_Lustre
+- BeeGFS documentation — Architecture: https://doc.beegfs.io/latest/architecture/overview.html
+- BeeGFS documentation — Mirroring: https://doc.beegfs.io/latest/advanced_topics/mirroring.html
+- BeeGFS documentation — Client side caching modes: https://doc.beegfs.io/latest/advanced_topics/client_caching.html
+- BeeGFS documentation — License and Licensing: https://doc.beegfs.io/latest/license.html
+- BeeGFS documentation — Licensing in BeeGFS 8: https://doc.beegfs.io/latest/advanced_topics/licensing.html

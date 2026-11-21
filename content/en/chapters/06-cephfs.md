@@ -512,6 +512,30 @@ The CephFS documentation names "HPC scratch space" as one of its intended uses. 
 **LazyIO** relaxes this coherency: the client keeps buffering and caching even while other hosts write the same file, and the application calls `lazyio_propagate()` and `lazyio_synchronize()` and uses its own barriers. You can enable it per file with `ceph_lazyio()` in libcephfs, for every file of a ceph-fuse or libcephfs mount with `client_force_lazyio`, or on a kernel mount with the `lazyio` option (according to the documentation, added in Linux 7.4). The official warning is explicit: applications may read stale data, and overlapping writes from different clients can cause silent data corruption. Enable it only for applications that coordinate their own I/O, never for a whole home directory.
 :::
 
+## CephFS, Lustre and BeeGFS: a qualitative comparison {#sec-06-8-4}
+
+The comparison below is qualitative and uses only each project's own documentation: the Ceph documentation, the Lustre Operations Manual and the Lustre wiki's introduction, and the BeeGFS 8.4 documentation. It says nothing about speed. Performance depends on hardware, network and workload, and none of these sources gives figures that could be compared fairly; measure your own workload (chapter 10).
+
+| Aspect | CephFS | Lustre | BeeGFS |
+|---|---|---|---|
+| Building blocks | MONs, MDS daemons and OSDs; file data and metadata both live in RADOS pools | MGS, MDS with MDTs, OSS with OSTs, connected by LNet | management service, metadata service, storage service, clients; an optional monitoring service |
+| Metadata | the MDS caches and journals metadata in a RADOS metadata pool; several active MDS ranks, with subtree pinning and dirfrags for large directories | on MDTs; DNE places subtrees on additional MDTs and, since 2.8, stripes one directory across several MDTs | distributed per directory: the content of one directory is always on one metadata node, chosen at random for each directory |
+| Data path | clients read and write directly on the OSDs | clients talk directly to the OSSs; the MDS is not involved in I/O once a file is open | clients talk directly to the storage servers; files are striped across targets |
+| Data protection | RADOS replication or erasure coding across failure domains (chapters 8 and 13) | by design no redundancy between servers; protection comes from the storage under each target (hardware RAID, MDRAID or ZFS). File Level Redundancy (since 2.11) mirrors chosen files, with delayed write: only one mirror is updated and the others become stale until resynced | optional buddy mirroring: pairs of storage targets or metadata servers, mirrored synchronously; unmirrored data can coexist on the same targets |
+| High availability | standby MDS daemons take over a failed rank (standby-replay for faster takeover); RADOS handles OSD loss itself | active/passive failover of each target between servers on shared, multi-ported storage, run by an HA manager such as Pacemaker; HA is optional but the norm | failover inside a buddy group to the secondary; it needs the management service to be running, so the documentation recommends a separate machine for it |
+| POSIX semantics | "aims to adhere to POSIX semantics wherever possible" with strong cache coherency; documented differences include non-atomic shared writes across object boundaries, non-coherent shared `mmap`, `st_blocks` and `atime`; LazyIO relaxes coherency on request | the manual states that the full POSIX test suite passes as on local ext4 "with limited exceptions on Lustre clients"; a distributed lock manager keeps client caches coherent | a normal mount point through a kernel module; the documentation describes two client cache modes (buffered, the default, and native page cache) and design for many clients writing one shared file |
+| Clients | kernel client, ceph-fuse, libcephfs; NFS and SMB gateways (chapter 6) | Lustre client on Linux; re-export through NFS or Samba is documented | patchless Linux kernel module; NFS and Samba export are documented |
+| Licence | LGPL 2.1 or 3 | GPL 2.0 | servers under the BeeGFS License Agreement (source available); client module under GPLv2. Since BeeGFS 8, enterprise features such as storage pools and quotas need an enterprise or temporary licence, and from 8.3 a community licence is needed for compliance |
+
+What follows from the table, without guessing at speed:
+
+- **The main difference is where redundancy lives.** CephFS and BeeGFS buddy mirroring protect data in software across servers. Lustre leaves it to the storage under each target and to failover pairs on shared enclosures, with FLR as a per-file option. That decides the hardware: JBODs on many hosts for CephFS, dual-ported enclosures in HA pairs for a typical Lustre design.
+- **Metadata scales differently.** CephFS moves subtrees between active MDS ranks (and splits large directories), Lustre places subtrees or striped directories on MDTs, and BeeGFS fixes each directory to one metadata node.
+- **One storage system or a dedicated scratch file system.** CephFS shares one RADOS cluster with RBD and RGW (chapters 2 and 4); Lustre and BeeGFS are file systems only.
+- **Licence and support model** are part of the decision, especially BeeGFS's licence requirements since version 8.
+
+Read the current documentation of each project before deciding, because these properties change between releases.
+
 # Operations and troubleshooting {#sec-06-9}
 
 ## Daily monitoring {#sec-06-9-1}
@@ -622,3 +646,10 @@ Read the details of each release in the official release notes; this chapter inc
 - LazyIO: https://docs.ceph.com/en/latest/cephfs/lazyio/
 - Differences from POSIX: https://docs.ceph.com/en/latest/cephfs/posix/
 - Ceph documentation — Mount CephFS on Windows: https://docs.ceph.com/en/latest/cephfs/ceph-dokan/
+- Lustre Operations Manual: https://doc.lustre.org/lustre_manual.xhtml
+- Lustre wiki — Introduction to Lustre: https://wiki.lustre.org/Introduction_to_Lustre
+- BeeGFS documentation — Architecture: https://doc.beegfs.io/latest/architecture/overview.html
+- BeeGFS documentation — Mirroring: https://doc.beegfs.io/latest/advanced_topics/mirroring.html
+- BeeGFS documentation — Client side caching modes: https://doc.beegfs.io/latest/advanced_topics/client_caching.html
+- BeeGFS documentation — License and Licensing: https://doc.beegfs.io/latest/license.html
+- BeeGFS documentation — Licensing in BeeGFS 8: https://doc.beegfs.io/latest/advanced_topics/licensing.html
