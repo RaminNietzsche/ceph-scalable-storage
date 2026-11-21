@@ -485,6 +485,21 @@ Older sources often recommended running Hadoop on CephFS instead of HDFS. The si
 If you are asked for "Hadoop on Ceph" today, it almost always means "Spark or Trino on RGW with S3A". Its key points: enabling path-style or correct DNS for buckets, using S3-specific committers (such as the magic committer), and watching the number of objects per bucket and resharding (chapter 4).
 :::
 
+## CephFS for HPC: what the Ceph documentation supports {#sec-06-8-3}
+
+The CephFS documentation names "HPC scratch space" as one of its intended uses. This section covers only what that documentation and the code support. It does not compare CephFS with Lustre or BeeGFS: such a comparison depends on measurements on the same hardware, and the Ceph documentation provides none.
+
+- **Data does not pass through a gateway.** Clients read and write file data directly on the OSDs, and only metadata goes to the MDS. Data throughput therefore grows with the RADOS cluster, and the limit in HPC is usually metadata.
+- **Many clients on separate directories: more active MDSs and pinning.** The multi-MDS documentation says that the workloads that benefit from more active MDS daemons are "those with many clients, perhaps working on many separate directories", and that a single application on a single client gains little unless it does many metadata operations in parallel. Give each project or job tree its own subtree with `ceph.dir.pin`, or use the ephemeral distributed pin for a parent of many job directories, as described in "Multiple active MDSs" earlier in this chapter. Keep a standby for every rank, because `max_mds` adds a rank only when a spare daemon exists.
+- **Many files in one directory.** A large directory is split into dirfrags (see "When to split and when to merge?" above), so it does not need a separate setting. But a job that creates millions of files in one directory still sends all of them through the MDS. Giving each rank or task its own subdirectory is cheaper.
+- **Cap pressure from scans.** A `find` or a parallel `ls` over a large tree makes a client take caps faster than it gives them back. The MDS asks each client to stay under `mds_max_caps_per_client` (1M by default; the documentation advises against going above 5M) and throttles readdir. The "clients failing to respond to cache pressure" warning in this situation usually comes from a scanning job, not from a fault.
+- **Large sequential files.** The file layout decides how many OSDs a single file reaches at once. A wider layout (`stripe_count` greater than 1) on the output directory, set before the files are written, spreads one large file across several OSDs ("File to object" and "Layout: controlling where data goes" in this chapter).
+- **One shared file with many writers (N-to-1 checkpoints).** Under normal caps, when several clients have the same file open for writing, the MDS withdraws their buffering and caching, so each write goes straight to the OSDs. The documentation also warns that a write crossing an object boundary is not atomic between simultaneous writers, so align each writer's region to the stripe unit.
+
+::: {.warn}
+**LazyIO** relaxes this coherency: the client keeps buffering and caching even while other hosts write the same file, and the application calls `lazyio_propagate()` and `lazyio_synchronize()` and uses its own barriers. You can enable it per file with `ceph_lazyio()` in libcephfs, for every file of a ceph-fuse or libcephfs mount with `client_force_lazyio`, or on a kernel mount with the `lazyio` option (according to the documentation, added in Linux 7.4). The official warning is explicit: applications may read stale data, and overlapping writes from different clients can cause silent data corruption. Enable it only for applications that coordinate their own I/O, never for a whole home directory.
+:::
+
 # Operations and troubleshooting {#sec-06-9}
 
 ## Daily monitoring {#sec-06-9-1}
@@ -592,3 +607,5 @@ Read the details of each release in the official release notes; this chapter inc
 - Health messages: https://docs.ceph.com/en/latest/cephfs/health-messages/
 - Disaster recovery: https://docs.ceph.com/en/latest/cephfs/disaster-recovery/
 - Tentacle release notes: https://docs.ceph.com/en/latest/releases/tentacle/
+- LazyIO: https://docs.ceph.com/en/latest/cephfs/lazyio/
+- Differences from POSIX: https://docs.ceph.com/en/latest/cephfs/posix/
