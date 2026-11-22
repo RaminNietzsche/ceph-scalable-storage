@@ -341,3 +341,19 @@ bdi { unicode-bidi: isolate; }
 .lx-gl { stroke: var(--line); stroke-width: .6; } .lx-now { stroke: var(--sim-hot); stroke-dasharray: 3 3; }
 .lx-line { fill: none; stroke: var(--sim-a); stroke-width: 2; } .lx-dot { fill: var(--sim-a); }
 .sim-t tr.lx-red td { color: var(--sim-c1); }
+/* mdspin */
+.sim-mdspin { --r0: var(--sim-c0); --r1: var(--sim-c1); --r2: var(--sim-c2); --r3: var(--sim-c3); --r4: var(--sim-c4); --r5: var(--sim-c5); --r6: var(--sim-hot); --r7: var(--sim-bad); }
+.md-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .3rem 1rem; }
+.md-tree { list-style: none; margin: .2rem 0; padding: 0; font-size: .82rem; }
+.md-d { display: flex; align-items: baseline; gap: .35rem; padding: .08rem 0; flex-wrap: wrap; }
+.md-d.d2 { padding-inline-start: 1.1rem; } .md-d.mv code { background: color-mix(in srgb, var(--sim-hot) 22%, transparent); border-radius: 4px; }
+.md-r { display: inline-grid; place-items: center; min-width: 1.35rem; height: 1.35rem; border-radius: 99px; color: #fff; font-size: .72rem; font-weight: 700; font-family: var(--font-mono); }
+.md-why { color: var(--fg-mute); font-size: .76rem; } .md-d small { color: var(--fg-mute); font-size: .72rem; }
+.md-r.r0, .md-bar.r0 { background: var(--r0); fill: var(--r0); } .md-r.r1, .md-bar.r1 { background: var(--r1); fill: var(--r1); } .md-r.r2, .md-bar.r2 { background: var(--r2); fill: var(--r2); } .md-r.r3, .md-bar.r3 { background: var(--r3); fill: var(--r3); }
+.md-r.r4, .md-bar.r4 { background: var(--r4); fill: var(--r4); } .md-r.r5, .md-bar.r5 { background: var(--r5); fill: var(--r5); } .md-r.r6, .md-bar.r6 { background: var(--r6); fill: var(--r6); } .md-r.r7, .md-bar.r7 { background: var(--r7); fill: var(--r7); }
+.md-chips { display: flex; flex-wrap: wrap; gap: .25rem; align-content: flex-start; padding: .2rem 0; }
+.md-chip { font-family: var(--font-mono); font-size: .72rem; color: #fff; border-radius: 6px; padding: .1rem .4rem; display: inline-flex; gap: .3rem; align-items: baseline; }
+.md-chip small { opacity: .85; font-size: .64rem; } .md-chip.mv { outline: 2px solid var(--sim-hot); outline-offset: 1px; }
+.md-chip.r0 { background: var(--r0); } .md-chip.r1 { background: var(--r1); } .md-chip.r2 { background: var(--r2); } .md-chip.r3 { background: var(--r3); }
+.md-chip.r4 { background: var(--r4); } .md-chip.r5 { background: var(--r5); } .md-chip.r6 { background: var(--r6); } .md-chip.r7 { background: var(--r7); }
+.md-chip.r4, .md-r.r4 { color: #1c1917; }

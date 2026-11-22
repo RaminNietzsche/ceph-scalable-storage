@@ -118,6 +118,9 @@ setfattr -n ceph.dir.pin.distributed -v 1 /mnt/fs01/scratch
 The automatic MDS balancer (which moves subtrees between ranks based on load) has been a source of instability in the past. The common recommendation of the community and the documentation is to use **explicit pinning** in production. Also, in Tentacle changing `max_mds` on an unhealthy cluster requires the confirmation flag `--yes-i-really-mean-it`, because adding MDSs during a problem usually makes things worse. The idea behind the balancer goes back to the 2004 paper "Dynamic Metadata Management for Petabyte-Scale File Systems", which proposed dynamic subtree partitioning for metadata workloads that change over time and evaluated it in a simulation environment; Sage Weil's 2007 dissertation describes the MDS, RADOS and CRUSH together.
 :::
 
+::: {.sim name="mdspin"}
+:::
+
 # Client access {#sec-06-3}
 
 ![Four ways to access CephFS: the kernel client, ceph-fuse, NFS through Ganesha and SMB through Samba](figures/ch06/f03_access.png){#fig-06-f03_access}

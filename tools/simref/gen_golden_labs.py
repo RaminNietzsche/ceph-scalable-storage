@@ -17,6 +17,7 @@ if not SRC or not os.path.isdir(SRC):
 CXX = os.environ.get('CXX', 'g++')
 CC = os.environ.get('CC', 'gcc')
 TMP = tempfile.mkdtemp(prefix='simref-labs-')
+open(os.path.join(TMP, 'acconfig.h'), 'w').close()   # the build-time config header the includes expect
 OUT = {}
 
 
@@ -190,7 +191,75 @@ int main() {
     OUT['reshard_list'] = lc
 
 
-STEPS = [capacity, reshard]
+
+# ---------------------------------------------------------------- mdspin
+def mdspin():
+    rj = cut('include/hash.h', r'^inline uint64_t rjhash64\(uint64_t key\) \{', r'^\}')
+    hb = cut('mds/MDCache.cc', r'^mds_rank_t MDCache::hash_into_rank_bucket\(inodeno_t ino, frag_t fg\)', r'^\}', inclusive=False)
+    hb = hb.replace('  const mds_rank_t max_mds = mds->mdsmap->get_max_mds();', '')
+    bits = cut('mds/MDCache.cc', r'^    double want = g_conf\(\).get_val<double>\("mds_export_ephemeral_distributed_factor"\);', r'^    export_ephemeral_dist_frag_bits = n;')
+    bits = bits.replace('g_conf().get_val<double>("mds_export_ephemeral_distributed_factor")', 'factor')
+    code = r"""
+#include <cstdio>
+#include <cstdint>
+#include <cassert>
+#include <string>
+#include <iostream>
+#include "include/ceph_hash.h"
+typedef uint32_t __u32;
+#include "include/ceph_frag.h"
+#define ceph_assert assert
+typedef int32_t mds_rank_t;
+typedef uint64_t inodeno_t;
+const mds_rank_t MDS_RANK_NONE = -1;
+struct frag_t { uint32_t _enc; unsigned value() const { return ceph_frag_value(_enc); } operator uint32_t() const { return _enc; } };
+""" + rj + r"""
+static mds_rank_t hash_into_rank_bucket(inodeno_t ino, frag_t fg, mds_rank_t max_mds)
+""" + hb + '\n}' + r"""
+static unsigned frag_bits(int max_mds, double factor) {
+  unsigned export_ephemeral_dist_frag_bits = 0;
+  if (max_mds > 1) {
+""" + bits + r"""
+  }
+  return export_ephemeral_dist_frag_bits;
+}
+int main() {
+  char k;
+  while (std::cin >> k) {
+    if (k == 'J') { unsigned long long x; std::cin >> x; printf("%llu\n", (unsigned long long)rjhash64(x)); }
+    else if (k == 'B') { int m; double f; std::cin >> m >> f; printf("%u\n", frag_bits(m, f)); }
+    else {
+      unsigned long long ino; std::string name; unsigned bits; int m; std::cin >> ino >> name >> bits >> m;
+      unsigned h = ceph_str_hash_rjenkins(name.c_str(), name.size());
+      // an evenly split fragtree of 2^bits leaves: the leaf containing h (frag_t::contains / ceph_frag_contains_value)
+      frag_t fg{0};
+      for (unsigned v = 0; v < (1u << bits) && bits; v++) { uint32_t f = ceph_frag_make(bits, v << (24 - bits)); if (ceph_frag_contains_value(f, h)) { fg._enc = f; break; } }
+      printf("%u %d\n", fg._enc, hash_into_rank_bucket(ino, fg, m));
+    }
+  }
+}
+"""
+    rnd = random.Random(5)
+    lines, rjc, rc, bc = [], [], [], []
+    for _ in range(100):
+        x = rnd.choice([rnd.getrandbits(64), 0x10000000000 + rnd.randint(0, 10 ** 6), rnd.randint(0, 100)])
+        rjc.append([str(x)]); lines.append(f'J {x}')
+    for _ in range(60):
+        m = rnd.randint(1, 16); f = rnd.choice([1.0, 2.0, 2.5, 4.0, 100.0]); bc.append([m, f]); lines.append(f'B {m} {f}')
+    for _ in range(400):
+        ino = rnd.choice([0x10000000000, 0x10000000000 + rnd.randint(1, 5000), 1, rnd.getrandbits(40)])
+        name = rnd.choice(['user', 'job', 'proj', 'home', 'u']) + str(rnd.randint(0, 9999))
+        m = rnd.randint(1, 16); bits = rnd.choice([0, 1, 2, 3, 4, 5, 6])
+        rc.append([ino, name, bits, m]); lines.append(f'R {ino} {name} {bits} {m}')
+    out = run_cxx('mdspin', code, '\n'.join(lines) + '\n', extra=[f'-I{TMP}', f'-I{SRC}', os.path.join(SRC, 'common', 'ceph_hash.cc')]).split('\n')
+    i = 0
+    for c in rjc: c.append(out[i]); i += 1
+    for c in bc: c.append(int(out[i])); i += 1
+    for c in rc: a, b = out[i].split(); c += [int(a), int(b)]; i += 1
+    OUT['mdspin_rj'] = rjc; OUT['mdspin_bits'] = bc; OUT['mdspin_rank'] = rc
+
+
+STEPS = [capacity, reshard, mdspin]
 if __name__ == '__main__':
     only = sys.argv[1:]
     for f in STEPS:

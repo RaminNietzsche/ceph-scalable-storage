@@ -1,3 +1,4 @@
 # The labs that load on demand: templates/site/sims/lab-NAME.js, strings under NAME_ keys.
 - capacity
 - reshard
+- mdspin

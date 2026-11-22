@@ -118,6 +118,9 @@ setfattr -n ceph.dir.pin.distributed -v 1 /mnt/fs01/scratch
 متعادل‌کننده‌ی خودکار MDS (که زیردرخت‌ها را بر اساس بار بین rankها جابه‌جا می‌کند) در گذشته منبع ناپایداری بوده است. توصیه‌ی رایج جامعه و مستندات این است که در production از **pinning صریح** استفاده کنید. همچنین در Tentacle تغییر `max_mds` روی کلاستر ناسالم نیازمند پرچم تأیید `--yes-i-really-mean-it` شده است، چون افزودن MDS در حین مشکل معمولاً حالت را بدتر می‌کند. ایده‌ی balancer به مقاله‌ی ۲۰۰۴ با عنوان «Dynamic Metadata Management for Petabyte-Scale File Systems» برمی‌گردد که تقسیم‌بندی پویای زیردرخت (dynamic subtree partitioning) را برای بارهای فراداده‌ای که با زمان تغییر می‌کنند پیشنهاد داد و آن را در محیط شبیه‌سازی ارزیابی کرد؛ رساله‌ی دکتری Sage Weil در ۲۰۰۷ هم MDS و RADOS و CRUSH را با هم شرح می‌دهد.
 :::
 
+::: {.sim name="mdspin"}
+:::
+
 # دسترسی کلاینت‌ها {#sec-06-3}
 
 ![چهار راه دسترسی به CephFS: کلاینت هسته، ceph-fuse، NFS از طریق Ganesha و SMB از طریق Samba](figures/ch06/f03_access.png){#fig-06-f03_access}
