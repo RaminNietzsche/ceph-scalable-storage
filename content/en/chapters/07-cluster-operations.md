@@ -408,6 +408,9 @@ ceph quorum_status | jq '.quorum_leader_name, .quorum_names'
 ceph daemon mon.a sessions | jq length   # on the MON host
 ```
 
+::: {.sim name="quorum"}
+:::
+
 # Daily operations by the numbers: down, out, grace and MAX AVAIL {#sec-07-9}
 
 The four algorithms in this section run in the MON and answer a few everyday operator questions: why an OSD was or was not marked down at this moment, why it was marked out after ten minutes, and why `ceph df` shows less free space than the raw space. References are to main as of November 2026, and the numbers were computed with a Python reimplementation.

@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Monitor quorum lab: partition and fail monitors, check classic majority/leader rules exhaustively and step through election to Paxos lease (chapter 7).
 - Scrub lab: compare shallow/deep random schedules and overnight windows; exhaustively check hour/day windows against Ceph C++ (chapter 7).
 - mClock lab: explore built-in profiles, per-shard capacity, operation cost and steady-state client/recovery shares (chapter 7).
 - Erasure coding lab: split a text into k+m shards with the jerasure or ISA-L Reed-Solomon matrix, fail shards and watch the decode (chapter 13).

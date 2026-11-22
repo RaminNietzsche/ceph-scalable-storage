@@ -408,6 +408,9 @@ ceph quorum_status | jq '.quorum_leader_name, .quorum_names'
 ceph daemon mon.a sessions | jq length   # روی میزبان MON
 ```
 
+::: {.sim name="quorum"}
+:::
+
 # عملیات روزمره با عدد: down، out، grace و MAX AVAIL {#sec-07-9}
 
 چهار الگوریتم این بخش در MON اجرا می‌شوند و به چند پرسش روزمره‌ی اپراتور جواب می‌دهند: چرا OSD در این لحظه down شد یا نشد، چرا بعد از ده دقیقه out شد، و چرا `ceph df` فضای آزاد کمتری از فضای خام نشان می‌دهد. ارجاع‌ها به main در نوامبر 2026 است و عددها با بازپیاده‌سازی پایتونی حساب شده‌اند.
