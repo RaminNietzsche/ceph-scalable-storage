@@ -481,6 +481,9 @@ new = min(max_dyn, max(new, min_dyn, min_layout_shards))
 
 ![تعداد shard ایندکس برحسب تعداد شیء در bucket، روی محورهای لگاریتمی. آبی مسیر یک zone با ضریب 2 است و قرمز مسیر multisite با ضریب 8. هر پله یک reshard است و عدد کنار آن تعداد shard تازه (عدد اول) است. خط نقطه‌چین سقف 100000 شیء در هر shard است. هر بار که bucket از آن عبور کند، reshard صف می‌شود. سقف 1999 در هر دو مسیر به تعداد شیء متفاوتی می‌رسد](figures/ch04/f09_reshard.png){#fig-04-f09_reshard}
 
+::: {.sim name="reshard"}
+:::
+
 ## فهرست‌گیری مرتب: چند ورودی از هر shard؟ {#sec-04-10-3}
 
 ::: {.algo #alg-04-3 title="تعداد ورودی درخواستی از هر shard در ListObjects مرتب" src="src/rgw/driver/rados/rgw_rados.cc :: RGWRados::calc_ordered_bucket_list_per_shard، cls_bucket_list_ordered" complexity="هر صفحه O(s × k) ورودی از s shard و ادغام O(n log s)"}

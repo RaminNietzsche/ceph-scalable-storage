@@ -125,7 +125,72 @@ int main() {
     OUT['capacity_avail'] = acases
 
 
-STEPS = [capacity]
+# ---------------------------------------------------------------- reshard
+def reshard():
+    primes = cut('rgw/driver/rados/rgw_reshard.cc', r'^const std::initializer_list<uint16_t> RGWBucketReshard::reshard_primes = \{', r'^\};')
+    pref = cut('rgw/driver/rados/rgw_reshard.cc', r'^void RGWBucketReshard::calculate_preferred_shards\(', r'^\} // RGWBucketReshard::check_bucket_shards')
+    near = cut('rgw/driver/rados/rgw_reshard.cc', r'^uint32_t RGWBucketReshard::nearest_prime\(', r'^\}')
+    ge = cut('rgw/driver/rados/rgw_reshard.h', r'static uint32_t get_prime_shards_greater_or_equal\(', r'^  \}')
+    per = cut('rgw/driver/rados/rgw_rados.cc', r'^uint32_t RGWRados::calc_ordered_bucket_list_per_shard\(', r'^\}')
+    consts = cut('rgw/driver/rados/rgw_reshard.cc', r'^constexpr uint64_t default_min_objs_per_shard', r'^constexpr uint32_t min_dynamic_shards')
+    code = r"""
+#include <cstdio>
+#include <cstdint>
+#include <cmath>
+#include <algorithm>
+#include <initializer_list>
+#include <iostream>
+using namespace std;
+struct DoutPrefixProvider {};
+struct DoutS { template<class T> DoutS& operator<<(const T&) { return *this; } };
+#define ldpp_dout(a, b) DoutS()
+#define dendl ""
+""" + consts + r"""
+struct RGWBucketReshard {
+  static const std::initializer_list<uint16_t> reshard_primes;
+""" + ge + r"""
+  static uint32_t nearest_prime(uint32_t suggested_shards);
+  static void calculate_preferred_shards(const DoutPrefixProvider* dpp, const uint32_t max_dynamic_shards, const uint32_t min_layout_shards,
+    const uint64_t max_objs_per_shard, const bool is_multisite, const uint64_t num_objs, const uint32_t current_num_shards,
+    bool& need_resharding, uint32_t* suggested_num_shards, bool prefer_prime = true);
+};
+""" + primes + '\n' + near + '\n' + pref + r"""
+struct RGWRados { static uint32_t calc_ordered_bucket_list_per_shard(uint32_t num_entries, uint32_t num_shards); };
+""" + per + r"""
+int main() {
+  char k;
+  for (auto p : RGWBucketReshard::reshard_primes) printf("%u ", (unsigned)p);
+  printf("\n");
+  while (cin >> k) {
+    if (k == 'P') {
+      unsigned md, ml, ms, cur; unsigned long long mo, n; cin >> md >> ml >> mo >> ms >> n >> cur;
+      bool need = false; uint32_t sug = 0;
+      RGWBucketReshard::calculate_preferred_shards(nullptr, md, ml, mo, ms, n, cur, need, &sug);
+      printf("%d %u\n", need ? 1 : 0, need ? sug : 0);
+    } else { unsigned n, s; cin >> n >> s; printf("%u\n", RGWRados::calc_ordered_bucket_list_per_shard(n, s)); }
+  }
+}
+"""
+    rnd = random.Random(11)
+    pc, lc, lines = [], [], []
+    for _ in range(400):
+        md = rnd.choice([499, 1999]); ml = rnd.choice([0, 0, 11, 23]); mo = rnd.choice([100000, 33333, 50000, 200000, 1000])
+        ms = rnd.choice([0, 1]); cur = rnd.choice([1, 11, 23, 29, 61, 101, 127, 499, 1999]); n = rnd.choice([rnd.randint(0, 3000), rnd.randint(0, 10 ** 6), rnd.randint(0, 10 ** 9), cur * mo + rnd.randint(-2, 2)])
+        n = max(0, n); pc.append([md, ml, mo, ms, n, cur]); lines.append(f'P {md} {ml} {mo} {ms} {n} {cur}')
+    for _ in range(200):
+        n = rnd.choice([1, 10, 100, 1000, rnd.randint(1, 5000)]); s = rnd.randint(1, 2000)
+        lc.append([n, s]); lines.append(f'L {n} {s}')
+    out = run_cxx('reshard', code, '\n'.join(lines) + '\n').split('\n')
+    OUT['reshard_primes'] = [int(x) for x in out[0].split()]
+    for i, c in enumerate(pc):
+        a, b = out[1 + i].split(); c.append([int(a), int(b)])
+    for j, c in enumerate(lc):
+        c.append(int(out[1 + len(pc) + j]))
+    OUT['reshard_pref'] = pc
+    OUT['reshard_list'] = lc
+
+
+STEPS = [capacity, reshard]
 if __name__ == '__main__':
     only = sys.argv[1:]
     for f in STEPS:

@@ -338,3 +338,6 @@ bdi { unicode-bidi: isolate; }
 .lx-tbtn[aria-pressed="true"] { background: var(--sim-bad); border-color: var(--sim-bad); color: #fff; }
 .lx-tbtn:hover { border-color: var(--sim-a); }
 @media (prefers-reduced-motion: no-preference) { .lx-anim { transition: all .35s ease; } }
+.lx-gl { stroke: var(--line); stroke-width: .6; } .lx-now { stroke: var(--sim-hot); stroke-dasharray: 3 3; }
+.lx-line { fill: none; stroke: var(--sim-a); stroke-width: 2; } .lx-dot { fill: var(--sim-a); }
+.sim-t tr.lx-red td { color: var(--sim-c1); }

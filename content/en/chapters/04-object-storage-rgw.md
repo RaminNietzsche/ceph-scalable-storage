@@ -481,6 +481,9 @@ new = min(max_dyn, max(new, min_dyn, min_layout_shards))
 
 ![Number of index shards as a function of the number of objects in the bucket, on logarithmic axes. Blue is the path of one zone with factor 2, and red is the multisite path with factor 8. Each step is a reshard, and the number next to it is the new shard count (a prime). The dotted line is the cap of 100000 objects per shard. Each time the bucket crosses it, a reshard is queued. The cap of 1999 is reached at different object counts on the two paths](figures/ch04/f09_reshard.png){#fig-04-f09_reshard}
 
+::: {.sim name="reshard"}
+:::
+
 ## Ordered listing: how many entries from each shard? {#sec-04-10-3}
 
 ::: {.algo #alg-04-3 title="Number of entries requested from each shard in an ordered ListObjects" src="src/rgw/driver/rados/rgw_rados.cc :: RGWRados::calc_ordered_bucket_list_per_shard, cls_bucket_list_ordered" complexity="Each page O(s × k) entries from s shards and an O(n log s) merge"}

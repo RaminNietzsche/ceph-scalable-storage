@@ -372,7 +372,7 @@ def sim_icon(name):
 # the parts of each static figure that make a readable preview (first match of each)
 THUMB_PARTS = {'crush': ('sim-stats', 'sim-fig'), 'placement': ('pl-flow', 'sim-stats'), 'pgcalc': ('sim-stats', 'table-wrap'), 'ecprofile': ('sim-stats', 'ec-cards'),
                'peering': ('ps-top', 'ps-osds'), 'bluestore': ('sim-stats', 'sim-fig'), 'rgwput': ('sim-stats', 'sim-fig'),
-               'striping': ('sim-stats', 'st-sets'), 'capacity': ('sim-stats', 'sim-fig')}
+               'striping': ('sim-stats', 'st-sets'), 'capacity': ('sim-stats', 'sim-fig'), 'reshard': ('sim-stats', 'sim-fig')}
 
 
 def sim_thumb(name):
