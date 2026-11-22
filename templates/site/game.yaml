@@ -66,6 +66,10 @@ fa:
     path_prog: "{r} از {n} فصل"
     cert_get: "گواهی"
     badges_title: "نشان‌ها"
+    labm_title: "مدال‌های آزمایشگاه"
+    labm_sub: "برای هر آزمایشگاه یک مدال: {a} از {b}. با اولین کار عملی در همان آزمایشگاه به دست می‌آید."
+    labm_earned: "به دست آمد"
+    labm_locked: "با اولین کار عملی در این آزمایشگاه به دست می‌آید"
     badges_sub: "{a} از {b} نشان باز شده"
     tier1: "برنز"
     tier2: "نقره"
@@ -174,6 +178,26 @@ fa:
     perfect: ["بی‌خطا", "۱۰ پرسش آزمونک را پشت سر هم درست جواب دهید."]
     polyglot: ["دوزبانه", "در هر دو نسخه‌ی فارسی و انگلیسی مطالعه کنید."]
     freeze: ["یخ‌بند به‌موقع", "یک یخ‌بند روندتان را نجات دهد."]
+    lab_crush: ["نقشه‌بردار CRUSH", "با آزمایشگاه CRUSH نقشه‌ی جایگذاری را بکاوید."]
+    lab_placement: ["راهبر جایگذاری", "راهبردهای جایگذاری داده را در آزمایشگاه مقایسه کنید."]
+    lab_pgcalc: ["حسابدار PG", "در ماشین‌حساب PG تعداد PGها را حساب کنید."]
+    lab_ecprofile: ["کیمیاگر Erasure Code", "پروفایل‌های Erasure Code را در آزمایشگاه بیازمایید."]
+    lab_peering: ["دیپلمات Peering", "گام‌های Peering را در آزمایشگاه دنبال کنید."]
+    lab_bluestore: ["مکانیک BlueStore", "درون BlueStore را در آزمایشگاه بکاوید."]
+    lab_rgwput: ["پیک اشیای RGW", "مسیر یک PUT در RGW را در آزمایشگاه دنبال کنید."]
+    lab_striping: ["بافنده‌ی Striping", "با آزمایشگاه Striping تکه‌های داده را بچینید."]
+    lab_capacity: ["برنامه‌ریز ظرفیت", "ظرفیت قابل‌استفاده‌ی کلاستر را در آزمایشگاه برآورد کنید."]
+    lab_reshard: ["جراح باکت", "Reshard باکت را در آزمایشگاه اجرا کنید."]
+    lab_mdspin: ["شعبده‌باز متادیتا", "متادیتای CephFS را در آزمایشگاه بچرخانید."]
+    lab_ecdecode: ["رمزگشای EC", "رمزگشایی Erasure Code را در آزمایشگاه دنبال کنید."]
+    lab_mclock: ["ساعت‌ساز mClock", "زمان‌بندی mClock را در آزمایشگاه بسنجید."]
+    lab_scrub: ["بازرس Scrub", "Scrub و ترمیم را در آزمایشگاه اجرا کنید."]
+    lab_quorum: ["نگهبان حد نصاب", "حد نصاب مانیتورها را در آزمایشگاه بیازمایید."]
+    lab_sigv4: ["امضاکار SigV4", "امضای SigV4 را گام‌به‌گام در آزمایشگاه بسازید."]
+    lab_bluespace: ["کارآگاه فضای BlueStore", "مصرف فضا در BlueStore را در آزمایشگاه ردیابی کنید."]
+    lab_rbdclone: ["کلون‌ساز RBD", "کلون و اسنپ‌شات RBD را در آزمایشگاه بیازمایید."]
+    lab_cephx: ["نگهبان بلیت Cephx", "بلیت‌های Cephx را پیام‌به‌پیام در آزمایشگاه دنبال کنید."]
+    lab_netbw: ["تحلیل‌گر پهنای باند", "ترافیک شبکه را میان Replication و EC در آزمایشگاه مقایسه کنید."]
 en:
   s:
     my_progress: "My progress"
@@ -240,6 +264,10 @@ en:
     path_prog: "{r} of {n} chapters"
     cert_get: "Certificate"
     badges_title: "Badges"
+    labm_title: "Lab medals"
+    labm_sub: "One medal per lab: {a} of {b}. Earned the first time you work hands-on in that lab."
+    labm_earned: "Earned"
+    labm_locked: "Earned on your first hands-on use of this lab"
     badges_sub: "{a} of {b} badges unlocked"
     tier1: "Bronze"
     tier2: "Silver"
@@ -348,3 +376,23 @@ en:
     perfect: ["Flawless", "Answer 10 quiz questions correctly in a row."]
     polyglot: ["Bilingual", "Read in both the Persian and the English edition."]
     freeze: ["Saved by the freeze", "Let a streak freeze rescue your streak."]
+    lab_crush: ["CRUSH Cartographer", "Explore the placement map in the CRUSH lab."]
+    lab_placement: ["Placement Strategist", "Compare data placement strategies in the lab."]
+    lab_pgcalc: ["PG Calculator", "Work out PG counts in the PG calculator."]
+    lab_ecprofile: ["Erasure Alchemist", "Try erasure-code profiles in the lab."]
+    lab_peering: ["Peering Diplomat", "Follow the peering steps in the lab."]
+    lab_bluestore: ["BlueStore Mechanic", "Look inside BlueStore in the lab."]
+    lab_rgwput: ["Object Courier", "Follow an RGW PUT in the lab."]
+    lab_striping: ["Stripe Weaver", "Lay out data stripes in the striping lab."]
+    lab_capacity: ["Capacity Planner", "Estimate usable cluster capacity in the lab."]
+    lab_reshard: ["Bucket Surgeon", "Reshard a bucket in the lab."]
+    lab_mdspin: ["Metadata Juggler", "Spin CephFS metadata in the lab."]
+    lab_ecdecode: ["Decoder Ring", "Follow an erasure-code decode in the lab."]
+    lab_mclock: ["Clock Keeper", "Measure mClock scheduling in the lab."]
+    lab_scrub: ["Scrub Inspector", "Run a scrub and repair in the lab."]
+    lab_quorum: ["Quorum Keeper", "Test monitor quorum in the lab."]
+    lab_sigv4: ["Signature Smith", "Build a SigV4 signature step by step in the lab."]
+    lab_bluespace: ["Space Detective", "Trace BlueStore space use in the lab."]
+    lab_rbdclone: ["Clone Whisperer", "Try RBD clones and snapshots in the lab."]
+    lab_cephx: ["Ticket Master", "Follow Cephx tickets message by message in the lab."]
+    lab_netbw: ["Bandwidth Analyst", "Compare network traffic of replication and EC in the lab."]

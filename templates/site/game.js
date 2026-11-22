@@ -50,7 +50,27 @@
     globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z',
     snow: 'M12 2v20M4 6.5l16 11M4 17.5l16-11M9 4l3 2 3-2M9 20l3-2 3 2',
     q: 'M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1.2-1.5 2.4M12 18h.01',
-    flask: 'M9 3h6M10 3v6l-5.6 9.6A1.6 1.6 0 0 0 5.8 21h12.4a1.6 1.6 0 0 0 1.4-2.4L14 9V3M7.2 15h9.6'
+    flask: 'M9 3h6M10 3v6l-5.6 9.6A1.6 1.6 0 0 0 5.8 21h12.4a1.6 1.6 0 0 0 1.4-2.4L14 9V3M7.2 15h9.6',
+    l_crush: 'M3 5h6v4H3zM15 15h6v4h-6zM9 7h3a3 3 0 0 1 3 3v5',
+    l_placement: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM17 14v6M14 17h6',
+    l_pgcalc: 'M5 3h14v18H5zM8 7h8M8 12h2M12 12h2M8 16h2M12 16h2',
+    l_ecprofile: 'M3 9h5v6H3zM9.5 9h5v6h-5zM16 9h5v6h-5zM18.5 9V5M5.5 15v4',
+    l_peering: 'M4 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0M14 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0M10 12h4',
+    l_bluestore: 'M12 3 4 7v10l8 4 8-4V7zM4 7l8 4 8-4M12 11v10',
+    l_rgwput: 'M3 8l9-5 9 5v8l-9 5-9-5zM12 16V9M9 12l3-3 3 3',
+    l_striping: 'M3 6h18M3 12h18M3 18h18M8 3v18M16 3v18',
+    l_capacity: 'M4 20v-6M10 20V8M16 20V4M2 21h20',
+    l_reshard: 'M12 3v6M12 15v6M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4',
+    l_mdspin: 'M12 4a8 8 0 1 0 8 8M20 4v5h-5',
+    l_ecdecode: 'M8 7 3 12l5 5M16 7l5 5-5 5M14 4l-4 16',
+    l_mclock: 'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM12 8v4l3 2M10 1h4',
+    l_scrub: 'M10 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM14.5 14.5 21 21M8 10l2 2 3-3',
+    l_quorum: 'M12 3.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM5 15a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM19 15a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM11 8.5l-5 6.5M13 8.5l5 6.5M7.5 17.5h9',
+    l_sigv4: 'M3 16c3-8 5-8 6-3s3 3 5-2 4-3 7 0M3 21h18',
+    l_bluespace: 'M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z',
+    l_rbdclone: 'M4 4h10v10H4zM10 10h10v10H10z',
+    l_cephx: 'M8 4a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM11.5 11.5 21 21M17 17l2.5-2.5M14 14l2-2',
+    l_netbw: 'M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4'
   };
   function svg(name, cls) { return '<svg class="' + (cls || 'gi') + '" viewBox="0 0 24 24" aria-hidden="true"><path d="' + ICON[name] + '"/></svg>'; }
 
@@ -327,6 +347,9 @@
     ['polyglot', 'globe', 1, function () { return !!gs().flags.poly; }, 1],
     ['freeze', 'snow', 1, function () { return !!gs().flags.freeze; }, 1]
   ];
+  // one medal per interactive lab: earned on the first hands-on use of that lab (sims.js sends sim:use), single tier, never hidden
+  var LABS = ['crush', 'placement', 'pgcalc', 'ecprofile', 'peering', 'bluestore', 'rgwput', 'striping', 'capacity', 'reshard', 'mdspin', 'ecdecode', 'mclock', 'scrub', 'quorum', 'sigv4', 'bluespace', 'rbdclone', 'cephx', 'netbw'];
+  LABS.forEach(function (n) { BADGES.push(['lab_' + n, 'l_' + n, 2, function () { return (gs().sims[n] || 0) > 0; }, 0, 'lab']); });
   function badgeState(b, st) {
     var v = b[3](st);
     if (Array.isArray(b[2])) {
@@ -353,6 +376,19 @@
         }
       });
     } finally { badgeLock = false; }
+    paintLabMedal();
+  }
+
+  // on a lab page (lab-NAME.html): show that lab's own medal, locked or earned, under the intro line
+  function paintLabMedal() {
+    var m = /^lab-(\w+)$/.exec(d.documentElement.getAttribute('data-slug') || '');
+    if (!m || LABS.indexOf(m[1]) < 0) return;
+    var host = $('.lab-in'), id = 'lab_' + m[1];
+    if (!host || !G.badges[id]) return;
+    var have = gs().badges[id], el = $('#lab-medal');
+    if (!el) { el = d.createElement('p'); el.id = 'lab-medal'; el.className = 'lab-medal game'; host.parentNode.insertBefore(el, host.nextSibling); }
+    el.className = 'lab-medal game ' + (have ? 'on' : 'off');
+    el.innerHTML = '<span class="g-medal ' + (have ? 't2' : 't0') + '">' + svg('l_' + m[1]) + '</span><span><b>' + esc(G.badges[id][0]) + '</b> <small>' + esc(have ? S.labm_earned : S.labm_locked) + '</small></span>';
   }
 
   /* ---------------- spaced repetition (Leitner, 6 boxes) ---------------- */
@@ -480,6 +516,7 @@
   /* ---------------- chrome: header chip, sidebar due count, home strip ---------------- */
   function paintChrome() {
     var g = gs();
+    paintLabMedal();
     root.classList.toggle('no-game', !g.on);
     var lv = levelOf(g.xp), st = streak(), due = todayCount();
     var chip = $('#g-chip');
@@ -551,20 +588,22 @@
   }
 
   function badgeGallery() {
-    var g = gs(), st = stats(), got = 0, out = [];
+    var g = gs(), st = stats(), got = 0, out = [], lout = [], lgot = 0;
     BADGES.forEach(function (b) {
       var s = badgeState(b, st), have = g.badges[b[0]] ? g.badges[b[0]].t : 0, hidden = b[4] && !have;
-      if (have) got++;
+      var isLab = b[5] === 'lab';
+      if (have) { if (isLab) lgot++; else got++; }
       var name = hidden ? S.hidden : G.badges[b[0]][0], desc = hidden ? S.hidden_hint : G.badges[b[0]][1];
       var tierCls = have ? 't' + have : 't0';
       var prog = '';
       if (!hidden && s.tiered && have < 3) prog = bar(Math.min(1, s.v / s.target), name) + '<span class="b-p">' + esc(L(Math.min(s.v, s.target)) + ' / ' + L(s.target)) + '</span>';
       var tierTxt = have ? S['tier' + have] : (hidden ? '' : S.locked);
-      out.push('<li class="badge ' + tierCls + (hidden ? ' hid' : '') + '"' + ' aria-label="' + esc(name + ' — ' + (tierTxt || S.locked) + '. ' + desc) + '">' +
+      (isLab ? lout : out).push('<li class="badge ' + tierCls + (hidden ? ' hid' : '') + '"' + ' aria-label="' + esc(name + ' — ' + (tierTxt || S.locked) + '. ' + desc) + '">' +
         '<span class="g-medal ' + tierCls + '">' + svg(hidden ? 'q' : b[1]) + '</span><b>' + esc(name) + '</b><small>' + esc(desc) + '</small>' +
         (tierTxt ? '<span class="b-tier">' + esc(tierTxt) + '</span>' : '') + prog + '</li>');
     });
-    return { html: '<ul class="badges">' + out.join('') + '</ul>', got: got, n: BADGES.length };
+    return { html: '<ul class="badges">' + out.join('') + '</ul>', got: got, n: BADGES.length - LABS.length,
+      lhtml: '<ul class="badges lab-medals">' + lout.join('') + '</ul>', lgot: lgot, ln: LABS.length };
   }
 
   function renderDashboard(el) {
@@ -604,6 +643,7 @@
           (done ? '<a class="btn" href="certificate.html?p=' + p.k + '">' + svg('crown') + esc(S.cert_get) + '</a>' : '') + '</li>';
       }).join('') + '</ul></section>';
     html += '<section class="g-sec game" id="gm-badges"><h2>' + esc(S.badges_title) + '</h2><p class="g-sub">' + esc(T('badges_sub', { a: L(bg.got), b: L(bg.n) })) + '</p>' + bg.html + '</section>';
+    html += '<section class="g-sec game" id="gm-labmedals"><h2>' + esc(S.labm_title) + '</h2><p class="g-sub">' + esc(T('labm_sub', { a: L(bg.lgot), b: L(bg.ln) })) + '</p>' + bg.lhtml + '</section>';
     html += '<section class="g-sec g-settings" id="gm-settings"><h2>' + esc(S.settings_title) + '</h2>' +
       sw('gs-on', S.set_game, g.on, S.set_game_help) + sw('gs-sound', S.set_sound, g.sound) + sw('gs-rest', S.rest_label, g.restDays, S.rest_help) +
       '<fieldset class="g-goalpick"><legend>' + esc(S.goal_pick) + '</legend>' +

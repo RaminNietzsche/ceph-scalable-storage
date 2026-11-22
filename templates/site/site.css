@@ -955,3 +955,11 @@ html[data-theme="dark"] .ask-fab { color: #04202a; }
 .ask-src-h { font-size: .85rem; margin: 10px 0 4px; color: var(--fg-soft); }
 .ask-src { margin: 0; padding-inline-start: 1.4em; font-size: .85rem; }
 .ask-src li { margin-bottom: 2px; }
+
+/* lab medals: the strip on a lab page, and the gallery section */
+.lab-medal { display: flex; align-items: center; gap: 10px; margin: 8px 0 14px; }
+.lab-medal .g-medal { width: 34px; height: 34px; }
+.lab-medal .g-medal .gi { width: 17px; height: 17px; }
+.lab-medal small { color: var(--fg-mute); }
+.lab-medal.off .g-medal { filter: grayscale(1); opacity: .7; }
+.lab-medals .g-medal .gi { stroke-width: 1.7; }
