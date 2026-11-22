@@ -151,6 +151,9 @@ rbd create rbd/vm01 --size 200G --data-pool ecpool
 rbd info rbd/vm01 | grep data_pool
 ```
 
+::: {.sim name="netbw"}
+:::
+
 # FastEC in Tentacle {#sec-13-6}
 
 ## What changed? {#sec-13-6-1}

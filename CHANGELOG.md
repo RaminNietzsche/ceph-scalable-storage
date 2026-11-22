@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Network lab: public and cluster traffic of replication and EC for a client load, and the data moved and time to rebuild a lost OSD (chapter 13).
 - cephx lab: step through the ticket exchange from MON to OSD, see which key protects each part and where wrong-key, replay, retired-secret and expired-ticket attacks stop (chapter 8).
 - RBD clone lab: click to write or read clone objects, watch copy-up, copy-on-read, RADOS object clones on the parent and flatten (chapter 3).
 - BlueStore space lab: min_alloc_size, classic EC padding versus allow_ec_optimizations, and the compression acceptance test checked against code cut from BlueStore.cc (chapter 12).
