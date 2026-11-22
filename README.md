@@ -10,7 +10,7 @@ An original Persian book on Ceph, with a parallel English edition (*The Comprehe
 |---|---|---|
 | Content | `content/fa/` | `content/en/` (translation of the Persian text) |
 | Print | `make pdf` | `make pdf LANG=en` |
-| Status | v1.6, 1250 pages | translated (see `make check-parity`) |
+| Status | v1.7, 1304 pages | v1.7, 1321 pages, translated (see `make check-parity`) |
 | Live site | [book.ceph-s3.ir/fa/](https://book.ceph-s3.ir/fa/) | [book.ceph-s3.ir/en/](https://book.ceph-s3.ir/en/) |
 
 ## Building
