@@ -278,6 +278,9 @@ ceph orch restart rgw.objstore
 
 در استقرار چند zonegroup، نام‌های میزبان در فیلد `hostnames` تعریف zonegroup قرار می‌گیرند (فصل ۵). گواهی TLS هم باید wildcard (`*.s3.example.com`) باشد.
 
+::: {.sim name="sigv4"}
+:::
+
 ## s3cmd {#sec-04-5-2}
 
 ```bash

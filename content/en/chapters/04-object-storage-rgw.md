@@ -278,6 +278,9 @@ ceph orch restart rgw.objstore
 
 In a multi-zonegroup deployment the host names go into the `hostnames` field of the zonegroup definition (chapter 5). The TLS certificate must also be a wildcard (`*.s3.example.com`).
 
+::: {.sim name="sigv4"}
+:::
+
 ## s3cmd {#sec-04-5-2}
 
 ```bash

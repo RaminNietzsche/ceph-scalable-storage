@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- S3 SigV4 lab: build the canonical request, string to sign and HMAC key chain in the page, tamper with a request and see RGW's 403; checked against an independent reference and the AWS example key (chapter 4).
 - Monitor quorum lab: partition and fail monitors, check classic majority/leader rules exhaustively and step through election to Paxos lease (chapter 7).
 - Scrub lab: compare shallow/deep random schedules and overnight windows; exhaustively check hour/day windows against Ceph C++ (chapter 7).
 - mClock lab: explore built-in profiles, per-shard capacity, operation cost and steady-state client/recovery shares (chapter 7).

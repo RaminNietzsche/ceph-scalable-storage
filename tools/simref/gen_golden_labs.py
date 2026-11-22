@@ -346,7 +346,40 @@ int main() {
     OUT['scrub_window'] = {'hours': out[0], 'days': out[1]}
 
 
-STEPS = [capacity, reshard, mdspin, ecdecode, mclock, scrub]
+def sigv4():
+    """AWS Signature Version 4 for S3 from Python's hashlib/hmac (an independent reference for the browser SHA-256),
+    plus the signing-key example from the AWS documentation. RGW checks the same values in src/rgw/rgw_auth_s3.cc."""
+    import hashlib, hmac
+    from urllib.parse import quote
+    def hm(k, m): return hmac.new(k, m.encode(), hashlib.sha256).digest()
+    rnd = random.Random(4); cases = []
+    words = ['photos', 'a b', 'ü', 'x+y', 'report=1', 'deep/path', '~tilde', 'سلام']
+    for _ in range(60):
+        method = rnd.choice(['GET', 'PUT', 'HEAD', 'DELETE'])
+        path = '/' + '/'.join(rnd.choice(words) for _ in range(rnd.randint(1, 3)))
+        q = [(name, rnd.choice(['', '2', 'a b', 'ü', '1000']))   # distinct names: RGW's multimap keeps equal names in arrival order
+             for name in rnd.sample(['prefix', 'list-type', 'max-keys', 'uploads', 'x-id', 'ünï'], rnd.randint(0, 3))]
+        body = rnd.choice(['', 'hello', 'Ceph RGW', '{"a": 1}']) if method == 'PUT' else ''
+        unsigned = rnd.random() < 0.3
+        region = rnd.choice(['us-east-1', 'default', 'zg1'])
+        host = rnd.choice(['s3.example.com', 'bucket.s3.example.com:8080'])
+        amz = '2026%02d%02dT%02d%02d%02dZ' % (rnd.randint(1, 12), rnd.randint(1, 28), rnd.randint(0, 23), rnd.randint(0, 59), rnd.randint(0, 59))
+        secret = ''.join(rnd.choice('ABCDEFabcdef0123456789/+') for _ in range(40))
+        ph = 'UNSIGNED-PAYLOAD' if unsigned else hashlib.sha256(body.encode()).hexdigest()
+        cq = '&'.join(k + '=' + v for k, v in sorted((quote(k, safe='-_.~'), quote(v, safe='-_.~')) for k, v in q))   # sorted after encoding
+        hdr = 'host:' + host + '\nx-amz-content-sha256:' + ph + '\nx-amz-date:' + amz + '\n'
+        sh = 'host;x-amz-content-sha256;x-amz-date'
+        creq = '\n'.join([method, quote(path, safe='/-_.~'), cq, hdr, sh, ph])
+        scope = amz[:8] + '/' + region + '/s3/aws4_request'
+        sts = 'AWS4-HMAC-SHA256\n' + amz + '\n' + scope + '\n' + hashlib.sha256(creq.encode()).hexdigest()
+        key = hm(hm(hm(hm(('AWS4' + secret).encode(), amz[:8]), region), 's3'), 'aws4_request')
+        cases.append({'method': method, 'path': path, 'query': q, 'body': body, 'unsigned': unsigned, 'region': region, 'host': host,
+                      'amz': amz, 'secret': secret, 'creq': creq, 'sts': sts, 'sig': hmac.new(key, sts.encode(), hashlib.sha256).hexdigest()})
+    OUT['sigv4'] = {'cases': cases, 'aws_doc_key': ['wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY', '20150830', 'us-east-1', 'iam',
+                    'c4afb1cc5771d871763a393e44b703571b55cc28424d1a5e86da6ed3c154a4b9']}
+
+
+STEPS = [capacity, reshard, mdspin, ecdecode, mclock, scrub, sigv4]
 if __name__ == '__main__':
     only = sys.argv[1:]
     for f in STEPS:
