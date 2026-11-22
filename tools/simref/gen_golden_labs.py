@@ -259,7 +259,61 @@ int main() {
     OUT['mdspin_rj'] = rjc; OUT['mdspin_bits'] = bc; OUT['mdspin_rank'] = rc
 
 
-STEPS = [capacity, reshard, mdspin]
+
+# ---------------------------------------------------------------- ecdecode
+def ecdecode():
+    J = os.environ.get('JERASURE_SRC'); GF = os.environ.get('GF_COMPLETE_SRC'); ISA = os.environ.get('ISAL_SRC')
+    if not (J and GF and ISA):
+        sys.exit('ecdecode needs JERASURE_SRC, GF_COMPLETE_SRC and ISAL_SRC (ceph/jerasure, ceph/gf-complete, ceph/isa-l)')
+    code = r"""
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "jerasure.h"
+#include "reed_sol.h"
+void gf_gen_rs_matrix(unsigned char *a, int m, int k);
+void ec_init_tables_base(int k, int rows, unsigned char *a, unsigned char *gftbls);
+void ec_encode_data_base(int len, int srcs, int dests, unsigned char *v, unsigned char **src, unsigned char **dest);
+int main(void) {
+  char plug[16]; int k, m, cs;
+  while (scanf("%15s %d %d %d", plug, &k, &m, &cs) == 4) {
+    unsigned char *d[40], *c[40];
+    for (int i = 0; i < k; i++) { d[i] = calloc(cs, 1); for (int b = 0; b < cs; b++) { unsigned x; scanf("%2x", &x); d[i][b] = x; } }
+    for (int i = 0; i < m; i++) c[i] = calloc(cs, 1);
+    if (plug[0] == 'j') {
+      int *mat = reed_sol_vandermonde_coding_matrix(k, m, 8);
+      jerasure_matrix_encode(k, m, 8, mat, (char **)d, (char **)c, cs);
+      for (int i = 0; i < m * k; i++) printf("%d%c", mat[i], i + 1 < m * k ? ',' : ' ');
+    } else {
+      unsigned char a[64 * 32], g[32 * 64 * 32];
+      gf_gen_rs_matrix(a, k + m, k);
+      ec_init_tables_base(k, m, &a[k * k], g);
+      ec_encode_data_base(cs, k, m, g, d, c);
+      for (int i = 0; i < m * k; i++) printf("%d%c", a[k * k + i], i + 1 < m * k ? ',' : ' ');
+    }
+    for (int i = 0; i < m; i++) { for (int b = 0; b < cs; b++) printf("%02x", c[i][b]); printf(i + 1 < m ? "," : "\n"); }
+  }
+  return 0;
+}
+"""
+    gfsrc = [os.path.join(GF, 'src', f) for f in ('gf.c', 'gf_w4.c', 'gf_w8.c', 'gf_w16.c', 'gf_w32.c', 'gf_w64.c', 'gf_w128.c', 'gf_wgen.c', 'gf_general.c', 'gf_rand.c', 'gf_method.c', 'gf_cpu.c')]
+    jsrc = [os.path.join(J, 'src', f) for f in ('galois.c', 'jerasure.c', 'reed_sol.c')]
+    isrc = [os.path.join(ISA, 'erasure_code', 'ec_base.c')]
+    rnd = random.Random(3)
+    cases, lines = [], []
+    for _ in range(120):
+        plug = rnd.choice(['jerasure', 'isa']); k = rnd.randint(2, 8); m = rnd.randint(1, 4); cs = rnd.randint(1, 24)
+        data = [bytes(rnd.getrandbits(8) for _ in range(cs)).hex() for _ in range(k)]
+        cases.append([plug, k, m, data]); lines.append(f'{plug} {k} {m} {cs} ' + ' '.join(data))
+    out = run_cxx('ecdecode', code, '\n'.join(lines) + '\n', lang='c',
+                  extra=[f'-I{J}/include', f'-I{GF}/include', f'-I{ISA}/include', f'-I{ISA}/erasure_code', *gfsrc, *jsrc, *isrc]).split('\n')
+    for i, c in enumerate(cases):
+        mat, par = out[i].split(' ')
+        c.append([int(x) for x in mat.split(',')]); c.append(par.split(','))
+    OUT['ec_encode'] = cases
+
+
+STEPS = [capacity, reshard, mdspin, ecdecode]
 if __name__ == '__main__':
     only = sys.argv[1:]
     for f in STEPS:

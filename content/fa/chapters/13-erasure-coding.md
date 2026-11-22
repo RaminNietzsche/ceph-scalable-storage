@@ -278,6 +278,9 @@ parity_i = ⊕_j G[i][j] ⊗ d_j
 
 ![کدگذاری Reed-Solomon روی یک ستون بایت. چپ: ماتریس 6×4 ساخته‌شده با gf_gen_rs_matrix، شامل همانی برای داده و دو سطر parity. راست: محاسبه‌ی P0 و P1 برای «ABCD» و بازگشایی پس از از دست رفتن d1 و d3. ضرب‌ها در GF(2⁸) با چندجمله‌ای 0x11d انجام شده‌اند](figures/ch13/f09_gfencode.png){#fig-13-f09_gfencode}
 
+::: {.sim name="ecdecode"}
+:::
+
 ## چرا ISA گاهی به Cauchy برمی‌گردد؟ {#sec-13-9-2}
 
 ::: {.algo #alg-13-2 title="بررسی MDS بودن ماتریس Vandermonde" src="src/erasure-code/isa/ErasureCodeIsa.cc :: ErasureCodeIsaDefault::parse (m > 4، یا m = 4 و k > 21 ← cauchy)" complexity="بررسی کامل: Σ C(k,e)·C(m,e) وارون ماتریس"}

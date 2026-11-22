@@ -278,6 +278,9 @@ decoding: choose k healthy rows ← B ; d = B⁻¹ × (healthy shards)
 
 ![Reed-Solomon encoding of one byte column. Left: the 6×4 matrix built with gf_gen_rs_matrix, containing the identity for the data and two parity rows. Right: computing P0 and P1 for "ABCD" and decoding after losing d1 and d3. The multiplications are in GF(2⁸) with the polynomial 0x11d](figures/ch13/f09_gfencode.png){#fig-13-f09_gfencode}
 
+::: {.sim name="ecdecode"}
+:::
+
 ## Why does ISA sometimes fall back to Cauchy? {#sec-13-9-2}
 
 ::: {.algo #alg-13-2 title="Checking whether the Vandermonde matrix is MDS" src="src/erasure-code/isa/ErasureCodeIsa.cc :: ErasureCodeIsaDefault::parse (m > 4, or m = 4 and k > 21 ← cauchy)" complexity="full check: Σ C(k,e)·C(m,e) matrix inversions"}

@@ -357,3 +357,5 @@ bdi { unicode-bidi: isolate; }
 .md-chip.r0 { background: var(--r0); } .md-chip.r1 { background: var(--r1); } .md-chip.r2 { background: var(--r2); } .md-chip.r3 { background: var(--r3); }
 .md-chip.r4 { background: var(--r4); } .md-chip.r5 { background: var(--r5); } .md-chip.r6 { background: var(--r6); } .md-chip.r7 { background: var(--r7); }
 .md-chip.r4, .md-r.r4 { color: #1c1917; }
+.lx-btns { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+.lx-mat { width: auto; font-family: var(--font-mono); font-size: .76rem; } .lx-mat td, .lx-mat th { padding: .15rem .45rem; text-align: center; }
