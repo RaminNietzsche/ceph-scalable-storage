@@ -331,7 +331,22 @@ def mclock():
     OUT['mclock'] = {'profiles': prof, 'options': opts}
 
 
-STEPS = [capacity, reshard, mdspin, ecdecode, mclock]
+def scrub():
+    """isbetween_modulo (src/osd/scrubber/osd_scrub.cc), the hour and week-day window test of scrub_time_permit."""
+    fn = cut('osd/scrubber/osd_scrub.cc', r'^static inline bool isbetween_modulo', r'^}')
+    main = r'''
+int main() {
+  for (int f = 0; f < 24; f++) for (int t = 0; t < 24; t++) for (int p = 0; p < 24; p++) putchar('0' + isbetween_modulo(f, t, p));
+  putchar('\n');
+  for (int f = 0; f < 7; f++) for (int t = 0; t < 7; t++) for (int p = 0; p < 7; p++) putchar('0' + isbetween_modulo(f, t, p));
+  putchar('\n');
+}
+'''
+    out = run_cxx('scrub', '#include <cstdint>\n#include <cstdio>\n' + fn + main).split('\n')
+    OUT['scrub_window'] = {'hours': out[0], 'days': out[1]}
+
+
+STEPS = [capacity, reshard, mdspin, ecdecode, mclock, scrub]
 if __name__ == '__main__':
     only = sys.argv[1:]
     for f in STEPS:

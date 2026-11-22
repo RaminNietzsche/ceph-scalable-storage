@@ -687,3 +687,24 @@ mclock_ph_idle: "Demand is below capacity and every class is served in full (exc
 mclock_note: "Replace the IOPS with your device's real figure (the osd bench result): if it is too high, cost_per_io shrinks, mClock thinks small ops are cheap and the shares stop protecting clients. To speed up recovery after a failure, switch to high_recovery_ops for a while and then switch back (chapter 7)."
 # ---- end mclock ----
 
+# ---- lab scrub ----
+scrub_t: "Scrub scheduler: jitter and the night window"
+scrub_d: "Draw scrub times for a group of PGs and see how the allowed-hour window delays them; compare uniform shallow jitter with the clipped normal distribution of deep scrubs."
+scrub_what: "Shallow is spread from interval to interval × (1+ratio). Deep uses a normal distribution with standard deviation interval × CV, clipped at two standard deviations; CV=0.2 gives 0.6–1.4 times interval. The hour window is half-open, can cross midnight, and equal start/end means all day."
+scrub_limit: "All PGs last finished at the origin. This chart shows targets and the first allowed hour, not actual execution: concurrency, replica reservations, CPU load, random backoff, recovery and mClock can delay work further. The seeded generator is for repeatable teaching, not Ceph's generator."
+scrub_r1: "Target-time distributions"
+scrub_r2: "Half-open hour windows"
+scrub_r3: "Scheduling options"
+scrub_kind: "Scrub kind"
+scrub_shallow: "Shallow (metadata)"
+scrub_deep: "Deep (data and checksum)"
+scrub_interval: "Interval (days)"
+scrub_ratio: "Ratio or CV"
+scrub_draw: "Draw again"
+scrub_fig: "PG targets and allowed times"
+scrub_s_range: "target range (days)"
+scrub_s_wait: "mean window delay"
+scrub_s_window: "allowed hours per day"
+scrub_legend: "Blue: randomized target · orange: first allowed time; the joining line is the window delay. Faint hours are outside the window; hours use the OSD's local time. Ceph's default start and end are 0 and 0 (all day); this lab starts with a 22–6 window."
+scrub_note: "osd_scrub_max_interval is not the randomized target; PG_NOT_SCRUBBED is not raised immediately after the target either. A successful deep scrub also updates last_scrub_stamp."
+# ---- end scrub ----

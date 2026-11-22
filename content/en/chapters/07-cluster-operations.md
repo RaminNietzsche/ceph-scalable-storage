@@ -593,6 +593,9 @@ ceph health detail | grep -i scrub
 
 :::
 
+::: {.sim name="scrub"}
+:::
+
 # Supplementary and up to date {#sec-07-11}
 
 - **ceph-deploy** is retired, and ceph-ansible is no longer the recommended path either; cephadm and Rook are the two supported methods of deployment and operation.

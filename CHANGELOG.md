@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Scrub lab: compare shallow/deep random schedules and overnight windows; exhaustively check hour/day windows against Ceph C++ (chapter 7).
 - mClock lab: explore built-in profiles, per-shard capacity, operation cost and steady-state client/recovery shares (chapter 7).
 - Erasure coding lab: split a text into k+m shards with the jerasure or ISA-L Reed-Solomon matrix, fail shards and watch the decode (chapter 13).
 - New lab "CephFS subtrees and MDS pinning" / «زیردرخت‌های CephFS و pin کردن روی MDS» (`mdspin`, ch. 6 §6.2.5, `lab-mdspin.html`): the /home, /projects and /scratch tree across MDS ranks, explicit pin inheritance and overrides, distributed ephemeral pins (dirfrags of the parent), random ephemeral pins with the random_max cap and a fixed draw, and max_mds with the paths that move; `rjhash64`, `hash_into_rank_bucket`, the dirfrag and its split floor are ports of the Ceph functions, checked against them compiled unchanged (560 cases).

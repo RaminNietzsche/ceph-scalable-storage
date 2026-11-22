@@ -593,6 +593,9 @@ ceph health detail | grep -i scrub
 
 :::
 
+::: {.sim name="scrub"}
+:::
+
 # تکمیلی و به‌روز {#sec-07-11}
 
 - **ceph-deploy** بازنشسته شده و ceph-ansible هم دیگر مسیر توصیه‌شده نیست؛ cephadm و Rook دو روش پشتیبانی‌شده‌ی استقرار و راهبری هستند.
