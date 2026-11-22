@@ -313,7 +313,25 @@ int main(void) {
     OUT['ec_encode'] = cases
 
 
-STEPS = [capacity, reshard, mdspin, ecdecode]
+def mclock():
+    """mClock profiles (src/common/mclock_common.h) and the capacity options (src/common/options/osd.yaml.in)."""
+    h = read('common/mclock_common.h')
+    prof = {}
+    for name in ('HIGH_CLIENT_OPS', 'HIGH_RECOVERY_OPS', 'BALANCED'):
+        body = re.search(r'constexpr profile_t ' + name + r'\{(.*?)\};', h, re.S).group(1)
+        prof[name.lower()] = [[float(x) for x in t.split(',')] for t in re.findall(r'\{([^{}]*)\}', body)]
+    y = read('common/options/osd.yaml.in')
+    def dflt(o):
+        v = re.search(r'^- name: ' + o + r'\n(?:  .*\n)*?  default: (\S+)', y, re.M).group(1)
+        mul = {'K': 1 << 10, 'M': 1 << 20, 'G': 1 << 30}
+        return float(v[:-2]) * mul[v[-1]] if v[-2:-1] == '_' else (float(v) if re.match(r'^[0-9.]+$', v) else v)
+    opts = {o: dflt(o) for o in ('osd_mclock_max_capacity_iops_hdd', 'osd_mclock_max_capacity_iops_ssd',
+                                 'osd_mclock_max_sequential_bandwidth_hdd', 'osd_mclock_max_sequential_bandwidth_ssd',
+                                 'osd_op_num_shards_hdd', 'osd_op_num_shards_ssd', 'osd_mclock_profile')}
+    OUT['mclock'] = {'profiles': prof, 'options': opts}
+
+
+STEPS = [capacity, reshard, mdspin, ecdecode, mclock]
 if __name__ == '__main__':
     only = sys.argv[1:]
     for f in STEPS:

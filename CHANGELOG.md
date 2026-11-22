@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- mClock lab: explore built-in profiles, per-shard capacity, operation cost and steady-state client/recovery shares (chapter 7).
 - Erasure coding lab: split a text into k+m shards with the jerasure or ISA-L Reed-Solomon matrix, fail shards and watch the decode (chapter 13).
 - New lab "CephFS subtrees and MDS pinning" / «زیردرخت‌های CephFS و pin کردن روی MDS» (`mdspin`, ch. 6 §6.2.5, `lab-mdspin.html`): the /home, /projects and /scratch tree across MDS ranks, explicit pin inheritance and overrides, distributed ephemeral pins (dirfrags of the parent), random ephemeral pins with the random_max cap and a fixed draw, and max_mds with the paths that move; `rjhash64`, `hash_into_rank_bucket`, the dirfrag and its split floor are ports of the Ceph functions, checked against them compiled unchanged (560 cases).
 - New lab "Bucket index shards and dynamic reshard" / «شاردهای نمایه‌ی bucket و reshard پویا» (`reshard`, ch. 4 §4.10.2, `lab-reshard.html`): object count, starting shards, threshold, versioning, multisite and the check interval give the growth path of dynamic reshard (a port of `calculate_preferred_shards` with `reshard_primes`), the delayed reduction after deletes, the keys per shard (`bucket_shard_index`) and the entries an ordered listing reads (`calc_ordered_bucket_list_per_shard`); checked against the Ceph functions compiled unchanged (600 cases) and the chapter 4 examples.

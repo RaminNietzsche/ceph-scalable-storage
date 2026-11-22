@@ -359,3 +359,9 @@ bdi { unicode-bidi: isolate; }
 .md-chip.r4, .md-r.r4 { color: #1c1917; }
 .lx-btns { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
 .lx-mat { width: auto; font-family: var(--font-mono); font-size: .76rem; } .lx-mat td, .lx-mat th { padding: .15rem .45rem; text-align: center; }
+/* lab mclock */
+.mc-b.c-cl, .mc-k.c-cl { fill: var(--sim-c1); background: var(--sim-c1); } .mc-b.c-rc, .mc-k.c-rc { fill: var(--sim-c3); background: var(--sim-c3); } .mc-b.c-be, .mc-k.c-be { fill: var(--sim-c4); background: var(--sim-c4); }
+.mc-d { opacity: .28; } .mc-d.c-cl { fill: var(--sim-c1); } .mc-d.c-rc { fill: var(--sim-c3); } .mc-d.c-be { fill: var(--sim-c4); }
+.mc-res { stroke: var(--ink, currentColor); stroke-width: 2; } .mc-lim { stroke: var(--sim-hot); stroke-width: 2; stroke-dasharray: 4 3; }
+.mc-k { display: inline-block; width: .8rem; height: .8rem; border-radius: 3px; vertical-align: middle; margin-inline: .2rem; }
+/* end mclock */

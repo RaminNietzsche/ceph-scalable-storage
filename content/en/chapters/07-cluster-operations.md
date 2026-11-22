@@ -558,6 +558,9 @@ ceph config set osd osd_mclock_profile balanced
 In mClock mode the OSD ignores values such as `osd_max_backfills` and `osd_recovery_max_active`, or sets them itself. If you really need to set them by hand, you must first set `osd_mclock_override_recovery_settings` to `true`. mClock relies on each OSD's IOPS capacity, measured at first start-up (`osd_mclock_max_capacity_iops_hdd` and `_ssd`), to allocate shares. If this measurement was taken on a busy disk, the unrealistic value spoils the recovery share. In Squid the shard defaults for HDDs changed (`osd_op_num_shards_hdd` set to 1 with 5 threads) to make mClock's behaviour on HDDs more predictable.
 :::
 
+::: {.sim name="mclock"}
+:::
+
 ## Prioritising specific PGs {#sec-07-10-4}
 
 ```bash
