@@ -388,3 +388,12 @@ button.rc-c { cursor: pointer; } button.rc-c:focus-visible { outline: 2px solid 
 .rc-log { font-size: .8rem; margin: .4rem 0; padding-inline-start: 1.2rem; } .rc-log li:first-child { font-weight: 600; }
 @media (max-width: 560px) { .rc-row { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
 /* end rbdclone */
+/* lab cephx */
+.cx-parts { list-style: none; padding: 0; margin: .4rem 0; display: grid; gap: .3rem; }
+.cx-part { border-inline-start: 4px solid var(--sim-c0); padding: .25rem .5rem; background: rgba(127,127,127,.06); border-radius: 4px; }
+.cx-part small { display: block; opacity: .8; } .cx-part.plain { border-color: rgba(127,127,127,.5); }
+.cx-key { display: inline-block; font-size: .72rem; padding: .05rem .4rem; border-radius: 999px; color: #fff; margin: .1rem 0; background: var(--sim-c0); }
+.k1 { --k: var(--sim-c3); } .k2 { --k: var(--sim-c5); } .k3 { --k: var(--sim-c1); } .k4 { --k: var(--sim-c2); } .k5 { --k: var(--sim-hot); }
+.cx-part.k1, .cx-part.k2, .cx-part.k3, .cx-part.k4, .cx-part.k5 { border-color: var(--k); } .cx-key.k1, .cx-key.k2, .cx-key.k3, .cx-key.k4, .cx-key.k5 { background: var(--k); }
+.cx-key.k5 { color: #1c1917; }
+/* end cephx */

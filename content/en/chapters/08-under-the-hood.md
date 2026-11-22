@@ -320,6 +320,9 @@ The main structures are defined in `src/auth/cephx/CephxProtocol.h`: `CephXServe
 Because tickets expire, **clock skew** between the client, MON and OSD can break authentication. Messages such as "could not get service secret", or authentication errors after rebooting a host with a wrong clock, are often caused by this. NTP/chrony on all hosts and clients is mandatory.
 :::
 
+::: {.sim name="cephx"}
+:::
+
 ## msgr2: frames and secure mode {#sec-08-6-5}
 
 ![The frame structure in the msgr2 protocol: a fixed-size preamble containing the frame type tag, the number of segments up to four, the length and alignment of each segment and a separate CRC; then up to four segments containing the header, front, middle and data; and finally the epilogue, which in crc mode holds each segment's CRC and in secure mode the AES-GCM encryption and authentication of the whole frame](figures/ch08/s04_msgr2.png){#fig-08-s04_msgr2}
