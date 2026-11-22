@@ -155,8 +155,9 @@ check-refs: ## figure/ALGO/section/answer cross-references resolve
 check-parity: ## fa and en have the same chapters, figure ids, ALGO ids, anchors
 	$(PYTHON) tools/check_parity.py
 
-check-sims: ## simulator math (CRUSH, autoscaler, Striper, ...) against Ceph's own code (tests/sims/golden.json)
+check-sims: ## simulator math (CRUSH, autoscaler, Striper, ...) against Ceph's own code (tests/sims/golden.json, golden-labs.json)
 	node tests/sims/test_core.js
+	node tests/sims/test_labs.js
 
 check: lint spell check-refs check-links check-parity check-versions check-tldr check-publish check-sims ## all offline checks
 

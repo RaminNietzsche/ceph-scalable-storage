@@ -1,6 +1,7 @@
 # Strings of the interactive simulators, English edition (a translation of strings-fa.yaml).
 lab_title: Interactive lab
 lab_intro: "Eight small simulators that run the book's algorithms in your browser: no network, no installation. The arithmetic is a line-by-line port of Ceph's own code and is checked against it by the tests in tests/sims (make check-sims)."
+lab_all: "All labs ({n})"
 lab_tag: Lab
 lab_in: "In the book:"
 lab_open: Open
@@ -522,3 +523,4 @@ r_pl_ecutil: "Stripes, chunks and shard sizes in an erasure-coded pool"
 r_pl_ecpool: "An erasure-coded pool's size, min_size and stripe_width, and shard names"
 
 xp_sim: "Lab: {n}"
+

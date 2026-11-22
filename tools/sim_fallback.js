@@ -7,9 +7,12 @@
  */
 'use strict';
 const path = require('path');
+const fs = require('fs');
 const dir = path.join(__dirname, '..', 'templates', 'site', 'sims');
 const S = require(path.join(dir, 'sims.js'));
 for (const part of ['crush', 'placement', 'calc', 'peering', 'flow', 'striping', 'ui']) require(path.join(dir, `sim-${part}.js`));
+// the labs that the site loads on demand (templates/site/sims/labs.yaml lists them, one name per line: "- name")
+for (const m of fs.readFileSync(path.join(dir, 'labs.yaml'), 'utf8').matchAll(/^- (\w+)$/gm)) require(path.join(dir, `lab-${m[1]}.js`));
 let buf = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (c) => { buf += c; });

@@ -339,6 +339,11 @@ SIMDIR = os.path.join(TPL, 'sims')
 SIMY = yaml.safe_load(open(os.path.join(SIMDIR, f'strings-{LANG}.yaml'), encoding='utf-8'))
 SIM_PARTS = ['crush-ln-table.js', 'sim-core.js', 'sims.js', 'sim-crush.js', 'sim-placement.js', 'sim-calc.js', 'sim-peering.js', 'sim-flow.js', 'sim-striping.js', 'sim-ui.js']
 SIM_NAMES = ['crush', 'placement', 'pgcalc', 'ecprofile', 'peering', 'bluestore', 'rgwput', 'striping']
+# Labs added later live in their own file, templates/site/sims/lab-NAME.js, with their strings under keys that
+# start with "NAME_". They are loaded only on the pages that show them (assets/lab-NAME.js + LANG/sim-data-NAME.js).
+SIM_LAZY = [n for n in (yaml.safe_load(open(os.path.join(SIMDIR, 'labs.yaml'), encoding='utf-8')) or [])]
+SIM_NAMES += SIM_LAZY
+SIM_HOME = ['placement', 'crush', 'ecdecode', 'capacity', 'sigv4', 'quorum', 'peering', 'mdspin']   # the cards on the home page
 SIM_WHERE = {n: [] for n in SIM_NAMES}   # name -> [(page, section id, section title)]
 
 
@@ -367,7 +372,7 @@ def sim_icon(name):
 # the parts of each static figure that make a readable preview (first match of each)
 THUMB_PARTS = {'crush': ('sim-stats', 'sim-fig'), 'placement': ('pl-flow', 'sim-stats'), 'pgcalc': ('sim-stats', 'table-wrap'), 'ecprofile': ('sim-stats', 'ec-cards'),
                'peering': ('ps-top', 'ps-osds'), 'bluestore': ('sim-stats', 'sim-fig'), 'rgwput': ('sim-stats', 'sim-fig'),
-               'striping': ('sim-stats', 'st-sets')}
+               'striping': ('sim-stats', 'st-sets'), 'capacity': ('sim-stats', 'sim-fig')}
 
 
 def sim_thumb(name):
@@ -791,8 +796,14 @@ with open(os.path.join(ASSETS, 'sims.js'), 'w', encoding='utf-8') as _f:
              ' * crush-ln-table.js is LGPL-2.1 data from Ceph (see NOTICE.md); the rest is CC BY-NC-SA 4.0. */\n')
     for _part in SIM_PARTS:
         _f.write(f'\n/* ---- {_part} ---- */\n' + open(os.path.join(SIMDIR, _part), encoding='utf-8').read())
+_lazy_keys = {n: {k: v for k, v in SIMY.items() if k.startswith(n + '_')} for n in SIM_LAZY}
+for _n in SIM_LAZY:
+    shutil.copy2(os.path.join(SIMDIR, f'lab-{_n}.js'), os.path.join(ASSETS, f'lab-{_n}.js'))
+    open(os.path.join(LOUT, f'sim-data-{_n}.js'), 'w', encoding='utf-8').write(
+        'Object.assign(window.__SIMS__.s,' + json.dumps(_lazy_keys[_n], ensure_ascii=False, separators=(',', ':')) + ');\n')
+_lazy_all = {k for d in _lazy_keys.values() for k in d}
 open(os.path.join(LOUT, 'sim-data.js'), 'w', encoding='utf-8').write(
-    'window.__SIMS__=' + json.dumps({'lang': LANG, 's': SIMY}, ensure_ascii=False, separators=(',', ':')) + ';\n')
+    'window.__SIMS__=' + json.dumps({'lang': LANG, 's': {k: v for k, v in SIMY.items() if k not in _lazy_all}}, ensure_ascii=False, separators=(',', ':')) + ';\n')
 light = HtmlFormatter(style='friendly').get_style_defs('html:not([data-theme="dark"]) .hl')
 dark = HtmlFormatter(style='github-dark').get_style_defs('html[data-theme="dark"] .hl')
 drop_bg = lambda css: '\n'.join(l for l in css.split('\n') if not re.match(r'^\S.*\.hl \{ background', l) and 'pre {' not in l and '.hll' not in l and 'linenos' not in l and not l.startswith('td.') and not l.startswith('span.linenos'))  # noqa: E731
@@ -1144,6 +1155,8 @@ def emit(cur, main_html, title_text, desc=None, ld=None, og_img=None):
     if 'class="katex"' in main_html:
         head_extra += '<link rel="stylesheet" href="../assets/katex/katex.min.css">'
     scripts_extra = '<script src="sim-data.js" defer></script>\n<script src="../assets/sims.js" defer></script>' if has_sims else ''
+    for _n in dict.fromkeys(n for n in (getattr(cur, 'sims', None) or []) if n in SIM_LAZY):
+        scripts_extra += f'\n<script src="sim-data-{_n}.js" defer></script>\n<script src="../assets/lab-{_n}.js" defer></script>'
     if cur is None:
         head_extra += f'<link rel="alternate" type="application/atom+xml" title="{esc(S["nl_feed"])}" href="../releases.xml">'
     if ANALYTICS_TAG:
@@ -1400,7 +1413,7 @@ rp = (f'<div class="rp" id="rp" hidden><div class="ring-wrap">{ring("big")}<b cl
 term = ('<div class="term" dir="ltr" aria-hidden="true"><div class="term-bar"><i></i><i></i><i></i><span>' + esc(S['term_label']) + '</span></div>'
         '<pre><span class="tp">$</span> ceph -s\n  cluster:\n    health: <span class="tok">HEALTH_OK</span>\n  services:\n    mon: 3 daemons, quorum a,b,c\n'
         '    osd: 36 osds: 36 up, 36 in\n    rgw: 3 daemons active\n  data:\n    pgs: <span class="tok">1024 active+clean</span></pre></div>')
-LAB_CARDS = ''.join(lab_card(n) for n in SIM_NAMES)
+LAB_CARDS = ''.join(lab_card(n) for n in SIM_HOME if n in SIM_NAMES)
 if CFG['newsletter']:
     nl_body = (f'<form class="nl-form" action="{esc(CFG["newsletter"])}" method="post" target="_blank">'
                f'<input type="hidden" name="lang" value="{esc(LANG)}">'
@@ -1440,7 +1453,7 @@ home = f'''<article class="content home" id="top">
 <div class="hero-art"><div class="glow" aria-hidden="true"></div><img class="cover" src="../assets/cover.{LANG}.webp" width="{COVER_WH[0]}" height="{COVER_WH[1]}" fetchpriority="high" alt="{esc(S['cover_alt'].format(book=BOOK))}">{term}</div></section>
 {learn}
 <section class="hsec" id="get-started" aria-labelledby="gs-h"><div class="hsec-head"><h2 id="gs-h">{esc(S["gs_title"])}</h2><p>{esc(S["gs_sub"])}</p></div><div class="hgrid roles">{"".join(gs_cards)}</div></section>
-<section class="hsec" id="lab" aria-labelledby="lab-h"><div class="hsec-head"><h2 id="lab-h">{esc(SIMY["lab_title"])}</h2><p>{esc(SIMY["lab_intro"])}</p></div><div class="lab-grid">{LAB_CARDS}</div><p><a class="btn" href="lab.html">{ICON["flask"]}{esc(SIMY["lab_title"])} {ICON["arrow"]}</a></p></section>
+<section class="hsec" id="lab" aria-labelledby="lab-h"><div class="hsec-head"><h2 id="lab-h">{esc(SIMY["lab_title"])}</h2><p>{esc(SIMY["lab_intro"])}</p></div><div class="lab-grid">{LAB_CARDS}</div><p><a class="btn" href="lab.html">{ICON["flask"]}{esc(SIMY["lab_all"].replace("{n}", str(loc(len(SIM_NAMES)))))} {ICON["arrow"]}</a></p></section>
 <section class="hsec" id="parts" aria-labelledby="parts-h"><div class="hsec-head"><h2 id="parts-h">{esc(S["parts_title"])}</h2><p>{esc(S["parts_sub"])}</p></div><div class="hgrid parts">{"".join(part_cards)}</div></section>
 <section class="hsec" id="contents" aria-labelledby="contents-h"><div class="hsec-head"><h2 id="contents-h">{esc(S["contents"])}</h2><p>{esc(S["contents_home"])}</p></div><p><a class="btn primary" href="contents.html">{ICON["list"]}{esc(S["contents_cta"])} {ICON["arrow"]}</a></p></section>
 {cite}

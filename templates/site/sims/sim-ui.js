@@ -125,6 +125,7 @@
     });
     apply('all');
   }
+  // boot() mounts every slot whose simulator is loaded; the labs that load on demand (lab-NAME.js) call it again
   function boot() {
     var cfg = root.__SIMS__;
     if (!cfg) return;
@@ -132,5 +133,6 @@
     var lab = (document.documentElement.getAttribute('data-slug') || '').indexOf('lab-') === 0;
     Array.prototype.forEach.call(document.querySelectorAll('.sim-slot[data-sim]'), function (s) { mount(s, lab); });
   }
+  S.boot = boot;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })(typeof self !== 'undefined' ? self : this);
