@@ -2,11 +2,12 @@
 """Reference data for the labs that load on demand (templates/site/sims/lab-*.js): tests/sims/golden-labs.json.
 
 Functions are cut out of an unmodified Ceph tree (CEPH_SRC=/path/to/ceph/src) by their first and last lines,
-compiled unchanged with small stand-ins for the surrounding classes, and run on generated cases. The erasure-code
-lab also needs jerasure and gf-complete (JERASURE_SRC, GF_COMPLETE_SRC: the ceph/jerasure and ceph/gf-complete
-trees that Ceph uses as submodules). Usage:
+compiled unchanged with small stand-ins for the surrounding classes, and run on generated cases; option defaults and
+profile constants are read from the same tree. The erasure-code lab also needs jerasure, gf-complete and ISA-L
+(JERASURE_SRC, GF_COMPLETE_SRC, ISAL_SRC: the ceph/jerasure, ceph/gf-complete and ceph/isa-l trees that Ceph uses as
+submodules); the SigV4 lab uses Python's hashlib and hmac as an independent reference. Usage:
 
-  CEPH_SRC=... JERASURE_SRC=... GF_COMPLETE_SRC=... python3 tools/simref/gen_golden_labs.py
+  CEPH_SRC=... JERASURE_SRC=... GF_COMPLETE_SRC=... ISAL_SRC=... python3 tools/simref/gen_golden_labs.py [step ...]
 """
 import json, os, random, re, subprocess, sys, tempfile
 

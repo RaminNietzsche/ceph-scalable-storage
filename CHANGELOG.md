@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Interactive lab: twenty simulators; the Experimenter badge tiers are now 1, 8 and 20 labs; docs/SIMULATORS.md describes the labs that load on demand and their reference data.
 - Network lab: public and cluster traffic of replication and EC for a client load, and the data moved and time to rebuild a lost OSD (chapter 13).
 - cephx lab: step through the ticket exchange from MON to OSD, see which key protects each part and where wrong-key, replay, retired-secret and expired-ticket attacks stop (chapter 8).
 - RBD clone lab: click to write or read clone objects, watch copy-up, copy-on-read, RADOS object clones on the parent and flatten (chapter 3).

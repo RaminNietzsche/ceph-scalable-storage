@@ -304,7 +304,7 @@
     ['streak', 'flame', [3, 7, 30], function (s) { return s.best; }],
     ['algo', 'sigma', [20, 80, G.nAlgo], function (s) { return s.algo; }],
     ['figs', 'zoom', [5, 25, 100], function (s) { return s.figs; }],
-    ['lab', 'flask', [1, 4, 7], function (s) { return s.sims; }],
+    ['lab', 'flask', [1, 8, 20], function (s) { return s.sims; }],
     ['cards', 'cards', [20, 200, 1000], function (s) { return s.cards; }],
     ['quiz', 'target', [10, 50, 200], function (s) { return s.qok; }],
     ['gloss', 'lang', [10, 50, Math.max(51, G.gids.length)], function (s) { return s.gloss; }],

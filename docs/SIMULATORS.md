@@ -1,8 +1,10 @@
 # Interactive lab (web edition)
 
-The web edition (`make site`) has eight small simulators, «آزمایشگاه تعاملی» / "Interactive lab". They run the algorithms the book explains, in the reader's browser, with no network and no installation: vanilla JavaScript, no libraries, no build step. Each one is embedded in the chapter that explains it (`::: {.sim name="…"}`; an optional `mode="…"` opens it in one of its modes, as chapters 2 and 37 open the placement lab in RBD mode and chapters 13 and 27 in its erasure-coded mode, `mode="ec"`) and has its own full page (`lab-<name>.html`); `lab.html` lists them and is linked from the sidebar and the home page.
+The web edition (`make site`) has twenty small simulators, «آزمایشگاه تعاملی» / "Interactive lab". They run the algorithms the book explains, in the reader's browser, with no network and no installation: vanilla JavaScript, no libraries, no build step. Each one is embedded in the chapter that explains it (`::: {.sim name="…"}`; an optional `mode="…"` opens it in one of its modes, as chapters 2 and 37 open the placement lab in RBD mode and chapters 13 and 27 in its erasure-coded mode, `mode="ec"`) and has its own full page (`lab-<name>.html`); `lab.html` lists them and is linked from the sidebar and the home page.
 
-The rule for every simulator: **the arithmetic is a port of Ceph's own code, and the tests compare it with that code.** Where a simulator only illustrates a sequence (peering, the write paths), the order of steps and every decision follow the named functions, and each step shows the file and function it comes from. The "How it works" panel of each simulator lists its sources and its limits.
+The rule for every simulator: **where Ceph's own code decides the answer, the arithmetic is a port of that code, and the tests compare it with that code.** Where a simulator only illustrates a sequence (peering, the write paths, cephx, elections), the order of steps and every decision follow the named functions or design documents, and each step shows where it comes from. A few labs are explicit models (the mClock steady state, network traffic, the scrub chart); they say so, and the "How it works" panel of each simulator lists its sources and its limits.
+
+The first eight simulators are in `sims.js` and `sim-*.js` and load on every page that has a simulator. The twelve later ones are **labs that load on demand**: each is one file `templates/site/sims/lab-<name>.js`, listed in `templates/site/sims/labs.yaml`, with strings whose keys start with `<name>_`. `tools/build_site.py` splits those strings out into `<lang>/sim-data-<name>.js` and copies the code to `assets/lab-<name>.js`; only pages that embed the lab get its two deferred scripts, so the shared bundle and the other pages do not grow.
 
 ## Files
 
@@ -16,6 +18,8 @@ The rule for every simulator: **the arithmetic is a port of Ceph's own code, and
 | `tools/sim_fallback.js` | Renders the static figure of each simulator (fixed state, every step shown) for `tools/build_site.py`. |
 | `tools/simref/crush_ref.c`, `tools/simref/striper_ref.cc`, `tools/simref/ec_ref.cc`, `tools/simref/gen_golden.py` | The reference: compiles Ceph's own C files, the Striper functions copied out of `src/osdc/Striper.cc` and the erasure-coding functions copied out of `src/osd/ECUtil.*`, `ErasureCodeJerasure.cc` and `OSDMap.cc`, and runs the real `module.py`, to produce `tests/sims/golden.json`. |
 | `tests/sims/test_core.js` | The tests (`make check-sims`, part of `make check`). |
+| `templates/site/sims/lab-*.js`, `labs.yaml` | The labs that load on demand: logic, view and their own `test(t)` in one file. |
+| `tools/simref/gen_golden_labs.py`, `tests/sims/golden-labs.json`, `tests/sims/test_labs.js` | Their reference data (cut from an unmodified Ceph tree and compiled, or read from it) and their tests: strings in both languages, each lab's `test`, and a static render of every lab and step in both languages with no unfilled placeholder. |
 
 ## Simulators and their sources
 
@@ -29,6 +33,30 @@ The rule for every simulator: **the arithmetic is a port of Ceph's own code, and
 | BlueStore write path (`bluestore`) | 12 (§12.7.5) | `src/os/bluestore/BlueStore.cc`: `_do_write_data`, `_do_write_small`, `_do_write_big`, `_do_alloc_write`, `_txc_state_proc`, `_kv_sync_thread`, `_deferred_queue`, `_deferred_aio_finish`; `BlueStore_components.h`: `TransContext` states; the classic path (`bluestore_write_v2` is false by default) |
 | RGW PUT and multipart (`rgwput`) | 4 (§4.9) | `src/rgw/rgw_op.cc`: `RGWPutObj::execute`, `RGWCompleteMultipart::execute`; `src/rgw/driver/rados/rgw_putobj_processor.cc`; `rgw_rados.cc`: `Object::Write::_do_write_meta`, `Bucket::UpdateIndex::prepare/complete`; `src/cls/rgw/cls_rgw.cc`: `rgw_bucket_prepare_op`, `rgw_bucket_complete_op`; `src/rgw/services/svc_bi_rados.h`: `bucket_shard_index`; `ceph_str_hash_linux` |
 | RBD striping mapper (`striping`) | 37 (§37.3) | `src/osdc/Striper.cc`: `file_to_extents`, `get_num_objects`, `get_file_offset`, `object_truncate_size`; `src/librbd/ImageCtx.cc` (`"%s.%016llx"`), `RBD_DATA_PREFIX` |
+
+### Labs that load on demand
+
+| Lab | Chapter | Follows | Checked against |
+|---|---|---|---|
+| Capacity and full-ratio planner (`capacity`) | 7 (§7.9.4) | `src/osd/OSD.cc`: `OSDService::recalc_full_state`; `src/mon/PGMap.cc`: `get_rule_avail`; `src/crush/CrushWrapper.cc`: `get_rule_weight_osd_map`; `src/osd/OSDMap.cc`: `check_health` | 360 cases cut from Ceph and compiled |
+| Bucket index shards and dynamic reshard (`reshard`) | 4 (§4.10.2) | `src/rgw/driver/rados/rgw_reshard.cc`: `calculate_preferred_shards`, `reshard_primes`; `rgw_rados.cc`: `calc_ordered_bucket_list_per_shard`; `src/rgw/rgw_quota.cc`: `sync_bucket` | 600 compiled cases and the chapter 4 examples |
+| CephFS subtrees and MDS pinning (`mdspin`) | 6 (§6.2.5) | `src/mds/CInode.cc`: `get_export_pin`, `get_ephemeral_rand`; `src/mds/MDCache.cc`: `hash_into_rank_bucket`; `src/include/hash.h`: `rjhash64` | 560 compiled cases |
+| Erasure coding: split, lose, rebuild (`ecdecode`) | 13 (§13.9.1) | jerasure `reed_sol_vandermonde_coding_matrix`, ISA-L `gf_gen_rs_matrix`, `ErasureCode::_minimum_to_decode` | 120 encodings by the jerasure/gf-complete and ISA-L C code; every decode re-checked |
+| mClock profiles (`mclock`) | 7 (§7.10.3) | `src/common/mclock_common.h` profiles; `mclock_common.cc`: `update_from_profile`, `set_from_config`, `calc_scaled_cost`; dmClock reservation/weight/limit | profile constants and defaults read from Ceph; steady-state properties |
+| Scrub scheduler (`scrub`) | 7 (§7.10.5) | `src/osd/scrubber/scrub_job.cc`: `adjust_shallow_schedule`, `adjust_deep_schedule`; `osd_scrub.cc`: `isbetween_modulo` | every hour and week-day window against the compiled C++ |
+| Monitor quorum under a partition (`quorum`) | 7 (§7.8.4) | `doc/dev/mon-elections.rst`; `src/mon/ElectionLogic.cc`; `src/mon/Paxos.cc` | exhaustive majority and leader checks for 1–9 monitors |
+| S3 Signature Version 4 (`sigv4`) | 4 (§4.5.1) | `src/rgw/rgw_auth_s3.cc`: `get_v4_canonical_qs`, `get_v4_string_to_sign`, `get_v4_signing_key`, `get_v4_signature` | FIPS 180-4 vectors, the AWS signing-key example, 60 requests signed by Python's hashlib/hmac |
+| Real space in BlueStore (`bluespace`) | 12 (§12.4.3) | `bluestore_min_alloc_size_*`; `BlueStore::_do_alloc_write` acceptance test; EC stripe padding | 400 cases of the test cut from `BlueStore.cc`; defaults from `global.yaml.in`; the chapter 12 examples |
+| RBD clones (`rbdclone`) | 3 (§3.9.2) | `src/librbd/io/ObjectRequest.cc` `read_parent`; `CopyupRequest.cc`; `operation/FlattenRequest.cc` | invariants over random operation sequences |
+| cephx tickets (`cephx`) | 8 (§8.6.4) | `doc/dev/cephx.rst`; `src/auth/cephx` | each receiver holds the needed key; no service secret reaches the client |
+| Network traffic: replication versus EC (`netbw`) | 13 (§13.5) | `ReplicatedBackend::issue_op`; EC fan-out, gather and rebuild | traffic invariants |
+
+To regenerate the lab reference data (the ISA-L, jerasure and gf-complete trees are Ceph's submodules):
+
+```sh
+CEPH_SRC=/path/to/ceph/src JERASURE_SRC=... GF_COMPLETE_SRC=... ISAL_SRC=... python3 tools/simref/gen_golden_labs.py   # tests/sims/golden-labs.json
+node tests/sims/test_labs.js
+```
 
 ## How the numbers are checked
 
@@ -60,9 +88,17 @@ The golden file records the Ceph commit it was made from.
 
 ## Gamification
 
-Using a simulator dispatches `sim:use`. `game.js` gives 5 XP for the first use of each simulator per day (cap 40 XP per day) and counts distinct simulators for the tiered «آزمایشگر» / "Experimenter" badge (1, 4 and 7 simulators). See `docs/GAMIFICATION.md`.
+Using a simulator dispatches `sim:use`. `game.js` gives 5 XP for the first use of each simulator per day (cap 40 XP per day) and counts distinct simulators for the tiered «آزمایشگر» / "Experimenter" badge (1, 8 and 20 simulators). See `docs/GAMIFICATION.md`.
 
 ## Adding a simulator
+
+New simulators should be labs that load on demand:
+
+1. Write `templates/site/sims/lab-<name>.js`: logic with the Ceph file and function in comments, `S.X.<name>.test(t)` (golden data in `gen_golden_labs.py` if the reference can be built), `S.DEFS.<name>`, and `if (!NODE && S.boot) S.boot();` at the end. Add the name to `labs.yaml`.
+2. Add the `<name>_…` strings (at least `_t`, `_d`, `_what`, `_limit`) to both `strings-*.yaml` files; add a thumbnail part to `THUMB_PARTS` in `tools/build_site.py`.
+3. Place `::: {.sim name="<name>"}` + `:::` in the Persian chapter and at the same place in the English one.
+
+The original, always-loaded way:
 
 1. Put the logic in `sim-core.js` with the Ceph file and function in a comment, and a test in `tests/sims/test_core.js` (golden data if the reference can be built).
 2. Add `S.DEFS.<name> = { icon, defaults, refs, controls, view, input, act?, steps?, say?, fallbackState? }` in a `sim-*.js` file and list the file in `SIM_PARTS` (`tools/build_site.py`) and `tools/sim_fallback.js`.
