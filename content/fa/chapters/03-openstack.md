@@ -399,6 +399,9 @@ rbd flatten volumes/volume-aaa            # عملیات طولانی؛ پیشر
 ceph osd get-require-min-compat-client
 ```
 
+::: {.sim name="rbdclone"}
+:::
+
 # librbd زیر پای OpenStack، با عدد {#sec-03-10}
 
 هر دیسکی که Nova، Cinder یا Glance روی Ceph می‌سازند، در نهایت یک image در librbd است. این بخش چهار الگوریتم librbd را که مستقیم روی رفتار ماشین‌های مجازی OpenStack اثر می‌گذارند، با کد و عدد دنبال می‌کند: نگاشت بایت‌های دیسک به شیء، object map، محاسبه‌ی تفاوت میان snapshotها (پایه‌ی پشتیبان افزایشی cinder-backup) و محدودکننده‌ی QoS. همه‌ی ارجاع‌های کد به شاخه‌ی main مخزن Ceph است که در نوامبر 2026 بررسی شد. عددهای مثال‌ها با بازپیاده‌سازی پایتونی همین توابع دوباره حساب شده‌اند.

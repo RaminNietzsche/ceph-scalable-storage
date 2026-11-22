@@ -399,6 +399,9 @@ rbd flatten volumes/volume-aaa            # a long operation; reports progress
 ceph osd get-require-min-compat-client
 ```
 
+::: {.sim name="rbdclone"}
+:::
+
 # librbd beneath OpenStack, by the numbers {#sec-03-10}
 
 Every disk that Nova, Cinder or Glance creates on Ceph is ultimately an image in librbd. This section follows four librbd algorithms that directly affect the behaviour of OpenStack virtual machines, with code and numbers: mapping disk bytes to objects, the object map, computing the difference between snapshots (the basis of cinder-backup's incremental backups) and the QoS limiter. All code references are to the main branch of the Ceph repository as reviewed in November 2026. The numbers in the examples were recomputed with Python re-implementations of the same functions.
