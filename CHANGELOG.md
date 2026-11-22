@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Gamification: one medal per interactive lab (20 in all), with its own icon and name in both editions; a "Lab medals" gallery section shows them locked or earned, and each lab page shows its own medal.
 - Interactive lab: twenty simulators; the Experimenter badge tiers are now 1, 8 and 20 labs; docs/SIMULATORS.md describes the labs that load on demand and their reference data.
 - Network lab: public and cluster traffic of replication and EC for a client load, and the data moved and time to rebuild a lost OSD (chapter 13).
 - cephx lab: step through the ticket exchange from MON to OSD, see which key protects each part and where wrong-key, replay, retired-secret and expired-ticket attacks stop (chapter 8).

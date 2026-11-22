@@ -86,8 +86,9 @@ CARD_VIS = r"""() => [...document.querySelectorAll('.lab-card')].map(c => {
 
 def check_cards(page, where):
     cards = page.evaluate(CARD_VIS)
-    if len(cards) != 8:
-        problems.append(f'[{where}] {len(cards)} lab cards (expected 8)')
+    want = 8 if where.startswith('home') else 20   # the home page shows the first eight; lab.html lists all twenty
+    if len(cards) != want:
+        problems.append(f'[{where}] {len(cards)} lab cards (expected {want})')
     for c in cards:
         if not c['icon']:
             problems.append(f'[{where}] {c["href"]}: icon not drawn (stroke {c["stroke"]})')
@@ -464,6 +465,28 @@ with sync_playwright() as pw:
             problems.append('[game] completed path has no certificate button')
         gsnap('desktop-heatmap', el='.g-sec:has(.heat)')
         gsnap('desktop-badges', el='#gm-badges')
+        # lab medals: 20 in the gallery, locked until that lab is used; the lab page shows its own
+        page.evaluate("(() => { const P = JSON.parse(localStorage.getItem('book-progress:fa')); P.g.sims = { crush: 2, mclock: 1, cephx: 1 }; localStorage.setItem('book-progress:fa', JSON.stringify(P)); })()")
+        page.reload()
+        page.wait_for_timeout(500)
+        n_lm, n_lm_on = page.locator('#gm-labmedals .badge').count(), page.locator('#gm-labmedals .badge:not(.t0)').count()
+        if n_lm != 20 or n_lm_on != 3:
+            problems.append(f'[game] lab medals: {n_lm} shown, {n_lm_on} earned (expected 20 and 3)')
+        if page.locator('#gm-labmedals .badge:not(.t0)').first.locator('b').inner_text() == '':
+            problems.append('[game] lab medal has no name')
+        gsnap('desktop-lab-medals', el='#gm-labmedals')
+        page.goto(url('fa', 'lab-mclock'))
+        page.wait_for_timeout(400)
+        if page.locator('#lab-medal.on').count() != 1:
+            problems.append('[game] lab page does not show its earned medal')
+        gsnap('lab-mclock-medal', el='#lab-medal')
+        page.goto(url('fa', 'lab-scrub'))
+        page.wait_for_timeout(400)
+        if page.locator('#lab-medal.off').count() != 1:
+            problems.append('[game] lab page does not show its locked medal')
+        page.evaluate("(() => { const P = JSON.parse(localStorage.getItem('book-progress:fa')); P.g.xp = 2698; localStorage.setItem('book-progress:fa', JSON.stringify(P)); })()")
+        page.goto(url('fa', 'progress'))
+        page.wait_for_timeout(300)
         # opt-out hides every game element
         page.locator('#gs-on').click()
         if not page.locator('#g-chip').is_hidden() or page.locator('#gm-badges').is_visible():
