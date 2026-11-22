@@ -365,3 +365,12 @@ bdi { unicode-bidi: isolate; }
 .mc-res { stroke: var(--ink, currentColor); stroke-width: 2; } .mc-lim { stroke: var(--sim-hot); stroke-width: 2; stroke-dasharray: 4 3; }
 .mc-k { display: inline-block; width: .8rem; height: .8rem; border-radius: 3px; vertical-align: middle; margin-inline: .2rem; }
 /* end mclock */
+/* lab bluespace */
+.bsp-list { display: grid; gap: .25rem; margin: .4rem 0; }
+.bsp-row { display: grid; grid-template-columns: 5.5rem 1fr 11rem; gap: .5rem; align-items: center; font-size: .8rem; }
+.bsp-bar { position: relative; height: 1rem; background: var(--sim-bg, rgba(127,127,127,.08)); border-radius: 4px; overflow: hidden; }
+.bsp-bar i { position: absolute; inset-block: 0; inset-inline-start: 0; display: block; }
+.bsp-alloc { background: repeating-linear-gradient(45deg, rgba(220,38,38,.35) 0 4px, rgba(220,38,38,.15) 4px 8px); }
+.bsp-data { background: var(--sim-c0); } .bsp-data.par { background: var(--sim-c1); }
+@media (max-width: 560px) { .bsp-row { grid-template-columns: 4rem 1fr; } .bsp-row > span:last-child { grid-column: 1 / -1; } }
+/* end bluespace */

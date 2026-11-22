@@ -131,6 +131,9 @@ ceph health detail | grep -i spillover
 OSDs created before Pacific still have the old value, even after the software upgrade. Check with `ceph osd metadata <id> | jq .bluestore_min_alloc_size`. The only way to change it is to recreate the OSD.
 :::
 
+::: {.sim name="bluespace"}
+:::
+
 ## Compression and checksums {#sec-12-4-4}
 
 ```bash

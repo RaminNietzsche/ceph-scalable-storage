@@ -131,6 +131,9 @@ ceph health detail | grep -i spillover
 OSDهایی که پیش از Pacific ساخته شده‌اند هنوز مقدار قدیمی دارند، حتی پس از ارتقای نرم‌افزار. با `ceph osd metadata <id> | jq .bluestore_min_alloc_size` بررسی کنید. تنها راه تغییر، ساختن دوباره‌ی OSD است.
 :::
 
+::: {.sim name="bluespace"}
+:::
+
 ## فشرده‌سازی و checksum {#sec-12-4-4}
 
 ```bash

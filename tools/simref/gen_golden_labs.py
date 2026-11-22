@@ -379,7 +379,44 @@ def sigv4():
                     'c4afb1cc5771d871763a393e44b703571b55cc28424d1a5e86da6ed3c154a4b9']}
 
 
-STEPS = [capacity, reshard, mdspin, ecdecode, mclock, scrub, sigv4]
+def bluespace():
+    """BlueStore allocation and compression defaults (src/common/options/global.yaml.in) and the acceptance test
+    cut from BlueStore::_do_alloc_write, compiled with stand-ins for its surroundings."""
+    y = read('common/options/global.yaml.in')
+    def dflt(o):
+        v = re.search(r'^- name: ' + o + r'\n(?:  .*\n)*?  default: (\S+)', y, re.M).group(1)
+        return int(v[:-2]) << {'K': 10, 'M': 20}[v[-1]] if v[-2:-1] == '_' else float(v)
+    opts = {o: dflt(o) for o in ('bluestore_min_alloc_size_hdd', 'bluestore_min_alloc_size_ssd', 'bluestore_compression_required_ratio',
+                                 'bluestore_compression_max_blob_size_hdd', 'bluestore_compression_max_blob_size_ssd')}
+    src = read('os/bluestore/BlueStore.cc')
+    a = src.index('      uint64_t want_len_raw = wi.blob_length * wctx->crr;')
+    b = src.index('      if (r == 0 && result_len <= want_len && result_len < wi.blob_length) {', a)
+    head = src[a:b]
+    cond = 'result_len <= want_len && result_len < wi.blob_length'
+    assert cond in src[b:b + 200]
+    main = r'''
+#include <cstdint>
+#include <cstdio>
+template <class T> T p2roundup(T x, T a) { return (x + a - 1) & ~(a - 1); }
+struct WI { uint64_t blob_length; }; struct WC { double crr; }; struct BL { uint64_t n; uint64_t length() const { return n; } };
+int main() {
+  unsigned long long bl, cl, ma; double crr;
+  while (scanf("%llu %llu %llu %lf", &bl, &cl, &ma, &crr) == 4) {
+    WI wi{bl}; WC wc{crr}; WC* wctx = &wc; BL t{cl}; uint64_t min_alloc_size = ma; int r = 0;
+''' + head + r'''
+    printf("%d %llu %llu\n", (r == 0 && ''' + cond + r''') ? 1 : 0, (unsigned long long)want_len, (unsigned long long)result_len);
+  }
+}
+'''
+    rnd = random.Random(12); cases = []
+    for _ in range(400):
+        ma = rnd.choice([4096, 16384, 65536]); blob = rnd.choice([8192, 16384, 32768, 65536, 131072, 524288])
+        cases.append([blob, rnd.randint(1, blob + 4096), ma, rnd.choice([0.875, 0.9, 0.5, 0.7, 1.0])])
+    out = run_cxx('bluespace', main, ''.join('%d %d %d %r\n' % tuple(c) for c in cases)).split('\n')
+    OUT['bluespace'] = {'options': opts, 'accept': [c + [int(x) for x in out[i].split()] for i, c in enumerate(cases)]}
+
+
+STEPS = [capacity, reshard, mdspin, ecdecode, mclock, scrub, sigv4, bluespace]
 if __name__ == '__main__':
     only = sys.argv[1:]
     for f in STEPS:

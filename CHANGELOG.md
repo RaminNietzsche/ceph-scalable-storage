@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- BlueStore space lab: min_alloc_size, classic EC padding versus allow_ec_optimizations, and the compression acceptance test checked against code cut from BlueStore.cc (chapter 12).
 - S3 SigV4 lab: build the canonical request, string to sign and HMAC key chain in the page, tamper with a request and see RGW's 403; checked against an independent reference and the AWS example key (chapter 4).
 - Monitor quorum lab: partition and fail monitors, check classic majority/leader rules exhaustively and step through election to Paxos lease (chapter 7).
 - Scrub lab: compare shallow/deep random schedules and overnight windows; exhaustively check hour/day windows against Ceph C++ (chapter 7).
