@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- New lab "Capacity and full-ratio planner" / «برنامه‌ریز ظرفیت و نسبت‌های پُری» (`capacity`, ch. 7 §7.9.4, `lab-capacity.html`): hosts, OSDs, pool type, data stored and an imbalance give each OSD's fill and state against nearfull, backfillfull and full (a port of `OSDService::recalc_full_state`), MAX AVAIL with the OSD that sets it (a port of `PGMap::get_rule_avail` with the float weights of `get_rule_weight_osd_map`), the OSD_NEARFULL, OSD_BACKFILLFULL and OSD_FULL checks, and what losing a host does; checked against the Ceph functions compiled unchanged (360 cases).
 - Web edition: the interactive labs added from now on live in their own files (templates/site/sims/lab-NAME.js, listed in labs.yaml) and are loaded, with their strings, only on the pages that show them; tests/sims/test_labs.js checks their strings in both languages, renders every lab in both editions and runs each lab's checks against tests/sims/golden-labs.json; the home page shows a selection of labs with a link to all of them.
 - Chapter 10, benchmark reporting now cites the Pilot framework (MASCOTS 2016) on accuracy, precision, comparability, repeatability and overhead control (both editions).
 - Chapter 6 now traces the MDS balancer to the SC 2004 paper on dynamic subtree partitioning, and chapters 1 and 6 cite Sage Weil's 2007 dissertation in their sources (both editions).

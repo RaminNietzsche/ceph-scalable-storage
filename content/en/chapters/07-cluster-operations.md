@@ -493,6 +493,9 @@ MAX AVAIL = raw_avail / raw_used_rate     # replicated: size ; EC: (k + m) / k
 
 ![The ladder of fullness ratios with the defaults: the NEARFULL warning from 85%, backfill to the OSD stops from 90%, the FULL flag and client writes stop from 95%, and the OSD's own failsafe from 97%. The first three ratios are kept in the OSDMap and changed with set-*-ratio. The failsafe is an OSD configuration option](figures/ch07/f11_ratios.png){#fig-07-f11_ratios}
 
+::: {.sim name="capacity"}
+:::
+
 # Day-to-day maintenance {#sec-07-10}
 
 ## Host maintenance mode {#sec-07-10-1}

@@ -493,6 +493,9 @@ MAX AVAIL = raw_avail / raw_used_rate     # replicated: size ؛ EC: (k + m) / k
 
 ![نردبان نسبت‌های پری با پیش‌فرض‌ها: هشدار NEARFULL از 85٪، توقف backfill به سمت OSD از 90٪، پرچم FULL و توقف نوشتن کلاینت‌ها از 95٪، و failsafe خود OSD از 97٪. سه نسبت اول در OSDMap نگه‌داری می‌شوند و با set-*-ratio تغییر می‌کنند. failsafe یک گزینه‌ی پیکربندی OSD است](figures/ch07/f11_ratios.png){#fig-07-f11_ratios}
 
+::: {.sim name="capacity"}
+:::
+
 # نگهداری روزمره {#sec-07-10}
 
 ## حالت نگهداری میزبان {#sec-07-10-1}
