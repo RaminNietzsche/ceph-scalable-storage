@@ -1,5 +1,5 @@
 # Citation metadata (Citation File Format 1.2.0). GitHub shows "Cite this repository" from it.
-# `doi` is the concept DOI (all versions). `identifiers` lists that and the v1.6 version DOI.
+# `doi` is the concept DOI (all versions). `identifiers` lists that and the version DOIs.
 cff-version: 1.2.0
 message: "If you use this book, please cite it as below."
 title: "The Comprehensive Ceph Guide: Designing, Implementing and Operating Scalable Storage — from the Code to Operations"
@@ -21,6 +21,9 @@ identifiers:
   - type: doi
     value: "10.5281/zenodo.24253823"
     description: "DOI of version 1.6."
+  - type: doi
+    value: "10.5281/zenodo.24434974"
+    description: "DOI of version 1.7."
 abstract: >-
   An open, bilingual (Persian and English) book on Ceph: architecture, RBD, RGW and
   CephFS, operations, CRUSH, BlueStore, erasure coding, monitoring, troubleshooting,

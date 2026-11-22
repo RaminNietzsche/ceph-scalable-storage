@@ -105,9 +105,11 @@ export default {
 4. The first archive is in place. The concept DOI (all versions) is
    [10.5281/zenodo.24253822](https://doi.org/10.5281/zenodo.24253822) and the
    version DOI for v1.6 is [10.5281/zenodo.24253823](https://doi.org/10.5281/zenodo.24253823)
-   ([record](https://zenodo.org/records/24253823)). Both are recorded in
+   ([record](https://zenodo.org/records/24253823)); v1.7 is
+   [10.5281/zenodo.24434974](https://doi.org/10.5281/zenodo.24434974)
+   ([record](https://zenodo.org/records/24434974)). They are recorded in
    `CITATION.cff` (`doi:` and `preferred-citation.doi` are the concept DOI;
-   `identifiers` lists both) and the README has a DOI badge that links to the
+   `identifiers` lists the concept DOI and each version DOI) and the README has a DOI badge that links to the
    concept DOI. Later GitHub Releases get a new version DOI; the concept DOI
    stays the same. Do not invent a DOI, and do not retag a published version
    to refresh Zenodo.
