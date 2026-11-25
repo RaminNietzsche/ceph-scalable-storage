@@ -212,6 +212,9 @@ example (output):
                 behind shards: [4,17]
 ```
 
+::: {.sim name="multisite"}
+:::
+
 # Tuning and troubleshooting {#sec-42-8}
 
 - **Lagging shards that do not advance:** look at `sync error list` and `data sync status --shard-id N`; if one bucket keeps failing, `bucket sync run` for that bucket isolates the problem and makes it visible.

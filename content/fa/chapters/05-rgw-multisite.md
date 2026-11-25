@@ -154,6 +154,9 @@ ceph orch apply rgw gold-eu2 --realm=gold --zone=eu-2 \
 اگر `period update --commit` در کلاستر ثانوی با خطای «failed to commit period» یا «connection refused» شکست خورد، از کلاستر ثانوی با `curl http://rgw-eu1.example.com:80` دسترسی را بسنجید و مطمئن شوید کلیدهای system در `zone modify` درست قرار گرفته‌اند (`radosgw-admin zone get --rgw-zone=eu-1`). یک خطای رایج، نام میزبانی است که فقط در یکی از سایت‌ها قابل‌حل است.
 :::
 
+::: {.sim name="multisite"}
+:::
+
 # پیکربندی خودکار با ماژول rgw {#sec-05-5}
 
 از Reef به بعد، ماژول MGR به نام `rgw` (فرمان `ceph rgw`) همه‌ی گام‌های بالا را در دو دستور خلاصه می‌کند و با ارکستراتور هماهنگ است:

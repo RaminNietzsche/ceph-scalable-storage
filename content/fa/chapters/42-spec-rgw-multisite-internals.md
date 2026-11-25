@@ -212,6 +212,9 @@ radosgw-admin bucket sync status --bucket logs --source-zone zone-a
                 behind shards: [4,17]
 ```
 
+::: {.sim name="multisite"}
+:::
+
 # تنظیم و عیب‌یابی {#sec-42-8}
 
 - **shardهای عقب‌مانده که جلو نمی‌روند:** `sync error list` و `data sync status --shard-id N` را ببینید؛ اگر یک bucket مدام خطا می‌دهد، `bucket sync run` برای همان bucket مشکل را جدا و قابل دیدن می‌کند.

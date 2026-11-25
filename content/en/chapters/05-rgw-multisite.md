@@ -154,6 +154,9 @@ ceph orch apply rgw gold-eu2 --realm=gold --zone=eu-2 \
 If `period update --commit` on the secondary cluster fails with "failed to commit period" or "connection refused", test access from the secondary cluster with `curl http://rgw-eu1.example.com:80`, and make sure the system keys were set correctly in `zone modify` (`radosgw-admin zone get --rgw-zone=eu-1`). A common mistake is a host name that resolves on only one of the sites.
 :::
 
+::: {.sim name="multisite"}
+:::
+
 # Automated configuration with the rgw module {#sec-05-5}
 
 Since Reef, the MGR module named `rgw` (the `ceph rgw` command) condenses all the steps above into two commands and is coordinated with the orchestrator:

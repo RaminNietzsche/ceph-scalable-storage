@@ -669,8 +669,42 @@ def ssdwear():
                                                                                 'min_write_buffer_number_to_merge', 'level0_file_num_compaction_trigger')},
                       'stripe_unit_desc': ' '.join(desc.split()), 'counters': counters}
 
+# ---------------------------------------------------------------- multisite
+def multisite():
+    """How 'period update --commit' moves the period (rgw_zone.cc commit_period, fork_period), the sync options in
+    rgw.yaml.in, and the flow types and options radosgw-admin accepts for sync groups and zone sync-from lists."""
+    z = read('rgw/rgw_zone.cc')
+    first = int(re.search(r'#define FIRST_EPOCH (\d+)', z).group(1))
+    com = cut('rgw/rgw_zone.cc', r'^int commit_period\(', r'^}')
+    fork = cut('rgw/rgw_zone.cc', r'^void fork_period\(', r'^}')
+    checks = [('must_run_on_master', 'info.master_zone != site.get_zone_params().id'), ('predecessor', 'info.predecessor_uuid != current_period.id'),
+              ('realm_epoch', 'info.realm_epoch != current_period.realm_epoch + 1'), ('master_changed', 'info.master_zone != current_period.master_zone'),
+              ('epoch', 'info.epoch != current_period.epoch')]
+    order = [k for k, s in sorted(checks, key=lambda c: com.find(c[1])) if s in com]
+    a = com.find('info.master_zone != current_period.master_zone'); b = com.find('info.epoch != current_period.epoch')
+    changed, same = com[a:b], com[b:]
+    yml = read('common/options/rgw.yaml.in')
+    def dflt(o):
+        v = re.search(r'^- name: ' + o + r'\n(?:  .*\n)*?  default: (.+)', yml, re.M).group(1).strip()
+        m = re.fullmatch(r'(\d+)_min', v)
+        return int(m.group(1)) * 60 if m else int(v)
+    opts = {o: dflt(o) for o in ('rgw_data_sync_poll_interval', 'rgw_meta_sync_poll_interval', 'rgw_data_sync_spawn_window', 'rgw_bucket_sync_spawn_window',
+                                 'rgw_meta_sync_spawn_window', 'rgw_data_log_num_shards', 'rgw_md_log_max_shards', 'rgw_data_notify_interval_msec',
+                                 'rgw_sync_lease_period')}
+    adm = read('rgw/radosgw-admin/radosgw-admin.cc')
+    flows = {f: re.findall(r'opt == "(\w+)"', re.search(r'static bool ' + f + r'_flow_opt\(const string& opt\)\n\{\n(.*?)\n\}', adm, re.S).group(1))
+             for f in ('symmetrical', 'directional')}
+    want = ['--sync-from-all', '--sync-from', '--group-id', '--flow-id', '--flow-type', '--source-zone', '--dest-zone', '--zones', '--pipe-id',
+            '--source-zones', '--dest-zones', '--source-bucket', '--dest-bucket', '--status']
+    OUT['multisite'] = {'first_epoch': first, 'commit_checks': order,
+                        'master_change': {'new_id': 'gen_random_uuid()' in changed, 'epoch_first': 'info.epoch = FIRST_EPOCH;' in changed},
+                        'same_master': {'keeps_id': 'info.id = current_period.id;' in same, 'epoch_plus_one': 'info.epoch = current_period.epoch + 1;' in same,
+                                        'keeps_realm_epoch': 'info.realm_epoch = current_period.realm_epoch;' in same},
+                        'fork_realm_epoch_plus_one': 'info.realm_epoch++;' in fork, 'options': opts, 'flow_types': flows,
+                        'admin_opts': [o for o in want if '"' + o + '"' in adm]}
 
-STEPS = [capacity, reshard, mdspin, ecdecode, mclock, scrub, sigv4, bluespace, balancer, ssdwear]
+
+STEPS = [capacity, reshard, mdspin, ecdecode, mclock, scrub, sigv4, bluespace, balancer, ssdwear, multisite]
 if __name__ == '__main__':
     only = sys.argv[1:]
     for f in STEPS:
