@@ -13,6 +13,12 @@ lang: en
 - Deleting a snapshot queues it; the SnapTrimmer removes the clones in the background.
 - Watch state is stored on the object, so it survives a primary change; the chapter ends with references for `rados` and `ceph osd pool`.
 
+```bash
+rados -p rbd listsnaps rbd_data.5f3a.0000000000000000
+```
+
+[![The evolution of an object's SnapSet across writes and snapshots: clone creation and clone_overlap tracking](figures/ch36/f01_snapset.png)](#fig-36-f01_snapset)
+
 :::
 
 # Before we begin {#sec-36-1}

@@ -13,6 +13,12 @@ lang: en
 - The extent map maps logical ranges to blobs; shared blobs with reference counts make clones and snapshots cheap.
 - Allocators (AVL, bitmap, hybrid) and the freelist track free space; the fragmentation score shows how scattered it is.
 
+```bash
+ceph-bluestore-tool show-label --dev /dev/ceph-xxx/osd-block-yyy
+```
+
+[![On-disk layout at the start of BlueStore devices: label, superblock and BlueFS extents](figures/ch24/f01_layout.png)](#fig-24-f01_layout)
+
 :::
 
 # Introduction: what does BlueStore write on disk? {#sec-24-1}

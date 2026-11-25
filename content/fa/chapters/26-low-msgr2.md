@@ -13,6 +13,12 @@ lang: fa
 - AsyncConnection ماشین حالت هر اتصال را اجرا می‌کند و EventCenter رویدادهای socket را روی چند thread کارگر پخش می‌کند.
 - فصل frameهای واقعی را بایت‌به‌بایت رمزگشایی می‌کند، مثل یک KEEPALIVE2 در حالت crc.
 
+```bash {since=squid}
+ceph daemon osd.4 messenger dump
+```
+
+[![دست‌دهی کامل msgr2: banner، HELLO، احراز هویت، توافق حالت اتصال و برپایی نشست](figures/ch26/f01_hs.png)](#fig-26-f01_hs)
+
 :::
 
 # مقدمه: سیم بین دو daemon {#sec-26-1}

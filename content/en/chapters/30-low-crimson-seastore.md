@@ -13,6 +13,12 @@ lang: en
 - Backends are BlueStore (through an adaptor), CyanStore (memory) and SeaStore, a log-structured store for NVMe.
 - SeaStore needs segment garbage collection; some monitoring commands exist only on main, so check your release.
 
+```bash {since=main}
+ceph tell osd.0 dump_metrics reactor_utilization
+```
+
+[![Comparing the classic OSD multi-thread model with Crimson's shard-per-core Seastar model](figures/ch30/f01_threads.png)](#fig-30-f01_threads)
+
 :::
 
 # Introduction: why a new OSD? {#sec-30-1}

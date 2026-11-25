@@ -13,6 +13,12 @@ lang: en
 - An op is queued on an OSD shard and passes do_op's gates (map, peering, missing objects, blocks) before it runs.
 - `execute_ctx` turns ops into a transaction, assigns the version and writes the pg log entry, which lives in the pgmeta object's omap.
 
+```bash
+ceph osd map rbd rbd_header.5f3a2b8c1d4e
+```
+
+[![The op path inside the OSD from AsyncMessenger and fast dispatch to shard queue, replication and BlueStore commit](figures/ch34/f01_oppath.png)](#fig-34-f01_oppath)
+
 :::
 
 # Before we start {#sec-34-1}

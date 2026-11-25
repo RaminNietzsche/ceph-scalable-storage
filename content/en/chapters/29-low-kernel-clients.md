@@ -13,6 +13,12 @@ lang: en
 - The shared striper maps a device or file offset to an object and an offset within it.
 - krbd uses a watch and the exclusive lock on `rbd_header`; ceph.ko exposes client-side latency and file statistics in debugfs.
 
+```bash
+rbd map rbd/img1 -o ms_mode=prefer-crc,queue_depth=256,alloc_size=65536
+```
+
+[![The path of a write in krbd from the Linux block layer and blk-mq down to libceph](figures/ch29/f01_krbd.png)](#fig-29-f01_krbd)
+
 :::
 
 # Introduction: Ceph inside the kernel {#sec-29-1}

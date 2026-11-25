@@ -13,6 +13,12 @@ lang: fa
 - `bufferlist` فهرستی از اشاره‌گرهای بافر با شمارش ارجاع است؛ `c_str()` روی فهرست چندتکه بی‌صدا همه را در یک بافر کپی می‌کند.
 - mempoolها حافظه را به تفکیک زیرسیستم حساب می‌کنند و BlueStore به‌طور پیش‌فرض بلوک‌ها را با crc32c بررسی می‌کند.
 
+```bash
+ceph osd metadata 4 | jq '{bluestore_bdev_type, bluestore_bdev_rotational, bluestore_bdev_dev_node}'
+```
+
+[![مسیر یک نوشتن از BlueStore تا دیسک: bufferlist هم‌تراز با بلوک، IOContext و ارسال با libaio](figures/ch23/f01_stack.png)](#fig-23-f01_stack)
+
 :::
 
 # جایگاه این بخش {#sec-23-1}

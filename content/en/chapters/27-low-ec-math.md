@@ -13,6 +13,12 @@ lang: en
 - Decoding after a loss inverts the matching rows of the matrix; parity-delta updates change parity without reading the whole stripe.
 - Tentacle's FastEC uses this for partial reads and writes, behind `allow_ec_optimizations`.
 
+```bash {since=tentacle}
+ceph osd pool set ecdata allow_ec_optimizations true
+```
+
+[![Three layers of erasure coding computation: GF(2⁸) arithmetic, encoding matrix and SIMD vector operations](figures/ch27/f02_gf.png)](#fig-27-f02_gf)
+
 :::
 
 # Introduction: from XOR to Reed-Solomon {#sec-27-1}

@@ -13,6 +13,12 @@ lang: en
 - Sync status objects live in the destination zone's log pool, named after the source zone.
 - Data sync advances shard markers despite failures and retries them from an error repo; metadata writes need the master zone.
 
+```bash
+radosgw-admin bucket sync status --bucket logs --source-zone zone-a
+```
+
+[![The chain of three logs for a PUT in the source zone: bilog, datalog and destination fetch_remote_obj](figures/ch42/f01_logs.png)](#fig-42-f01_logs)
+
 :::
 
 # Before we begin {#sec-42-1}

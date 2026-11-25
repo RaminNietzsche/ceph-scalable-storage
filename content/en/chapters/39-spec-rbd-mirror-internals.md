@@ -13,6 +13,12 @@ lang: en
 - In snapshot mode, scheduled mirror snapshots are taken on the primary and rbd-mirror copies the difference between consecutive snapshots.
 - Several rbd-mirror daemons share images through a leader using watch/notify; the gap between snapshot timestamps is the current RPO.
 
+```bash
+rbd journal info --pool rbd --image vm01
+```
+
+[![The two RBD mirroring modes side by side: continuous event replay in journal mode versus periodic diff in snapshot mode](figures/ch39/f02_modes.png)](#fig-39-f02_modes)
+
 :::
 
 # Before we begin {#sec-39-1}

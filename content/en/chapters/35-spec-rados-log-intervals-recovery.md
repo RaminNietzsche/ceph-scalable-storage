@@ -13,6 +13,12 @@ lang: en
 - The primary picks the most authoritative log and merges it; missing sets list what each member must recover.
 - Members whose log does not overlap get backfill instead of log-based recovery; log length (trimming) trades memory for faster recovery.
 
+```bash
+ceph pg <pgid> query
+```
+
+[![The timeline of a PG's intervals: every change in up, acting or min_size starts a new interval for peering](figures/ch35/f01_intervals.png)](#fig-35-f01_intervals)
+
 :::
 
 # Before we begin {#sec-35-1}

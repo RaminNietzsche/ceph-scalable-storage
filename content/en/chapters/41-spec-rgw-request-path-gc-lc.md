@@ -13,6 +13,12 @@ lang: en
 - Quotas are soft (cached per RGW) and rate limits are token buckets per user or bucket.
 - Deleted tails go to the gc queue and are freed later; lifecycle runs in a daily window, and `rgw_lc_debug_interval` speeds it up for tests.
 
+```bash
+radosgw-admin ratelimit set --ratelimit-scope=user --uid=alice --max-read-ops=600 --max-write-bytes=104857600
+```
+
+[![The pipeline of a request in RGW: Beast, handler selection, authentication, permissions, rate limit and execution](figures/ch41/f01_pipeline.png)](#fig-41-f01_pipeline)
+
 :::
 
 # Before we begin {#sec-41-1}

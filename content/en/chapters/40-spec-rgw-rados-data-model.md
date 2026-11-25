@@ -13,6 +13,12 @@ lang: en
 - Versioned buckets add an OLH (object logical head) that points to the current version.
 - The manifest maps an object's head and tails to placement pools and storage classes; a multipart ETag is the md5 of the parts' md5s plus a part count.
 
+```bash
+radosgw-admin object stat --bucket photos --object big.bin
+```
+
+[![The sequence of the RGW two-phase index update: prepare, data write and complete or cancel](figures/ch40/f03_twophase.png)](#fig-40-f03_twophase)
+
 :::
 
 # Before we begin {#sec-40-1}

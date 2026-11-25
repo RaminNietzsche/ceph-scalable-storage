@@ -13,6 +13,12 @@ lang: fa
 - حذف snapshot فقط آن را در صف می‌گذارد و SnapTrimmer cloneها را در پس‌زمینه پاک می‌کند.
 - وضعیت watch روی خود شیء ذخیره می‌شود و با عوض شدن primary از بین نمی‌رود؛ فصل با مرجع فرمان‌های `rados` و `ceph osd pool` تمام می‌شود.
 
+```bash
+rados -p rbd listsnaps rbd_data.5f3a.0000000000000000
+```
+
+[![تحول SnapSet یک شیء در طول نوشتن‌ها و snapshotها: ساخت clone و ردیابی clone_overlap](figures/ch36/f01_snapset.png)](#fig-36-f01_snapset)
+
 :::
 
 # پیش از شروع {#sec-36-1}

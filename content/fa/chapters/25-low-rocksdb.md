@@ -13,6 +13,12 @@ lang: fa
 - بلوک‌های داده‌ی SST کلیدها را با تفاضل و نقطه‌های restart ذخیره می‌کنند؛ Bloom filterهای Ceph (`rocksdb_bloom_bits_per_key = 20`) جلوی خواندن‌های بی‌فایده را می‌گیرند.
 - امتیاز compaction و اندازه‌ی پویای سطح‌ها تعیین می‌کنند داده کی و کجا compact شود و همین write amplification را می‌سازد.
 
+```bash
+ceph-bluestore-tool show-sharding --path /var/lib/ceph/osd/ceph-4
+```
+
+[![مسیرهای نوشتن و خواندن در RocksDB: WAL، MemTable، سطوح SST و block cache](figures/ch25/f01_write.png)](#fig-25-f01_write)
+
 :::
 
 # مقدمه: چرا RocksDB؟ {#sec-25-1}

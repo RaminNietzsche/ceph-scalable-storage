@@ -13,6 +13,12 @@ lang: en
 - The NVMe-oF gateway exports RBD images over NVMe/TCP; gateways in a group share ANA state for failover.
 - If host I/O stalls after a gateway failure, check `ceph nvme-gw show` and the OSD blocklist.
 
+```bash {since=tentacle}
+ceph orch apply nvmeof --pool POOL --group GROUP --placement="host01, host02"
+```
+
+[![Comparing the kernel NVMe path with SPDK user-space polling directly against the submission and completion queues](figures/ch31/f01_paths.png)](#fig-31-f01_paths)
+
 :::
 
 # Why this chapter? {#sec-31-1}

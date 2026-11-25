@@ -13,6 +13,12 @@ lang: fa
 - bucketهای versioned یک OLH (object logical head) دارند که به نسخه‌ی جاری اشاره می‌کند.
 - manifest، head و tailهای شیء را به poolهای placement و storage classها نگاشت می‌کند؛ ETag در multipart برابر md5 روی md5 بخش‌ها به‌همراه تعداد بخش‌هاست.
 
+```bash
+radosgw-admin object stat --bucket photos --object big.bin
+```
+
+[![توالی به‌روزرسانی دومرحله‌ای ایندکس در RGW: prepare، نوشتن داده و سپس complete یا cancel](figures/ch40/f03_twophase.png)](#fig-40-f03_twophase)
+
 :::
 
 # پیش از شروع {#sec-40-1}

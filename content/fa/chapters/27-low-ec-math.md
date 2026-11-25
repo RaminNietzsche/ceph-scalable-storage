@@ -13,6 +13,12 @@ lang: fa
 - decode پس از خرابی، سطرهای متناظر ماتریس را وارون می‌کند؛ به‌روزرسانی parity-delta بدون خواندن کل stripe، parity را عوض می‌کند.
 - FastEC در Tentacle همین را برای خواندن و نوشتن جزئی، پشت `allow_ec_optimizations`، به کار می‌برد.
 
+```bash {since=tentacle}
+ceph osd pool set ecdata allow_ec_optimizations true
+```
+
+[![سه لایه‌ی محاسبه در کدگذاری تصحیح خطا: حساب GF(2⁸)، ماتریس کدگذاری و عملیات برداری SIMD](figures/ch27/f02_gf.png)](#fig-27-f02_gf)
+
 :::
 
 # مقدمه: از XOR تا Reed-Solomon {#sec-27-1}

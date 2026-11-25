@@ -13,6 +13,12 @@ lang: fa
 - backendها عبارت‌اند از BlueStore (از راه یک adaptor)، CyanStore (در حافظه) و SeaStore که ذخیره‌ساز log-structured برای NVMe است.
 - SeaStore به جمع‌آوری زباله‌ی segmentها نیاز دارد؛ بعضی فرمان‌های پایش فقط در main وجود دارند، پس نسخه‌ی خود را بررسی کنید.
 
+```bash {since=main}
+ceph tell osd.0 dump_metrics reactor_utilization
+```
+
+[![مقایسه‌ی مدل چندریسمانی OSD کلاسیک با مدل هر-هسته-یک-شارد Seastar در Crimson](figures/ch30/f01_threads.png)](#fig-30-f01_threads)
+
 :::
 
 # مقدمه: چرا یک OSD تازه؟ {#sec-30-1}

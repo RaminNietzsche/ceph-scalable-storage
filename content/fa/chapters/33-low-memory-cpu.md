@@ -13,6 +13,12 @@ lang: fa
 - mempoolها بدون قفل، بایت‌ها و آیتم‌های هر زیرسیستم را می‌شمارند؛ tcmalloc ممکن است حافظه‌ی آزادشده را نگه دارد، پس RSS با جمع mempoolها فرق دارد.
 - PriorityCache مقدار `osd_memory_target` را میان cacheهای onode، داده و RocksDB تقسیم می‌کند؛ NUMA affinity و profiling (perf و flame graph) نقاط داغ CPU را پیدا می‌کنند.
 
+```bash
+ceph tell osd.3 dump_mempools | jq '.mempool.by_pool | to_entries | sort_by(-.value.bytes) | .[:5]'
+```
+
+[![مهم‌ترین threadهای ceph-osd در top -H یا perf: msgr-worker، tp_osd_tp، bstore_aio و threadهای RocksDB](figures/ch33/f01_threads.png)](#fig-33-f01_threads)
+
 :::
 
 # چرا حافظه و CPU؟ {#sec-33-1}

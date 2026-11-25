@@ -13,6 +13,12 @@ lang: fa
 - striper مشترک، offset در دستگاه یا فایل را به یک شیء و offset درون آن نگاشت می‌کند.
 - krbd روی `rbd_header` یک watch و قفل انحصاری دارد؛ ceph.ko تأخیر و آمار فایل‌ها را از دید کلاینت در debugfs نشان می‌دهد.
 
+```bash
+rbd map rbd/img1 -o ms_mode=prefer-crc,queue_depth=256,alloc_size=65536
+```
+
+[![مسیر یک نوشتن در krbd از لایه‌ی block لینوکس و blk-mq تا libceph](figures/ch29/f01_krbd.png)](#fig-29-f01_krbd)
+
 :::
 
 # مقدمه: Ceph درون هسته {#sec-29-1}

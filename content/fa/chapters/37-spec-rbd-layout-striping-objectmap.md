@@ -13,6 +13,12 @@ lang: fa
 - object map برای هر شیء دو بیت نگه می‌دارد تا fast-diff و `rbd du` لازم نباشد تک‌تک اشیا را بپرسند.
 - فصل با مرجع فرمان‌های rbd تمام می‌شود.
 
+```bash
+rados -p rbd listomapkeys rbd_header.5f3a2b8c1d4e
+```
+
+[![چیدمان یک image در RBD با data pool جدا: header، directory، object map و اشیای داده](figures/ch37/f01_layout.png)](#fig-37-f01_layout)
+
 :::
 
 # پیش از شروع {#sec-37-1}

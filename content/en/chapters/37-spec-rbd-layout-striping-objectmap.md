@@ -13,6 +13,12 @@ lang: en
 - The object map keeps two bits per object, so fast-diff and `rbd du` need not query every object.
 - The chapter ends with an rbd command reference.
 
+```bash
+rados -p rbd listomapkeys rbd_header.5f3a2b8c1d4e
+```
+
+[![The layout of an RBD image with a separate data pool: header, directory, object map and data objects](figures/ch37/f01_layout.png)](#fig-37-f01_layout)
+
 :::
 
 # Before we begin {#sec-37-1}

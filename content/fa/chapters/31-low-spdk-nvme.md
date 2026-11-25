@@ -13,6 +13,12 @@ lang: fa
 - gateway از نوع NVMe-oF، imageهای RBD را روی NVMe/TCP صادر می‌کند؛ gatewayهای یک گروه برای failover وضعیت ANA را با هم شریک‌اند.
 - اگر I/O میزبان پس از خرابی یک gateway متوقف ماند، `ceph nvme-gw show` و blocklist در OSDها را بررسی کنید.
 
+```bash {since=tentacle}
+ceph orch apply nvmeof --pool POOL --group GROUP --placement="host01, host02"
+```
+
+[![مقایسه‌ی مسیر هسته‌ای NVMe با مسیر فضای کاربر SPDK و سرکشی مستقیم به صف‌های ارسال و تکمیل](figures/ch31/f01_paths.png)](#fig-31-f01_paths)
+
 :::
 
 # چرا این فصل؟ {#sec-31-1}

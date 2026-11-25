@@ -13,6 +13,12 @@ lang: fa
 - quotaها نرم‌اند (در هر RGW cache می‌شوند) و rate limitها token bucket به ازای کاربر یا bucket هستند.
 - tailهای حذف‌شده به صف gc می‌روند و بعداً آزاد می‌شوند؛ lifecycle در پنجره‌ی کاری روزانه اجرا می‌شود و `rgw_lc_debug_interval` آن را برای آزمون سریع می‌کند.
 
+```bash
+radosgw-admin ratelimit set --ratelimit-scope=user --uid=alice --max-read-ops=600 --max-write-bytes=104857600
+```
+
+[![خط لوله‌ی یک درخواست در RGW: Beast، انتخاب handler، احراز هویت، مجوزها، محدودیت نرخ و اجرا](figures/ch41/f01_pipeline.png)](#fig-41-f01_pipeline)
+
 :::
 
 # پیش از شروع {#sec-41-1}

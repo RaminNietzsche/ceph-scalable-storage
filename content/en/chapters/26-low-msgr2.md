@@ -13,6 +13,12 @@ lang: en
 - AsyncConnection runs a connection's state machine and EventCenter dispatches socket events on a few worker threads.
 - The chapter decodes real frames byte by byte, such as a KEEPALIVE2 in crc mode.
 
+```bash {since=squid}
+ceph daemon osd.4 messenger dump
+```
+
+[![The full msgr2 handshake: banner, HELLO, authentication, mode negotiation and session setup](figures/ch26/f01_hs.png)](#fig-26-f01_hs)
+
 :::
 
 # Introduction: the wire between two daemons {#sec-26-1}

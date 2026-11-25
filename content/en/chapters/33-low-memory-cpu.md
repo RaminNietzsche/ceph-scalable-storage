@@ -13,6 +13,12 @@ lang: en
 - mempools count bytes and items per subsystem without locks; tcmalloc may keep freed memory, so RSS and the mempool total differ.
 - PriorityCache splits `osd_memory_target` between onode, data and RocksDB caches; NUMA affinity and profiling (perf, flame graphs) find CPU hot spots.
 
+```bash
+ceph tell osd.3 dump_mempools | jq '.mempool.by_pool | to_entries | sort_by(-.value.bytes) | .[:5]'
+```
+
+[![The main ceph-osd threads as seen in top -H or perf: msgr-worker, tp_osd_tp, bstore_aio and RocksDB threads](figures/ch33/f01_threads.png)](#fig-33-f01_threads)
+
 :::
 
 # Why memory and CPU? {#sec-33-1}

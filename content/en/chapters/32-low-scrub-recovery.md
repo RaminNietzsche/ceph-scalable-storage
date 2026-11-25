@@ -13,6 +13,12 @@ lang: en
 - After peering, recovery fills missing objects from the log, while backfill copies whole PGs to targets without log overlap.
 - Repair reuses recovery with an artificial missing list, so recovery limits (reservations, `osd_max_backfills`) apply to it too.
 
+```bash {since=squid}
+ceph tell osd.4 dump_scrubs
+```
+
+[![The ScrubMachine state machine: reservations, chunk locking, map building and comparison](figures/ch32/f01_scrubfsm.png)](#fig-32-f01_scrubfsm)
+
 :::
 
 # Chapter map {#sec-32-1}

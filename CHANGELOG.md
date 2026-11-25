@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Chapter TL;DR boxes: every chapter (01–42, both editions) now includes one key Ceph CLI command (with its minimum-release badge where applicable) and an overview figure thumbnail with a caption linking to the full figure in the chapter; `tools/check_tldr.py` and `tools/check_features.py` enforce both across Markdown and the built site.
 - Gamification: one medal per interactive lab (20 in all), with its own icon and name in both editions; a "Lab medals" gallery section shows them locked or earned, and each lab page shows its own medal.
 - Interactive lab: twenty simulators; the Experimenter badge tiers are now 1, 8 and 20 labs; docs/SIMULATORS.md describes the labs that load on demand and their reference data.
 - Network lab: public and cluster traffic of replication and EC for a client load, and the data moved and time to rebuild a lost OSD (chapter 13).

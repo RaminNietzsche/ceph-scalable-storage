@@ -13,6 +13,12 @@ lang: fa
 - در حالت snapshot، snapshotهای زمان‌بندی‌شده‌ی mirror روی image اصلی گرفته می‌شوند و rbd-mirror تفاوت دو snapshot پیاپی را کپی می‌کند.
 - چند daemon از rbd-mirror با یک leader و از راه watch/notify imageها را میان خود تقسیم می‌کنند؛ فاصله‌ی timestampهای snapshot همان RPO فعلی است.
 
+```bash
+rbd journal info --pool rbd --image vm01
+```
+
+[![دو حالت RBD mirroring در کنار هم: بازپخش پیوسته‌ی رویداد در حالت journal در برابر تفاضل دوره‌ای در حالت snapshot](figures/ch39/f02_modes.png)](#fig-39-f02_modes)
+
 :::
 
 # پیش از شروع {#sec-39-1}

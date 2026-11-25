@@ -13,6 +13,12 @@ lang: en
 - exclusive-lock is cooperative and keeps the object map, journal and cache consistent with one writer at a time.
 - The default cache is writearound; QoS uses token buckets per limit; krbd, librbd and rbd-nbd differ in feature support.
 
+```bash
+rbd lock ls rbd/vm01
+```
+
+[![The dispatch layers in librbd from image request through cache, exclusive lock and striper to RADOS objects](figures/ch38/f01_dispatch.png)](#fig-38-f01_dispatch)
+
 :::
 
 # Before we begin {#sec-38-1}

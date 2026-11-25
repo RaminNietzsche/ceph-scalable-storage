@@ -13,6 +13,12 @@ lang: en
 - No blocking work may run in a messenger thread or while holding a PG lock; structures are versioned with encode/decode for compatibility.
 - The chapter follows a RADOS write and an RGW PUT function by function and times the write path with OpTracker.
 
+```bash
+ceph config set osd.3 debug_osd 20
+```
+
+[![Map of the main src/ directories on the main branch: shared base code, client libraries, daemons and tools](figures/ch22/f01_repo.png)](#fig-22-f01_repo)
+
 :::
 
 # Repository map {#sec-22-1}

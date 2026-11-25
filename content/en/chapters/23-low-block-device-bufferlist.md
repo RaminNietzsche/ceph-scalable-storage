@@ -13,6 +13,12 @@ lang: en
 - `bufferlist` is a list of reference-counted buffer pointers; `c_str()` on a fragmented list silently copies everything into one buffer.
 - mempools account memory per subsystem, and BlueStore checksums blocks with crc32c by default.
 
+```bash
+ceph osd metadata 4 | jq '{bluestore_bdev_type, bluestore_bdev_rotational, bluestore_bdev_dev_node}'
+```
+
+[![The path of a write from BlueStore to the disk: block-aligned bufferlist, IOContext and libaio submission](figures/ch23/f01_stack.png)](#fig-23-f01_stack)
+
 :::
 
 # Where this part fits {#sec-23-1}

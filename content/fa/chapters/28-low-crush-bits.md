@@ -13,6 +13,12 @@ lang: fa
 - firstn برای replication و indep برای erasure coding مناسب است، چون جای shardها نباید جابه‌جا شود؛ bucketهای uniform، list و tree داده‌ی بیشتری جابه‌جا می‌کنند.
 - مدخل‌های upmap در OSDMap برای تک‌تک PGها CRUSH را کنار می‌زنند و balancer از آن‌ها استفاده می‌کند.
 
+```bash
+ceph osd getcrushmap -o cm.bin && crushtool -d cm.bin -o cm.txt
+```
+
+[![خط لوله‌ی کامل نگاشت: hash نام شیء با rjenkins، محاسبه‌ی PG و جاشناسی CRUSH با straw2](figures/ch28/f01_pipe.png)](#fig-28-f01_pipe)
+
 :::
 
 # مقدمه: CRUSH چگونه «حساب» می‌کند؟ {#sec-28-1}

@@ -13,6 +13,12 @@ lang: fa
 - op در یک shard از OSD صف می‌شود و پیش از اجرا از دروازه‌های do_op (نقشه، peering، اشیای گمشده و قفل‌ها) می‌گذرد.
 - `execute_ctx` opها را به یک تراکنش تبدیل می‌کند، نسخه را تعیین می‌کند و مدخل pg log را می‌نویسد که در omap شیء pgmeta نگه داشته می‌شود.
 
+```bash
+ceph osd map rbd rbd_header.5f3a2b8c1d4e
+```
+
+[![مسیر op درون OSD از AsyncMessenger و fast dispatch تا صف shard، تکثیر و ثبت در BlueStore](figures/ch34/f01_oppath.png)](#fig-34-f01_oppath)
+
 :::
 
 # پیش از شروع {#sec-34-1}

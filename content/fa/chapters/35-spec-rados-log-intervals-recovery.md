@@ -13,6 +13,12 @@ lang: fa
 - primary معتبرترین log را انتخاب و ادغام می‌کند؛ missing setها فهرست چیزهایی است که هر عضو باید بازیابی کند.
 - عضوی که log مشترک ندارد به جای recovery مبتنی بر log، backfill می‌شود؛ طول log (و trim آن) حافظه را با سرعت بازیابی معاوضه می‌کند.
 
+```bash
+ceph pg <pgid> query
+```
+
+[![زمان‌خط intervalهای یک PG: هر تغییر در up، acting یا min_size یک interval تازه برای peering می‌سازد](figures/ch35/f01_intervals.png)](#fig-35-f01_intervals)
+
 :::
 
 # پیش از شروع {#sec-35-1}

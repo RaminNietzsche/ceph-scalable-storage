@@ -13,6 +13,12 @@ lang: fa
 - اشیای وضعیت sync در log pool مربوط به zone مقصد و با نام zone مبدأ نگه داشته می‌شوند.
 - data sync با وجود خطاها marker هر shard را جلو می‌برد و خطاها را از error repo دوباره امتحان می‌کند؛ نوشتن متادیتا به zone اصلی نیاز دارد.
 
+```bash
+radosgw-admin bucket sync status --bucket logs --source-zone zone-a
+```
+
+[![زنجیره‌ی سه لاگ برای یک PUT در zone مبدأ: bilog، datalog و fetch_remote_obj در مقصد](figures/ch42/f01_logs.png)](#fig-42-f01_logs)
+
 :::
 
 # پیش از شروع {#sec-42-1}

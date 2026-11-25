@@ -13,6 +13,12 @@ lang: en
 - SST data blocks use key deltas with restart points; Ceph's Bloom filters (`rocksdb_bloom_bits_per_key = 20`) avoid useless reads.
 - Compaction score and dynamic level sizes decide when and where data is compacted, which drives write amplification.
 
+```bash
+ceph-bluestore-tool show-sharding --path /var/lib/ceph/osd/ceph-4
+```
+
+[![The write and read paths in RocksDB: WAL, MemTable, SST levels and block cache](figures/ch25/f01_write.png)](#fig-25-f01_write)
+
 :::
 
 # Introduction: why RocksDB? {#sec-25-1}

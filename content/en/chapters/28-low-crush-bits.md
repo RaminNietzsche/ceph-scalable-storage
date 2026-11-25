@@ -13,6 +13,12 @@ lang: en
 - firstn suits replication and indep suits erasure coding, where a shard's position must not shift; uniform, list and tree buckets move more data.
 - upmap entries in the OSDMap override CRUSH for single PGs; the balancer uses them.
 
+```bash
+ceph osd getcrushmap -o cm.bin && crushtool -d cm.bin -o cm.txt
+```
+
+[![The complete mapping pipeline: object name hash with rjenkins, PG calculation and CRUSH straw2 placement](figures/ch28/f01_pipe.png)](#fig-28-f01_pipe)
+
 :::
 
 # Introduction: how does CRUSH "compute"? {#sec-28-1}

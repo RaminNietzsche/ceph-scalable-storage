@@ -13,6 +13,12 @@ lang: fa
 - پس از peering، recovery اشیای گمشده را از روی log پر می‌کند و backfill کل PG را به مقصدهایی که log مشترک ندارند کپی می‌کند.
 - repair همان recovery است با یک فهرست missing مصنوعی، پس محدودیت‌های recovery (رزرو و `osd_max_backfills`) بر آن هم اعمال می‌شود.
 
+```bash {since=squid}
+ceph tell osd.4 dump_scrubs
+```
+
+[![ماشین حالت ScrubMachine: رزرو، قفل chunk، ساخت نقشه و مقایسه](figures/ch32/f01_scrubfsm.png)](#fig-32-f01_scrubfsm)
+
 :::
 
 # نقشه‌ی فصل {#sec-32-1}

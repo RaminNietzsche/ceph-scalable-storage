@@ -13,6 +13,12 @@ lang: fa
 - exclusive-lock همیارانه است و با یک نویسنده در هر لحظه object map، journal و cache را سازگار نگه می‌دارد.
 - cache پیش‌فرض writearound است؛ QoS برای هر محدودیت یک token bucket دارد؛ krbd، librbd و rbd-nbd در پشتیبانی از قابلیت‌ها متفاوت‌اند.
 
+```bash
+rbd lock ls rbd/vm01
+```
+
+[![لایه‌های dispatch در librbd از درخواست تصویر تا cache، قفل انحصاری، striper و اشیای RADOS](figures/ch38/f01_dispatch.png)](#fig-38-f01_dispatch)
+
 :::
 
 # پیش از شروع {#sec-38-1}

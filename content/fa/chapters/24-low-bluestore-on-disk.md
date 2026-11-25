@@ -13,6 +13,12 @@ lang: fa
 - extent map بازه‌های منطقی را به blobها نگاشت می‌کند؛ blobهای مشترک با شمارش ارجاع، clone و snapshot را ارزان می‌کنند.
 - تخصیص‌دهنده‌ها (AVL، bitmap و hybrid) و freelist فضای آزاد را دنبال می‌کنند؛ امتیاز fragmentation نشان می‌دهد این فضا چقدر پراکنده است.
 
+```bash
+ceph-bluestore-tool show-label --dev /dev/ceph-xxx/osd-block-yyy
+```
+
+[![چیدمان ابتدای دستگاه‌های BlueStore: label، superblock و extentهای BlueFS](figures/ch24/f01_layout.png)](#fig-24-f01_layout)
+
 :::
 
 # مقدمه: BlueStore روی دیسک چه می‌نویسد؟ {#sec-24-1}
