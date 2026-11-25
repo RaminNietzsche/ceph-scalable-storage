@@ -44,6 +44,7 @@ app:
   bibliography: ["F", "Bibliography and Official Sources", "Bibliography"]
   algorithms: ["G", "List of Algorithms", "List of Algorithms"]
   changes: ["H", "Changes in Reef, Squid and Tentacle", "Release Changes"]
+  upgrade: ["I", "Upgrade Guide: From Reef to Squid and Tentacle", "Upgrade Guide"]
 toc_app:
   glossary: "Appendix A: English Glossary"
   cheatsheet: "Appendix B: Command Cheat Sheet"
@@ -53,6 +54,7 @@ toc_app:
   bibliography: "Appendix F: Bibliography and Official Sources"
   algorithms: "Appendix G: List of Algorithms"
   changes: "Appendix H: Changes in Reef, Squid and Tentacle"
+  upgrade: "Appendix I: Upgrade Guide: From Reef to Squid and Tentacle"
 index: "Index"
 glossary_intro: "Key terms used in the book, in English alphabetical order, each with a short definition. Use the index at the end of the book to find where each term is used."
 glossary_cols: ["Term", "Definition"]
@@ -90,5 +92,7 @@ changes_review: "for review"
 changes_labels_title: "Commands that need a release newer than Reef"
 tldr_title: "TL;DR"
 tldr_sub: "this chapter in a few lines"
+tldr_sub_app: "this appendix in a few lines"
+tldr_fig_goto_app: "View full figure in the appendix"
 tldr_cmd: "Key command"
 tldr_fig_goto: "View full figure in chapter"

@@ -194,6 +194,7 @@ figs = []
 toc = []
 cmds = []
 APPFIG = [0]
+APPLETTER = ['']   # letter of the appendix being rendered (appendix figures are numbered I-1, I-2, ...)
 ALGOS = []
 ANS = collections.defaultdict(list)
 BIB = collections.defaultdict(list)
@@ -217,6 +218,13 @@ def render(lines, chap=None, md=None):
                 _fn += 1
                 _p, _c = _ln[5:].split('|', 1)
                 fig_by_path[_p] = (f'fig-{chap}-{_fn}', f'{fa(chap)}-{fa(_fn)}', _c)
+    else:
+        _fn = 0
+        for _ln in lines:
+            if _ln.startswith('!IMG '):
+                _fn += 1
+                _p, _c = _ln[5:].split('|', 1)
+                fig_by_path[_p] = (f'fig-app-{APPFIG[0] + _fn}', f'{APPLETTER[0] or UI["appendix_fig_prefix"]}-{fa(_fn)}', _c)
 
     def mdw(s):
         if md is not None:
@@ -309,15 +317,16 @@ def render(lines, chap=None, md=None):
                         apath = figure_path(fpath)
                         fid, fnum, _ = fig_by_path.get(fpath, (ftgt, '', fcap))
                         flab = f'{UI["figure"]} {fnum}' if fnum else UI['figure']
-                        fig_html = (f'<div class="tldr-fig"><a class="tldr-fig-link" href="#{fid}" title="{esc(UI["tldr_fig_goto"])}">'
+                        fig_html = (f'<div class="tldr-fig"><a class="tldr-fig-link" href="#{fid}" title="{esc(UI["tldr_fig_goto"] if chap else UI.get("tldr_fig_goto_app", UI["tldr_fig_goto"]))}">'
                                     f'<img src="file://{apath}" alt="{esc(fcap)}"/>'
                                     f'<span class="tldr-cap"><b>{esc(flab)}:</b> {inline(fcap)}</span></a></div>')
                         fig_md = f'[![{flab}: {fcap}]({os.path.relpath(apath, ROOT)})](#{fid})'
                     k += 1
             items = ''.join(f'<li>{inline(x)}</li>' for x in bullets)
             extra = f'<div class="tldr-extra">{cmd_html}{fig_html}</div>' if (cmd_html or fig_html) else ''
-            H.append(f'<div class="tldr"><div class="lab"><span class="t">{esc(UI["tldr_title"])}</span> <span class="s">{esc(UI["tldr_sub"])}</span></div><ul>{items}</ul>{extra}</div>')
-            md_lines = [f'**{UI["tldr_title"]}** ({UI["tldr_sub"]})', '', *['- ' + x for x in bullets]]
+            tsub = UI['tldr_sub'] if chap else UI.get('tldr_sub_app', UI['tldr_sub'])
+            H.append(f'<div class="tldr"><div class="lab"><span class="t">{esc(UI["tldr_title"])}</span> <span class="s">{esc(tsub)}</span></div><ul>{items}</ul>{extra}</div>')
+            md_lines = [f'**{UI["tldr_title"]}** ({tsub})', '', *['- ' + x for x in bullets]]
             if cmd_md:
                 md_lines += ['', *cmd_md]
             if fig_md:
@@ -422,7 +431,7 @@ def render(lines, chap=None, md=None):
             w, h = Image.open(apath).size
             ar = w / h
             cls = 'wide' if ar > 1.25 else ('mid' if ar > 0.8 else 'tall')
-            num = f'{fa(chap)}-{fa(figno)}' if chap else f'{UI["appendix_fig_prefix"]}-{fa(APPFIG[0])}'
+            num = f'{fa(chap)}-{fa(figno)}' if chap else f'{APPLETTER[0] or UI["appendix_fig_prefix"]}-{fa(figno)}'
             figs.append((fid, num, cap))
             H.append(f'<figure id="{fid}" class="{cls}"><img src="file://{apath}"/><figcaption><b>{UI["figure"]} {num}:</b> {inline(cap)}</figcaption></figure>')
             mdw(f'\n![{UI["figure"]} {num}: {cap}]({os.path.relpath(apath, ROOT)})\n\n*{UI["figure"]} {num}: {cap}*\n')
@@ -604,14 +613,21 @@ for tool in sorted(by, key=lambda t: order.index(t) if t in order else 99):
     bh.append('</tbody></table>')
 bh.append('</section>')
 app.append('\n'.join(bh))
-for aid, key, fn in [('appC', 'troubleshooting', 'troubleshooting.md'), ('appD', 'versions', 'versions.md')]:
+def source_appendix(aid, key, fn):
+    """An appendix written in Markdown (content/<lang>/appendices/<fn>)."""
     afm, L = load_md(os.path.join(C, 'appendices', fn))
     if afm.get('translation') == 'pending':
         L = ['!NOTE ' + UI['pending_note']]
     m = []
+    APPLETTER[0] = A[key][0]
     h = render(L, None, m)
+    APPLETTER[0] = ''
     letter_sec(aid, key, h)
     MDA.append(f'\n\n# {UI["appendix"]} {A[key][0]}: {A[key][1]}\n' + '\n'.join(m))
+
+
+for aid, key, fn in [('appC', 'troubleshooting', 'troubleshooting.md'), ('appD', 'versions', 'versions.md')]:
+    source_appendix(aid, key, fn)
 ah = [f'<p>{UI["answers_intro"]}</p>']
 MDA.append(f'\n\n# {UI["appendix"]} {A["answers"][0]}: {A["answers"][2]}\n')
 for n, t in chapters:
@@ -675,6 +691,8 @@ for ch, since, first in NEWER:
     MDA.append(f'| {cephver.label(since, LANG)} | `{first}` | {ch} |')
 chh.append('</tbody></table>')
 letter_sec('appI', 'changes', ''.join(chh))
+# ---------- appendix: upgrade guide, Reef -> Squid -> Tentacle (content/<lang>/appendices/upgrade.md) ----------
+source_appendix('appJ', 'upgrade', 'upgrade.md')
 json.dump({t: [(ch, a) for ch, a in v] for t, v in ix_hits.items()}, open(os.path.join(OUT, 'ix_hits.json'), 'w'))
 app.append(f'<section class="appendix index" id="index"><h1 class="ap-title" data-t="{UI["index"]}"><span class="apn">&nbsp;</span>{UI["index"]}</h1><p class="ixnote">{UI["index_note"]}</p><div class="ixcols"><!--INDEX--></div></section>')
 MDA.append(f'\n\n# {UI["index"]}\n\n{UI["index_md_note"]}\n')
@@ -698,7 +716,7 @@ for lvl, hid, num, txt, ch in toc:
         toc_html.append(f'<tr class="t1"><td class="tn">{CH} {num}</td><td class="tt"><a href="#{hid}">{inline(txt)}</a></td><td class="pg"><a class="pgn" href="#{hid}"></a></td></tr>')
     else:
         toc_html.append(f'<tr class="t2"><td class="tn">{num}</td><td class="tt"><a href="#{hid}">{inline(txt)}</a></td><td class="pg"><a class="pgn" href="#{hid}"></a></td></tr>')
-for aid, key in [('appA', 'glossary'), ('appB', 'cheatsheet'), ('appC', 'troubleshooting'), ('appD', 'versions'), ('appF', 'answers'), ('appG', 'bibliography'), ('appH', 'algorithms'), ('appI', 'changes'), ('index', None)]:
+for aid, key in [('appA', 'glossary'), ('appB', 'cheatsheet'), ('appC', 'troubleshooting'), ('appD', 'versions'), ('appF', 'answers'), ('appG', 'bibliography'), ('appH', 'algorithms'), ('appI', 'changes'), ('appJ', 'upgrade'), ('index', None)]:
     t = UI['toc_app'][key] if key else UI['index']
     toc_html.append(f'<tr class="t1"><td class="tt" colspan="2"><a href="#{aid}">{inline(t)}</a></td><td class="pg"><a class="pgn" href="#{aid}"></a></td></tr>')
 

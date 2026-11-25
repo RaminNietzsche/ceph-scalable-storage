@@ -122,6 +122,9 @@ for rk, ri in RC['releases'].items():
             st = UI['changes_confirmed'] if c['status'] == 'confirmed' else UI['changes_review']
             parts.append(f'| {c["area"]} | {c[a.lang].replace("|", "/")} | ' + ', '.join(f'[{UI["chapter_word"]} {num(n)}](#ch{n:02d})' for n in c['ch']) + f' | {st} |')
     parts.append('')
+fm, lines = body_of(os.path.join(C, 'appendices', 'upgrade.md'))
+letter, title, _ = UI['app']['upgrade']
+parts += ['', f'# {UI["appendix"]} {letter}: {title} {{#app-upgrade .unnumbered}}', ''] + lines
 src = os.path.join(B, f'pandoc-{a.lang}.md')
 SIMSTR = yaml.safe_load(open(os.path.join(ROOT, 'templates', 'site', 'sims', f'strings-{a.lang}.yaml'), encoding='utf-8'))
 labels = {'algorithm': UI['algorithm'], 'algo_src': UI['algo_src'], 'algo_complexity': UI['algo_complexity'], **UI['callouts'],

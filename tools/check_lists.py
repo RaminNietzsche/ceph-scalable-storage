@@ -86,6 +86,8 @@ for lang in ('fa', 'en'):
 summary.append(f'{n_pages} pages')
 
 # ---- list of figures
+# chapters and the appendices that can hold figures (the upgrade guide)
+APPENDIX_PAGES = {'troubleshooting', 'versions', 'upgrade'}
 FIGN = {}
 for lang in ('fa', 'en'):
     lof = page(lang, 'figures')
@@ -114,7 +116,7 @@ for lang in ('fa', 'en'):
         if norm(tn.get_text()) not in label:
             problems.append(f'{lang}/figures: {href}: number {norm(tn.get_text())} does not match {label!r}')
     n_book = sum(len(page(lang, f[:-5]).select('main figure[id^="fig-"]')) for f in os.listdir(os.path.join(SITE, lang))
-                 if f[:2].isdigit() and f.endswith('.html'))
+                 if f.endswith('.html') and (f[:2].isdigit() or f[:-5] in APPENDIX_PAGES))
     FIGN[lang] = figs_seen
     if len(rows) != n_book or figs_seen != n_book:
         problems.append(f'{lang}/figures: {len(rows)} entries, {figs_seen} valid, but the chapters have {n_book} figures')

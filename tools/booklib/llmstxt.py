@@ -28,6 +28,7 @@ FA_DIGITS = str.maketrans('0123456789', '۰۱۲۳۴۵۶۷۸۹')
 APP_SRC = {
     'troubleshooting': os.path.join('appendices', 'troubleshooting.md'),
     'versions': os.path.join('appendices', 'versions.md'),
+    'upgrade': os.path.join('appendices', 'upgrade.md'),
 }
 
 # Pages included in llms-full.txt, in reading order (slug, kind).
@@ -42,6 +43,7 @@ FULL_ORDER = (
     ('bibliography', 'appendix'),
     ('algorithms', 'appendix'),
     ('changes', 'appendix'),
+    ('upgrade', 'appendix'),
 )
 
 CALLOUT_LABEL = {
