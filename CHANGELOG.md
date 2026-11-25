@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Lab medals for the three new labs: «ترازبان» / Balance Keeper, «تحلیل‌گر دوام SSD» / Endurance Analyst and «معمار Zone» / Zone Architect (50 badges, 23 lab medals); lab index, docs and site checks count 23 labs.
 - RGW multisite lab (lab-multisite.html): realm, zonegroup and zone layout builder with master zonegroup and zone, staged changes and period update --commit following rgw_zone.cc commit_period (same master: epoch + 1; new master: new period, realm_epoch + 1; commit only on the master zone), full-mesh, sync-from or sync-policy direction, the radosgw-admin commands for every step (checked with check_ceph_commands --strict) and a replication-lag and outage catch-up model; linked from chapters 5 and 42.
 - SSD wear lab (lab-ssdwear.html): write amplification from replication or EC, min_alloc_size rounding, deferred writes and RocksDB metadata with leveled compaction, DWPD/TBW and approximate life per OSD with the model's assumptions spelled out; Ceph defaults, RocksDB options and perf counter names come from the Ceph tree; linked from chapters 12 and 25.
 - Balancer lab (lab-balancer.html): upmap rounds ported from OSDMap::calc_pg_upmaps and checked against the compiled Ceph code for 60 clusters, a crush-compat weight-set model, max_deviation and max_optimizations, per-OSD deviation chart and the commands of each round; linked from chapters 19 and 28.

@@ -86,7 +86,7 @@ CARD_VIS = r"""() => [...document.querySelectorAll('.lab-card')].map(c => {
 
 def check_cards(page, where):
     cards = page.evaluate(CARD_VIS)
-    want = 8 if where.startswith('home') else 20   # the home page shows the first eight; lab.html lists all twenty
+    want = 8 if where.startswith('home') else 23   # the home page shows the first eight; lab.html lists all twenty-three
     if len(cards) != want:
         problems.append(f'[{where}] {len(cards)} lab cards (expected {want})')
     for c in cards:
@@ -465,13 +465,13 @@ with sync_playwright() as pw:
             problems.append('[game] completed path has no certificate button')
         gsnap('desktop-heatmap', el='.g-sec:has(.heat)')
         gsnap('desktop-badges', el='#gm-badges')
-        # lab medals: 20 in the gallery, locked until that lab is used; the lab page shows its own
+        # lab medals: 23 in the gallery, locked until that lab is used; the lab page shows its own
         page.evaluate("(() => { const P = JSON.parse(localStorage.getItem('book-progress:fa')); P.g.sims = { crush: 2, mclock: 1, cephx: 1 }; localStorage.setItem('book-progress:fa', JSON.stringify(P)); })()")
         page.reload()
         page.wait_for_timeout(500)
         n_lm, n_lm_on = page.locator('#gm-labmedals .badge').count(), page.locator('#gm-labmedals .badge:not(.t0)').count()
-        if n_lm != 20 or n_lm_on != 3:
-            problems.append(f'[game] lab medals: {n_lm} shown, {n_lm_on} earned (expected 20 and 3)')
+        if n_lm != 23 or n_lm_on != 3:
+            problems.append(f'[game] lab medals: {n_lm} shown, {n_lm_on} earned (expected 23 and 3)')
         if page.locator('#gm-labmedals .badge:not(.t0)').first.locator('b').inner_text() == '':
             problems.append('[game] lab medal has no name')
         gsnap('desktop-lab-medals', el='#gm-labmedals')

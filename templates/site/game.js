@@ -70,7 +70,10 @@
     l_bluespace: 'M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z',
     l_rbdclone: 'M4 4h10v10H4zM10 10h10v10H10z',
     l_cephx: 'M8 4a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM11.5 11.5 21 21M17 17l2.5-2.5M14 14l2-2',
-    l_netbw: 'M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4'
+    l_netbw: 'M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4',
+    l_balancer: 'M12 3v18M5 7h14M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0zM8 21h8',
+    l_ssdwear: 'M4 7h16v10H4zM8 7V4h8v3M8 12h3M13 12h3M7 20l2-3M17 20l-2-3',
+    l_multisite: 'M3 6h7v5H3zM14 6h7v5h-7zM8.5 18h7v4h-7zM10 8.5h4M6.5 11v3.5h11V11M12 14.5V18'
   };
   function svg(name, cls) { return '<svg class="' + (cls || 'gi') + '" viewBox="0 0 24 24" aria-hidden="true"><path d="' + ICON[name] + '"/></svg>'; }
 
@@ -348,7 +351,7 @@
     ['freeze', 'snow', 1, function () { return !!gs().flags.freeze; }, 1]
   ];
   // one medal per interactive lab: earned on the first hands-on use of that lab (sims.js sends sim:use), single tier, never hidden
-  var LABS = ['crush', 'placement', 'pgcalc', 'ecprofile', 'peering', 'bluestore', 'rgwput', 'striping', 'capacity', 'reshard', 'mdspin', 'ecdecode', 'mclock', 'scrub', 'quorum', 'sigv4', 'bluespace', 'rbdclone', 'cephx', 'netbw'];
+  var LABS = ['crush', 'placement', 'pgcalc', 'ecprofile', 'peering', 'bluestore', 'rgwput', 'striping', 'capacity', 'reshard', 'mdspin', 'ecdecode', 'mclock', 'scrub', 'quorum', 'sigv4', 'bluespace', 'rbdclone', 'cephx', 'netbw', 'balancer', 'ssdwear', 'multisite'];
   LABS.forEach(function (n) { BADGES.push(['lab_' + n, 'l_' + n, 2, function () { return (gs().sims[n] || 0) > 0; }, 0, 'lab']); });
   function badgeState(b, st) {
     var v = b[3](st);

@@ -1,10 +1,10 @@
 # Interactive lab (web edition)
 
-The web edition (`make site`) has twenty small simulators, «آزمایشگاه تعاملی» / "Interactive lab". They run the algorithms the book explains, in the reader's browser, with no network and no installation: vanilla JavaScript, no libraries, no build step. Each one is embedded in the chapter that explains it (`::: {.sim name="…"}`; an optional `mode="…"` opens it in one of its modes, as chapters 2 and 37 open the placement lab in RBD mode and chapters 13 and 27 in its erasure-coded mode, `mode="ec"`) and has its own full page (`lab-<name>.html`); `lab.html` lists them and is linked from the sidebar and the home page.
+The web edition (`make site`) has twenty-three small simulators, «آزمایشگاه تعاملی» / "Interactive lab". They run the algorithms the book explains, in the reader's browser, with no network and no installation: vanilla JavaScript, no libraries, no build step. Each one is embedded in the chapter that explains it (`::: {.sim name="…"}`; an optional `mode="…"` opens it in one of its modes, as chapters 2 and 37 open the placement lab in RBD mode and chapters 13 and 27 in its erasure-coded mode, `mode="ec"`) and has its own full page (`lab-<name>.html`); `lab.html` lists them and is linked from the sidebar and the home page.
 
 The rule for every simulator: **where Ceph's own code decides the answer, the arithmetic is a port of that code, and the tests compare it with that code.** Where a simulator only illustrates a sequence (peering, the write paths, cephx, elections), the order of steps and every decision follow the named functions or design documents, and each step shows where it comes from. A few labs are explicit models (the mClock steady state, network traffic, the scrub chart); they say so, and the "How it works" panel of each simulator lists its sources and its limits.
 
-The first eight simulators are in `sims.js` and `sim-*.js` and load on every page that has a simulator. The twelve later ones are **labs that load on demand**: each is one file `templates/site/sims/lab-<name>.js`, listed in `templates/site/sims/labs.yaml`, with strings whose keys start with `<name>_`. `tools/build_site.py` splits those strings out into `<lang>/sim-data-<name>.js` and copies the code to `assets/lab-<name>.js`; only pages that embed the lab get its two deferred scripts, so the shared bundle and the other pages do not grow.
+The first eight simulators are in `sims.js` and `sim-*.js` and load on every page that has a simulator. The fifteen later ones are **labs that load on demand**: each is one file `templates/site/sims/lab-<name>.js`, listed in `templates/site/sims/labs.yaml`, with strings whose keys start with `<name>_`. `tools/build_site.py` splits those strings out into `<lang>/sim-data-<name>.js` and copies the code to `assets/lab-<name>.js`; only pages that embed the lab get its two deferred scripts, so the shared bundle and the other pages do not grow.
 
 ## Files
 
@@ -50,6 +50,9 @@ The first eight simulators are in `sims.js` and `sim-*.js` and load on every pag
 | RBD clones (`rbdclone`) | 3 (§3.9.2) | `src/librbd/io/ObjectRequest.cc` `read_parent`; `CopyupRequest.cc`; `operation/FlattenRequest.cc` | invariants over random operation sequences |
 | cephx tickets (`cephx`) | 8 (§8.6.4) | `doc/dev/cephx.rst`; `src/auth/cephx` | each receiver holds the needed key; no service secret reaches the client |
 | Network traffic: replication versus EC (`netbw`) | 13 (§13.5) | `ReplicatedBackend::issue_op`; EC fan-out, gather and rebuild | traffic invariants |
+| The balancer: upmap and crush-compat (`balancer`) | 19 (§19.6.2), 28 (§28.9) | `src/osd/OSDMap.cc`: `calc_pg_upmaps`, `calc_deviations`, `fill_overfull_underfull`, `try_drop_remap_overfull`, `try_drop_remap_underfull`, `find_best_remap`, `get_random_engine`; `src/crush/CrushWrapper.cc`: `try_remap_rule`, `get_rule_weight_osd_map`; `src/pybind/mgr/balancer/module.py` (crush-compat is a model) | 60 clusters, 4 rounds each, against the compiled C++ (240 rounds, every `pg_upmap_items` entry); crush-compat by invariants |
+| SSD wear and endurance (`ssdwear`) | 12 (§12.6.3), 25 (§25.6) | `bluestore_min_alloc_size_ssd`, `bluestore_prefer_deferred_size_ssd`, `bluestore_rocksdb_options` level sizes; EC stripe unit; a write-amplification model with stated assumptions | defaults, RocksDB options and perf counter names read from Ceph; the chapter 12 level sizes; model invariants |
+| RGW multisite (`multisite`) | 5 (§5.4), 42 (§42.7) | `src/rgw/rgw_zone.cc`: `fork_period`, `commit_period`; `radosgw-admin` zone `--sync-from` and sync group flow/pipe; `rgw.yaml.in` sync options; a replication-lag queue model | commit rules and option defaults read from Ceph; generated commands checked by `tools/check_ceph_commands.py --strict`; topology and queue invariants |
 
 To regenerate the lab reference data (the ISA-L, jerasure and gf-complete trees are Ceph's submodules):
 
@@ -88,7 +91,7 @@ The golden file records the Ceph commit it was made from.
 
 ## Gamification
 
-Using a simulator dispatches `sim:use`. `game.js` gives 5 XP for the first use of each simulator per day (cap 40 XP per day) and counts distinct simulators for the tiered «آزمایشگر» / "Experimenter" badge (1, 8 and 20 simulators). See `docs/GAMIFICATION.md`.
+Using a simulator dispatches `sim:use`. `game.js` gives 5 XP for the first use of each simulator per day (cap 40 XP per day) and counts distinct simulators for the tiered «آزمایشگر» / "Experimenter" badge (1, 8 and 20 of the 23 simulators), and each lab has its own medal. See `docs/GAMIFICATION.md`.
 
 ## Adding a simulator
 

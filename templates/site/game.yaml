@@ -198,6 +198,9 @@ fa:
     lab_rbdclone: ["کلون‌ساز RBD", "کلون و اسنپ‌شات RBD را در آزمایشگاه بیازمایید."]
     lab_cephx: ["نگهبان بلیت Cephx", "بلیت‌های Cephx را پیام‌به‌پیام در آزمایشگاه دنبال کنید."]
     lab_netbw: ["تحلیل‌گر پهنای باند", "ترافیک شبکه را میان Replication و EC در آزمایشگاه مقایسه کنید."]
+    lab_balancer: ["ترازبان", "PGها را با upmap در آزمایشگاه ترازگر میان OSDها تراز کنید."]
+    lab_ssdwear: ["تحلیل‌گر دوام SSD", "فرسایش SSD و عمر هر OSD را در آزمایشگاه برآورد کنید."]
+    lab_multisite: ["معمار Zone", "realm و zoneها را بچینید و period را در آزمایشگاه commit کنید."]
 en:
   s:
     my_progress: "My progress"
@@ -396,3 +399,6 @@ en:
     lab_rbdclone: ["Clone Whisperer", "Try RBD clones and snapshots in the lab."]
     lab_cephx: ["Ticket Master", "Follow Cephx tickets message by message in the lab."]
     lab_netbw: ["Bandwidth Analyst", "Compare network traffic of replication and EC in the lab."]
+    lab_balancer: ["Balance Keeper", "Even out PGs across OSDs with upmap in the balancer lab."]
+    lab_ssdwear: ["Endurance Analyst", "Estimate SSD wear and the life of each OSD in the lab."]
+    lab_multisite: ["Zone Architect", "Lay out a realm and its zones and commit the period in the lab."]

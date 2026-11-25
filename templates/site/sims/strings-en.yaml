@@ -1,6 +1,6 @@
 # Strings of the interactive simulators, English edition (a translation of strings-fa.yaml).
 lab_title: Interactive lab
-lab_intro: "Twenty small simulators that run the book's algorithms in your browser: no network, no installation. Where Ceph's own code decides the answer, the arithmetic is a port of it and the tests in tests/sims (make check-sims) compare the two; the few labs that are models say so, with their limits, in their \"How it works\" panel."
+lab_intro: "Twenty-three small simulators that run the book's algorithms in your browser: no network, no installation. Where Ceph's own code decides the answer, the arithmetic is a port of it and the tests in tests/sims (make check-sims) compare the two; the few labs that are models say so, with their limits, in their \"How it works\" panel."
 lab_all: "All labs ({n})"
 lab_tag: Lab
 lab_in: "In the book:"
