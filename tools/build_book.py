@@ -209,6 +209,14 @@ def render(lines, chap=None, md=None):
     i = 0
     n1 = n2 = 0
     figno = 0
+    fig_by_path = {}
+    if chap:
+        _fn = 0
+        for _ln in lines:
+            if _ln.startswith('!IMG '):
+                _fn += 1
+                _p, _c = _ln[5:].split('|', 1)
+                fig_by_path[_p] = (f'fig-{chap}-{_fn}', f'{fa(chap)}-{fa(_fn)}', _c)
 
     def mdw(s):
         if md is not None:
@@ -264,9 +272,57 @@ def render(lines, chap=None, md=None):
             while not lines[j].startswith('!ENDTLDR'):
                 buf.append(lines[j])
                 j += 1
-            items = ''.join(f'<li>{inline(b[2:])}</li>' for b in buf if b.startswith('- '))
-            H.append(f'<div class="tldr"><div class="lab"><span class="t">{esc(UI["tldr_title"])}</span> <span class="s">{esc(UI["tldr_sub"])}</span></div><ul>{items}</ul></div>')
-            mdw(f'\n> **{UI["tldr_title"]}** ({UI["tldr_sub"]})\n>\n' + '\n'.join('> ' + b for b in buf) + '\n')
+            bullets = []
+            cmd_html = ''
+            cmd_md = []
+            fig_html = ''
+            fig_md = ''
+            k = 0
+            while k < len(buf):
+                b = buf[k]
+                if b.startswith('- '):
+                    bullets.append(b[2:])
+                    k += 1
+                elif b.startswith('```'):
+                    clang, cfattrs = cephver.parse_fence(b) or (b[3:].strip(), {})
+                    k += 1
+                    cbuf = []
+                    while k < len(buf) and not buf[k].startswith('```'):
+                        cbuf.append(buf[k])
+                        k += 1
+                    k += 1
+                    csince = cephver.since_of(clang, cfattrs, cbuf)
+                    clab = f'<span class="lang">{esc(clang)}</span>' if clang else ''
+                    cds = ''
+                    if csince:
+                        cds = f' data-since="{csince}"'
+                        clab = since_badge(csince) + clab
+                    cmd_html = (f'<div class="tldr-cmd-wrap"><div class="tldr-k">{esc(UI["tldr_cmd"])}</div>'
+                                f'<div class="code tldr-cmd"{cds}>{clab}<pre>{esc("\n".join(cbuf))}</pre></div></div>')
+                    cmd_md = ['```' + clang, *cbuf, '```']
+                    if csince:
+                        cmd_md.append(f'*{cephver.label(csince, LANG)}: {cephver.title(csince, LANG)}*')
+                else:
+                    fm_fig = re.match(r'^\[!\[(.*)\]\((\S+?)\)\]\(#([\w:.-]+)\)\s*$', b)
+                    if fm_fig:
+                        fcap, fpath, ftgt = fm_fig.group(1), fm_fig.group(2), fm_fig.group(3)
+                        apath = figure_path(fpath)
+                        fid, fnum, _ = fig_by_path.get(fpath, (ftgt, '', fcap))
+                        flab = f'{UI["figure"]} {fnum}' if fnum else UI['figure']
+                        fig_html = (f'<div class="tldr-fig"><a class="tldr-fig-link" href="#{fid}" title="{esc(UI["tldr_fig_goto"])}">'
+                                    f'<img src="file://{apath}" alt="{esc(fcap)}"/>'
+                                    f'<span class="tldr-cap"><b>{esc(flab)}:</b> {inline(fcap)}</span></a></div>')
+                        fig_md = f'[![{flab}: {fcap}]({os.path.relpath(apath, ROOT)})](#{fid})'
+                    k += 1
+            items = ''.join(f'<li>{inline(x)}</li>' for x in bullets)
+            extra = f'<div class="tldr-extra">{cmd_html}{fig_html}</div>' if (cmd_html or fig_html) else ''
+            H.append(f'<div class="tldr"><div class="lab"><span class="t">{esc(UI["tldr_title"])}</span> <span class="s">{esc(UI["tldr_sub"])}</span></div><ul>{items}</ul>{extra}</div>')
+            md_lines = [f'**{UI["tldr_title"]}** ({UI["tldr_sub"]})', '', *['- ' + x for x in bullets]]
+            if cmd_md:
+                md_lines += ['', *cmd_md]
+            if fig_md:
+                md_lines += ['', fig_md]
+            mdw('\n' + '\n'.join('> ' + x if x else '>' for x in md_lines) + '\n')
             i = j + 1
             continue
         if l.startswith('!SUM'):

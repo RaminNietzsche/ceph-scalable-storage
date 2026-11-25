@@ -53,6 +53,7 @@ CALLOUT_LABEL = {
 _DIV_OPEN = re.compile(r'^:::+\s*\{(.*)\}\s*$')
 _HEAD_ID = re.compile(r'\s+\{#[\w:.-]+\}\s*$')
 _IMG = re.compile(r'^!\[(.*)\]\((\S+?)\)(?:\{#[\w:.-]+\})?\s*$')
+_TLDR_IMG = re.compile(r'^\[!\[(.*)\]\((\S+?)\)\]\(#([\w:.-]+)\)\s*$')
 _ATTR = re.compile(r'([\w-]+)="((?:[^"\\]|\\.)*)"')
 
 
@@ -156,6 +157,14 @@ def clean_source_markdown(text, fig_prefix='../figures/'):
             out.append(f'![{cap}]({src})')
             if cap:
                 out.append(f'*Figure. {cap}*')
+            i += 1
+            continue
+        tim = _TLDR_IMG.match(line.rstrip())
+        if tim:
+            cap, src, tgt = tim.groups()
+            if src.startswith('figures/'):
+                src = fig_prefix.rstrip('/') + '/' + src[len('figures/'):]
+            out.append(f'[![{cap}]({src})](#{tgt})')
             i += 1
             continue
         out.append(_HEAD_ID.sub('', line))

@@ -183,3 +183,11 @@ table.tocl tr.tpart td { font-weight: 700; color: #C0392B; padding-top: 2.5mm; }
 .tldr .lab { font-weight: 800; font-size: 10pt; color: #7A5600; margin-bottom: .8mm; }
 .tldr .lab .s { font-weight: 400; font-size: 8.5pt; color: #8A6D2A; }
 .tldr ul { margin: 0; }
+
+.tldr-extra { margin-top: 2mm; padding-top: 2mm; border-top: .4pt dashed #d4a63a; }
+.tldr-k { font-size: 8pt; font-weight: 700; color: #7A5600; margin-bottom: .8mm; }
+.tldr .code { margin: 0 0 2mm; padding: 1.5mm 2.5mm; }
+.tldr-fig-link { display: flex; align-items: center; gap: 3mm; padding: 1.5mm 2mm; border-radius: 1mm; background: #fffcf3; border: .4pt solid #e6c677; text-decoration: none; color: inherit; }
+.tldr-fig img { width: 42mm; max-width: 42mm; max-height: 24mm; object-fit: contain; background: #fff; border: .3pt solid #d9d9d9; border-radius: .8mm; flex-shrink: 0; }
+.tldr-cap { font-size: 8.2pt; line-height: 1.55; color: #374151; }
+.tldr-cap b { color: #7A5600; }

@@ -23,3 +23,4 @@ div.since-umbrella strong, div.since-main strong { background: #fde8e8; color: #
 details.tldr, div.tldr { margin: 1em 0 1.4em; padding: .6em 1em; border-radius: .4em; background: #fff8e6; border-left: .35em solid #e0a100; }
 details.tldr > summary, div.tldr > p:first-child { font-weight: 700; color: #7a5600; cursor: pointer; }
 details.tldr ul { margin: .4em 0 0; }
+details.tldr img { max-width: 240px; max-height: 150px; border: 1px solid #d9d9d9; border-radius: 4px; background: #fff; padding: 2px; vertical-align: middle; }

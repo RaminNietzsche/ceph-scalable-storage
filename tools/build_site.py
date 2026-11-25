@@ -261,7 +261,7 @@ def collect_figure_pngs(*soups):
     for soup_ in soups:
         if soup_ is None:
             continue
-        for img in soup_.select('figure img[src]'):
+        for img in soup_.select('figure img[src], .tldr-fig img[src]'):
             src = img['src'].replace('file://', '')
             if src.endswith('.png') and os.path.exists(src):
                 out.append(os.path.abspath(src))
@@ -543,6 +543,40 @@ def decorate(body, page):
         img['role'] = 'button'
         img['aria-label'] = S['zoom'] + ': ' + (text_of(cap)[:140] if cap else '')
         img['class'] = 'zoomable'
+    for tf in body.select('.tldr-fig'):
+        img = tf.find('img')
+        if not img or not img.get('src'):
+            continue
+        p = img['src'].replace('file://', '')
+        img['src'] = copy_figure(p)
+        hi, ext, alts = hires(p)
+        if ext != '.svg':
+            src_for_avif = p
+            if alts.get('.webp'):
+                src_for_avif = os.path.join(FIGDIR, alts['.webp'].split('figures/', 1)[-1])
+            avif_dst = os.path.splitext(os.path.join(FIGDIR, os.path.relpath(p, os.path.join(ROOT, 'figures'))))[0] + '.avif'
+            if maybe_avif(src_for_avif if os.path.exists(src_for_avif) else p, avif_dst, png=p):
+                alts['.avif'] = '../figures/' + os.path.relpath(avif_dst, FIGDIR).replace(os.sep, '/')
+        if ext == '.svg':
+            img['src'] = hi
+        elif ext or alts:
+            if hi:
+                img['srcset'] = f"{img['src']} 1x, {hi} 2x"
+            sources = []
+            if alts.get('.avif'):
+                sources.append(f'<source type="image/avif" srcset="{alts[".avif"]}">')
+            if alts.get('.webp'):
+                sources.append(f'<source type="image/webp" srcset="{alts[".webp"]}">')
+            if sources:
+                pic = new('picture')
+                img.replace_with(pic)
+                for s_ in sources:
+                    pic.append(BeautifulSoup(s_, 'html.parser'))
+                pic.append(img)
+        w, h = Image.open(p).size
+        img['width'], img['height'] = str(w), str(h)
+        img['loading'] = 'lazy'
+        img['decoding'] = 'async'
     for t in body.find_all('table'):
         if t.parent and 'table-wrap' in (t.parent.get('class') or []):
             continue

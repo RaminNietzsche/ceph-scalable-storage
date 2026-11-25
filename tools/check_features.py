@@ -87,6 +87,15 @@ for lang in ('fa', 'en'):
             err(f'{rel}: expected one open TL;DR box with 3-5 items')
         elif t[0].find_previous(['h2']) is not None:
             err(f'{rel}: the TL;DR box is not at the top of the chapter')
+        else:
+            tf = t[0].select_one('div.tldr-fig a[href^="#fig-"]')
+            ti = t[0].select_one('div.tldr-fig img[src]')
+            if not tf or not ti:
+                err(f'{rel}: TL;DR box missing figure thumbnail link')
+            else:
+                tgt_id = tf['href'][1:]
+                if s.find(id=tgt_id) is None:
+                    err(f'{rel}: TL;DR figure link #{tgt_id} does not match an id on the page')
         e = s.select_one('.ph-meta a.edit-link')
         want = f'{F["repo"]}/edit/{F["branch"]}/content/{lang}/chapters/{os.path.basename(path)[:-5]}.md'
         if not e:

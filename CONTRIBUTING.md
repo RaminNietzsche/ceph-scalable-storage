@@ -39,6 +39,7 @@ upstream code excerpts must stay short, attributed and keep their original licen
 | Section | `# Title {#sec-NN-K}`, and `## Title {#sec-NN-K-M}` for subsections |
 | Figure | `![caption](figures/chNN/name.png){#fig-NN-name}` |
 | Callout | `::: {.tip}` … `:::`; also `.warn` `.note` `.try` `.deep` `.debug` |
+| TL;DR | `::: {.tldr}` … `:::` (right after front matter) |
 | Box | `::: {.box title="…"}` |
 | Summary | `::: {.summary title="…"}` |
 | Algorithm | `::: {.algo #alg-NN-K title="…" src="file::function" complexity="…"}` |
@@ -56,6 +57,17 @@ the EPUB and HTML exports get MathML and DOCX gets Word equations from Pandoc.
 `make lint` rejects a bare `^` exponent outside code or math, an unbalanced `$`, and
 Persian digits or bidi marks inside math. The site never contains soft hyphens:
 hyphenation is CSS `hyphens: auto` with the page `lang`, so copied text stays clean.
+
+### Chapter TL;DR boxes
+
+Every chapter opens right after its YAML front matter with a single `::: {.tldr}` box containing:
+
+1. **Three to five `- ` bullets**, matching in count and inline code spans between `fa` and `en`.
+2. **One key Ceph CLI command** in a fenced code block (```` ```bash ```` or ```` ```bash {since=...} ```` when the command needs a release newer than Reef).
+   - **Rule for chapters without a command block:** if a chapter has no fenced command block in its body, put the most illustrative real Ceph CLI command discussed in that chapter's prose or tables (present in both `fa` and `en`). For a purely conceptual chapter where no CLI command applies, omit the fenced command block in both `fa` and `en` rather than inventing one.
+3. **One figure thumbnail link** reusing an existing figure from the same chapter: `[![caption](figures/chNN/name.png)](#fig-NN-name)`. Never use `{#fig-...}` inside `.tldr` (that would duplicate the figure id and shift figure numbering); clicking the thumbnail jumps to the full figure in the chapter.
+
+`make check-tldr` checks all of these rules across both editions.
 
 The Python tools and the Pandoc filter (`templates/pandoc/book.lua`) both read this
 format. `tools/booklib/mdlower.py` turns it into the print renderer's directive

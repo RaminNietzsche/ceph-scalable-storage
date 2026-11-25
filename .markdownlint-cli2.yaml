@@ -20,6 +20,7 @@ config:
   MD037: false             # identifiers with underscores in Persian prose
   MD038: false
   MD041: false             # title is in front matter
+  MD051: false             # Pandoc {#fig-...} fragments are checked by check_tldr/check_site
   MD052: false             # array subscripts such as x[32][32]
   MD060: false             # table column alignment style
 globs:
