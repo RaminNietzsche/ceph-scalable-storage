@@ -52,7 +52,7 @@ def lookup(local, r):
         return r.translate(DIGITS)
     return None
 
-dirs = [os.path.join(FIG, c) for c in a.chapters] or sorted(glob.glob(os.path.join(FIG, 'ch[0-9][0-9]')))
+dirs = [os.path.join(FIG, c) for c in a.chapters] or sorted(glob.glob(os.path.join(FIG, 'ch[0-9][0-9]'))) + glob.glob(os.path.join(FIG, 'app'))
 written = partial = untouched = 0
 gaps = {}
 for d in dirs:

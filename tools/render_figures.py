@@ -4,6 +4,7 @@
 * figures/chNN/*.mmd           Mermaid diagrams (Persian labels)  -> *.png
 * figures/chNN/*.<lang>.mmd    generated language variants        -> *.<lang>.png
 * figures/chNN/*.bf.json       byte-layout specs (render_bytefig) -> *.png
+* figures/app/                 the same, for figures of the appendices
 Raster outputs are downscaled to <=1800 px wide and quantised to 64 colours.
 
 Usage: tools/render_figures.py [--lang en] [--force] [chNN ...]
@@ -32,7 +33,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--force', action='store_true')
 ap.add_argument('chapters', nargs='*')
 a = ap.parse_args()
-dirs = [os.path.join(FIG, c) for c in a.chapters] or sorted(glob.glob(os.path.join(FIG, 'ch[0-9][0-9]')))
+dirs = [os.path.join(FIG, c) for c in a.chapters] or sorted(glob.glob(os.path.join(FIG, 'ch[0-9][0-9]'))) + glob.glob(os.path.join(FIG, 'app'))
 mmdc = os.environ.get('MMDC') or shutil.which('mmdc') or os.path.join(ROOT, 'node_modules', '.bin', 'mmdc')
 chrome = os.environ.get('CHROME') or shutil.which('google-chrome') or shutil.which('chromium')
 pp = json.load(open(os.path.join(FIG, 'mermaid', 'puppeteer.json')))

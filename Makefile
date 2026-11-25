@@ -39,7 +39,7 @@ TOOLS       := $(wildcard tools/*.py tools/booklib/*.py)
 CONTENT     := $(shell find content/$(L) -type f) glossary/glossary.yaml references/references.json templates/site/sims/strings-$(L).yaml references/ceph-release-changes.yaml
 TEMPLATES   := $(wildcard templates/html/*.$(L).html templates/css/book.$(L).css templates/cover/cover.$(L).yaml)
 PANDOC_TPL  := $(wildcard templates/pandoc/*)
-FIG_SRC     := $(wildcard figures/ch*/*.mmd figures/ch*/*.bf.json) $(wildcard figures/i18n/*.yaml)
+FIG_SRC     := $(wildcard figures/ch*/*.mmd figures/ch*/*.bf.json figures/app/*.mmd figures/app/*.bf.json) $(wildcard figures/i18n/*.yaml)
 FIG_STAMP   := build/.figures.stamp
 COVER       := assets/cover.$(L).png assets/back.$(L).png
 

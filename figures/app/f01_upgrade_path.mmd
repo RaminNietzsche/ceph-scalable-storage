@@ -1,0 +1,20 @@
+flowchart TB
+  subgraph P["۰. پیش از ارتقا"]
+    direction LR
+    p1["HEALTH_OK<br/>همه‌ی PGها active+clean"] --> p2["پشتیبان از keyring،<br/>config و نقشه‌ها"] --> p3["require_osd_release<br/>و کلاینت‌ها"] --> p4["noautoscale<br/>و ظرفیت آزاد"]
+  end
+  subgraph S["۱. از Reef 18.2 به آخرین نسخه‌ی Squid 19.2"]
+    direction LR
+    s1["mgr<br/>سپس mon"] --> s2["crash<br/>سپس osd"] --> s3["mds، rgw<br/>و سایر"] --> s4["require-osd-release squid<br/>گام بی‌بازگشت"]
+  end
+  subgraph K["۲. کلیدهای cephx با نوع aes256k"]
+    direction LR
+    k1["auth_allowed_ciphers<br/>aes,aes256k"] --> k2["چرخش کلید daemonها<br/>خودکار با cephadm"] --> k3["چرخش کلید کلاینت‌ها<br/>به‌صورت دستی"]
+  end
+  subgraph T["۳. از Squid 19.2 به Tentacle 20.2.4 یا بعدتر"]
+    direction LR
+    t1["mgr<br/>سپس mon"] --> t2["crash<br/>سپس osd"] --> t3["mds، rgw<br/>و سایر"] --> t4["require-osd-release tentacle<br/>گام بی‌بازگشت"]
+  end
+  P ~~~ S ~~~ K ~~~ T
+  style s4 fill:#FDECEA,stroke:#C0392B
+  style t4 fill:#FDECEA,stroke:#C0392B

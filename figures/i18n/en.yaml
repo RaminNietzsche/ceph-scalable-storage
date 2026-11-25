@@ -2220,3 +2220,18 @@ ch33/f08_tools:
   توابع کاربر: User functions
   با -pg یا dynamic: with -pg or dynamic
   پشته‌ی همه‌ی threadها: stacks of all threads
+app/f01_upgrade_path:
+  ۰. پیش از ارتقا: 0. Before the upgrade
+  همه‌ی PGها active+clean: every PG active+clean
+  پشتیبان از keyring،<br/>config و نقشه‌ها: back up keyrings,<br/>config and maps
+  و کلاینت‌ها: and the clients
+  و ظرفیت آزاد: and free capacity
+  ۱. از Reef 18.2 به آخرین نسخه‌ی Squid 19.2: 1. Reef 18.2 to the latest Squid 19.2
+  سپس mon: then mon
+  سپس osd: then osd
+  mds، rgw<br/>و سایر: mds, rgw<br/>and the rest
+  گام بی‌بازگشت: one-way step
+  ۲. کلیدهای cephx با نوع aes256k: 2. cephx keys of type aes256k
+  چرخش کلید daemonها<br/>خودکار با cephadm: rotate daemon keys<br/>automatic with cephadm
+  چرخش کلید کلاینت‌ها<br/>به‌صورت دستی: rotate client keys<br/>by hand
+  ۳. از Squid 19.2 به Tentacle 20.2.4 یا بعدتر: 3. Squid 19.2 to Tentacle 20.2.4 or later

@@ -127,8 +127,10 @@ def bytefig(src):
     return rel, key, True
 
 
-jobs = sorted(glob.glob(os.path.join(FIG, 'ch[0-9][0-9]', '*.mmd')))
-bfs = sorted(glob.glob(os.path.join(FIG, 'ch[0-9][0-9]', '*.bf.json')))
+# chapter figures in figures/chNN/, appendix figures in figures/app/
+FIGDIRS = sorted(glob.glob(os.path.join(FIG, 'ch[0-9][0-9]'))) + glob.glob(os.path.join(FIG, 'app'))
+jobs = sorted(p for d in FIGDIRS for p in glob.glob(os.path.join(d, '*.mmd')))
+bfs = sorted(p for d in FIGDIRS for p in glob.glob(os.path.join(d, '*.bf.json')))
 done = failed = 0
 with cf.ThreadPoolExecutor(max_workers=max(1, a.jobs)) as ex:
     for rel, key, new in ex.map(mermaid, jobs):
@@ -155,7 +157,7 @@ if man.get('plots') != skey or a.force:
         shutil.copytree(os.path.join(FIG, 'scripts'), os.path.join(td, 'figures', 'scripts'))
         if os.path.isdir(os.path.join(FIG, 'data')):
             shutil.copytree(os.path.join(FIG, 'data'), os.path.join(td, 'figures', 'data'))
-        for d in glob.glob(os.path.join(FIG, 'ch[0-9][0-9]')):
+        for d in FIGDIRS:
             os.makedirs(os.path.join(td, 'figures', os.path.basename(d)), exist_ok=True)
         svgdir = os.path.join(td, 'svg')
         wrapper = f'''

@@ -1,0 +1,20 @@
+flowchart TB
+  subgraph P["0. Before the upgrade"]
+    direction LR
+    p1["HEALTH_OK<br/>every PG active+clean"] --> p2["back up keyrings,<br/>config and maps"] --> p3["require_osd_release<br/>and the clients"] --> p4["noautoscale<br/>and free capacity"]
+  end
+  subgraph S["1. Reef 18.2 to the latest Squid 19.2"]
+    direction LR
+    s1["mgr<br/>then mon"] --> s2["crash<br/>then osd"] --> s3["mds, rgw<br/>and the rest"] --> s4["require-osd-release squid<br/>one-way step"]
+  end
+  subgraph K["2. cephx keys of type aes256k"]
+    direction LR
+    k1["auth_allowed_ciphers<br/>aes,aes256k"] --> k2["rotate daemon keys<br/>automatic with cephadm"] --> k3["rotate client keys<br/>by hand"]
+  end
+  subgraph T["3. Squid 19.2 to Tentacle 20.2.4 or later"]
+    direction LR
+    t1["mgr<br/>then mon"] --> t2["crash<br/>then osd"] --> t3["mds, rgw<br/>and the rest"] --> t4["require-osd-release tentacle<br/>one-way step"]
+  end
+  P ~~~ S ~~~ K ~~~ T
+  style s4 fill:#FDECEA,stroke:#C0392B
+  style t4 fill:#FDECEA,stroke:#C0392B
