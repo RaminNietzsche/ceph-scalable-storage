@@ -417,7 +417,241 @@ int main() {
     OUT['bluespace'] = {'options': opts, 'accept': [c + [int(x) for x in out[i].split()] for i, c in enumerate(cases)]}
 
 
-STEPS = [capacity, reshard, mdspin, ecdecode, mclock, scrub, sigv4, bluespace]
+# ---------------------------------------------------------------- balancer
+def balancer():
+    """OSDMap::calc_pg_upmaps and every helper it calls (src/osd/OSDMap.cc), CrushWrapper::try_remap_rule,
+    _choose_type_stack and get_rule_weight_osd_map (src/crush/CrushWrapper.cc), cut out unchanged and compiled with
+    stand-ins for pg_t, pg_pool_t, the CRUSH structs, the parent lookups and the raw CRUSH output (given per PG).
+    Each case runs several balancer rounds on one pool, applying the increment between rounds."""
+    osdmap = ['^bool OSDMap::try_pg_upmap\\(', '^int OSDMap::calc_pg_upmaps\\(', '^float OSDMap::get_osds_weight\\(',
+              '^float OSDMap::build_pool_pgs_info \\(', '^float OSDMap::calc_deviations \\(', '^void OSDMap::fill_overfull_underfull \\(',
+              '^int OSDMap::pack_upmap_results\\(', '^std::default_random_engine OSDMap::get_random_engine\\(',
+              '^bool OSDMap::try_drop_remap_overfull\\(', '^bool OSDMap::try_drop_remap_underfull\\(', '^void OSDMap::add_remap_pair\\(',
+              '^int OSDMap::find_best_remap \\(', '^OSDMap::candidates_by_osd_t OSDMap::build_candidates_by_osd\\(',
+              '^void OSDMap::_apply_upmap\\(', '^void OSDMap::pg_to_raw_upmap\\(']
+    crushw = ['^int CrushWrapper::_choose_type_stack\\(', '^int CrushWrapper::try_remap_rule\\(', '^float CrushWrapper::_get_take_weight_osd_map\\(',
+              '^void CrushWrapper::_normalize_weight_map\\(', '^int CrushWrapper::get_rule_weight_osd_map\\(']
+    body = '\n\n'.join(cut('osd/OSDMap.cc', s, '^}') for s in osdmap) + '\n\n' + '\n\n'.join(cut('crush/CrushWrapper.cc', s, '^}') for s in crushw)
+    y = read('common/options/global.yaml.in')
+    def dflt(o):
+        return re.search(r'^- name: ' + o + r'\n(?:  .*\n)*?  default: (\S+)', y, re.M).group(1)
+    opts = {o: dflt(o) for o in ('osd_calc_pg_upmaps_aggressively', 'osd_calc_pg_upmaps_aggressively_fast', 'osd_calc_pg_upmaps_local_fallback_retries')}
+    mgr = read('pybind/mgr/balancer/module.py') if os.path.exists(os.path.join(SRC, 'pybind/mgr/balancer/module.py')) else \
+        subprocess.run(['git', '-C', SRC, 'show', 'HEAD:src/pybind/mgr/balancer/module.py'], capture_output=True, text=True, check=True).stdout
+    for o in ('upmap_max_optimizations', 'upmap_max_deviation', 'crush_compat_max_iterations', 'crush_compat_step', 'min_score', 'mode'):
+        m = re.search(r"Option\(name='" + o + r"',(?:.|\n)*?default=([^,\n]+),", mgr)
+        opts['mgr_' + o] = m.group(1).strip().strip("'")
+    opts['target_max_misplaced_ratio'] = re.search(r'^- name: target_max_misplaced_ratio\n(?:  .*\n)*?  default: (\S+)', read('common/options/global.yaml.in'), re.M).group(1)
+    pre = r'''
+#include <cstdio>
+#include <cstdint>
+#include <cmath>
+#include <cassert>
+#include <cerrno>
+#include <string>
+#include <set>
+#include <map>
+#include <list>
+#include <vector>
+#include <memory>
+#include <random>
+#include <algorithm>
+using namespace std;
+#define ceph_assert assert
+struct NullS { template <class T> NullS& operator<<(const T&) { return *this; } };
+static NullS nulls;
+#define ldout(cct, v) while (0) nulls
+#define lderr(cct) while (0) nulls
+#define dendl ""
+namespace mempool { namespace osdmap { template <class T> using vector = std::vector<T>; } }
+static const int CRUSH_ITEM_NONE = 0x7fffffff;
+enum { CRUSH_RULE_TAKE = 1, CRUSH_RULE_CHOOSE_FIRSTN = 2, CRUSH_RULE_CHOOSE_INDEP = 3, CRUSH_RULE_EMIT = 4,
+       CRUSH_RULE_CHOOSELEAF_FIRSTN = 6, CRUSH_RULE_CHOOSELEAF_INDEP = 7 };
+struct Conf { bool aggr, fast; uint64_t retries;
+  template <class T> T get_val(const string& n) const {
+    if (n == "osd_calc_pg_upmaps_aggressively") return (T)aggr;
+    if (n == "osd_calc_pg_upmaps_aggressively_fast") return (T)fast;
+    return (T)retries; } };
+struct CephContext { Conf _conf; };
+struct pg_t { uint64_t m_pool; uint32_t m_seed;
+  pg_t() : m_pool(0), m_seed(0) {} pg_t(uint32_t s, uint64_t p) : m_pool(p), m_seed(s) {}
+  uint64_t pool() const { return m_pool; } uint32_t ps() const { return m_seed; }
+  auto operator<=>(const pg_t&) const noexcept = default; };
+struct pg_pool_t { unsigned pg_num, size; int rule;
+  unsigned get_pg_num() const { return pg_num; } unsigned get_size() const { return size; } int get_crush_rule() const { return rule; }
+  pg_t raw_pg_to_pg(pg_t pg) const { return pg; } };
+struct crush_rule_step { uint32_t op; int32_t arg1, arg2; };
+struct crush_rule { uint32_t len; crush_rule_step steps[4]; };
+struct crush_bucket { int32_t id; uint16_t type; uint32_t size; int32_t *items; uint32_t *weights; };
+struct crush_map { crush_bucket **buckets; crush_rule **rules; int32_t max_buckets; uint32_t max_rules; int32_t max_devices; };
+static uint32_t crush_get_bucket_item_weight(const crush_bucket *b, int p) { return b->weights[p]; }
+class CrushWrapper {
+public:
+  crush_map *crush; map<int, int> parent; map<int, int> type;
+  const crush_rule *get_rule(unsigned r) const { return crush->rules[r]; }
+  // stand-ins for the name/class aware lookups: walk the parent links of a plain tree
+  int get_parent_of_type(int item, int t, int rule = -1) const {
+    do { auto p = parent.find(item); if (p == parent.end()) return 0; item = p->second; } while (type.at(item) != t);
+    return item; }
+  bool subtree_contains(int root, int item) const {
+    for (;;) { if (item == root) return true; auto p = parent.find(item); if (p == parent.end()) return false; item = p->second; } }
+  int _choose_type_stack(CephContext *cct, const vector<pair<int,int>>& stack, const set<int>& overfull, const vector<int>& underfull,
+    const vector<int>& more_underfull, const vector<int>& orig, vector<int>::const_iterator& i, set<int>& used, vector<int> *pw,
+    int root_bucket, int rule) const;
+  int try_remap_rule(CephContext *cct, int ruleno, int maxout, const set<int>& overfull, const vector<int>& underfull,
+    const vector<int>& more_underfull, const vector<int>& orig, vector<int> *out) const;
+  float _get_take_weight_osd_map(int root, map<int,float> *pmap) const;
+  void _normalize_weight_map(float sum, const map<int,float>& m, map<int,float> *pmap) const;
+  int get_rule_weight_osd_map(unsigned ruleno, map<int,float> *pmap) const;
+};
+class OSDMap {
+public:
+  struct Incremental { set<pg_t> old_pg_upmap_items; map<pg_t, mempool::osdmap::vector<pair<int32_t,int32_t>>> new_pg_upmap_items; };
+  map<int64_t, pg_pool_t> pools; shared_ptr<CrushWrapper> crush; int max_osd = 0; vector<uint32_t> osd_weight;
+  map<pg_t, mempool::osdmap::vector<int32_t>> pg_upmap; map<pg_t, mempool::osdmap::vector<pair<int32_t,int32_t>>> pg_upmap_items;
+  map<pg_t, int32_t> pg_upmap_primaries; map<pg_t, vector<int>> raw_table;   // stand-in for the CRUSH output of each PG
+  typedef std::vector<std::pair<pg_t, mempool::osdmap::vector<std::pair<int, int>>>> candidates_t;
+  typedef std::map<int, candidates_t> candidates_by_osd_t;
+  const pg_pool_t *get_pg_pool(int64_t p) const { auto i = pools.find(p); return i == pools.end() ? nullptr : &i->second; }
+  int get_pg_pool_size(pg_t pg) const { return pools.at(pg.pool()).get_size(); }
+  float get_weightf(int o) const { return (float)osd_weight[o] / (float)0x10000; }
+  void deepish_copy_from(const OSDMap& o) { *this = o; }
+  void _pg_to_raw_osds(const pg_pool_t&, pg_t pg, vector<int> *raw, void *) const { *raw = raw_table.at(pg); }
+  // stand-in for _pg_to_raw_osds + _apply_upmap + _raw_to_up_osds (every OSD up, replicated pool)
+  void pg_to_up_acting_osds(pg_t pg, vector<int> *up, int *, vector<int> *, int *) const {
+    vector<int> raw, orig; pg_to_raw_upmap(pg, &raw, &orig); up->clear();
+    for (int o : orig) if (o != CRUSH_ITEM_NONE) up->push_back(o); }
+  bool try_pg_upmap(CephContext *cct, pg_t pg, const set<int>& overfull, const vector<int>& underfull, const vector<int>& more_underfull,
+    vector<int> *orig, vector<int> *out);
+  int calc_pg_upmaps(CephContext *cct, uint32_t max_deviation, int max, const set<int64_t>& only_pools, Incremental *pending_inc,
+    std::random_device::result_type *p_seed = nullptr);
+  float get_osds_weight(CephContext *cct, const OSDMap& tmp_osd_map, int64_t pid, map<int,float>& osds_weight) const;
+  float build_pool_pgs_info(CephContext *cct, const set<int64_t>& pools, const OSDMap& tmp_osd_map, int& total_pgs,
+    map<int, set<pg_t>>& pgs_by_osd, map<int,float>& osds_weight);
+  float calc_deviations(CephContext *cct, const map<int,set<pg_t>>& pgs_by_osd, const map<int,float>& osd_weight, float pgs_per_weight,
+    map<int,float>& osd_deviation, multimap<float,int>& deviation_osd, double& bal_score);
+  void fill_overfull_underfull(CephContext *cct, const multimap<float,int>& deviation_osd, int max_deviation, set<int>& overfull,
+    set<int>& more_overfull, vector<int>& underfull, vector<int>& more_underfull);
+  int pack_upmap_results(CephContext *cct, const set<pg_t>& to_unmap, const map<pg_t, mempool::osdmap::vector<pair<int, int>>>& to_upmap,
+    OSDMap& tmp_osd_map, Incremental *pending_inc);
+  std::default_random_engine get_random_engine(CephContext *cct, std::random_device::result_type *p_seed);
+  bool try_drop_remap_overfull(CephContext *cct, const vector<pg_t>& pgs, const OSDMap& tmp_osd_map, int osd,
+    map<int,set<pg_t>>& temp_pgs_by_osd, set<pg_t>& to_unmap, map<pg_t, mempool::osdmap::vector<pair<int32_t,int32_t>>>& to_upmap,
+    const map<int,float>& osd_deviation);
+  bool try_drop_remap_underfull(CephContext *cct, const candidates_t& candidates, int osd, map<int,set<pg_t>>& temp_pgs_by_osd,
+    set<pg_t>& to_unmap, map<pg_t, mempool::osdmap::vector<pair<int32_t,int32_t>>>& to_upmap);
+  void add_remap_pair(CephContext *cct, int orig, int out, pg_t pg, size_t pg_pool_size, int osd, set<int>& existing,
+    map<int,set<pg_t>>& temp_pgs_by_osd, mempool::osdmap::vector<pair<int32_t,int32_t>> new_upmap_items,
+    map<pg_t, mempool::osdmap::vector<pair<int32_t,int32_t>>>& to_upmap);
+  int find_best_remap(CephContext *cct, const vector<int>& orig, const vector<int>& out, const set<int>& existing,
+    const map<int,float> osd_deviation);
+  candidates_by_osd_t build_candidates_by_osd(CephContext *cct, const OSDMap& tmp_osd_map, const set<pg_t> to_skip,
+    const set<int64_t>& only_pools, bool aggressive, std::random_device::result_type *p_seed);
+  void _apply_upmap(const pg_pool_t& pi, pg_t raw_pg, vector<int> *raw) const;
+  void pg_to_raw_upmap(pg_t pg, vector<int> *raw, vector<int> *raw_upmap) const;
+};
+'''
+    main = r'''
+int main() {
+  int nosd, nhost, size, pgnum, leaf, aggr, fast, retries, rounds, maxdev, maxopt, nex; unsigned seed;
+  if (scanf("%d %d %d %d %d %d %d %d %u %d %d %d", &nosd, &nhost, &size, &pgnum, &leaf, &aggr, &fast, &retries, &seed, &maxdev, &maxopt, &rounds) != 12) return 1;
+  vector<int> host(nosd); vector<uint32_t> cw(nosd), rw(nosd);
+  for (auto& x : host) scanf("%d", &x); for (auto& x : cw) scanf("%u", &x); for (auto& x : rw) scanf("%u", &x);
+  CephContext cct{{(bool)aggr, (bool)fast, (uint64_t)retries}};
+  auto cr = make_shared<CrushWrapper>();
+  crush_map *cm = new crush_map; cm->max_buckets = nhost + 1; cm->max_devices = nosd; cm->max_rules = 1;
+  cm->buckets = new crush_bucket*[nhost + 1]; cm->rules = new crush_rule*[1];
+  // root -1 (type 11) holds hosts -2 .. -(nhost+1) (type 1), each holds its OSDs; the bucket weight of a host is the sum
+  vector<vector<int32_t>> hi(nhost); vector<vector<uint32_t>> hw(nhost);
+  for (int o = 0; o < nosd; o++) { hi[host[o]].push_back(o); hw[host[o]].push_back(cw[o]); cr->parent[o] = -2 - host[o]; }
+  cr->type[-1] = 11;
+  crush_bucket *root = new crush_bucket{-1, 11, (uint32_t)nhost, new int32_t[nhost], new uint32_t[nhost]};
+  for (int h = 0; h < nhost; h++) {
+    uint32_t s = 0; for (auto w : hw[h]) s += w;
+    root->items[h] = -2 - h; root->weights[h] = s; cr->parent[-2 - h] = -1; cr->type[-2 - h] = 1;
+    cm->buckets[1 + h] = new crush_bucket{-2 - h, 1, (uint32_t)hi[h].size(), hi[h].data(), hw[h].data()};
+  }
+  cm->buckets[0] = root;
+  crush_rule *r = new crush_rule; r->len = 3;
+  r->steps[0] = {CRUSH_RULE_TAKE, -1, 0};
+  r->steps[1] = leaf ? crush_rule_step{CRUSH_RULE_CHOOSELEAF_FIRSTN, 0, 1} : crush_rule_step{CRUSH_RULE_CHOOSE_FIRSTN, 0, 0};
+  r->steps[2] = {CRUSH_RULE_EMIT, 0, 0};
+  cm->rules[0] = r; cr->crush = cm;
+  OSDMap m; m.crush = cr; m.max_osd = nosd; m.osd_weight = rw; m.pools[1] = pg_pool_t{(unsigned)pgnum, (unsigned)size, 0};
+  for (int ps = 0; ps < pgnum; ps++) { vector<int> v(size); for (auto& x : v) scanf("%d", &x); m.raw_table[pg_t(ps, 1)] = v; }
+  scanf("%d", &nex);
+  for (int e = 0; e < nex; e++) { int ps, k; scanf("%d %d", &ps, &k); auto& it = m.pg_upmap_items[pg_t(ps, 1)];
+    for (int j = 0; j < k; j++) { int a, b; scanf("%d %d", &a, &b); it.push_back({a, b}); } }
+  for (int rd = 0; rd < rounds; rd++) {
+    OSDMap::Incremental inc;
+    int n = m.calc_pg_upmaps(&cct, maxdev, maxopt, {1}, &inc, &seed);
+    printf("R %d", n);
+    for (auto& pg : inc.old_pg_upmap_items) { printf(" U %u", pg.ps()); m.pg_upmap_items.erase(pg); }
+    for (auto& [pg, it] : inc.new_pg_upmap_items) { printf(" N %u %zu", pg.ps(), it.size()); for (auto& [a, b] : it) printf(" %d %d", a, b); m.pg_upmap_items[pg] = it; }
+    printf(" C");
+    vector<int> cnt(nosd);
+    for (int ps = 0; ps < pgnum; ps++) { vector<int> up; m.pg_to_up_acting_osds(pg_t(ps, 1), &up, nullptr, nullptr, nullptr); for (int o : up) cnt[o]++; }
+    for (int c : cnt) printf(" %d", c);
+    printf("\n");
+  }
+}
+'''
+    code = pre + body + main
+    rnd = random.Random(31); cases = []
+    for ci in range(60):
+        nhost = rnd.randint(3, 8); per = rnd.randint(1, 5); leaf = 0 if ci % 6 == 5 else 1
+        size = rnd.choice([2, 3, 3]) if leaf else rnd.choice([2, 3])
+        if leaf and size > nhost: size = nhost
+        host = [h for h in range(nhost) for _ in range(per if ci % 4 else rnd.randint(1, 5))]
+        nosd = len(host)
+        if not leaf and size > nosd: size = nosd
+        kind = ci % 5
+        cw = [0x10000 * (1 if kind == 0 else rnd.choice([1, 2, 4])) if kind != 3 else rnd.randint(0x8000, 0x40000) for _ in host]
+        rw = [0x10000 if rnd.random() > 0.15 else rnd.randint(0x6000, 0xffff) for _ in host]
+        pgnum = rnd.choice([16, 32, 64, 128, 256])
+        hosts = sorted(set(host))
+        raw = []
+        for ps in range(pgnum):   # a valid placement: distinct failure domains, biased by weight and a little noise
+            pick = []
+            while len(pick) < size:
+                cands = [o for o in range(nosd) if o not in pick and (not leaf or host[o] not in [host[p] for p in pick])]
+                ws = [cw[o] * rw[o] * (1 + 0.6 * rnd.random()) for o in cands]
+                pick.append(rnd.choices(cands, ws)[0])
+            raw.append(pick)
+        ex = []
+        if ci % 3 == 2:   # some existing upmap items, some of them pointing into full OSDs, to reach the drop paths
+            for ps in rnd.sample(range(pgnum), min(pgnum, rnd.randint(1, 8))):
+                frm = raw[ps][rnd.randrange(size)]
+                tos = [o for o in range(nosd) if o not in raw[ps] and (not leaf or host[o] not in [host[p] for p in raw[ps] if p != frm])]
+                if tos: ex.append([ps, [[frm, rnd.choice(tos)]]])
+        c = {'host': host, 'cw': cw, 'rw': rw, 'size': size, 'pgnum': pgnum, 'leaf': leaf, 'aggr': int(ci % 2 == 0), 'fast': int(ci % 4 != 2),
+             'retries': rnd.choice([100, 100, 3]), 'seed': rnd.randint(0, 1 << 20), 'maxdev': rnd.choice([1, 1, 2, 5]), 'maxopt': rnd.choice([10, 10, 3, 50]),
+             'rounds': 4, 'raw': raw, 'ex': ex}
+        cases.append(c)
+    exe = None
+    src = os.path.join(TMP, 'balancer.cc'); exe = os.path.join(TMP, 'balancer')
+    open(src, 'w').write(code)
+    subprocess.run([CXX, '-std=c++20', '-O1', '-w', '-o', exe, src], check=True)
+    for c in cases:
+        inp = '%d %d %d %d %d %d %d %d %d %d %d %d\n' % (len(c['host']), max(c['host']) + 1, c['size'], c['pgnum'], c['leaf'], c['aggr'], c['fast'],
+                                                        c['retries'], c['seed'], c['maxdev'], c['maxopt'], c['rounds'])
+        inp += ' '.join(map(str, c['host'])) + '\n' + ' '.join(map(str, c['cw'])) + '\n' + ' '.join(map(str, c['rw'])) + '\n'
+        inp += '\n'.join(' '.join(map(str, r)) for r in c['raw']) + '\n%d\n' % len(c['ex'])
+        inp += ''.join('%d %d %s\n' % (e[0], len(e[1]), ' '.join('%d %d' % tuple(p) for p in e[1])) for e in c['ex'])
+        out = subprocess.run([exe], input=inp, capture_output=True, text=True, check=True).stdout   # one process per case: the seed counter starts at 0
+        res = []
+        for line in out.strip().split('\n'):
+            t = line.split(); n = int(t[1]); i = 2; un = []; nw = []
+            while t[i] != 'C':
+                if t[i] == 'U': un.append(int(t[i + 1])); i += 2
+                else:
+                    ps, k = int(t[i + 1]), int(t[i + 2]); nw.append([ps, [[int(t[i + 3 + 2 * j]), int(t[i + 4 + 2 * j])] for j in range(k)]]); i += 3 + 2 * k
+            res.append({'n': n, 'unmap': un, 'upmap': nw, 'count': [int(x) for x in t[i + 1:]]})
+        c['out'] = res
+    OUT['balancer'] = {'options': opts, 'cases': cases}
+
+
+STEPS = [capacity, reshard, mdspin, ecdecode, mclock, scrub, sigv4, bluespace, balancer]
 if __name__ == '__main__':
     only = sys.argv[1:]
     for f in STEPS:

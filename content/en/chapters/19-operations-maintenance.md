@@ -225,6 +225,9 @@ ceph osd df tree | sort -nk17 | tail                      # the VAR and PGS colu
 The balancer only works when the percentage of misplaced PGs is below `target_max_misplaced_ratio` (default 0.05); so in the middle of heavy backfill it starts no new work. The read balancer modes need Reef and later clients (`ceph osd set-require-min-compat-client reef`).
 :::
 
+::: {.sim name="balancer"}
+:::
+
 # Three maintenance algorithms in numbers {#sec-19-7}
 
 The previous sections explained the autoscaler and the balancer at the conceptual level. This section opens both down to the level of loops and numbers. Because the autoscaler's rounding algorithm changed in Umbrella, we give both versions separately.

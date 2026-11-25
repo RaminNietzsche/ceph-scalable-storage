@@ -313,6 +313,9 @@ test: if new_bal_score > bal_score: reject (پرش از آن PG)  else: apply
 `osd_calc_pg_upmaps_aggressively` (و نسخه‌ی fast آن) فهرست PGها را مخلوط و جست‌وجوی جامع‌تری می‌کند. در main، `bal_score` با double جمع می‌شود. توضیح کد می‌گوید در float، تغییر یک PG در خوشه‌های بزرگ ممکن بود کمتر از دقت مجموع باشد و balancer متوقف شود.
 :::
 
+::: {.sim name="balancer"}
+:::
+
 # قانون‌های MSR: چند OSD در هر failure domain {#sec-28-10}
 
 در EC با k+m بزرگ‌تر از تعداد hostها (مثلاً 4+2 روی سه host)، قانون کلاسیک `choose indep 3 type host` و سپس `chooseleaf indep 2 type osd` یک مشکل دارد. اگر یک OSD out شود، مرحله‌ی دوم فقط در **همان** host دنبال جایگزین می‌گردد. اگر آن host OSD سالم دیگری نداشته باشد، shard بی‌جا می‌ماند، چون CRUSH کلاسیک نمی‌تواند به مرحله‌ی قبل برگردد. قانون‌های **MSR** (Multi-Step Retry) از Squid با نوع‌های `msr_firstn` و `msr_indep` و گام `choosemsr` این را حل می‌کنند: کل نزول از ریشه دوباره تلاش می‌شود.

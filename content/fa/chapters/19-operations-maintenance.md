@@ -225,6 +225,9 @@ ceph osd df tree | sort -nk17 | tail                      # ستون‌های VA
 balancer فقط وقتی کار می‌کند که درصد PGهای misplaced کمتر از `target_max_misplaced_ratio` باشد (پیش‌فرض ۰.۰۵)؛ بنابراین در میانه‌ی backfill سنگین، کار تازه‌ای شروع نمی‌کند. حالت‌های read balancer به کلاینت‌های Reef به بعد نیاز دارند (`ceph osd set-require-min-compat-client reef`).
 :::
 
+::: {.sim name="balancer"}
+:::
+
 # سه الگوریتم نگه‌داری با عدد {#sec-19-7}
 
 بخش‌های قبل autoscaler و balancer را در سطح مفهوم توضیح دادند. این بخش هر دو را تا سطح حلقه و عدد باز می‌کند. چون الگوریتم گرد کردن autoscaler در Umbrella عوض شده است، هر دو نسخه را جداگانه آورده‌ایم.

@@ -313,6 +313,9 @@ After step 3, no OSD deviates by more than 5, so overfull and underfull are empt
 `osd_calc_pg_upmaps_aggressively` (and its fast variant) shuffles the PG list and searches more exhaustively. In main, `bal_score` is summed as a double. The code comment says that with float, a change of one PG in large clusters could be smaller than the precision of the sum, and the balancer would stall.
 :::
 
+::: {.sim name="balancer"}
+:::
+
 # MSR rules: several OSDs per failure domain {#sec-28-10}
 
 In EC with k+m larger than the number of hosts (for example 4+2 on three hosts), the classic rule `choose indep 3 type host` followed by `chooseleaf indep 2 type osd` has a problem. If an OSD goes out, the second step looks for a replacement only in the **same** host. If that host has no other healthy OSD, the shard is left unplaced, because classic CRUSH cannot go back to the previous step. **MSR** (Multi-Step Retry) rules, from Squid, with the types `msr_firstn` and `msr_indep` and the `choosemsr` step, solve this: the whole descent from the root is retried.
