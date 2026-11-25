@@ -1538,6 +1538,7 @@ chooser = f"""<!doctype html>
 <html lang="en" dir="ltr" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(books["en"])} · {esc(books["fa"])}</title>
 <meta name="description" content="{esc(seo.describe(CH_DESC))}">
+{seo.GSC_META}
 {f'<link rel="canonical" href="{U.abs("index.html")}">' if U.base else ''}
 <link rel="alternate" hreflang="fa" href="{U.root('fa/index.html')}"><link rel="alternate" hreflang="en" href="{U.root('en/index.html')}"><link rel="alternate" hreflang="x-default" href="{U.root('index.html')}">
 <meta name="theme-color" content="{seo.THEME}"><link rel="icon" href="assets/icons/favicon.ico" sizes="48x48"><link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png"><link rel="manifest" href="manifest.webmanifest">

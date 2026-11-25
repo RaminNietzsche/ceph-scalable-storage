@@ -23,6 +23,9 @@ BG = '#0b1120'
 OG_W, OG_H = 1200, 630
 LOCALE = {'fa': 'fa_IR', 'en': 'en_US'}
 PRELOAD_FONT = {'fa': 'vazirmatn-400.woff2', 'en': 'inter-var.woff2'}
+# Google Search Console URL-prefix verification for https://book.ceph-s3.ir/
+GSC_VERIFICATION = '7UxUjcyaTpcjuxAHbfvsIWmIxNHIeQHkkvUZGSHLiLQ'
+GSC_META = f'<meta name="google-site-verification" content="{GSC_VERIFICATION}" />'
 
 esc = lambda s: html.escape(str(s), quote=True)  # noqa: E731
 
@@ -204,7 +207,7 @@ def head(u, lang, other, slug, title, desc, og_type, og_alt, book, jsonld, icon_
          manifest_href='manifest.webmanifest', font_href=None, og_img=None):
     me, them = f'{lang}/{slug}.html', f'{other}/{slug}.html'
     rel = u.rel
-    out = [f'<meta name="description" content="{esc(desc)}">']
+    out = [GSC_META, f'<meta name="description" content="{esc(desc)}">']
     if u.base:
         out.append(f'<link rel="canonical" href="{u.abs(me)}">')
     out += [f'<link rel="alternate" hreflang="{lang}" href="{rel(me)}">',

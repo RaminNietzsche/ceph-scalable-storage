@@ -172,6 +172,8 @@ for lang, f in pages:
     # html lang/dir
     want = {'fa': ('fa', 'rtl'), 'en': ('en', 'ltr'), 'root': ('en', 'ltr')}[lang]
     check((d.html.get('lang'), d.html.get('dir')) == want, 'html-lang-dir', rel, f'html lang/dir {d.html.get("lang")}/{d.html.get("dir")}, want {want}')
+    check(d.meta.get('google-site-verification') == ['7UxUjcyaTpcjuxAHbfvsIWmIxNHIeQHkkvUZGSHLiLQ'],
+          'gsc-verification', rel, 'Google Search Console verification tag missing or unexpected')
     # hreflang + canonical
     alts = {l.get('hreflang'): l.get('href') for l in d.links if l.get('rel') == 'alternate' and l.get('hreflang')}
     check({'fa', 'en', 'x-default'} <= set(alts), 'hreflang', rel, f'hreflang alternates {sorted(alts)}')
