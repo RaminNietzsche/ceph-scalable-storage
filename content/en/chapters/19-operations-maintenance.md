@@ -70,6 +70,10 @@ In the Umbrella documentation, OSD upgrades can proceed **by CRUSH bucket**: wit
 If a host is offline or in maintenance mode, the upgrade stops and waits. Before starting, check `ceph orch host ls`. Do not start an upgrade during heavy backfill or while there are inactive PGs.
 :::
 
+::: {.note}
+Appendix I turns this section into a runbook for Reef → Squid → Tentacle: a pre-upgrade checklist, the release changes that can break something on the way, the new cephx key type of Squid 19.2.6 and Tentacle 20.2.4, package-based clusters, and an honest table of what can and cannot be rolled back.
+:::
+
 # Replacing a disk {#sec-19-3}
 
 ![Replacing a failed disk while keeping the OSD id, in two stages: removal with orch osd rm --replace, which drains the PGs and marks the OSD destroyed, and replacement, in which after the physical swap and, if needed, a zap, the OSD service specification picks up the new disk and the OSD is created with the same id and backfilled](figures/ch19/f02_replace.png){#fig-19-f02_replace}

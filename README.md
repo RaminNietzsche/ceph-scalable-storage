@@ -69,11 +69,12 @@ content/<lang>/
   front/preface.md
   chapters/NN-slug.md         one file per chapter (YAML front matter + Pandoc Markdown)
   answers/NN.md               answers to each chapter's review questions
-  appendices/                 troubleshooting guide, release table
+  appendices/                 troubleshooting guide, release table, upgrade guide
   data/tools.yaml             command cheat sheet
 labs/                         hands-on labs with scripts (see labs/README.md)
 figures/
   chNN/                       committed PNGs + sources (.mmd Mermaid, .bf.json byte layouts)
+  app/                        the same, for figures of the appendices
   i18n/en.yaml                English label strings for Mermaid figures
   mermaid/                    Mermaid theme/config per language
   scripts/                    plot_*/measure_*/compute_* scripts (+ lib/ models)

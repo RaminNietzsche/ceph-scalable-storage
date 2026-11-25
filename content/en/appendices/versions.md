@@ -17,5 +17,5 @@ The table below shows the major Ceph releases from 2019 to today. Dates for acti
 | Umbrella | 21.2 | Active; started 2026-10-28, estimated end 2028-06-01 | `mon_target_pg_per_osd` set to 200; typed cls API |
 
 ::: {.note}
-When upgrading, move forward at most two major releases at a time. Read the release notes of the target release in full, and set `require_osd_release` only after every OSD has been upgraded (chapter 19).
+When upgrading, move forward at most two major releases at a time. Read the release notes of the target release in full, and set `require_osd_release` only after every OSD has been upgraded (chapter 19; the step-by-step runbook is appendix I).
 :::

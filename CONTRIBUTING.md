@@ -37,7 +37,7 @@ upstream code excerpts must stay short, attributed and keep their original licen
 |---|---|
 | Chapter metadata | YAML front matter: `chapter`, `id`, `title`, `part` (`main`, `special`, `lower`), `lang` |
 | Section | `# Title {#sec-NN-K}`, and `## Title {#sec-NN-K-M}` for subsections |
-| Figure | `![caption](figures/chNN/name.png){#fig-NN-name}` |
+| Figure | `![caption](figures/chNN/name.png){#fig-NN-name}`; in an appendix `![caption](figures/app/name.png){#fig-app-name}` |
 | Callout | `::: {.tip}` … `:::`; also `.warn` `.note` `.try` `.deep` `.debug` |
 | TL;DR | `::: {.tldr}` … `:::` (right after front matter) |
 | Box | `::: {.box title="…"}` |
@@ -68,6 +68,8 @@ Every chapter opens right after its YAML front matter with a single `::: {.tldr}
 3. **One figure thumbnail link** reusing an existing figure from the same chapter: `[![caption](figures/chNN/name.png)](#fig-NN-name)`. Never use `{#fig-...}` inside `.tldr` (that would duplicate the figure id and shift figure numbering); clicking the thumbnail jumps to the full figure in the chapter.
 
 `make check-tldr` checks all of these rules across both editions.
+
+An appendix written in Markdown may open with the same box (appendix I, the upgrade guide, does). Its figure lives in `figures/app/` and the thumbnail points to an appendix figure: `[![caption](figures/app/name.png)](#fig-app-name)`. `check-tldr` covers chapters only; `check-parity` keeps the two editions of the appendix in step.
 
 The Python tools and the Pandoc filter (`templates/pandoc/book.lua`) both read this
 format. `tools/booklib/mdlower.py` turns it into the print renderer's directive
