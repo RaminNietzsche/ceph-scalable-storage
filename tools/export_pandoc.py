@@ -62,12 +62,11 @@ def body_of(path, shift=1, pending_title=None):
             inc = not inc
         if not inc:
             m = IMG.match(l)
+            tm = TLDR_IMG.match(l)
             if m:
                 l = m.group(1) + variant(m.group(2)) + m.group(3)
-            else:
-                tm = TLDR_IMG.match(l)
-                if tm:
-                    l = tm.group(1) + variant(tm.group(2)) + tm.group(3)
+            elif tm:
+                l = tm.group(1) + variant(tm.group(2)) + tm.group(3)
             elif shift and re.match(r'^#{1,5} ', l):
                 l = '#' * shift + l
         res.append(l)
