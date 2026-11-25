@@ -13,6 +13,12 @@ lang: en
 - Tentacle makes ISA-L the default plugin for new clusters and adds FastEC (partial reads and writes, parity-delta) behind `allow_ec_optimizations`.
 - `2147483647` in a PG mapping is `CRUSH_ITEM_NONE`: CRUSH could not find an OSD for that shard.
 
+```bash
+ceph osd erasure-code-profile get default
+```
+
+[![4+2 coding: a sixteen-kilobyte stripe is split into four four-kilobyte data shards, and two parity shards are computed from them](figures/ch13/f01_km.png)](#fig-13-f01_km)
+
 :::
 
 # Before you start {#sec-13-1}

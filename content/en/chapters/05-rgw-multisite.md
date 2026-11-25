@@ -13,6 +13,12 @@ lang: en
 - Set it up by hand with `radosgw-admin` or with `ceph rgw realm bootstrap`; watch it with `sync status`, `bucket sync status` and `sync error list`.
 - Failover means promoting another zone to master and committing the period; do not promote in a hurry during a short network outage.
 
+```bash
+radosgw-admin sync status
+```
+
+[![The multisite hierarchy: a realm contains zonegroups, and each zonegroup contains zones, each of which lives in a separate Ceph cluster](figures/ch05/f01_hier.png)](#fig-05-f01_hier)
+
 :::
 
 # Before you start {#sec-05-1}

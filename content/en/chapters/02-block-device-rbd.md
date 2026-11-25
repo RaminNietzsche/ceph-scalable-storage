@@ -13,6 +13,12 @@ lang: en
 - Snapshots are instant copy-on-write, clones are writable and cheap, and `flatten` cuts a clone from its parent; without a freeze a snapshot is only crash-consistent.
 - Mirroring runs in journal mode (RPO of seconds, double writes) or snapshot mode (RPO equal to the schedule); a forced promote without fencing risks split-brain.
 
+```bash
+rbd create rbd/disk01 --size 10G
+```
+
+[![The structure of an image in RADOS: a header object for metadata and 4 MB data objects that are created only after they are written](figures/ch02/f01_rbd_objects.png)](#fig-02-f01_rbd_objects)
+
 :::
 
 # Before you start {#sec-02-1}

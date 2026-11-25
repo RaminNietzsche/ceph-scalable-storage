@@ -13,6 +13,12 @@ lang: fa
 - نوشتن‌های کوچک ممکن است از راه WAL در RocksDB به تعویق بیفتند (deferred)؛ `min_alloc_size` و تنظیمات فشرده‌سازی تعیین می‌کنند اشیای کوچک واقعاً چقدر فضای خام مصرف کنند.
 - OSDهای FileStore را باید پیش از ارتقا به Reef یا بالاتر به‌صورت BlueStore از نو ساخت؛ تبدیل درجا وجود ندارد.
 
+```bash
+ceph tell osd.3 bluefs stats
+```
+
+[![مقایسه‌ی پشته‌ی FileStore و BlueStore: BlueStore فایل‌سیستم واسط و journal جدا را حذف می‌کند](figures/ch12/f01_stack.png)](#fig-12-f01_stack)
+
 :::
 
 # پیش از شروع {#sec-12-1}

@@ -13,6 +13,12 @@ lang: en
 - `fs volumes` gives subvolumes with quotas and snapshots for Kubernetes and Manila; NFS-Ganesha, and SMB in Tentacle, serve clients that cannot mount CephFS.
 - cephfs-mirror copies snapshots to another cluster; a client whose mount hangs has usually been evicted, so check `dmesg` and remount.
 
+```bash
+ceph fs status fs01
+```
+
+[![CephFS architecture: the client gets metadata from the MDS and data directly from the OSDs; the MDS keeps its journal and inodes in the metadata pool](figures/ch06/f01_arch.png)](#fig-06-f01_arch)
+
 :::
 
 # Before you start {#sec-06-1}

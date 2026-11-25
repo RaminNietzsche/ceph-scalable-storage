@@ -13,6 +13,12 @@ lang: fa
 - user، subuser، tenant و account سطوح متفاوت هویت‌اند؛ برای طراحی تازه account را (از Squid به بعد) در نظر بگیرید.
 - versioning، object lock، lifecycle، storage class، policy، SSE و اعلان رویداد، RGW را به سرویس کامل S3 تبدیل کرده‌اند؛ قانون lifecycle برای multipartهای ناتمام را فراموش نکنید و بدانید gc فضا را بعداً آزاد می‌کند.
 
+```bash
+ceph orch apply rgw objstore --placement="label:rgw count-per-host:1" --port=8080
+```
+
+[![معماری RGW: نمونه‌های بدون حالت پشت load balancer و poolهای جداگانه برای index، داده و فراداده](figures/ch04/f01_arch.png)](#fig-04-f01_arch)
+
 :::
 
 # پیش از شروع {#sec-04-1}

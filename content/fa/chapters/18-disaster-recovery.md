@@ -13,6 +13,12 @@ lang: fa
 - stretch mode یک کلاستر را با یک MON داور روی دو سایت نگه می‌دارد تا با از دست رفتن کامل یک سایت، RPO صفر بماند.
 - اگر همه‌ی MONها از دست بروند، store مانیتور را می‌توان از روی OSDها بازسازی کرد؛ `ceph-objectstore-tool` می‌تواند PGها را از دیسک خوانای یک OSD مرده export و import کند.
 
+```bash
+rbd mirror pool enable --site-name site-a vmpool image
+```
+
+[![چهار لایه‌ی دفاعی در برابر فاجعه: تکثیر درون کلاستر، کلاستر کشیده (stretch mode)، تکثیر ناهم‌زمان بین سایت‌ها و نسخه‌ی پشتیبان مستقل](figures/ch18/f01_layers.png)](#fig-18-f01_layers)
+
 :::
 
 # پیش از شروع {#sec-18-1}

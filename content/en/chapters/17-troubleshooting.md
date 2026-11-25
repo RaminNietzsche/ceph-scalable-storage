@@ -13,6 +13,12 @@ lang: en
 - `ceph pg <pgid> query` shows a PG's path through the peering state machine and what it is blocked on.
 - Slow ops are traced with `dump_ops_in_flight` and `dump_historic_ops`; use `ceph-objectstore-tool` and unfound-object commands only with care, after a backup.
 
+```bash
+ceph health detail
+```
+
+[![The layered troubleshooting method: start from ceph -s and ceph health detail, identify the layer involved, and proceed with hypothesis and test](figures/ch17/f01_method.png)](#fig-17-f01_method)
+
 :::
 
 # Before you start {#sec-17-1}

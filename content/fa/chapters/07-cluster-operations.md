@@ -13,6 +13,12 @@ lang: fa
 - OSD خراب پس از `mon_osd_down_out_interval` (۱۰ دقیقه) out می‌شود و recovery شروع می‌شود؛ دیسک را با `ceph orch osd rm --replace` عوض کنید و برای کار برنامه‌ریزی‌شده از حالت نگهداری میزبان استفاده کنید.
 - ارتقا با `ceph orch upgrade` مرحله‌ای و خودکار است؛ سه آستانه‌ی پرشدگی و `MAX AVAIL` در `ceph df` توضیح می‌دهند چرا فضای آزاد کمتر از ظاهرش است.
 
+```bash
+ceph orch ls
+```
+
+[![لایه‌های مدیریت daemon در cephadm: از دستور ceph orch تا کانتینر روی میزبان](figures/ch07/f01_layers.png)](#fig-07-f01_layers)
+
 :::
 
 # پیش از شروع {#sec-07-1}

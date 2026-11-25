@@ -13,6 +13,12 @@ lang: en
 - watch/notify gives a light notification channel on an object; RBD uses it to tell clients about image changes.
 - The Objecter on the client computes targets, keeps per-OSD sessions, resends ops on map changes and limits in-flight work; respect `osd_max_object_size` and stripe large data.
 
+```bash
+ceph osd pool application enable devpool myapp
+```
+
+[![Where librados sits: upstream libraries and your application work with librados through an IoCtx; the Objecter computes each operation's target](figures/ch14/f01_stack.png)](#fig-14-f01_stack)
+
 :::
 
 # Before you start {#sec-14-1}

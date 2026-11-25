@@ -13,6 +13,12 @@ lang: fa
 - راه‌اندازی دستی با `radosgw-admin` یا خودکار با `ceph rgw realm bootstrap` است؛ پایش با `sync status`، `bucket sync status` و `sync error list` انجام می‌شود.
 - failover یعنی master کردن zone دیگر و commit کردن period؛ در قطعی کوتاه شبکه با عجله promote نکنید.
 
+```bash
+radosgw-admin sync status
+```
+
+[![سلسله‌مراتب multisite: realm شامل zonegroupها و هر zonegroup شامل zoneهایی است که هر کدام در یک کلاستر Ceph جداگانه قرار دارند](figures/ch05/f01_hier.png)](#fig-05-f01_hier)
+
 :::
 
 # پیش از شروع {#sec-05-1}

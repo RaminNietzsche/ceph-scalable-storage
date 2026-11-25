@@ -13,6 +13,12 @@ lang: en
 - Today's alternatives are device classes and CRUSH rules per pool, separating hot and cold data in the application, and RGW storage classes with lifecycle transitions.
 - RocksDB data already spreads between fast and slow devices inside BlueStore.
 
+```bash
+ceph osd crush rule create-replicated fast-rule default host nvme
+```
+
+[![Cache tiering architecture in three rows: via the overlay, requests for the base pool go to the cache pool while the tier agent flushes and evicts objects](figures/ch16/f01_tier.png)](#fig-16-f01_tier)
+
 :::
 
 # Before you start {#sec-16-1}

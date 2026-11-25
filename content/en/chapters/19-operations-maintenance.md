@@ -13,6 +13,12 @@ lang: en
 - Host maintenance mode checks that stopping a host is safe and sets `noout` for that host only.
 - pg_autoscaler sets PG counts per pool and the upmap balancer evens out the PG distribution; device health and periodic checks belong in the routine.
 
+```bash
+ceph orch upgrade status
+```
+
+[![The upgrade procedure in three stages: cluster readiness, staged daemon upgrades with cephadm, and checking require_osd_release](figures/ch19/f01_upgrade.png)](#fig-19-f01_upgrade)
+
 :::
 
 # Before you start {#sec-19-1}

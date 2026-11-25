@@ -13,6 +13,12 @@ lang: en
 - Tentacle adds mgmt-gateway and oauth2-proxy: one front door for the Dashboard, Grafana, Prometheus and Alertmanager.
 - Every Dashboard step has a CLI equivalent; the data is read from ceph-mgr's memory, so it is as fresh as the OSDs' periodic reports.
 
+```bash
+ceph mgr module enable dashboard
+```
+
+[![The Dashboard's components: the MGR module, Grafana and Prometheus for charts, and in Tentacle the nginx gateway and oauth2-proxy as a single entry point](figures/ch09/f02_arch.png)](#fig-09-f02_arch)
+
 :::
 
 # Before you start {#sec-09-1}

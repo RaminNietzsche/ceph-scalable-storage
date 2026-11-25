@@ -13,6 +13,12 @@ lang: en
 - Describe the whole cluster in a spec file, keep it in Git, and use cephadm-ansible for host prerequisites.
 - Rook runs Ceph inside Kubernetes from CRDs, with ceph-csi for RBD and CephFS volumes; check the production readiness list before the real bootstrap.
 
+```bash
+cephadm bootstrap --mon-ip 192.168.10.11 --single-host-defaults
+```
+
+[![The reconciliation loop in cephadm: the spec sets the desired state and the orchestrator fixes differences from the actual state](figures/ch11/f03_loop.png)](#fig-11-f03_loop)
+
 :::
 
 # Before you start {#sec-11-1}

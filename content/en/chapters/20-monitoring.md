@@ -13,6 +13,12 @@ lang: en
 - Watch a few key signals: health, PG states, latency, capacity and slow ops; add your own alert rules next to ceph-mixin, not instead of it.
 - Tentacle's mgmt-gateway puts every monitoring UI behind one entry point; build SLO views on top of the ceph-mixin dashboards.
 
+```bash
+ceph mgr module enable prometheus
+```
+
+[![The monitoring stack architecture: ceph-exporter and node-exporter expose metrics, while Prometheus, Alertmanager and Grafana scrape, alert and visualize](figures/ch20/f01_stack.png)](#fig-20-f01_stack)
+
 :::
 
 # Before you start {#sec-20-1}

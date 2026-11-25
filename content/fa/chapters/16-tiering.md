@@ -13,6 +13,12 @@ lang: fa
 - جایگزین‌های امروز: device class و قانون CRUSH برای هر pool، جدا کردن داده‌ی داغ و سرد در خود برنامه، و storage class در RGW با انتقال‌های lifecycle.
 - داده‌ی RocksDB هم درون BlueStore میان دستگاه سریع و کند تقسیم می‌شود.
 
+```bash
+ceph osd crush rule create-replicated fast-rule default host nvme
+```
+
+[![معماری cache tiering در سه ردیف: درخواست‌های pool پایه با overlay به pool کش می‌روند و عامل کش اشیا را flush و evict می‌کند](figures/ch16/f01_tier.png)](#fig-16-f01_tier)
+
 :::
 
 # پیش از شروع {#sec-16-1}

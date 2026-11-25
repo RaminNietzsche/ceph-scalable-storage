@@ -13,6 +13,12 @@ lang: en
 - Small writes may be deferred through the RocksDB WAL; `min_alloc_size` and compression settings decide how much raw space small objects really use.
 - FileStore OSDs must be recreated as BlueStore before upgrading to Reef or later; there is no in-place conversion.
 
+```bash
+ceph tell osd.3 bluefs stats
+```
+
+[![Comparing the FileStore and BlueStore stacks: BlueStore removes the intermediate file system and the separate journal](figures/ch12/f01_stack.png)](#fig-12-f01_stack)
+
 :::
 
 # Before you start {#sec-12-1}

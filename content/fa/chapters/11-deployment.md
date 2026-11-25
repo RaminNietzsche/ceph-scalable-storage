@@ -13,6 +13,12 @@ lang: fa
 - کل کلاستر را در یک فایل spec توصیف کنید، آن را در Git نگه دارید و پیش‌نیازهای میزبان‌ها را با cephadm-ansible آماده کنید.
 - Rook، Ceph را از روی CRDها درون Kubernetes اجرا می‌کند و ceph-csi حجم‌های RBD و CephFS را می‌دهد؛ پیش از bootstrap واقعی فهرست آمادگی محیط عملیاتی را مرور کنید.
 
+```bash
+cephadm bootstrap --mon-ip 192.168.10.11 --single-host-defaults
+```
+
+[![چرخه‌ی تطبیق در cephadm: spec وضعیت مطلوب را تعیین می‌کند و orchestrator اختلاف با وضعیت واقعی را برطرف می‌کند](figures/ch11/f03_loop.png)](#fig-11-f03_loop)
+
 :::
 
 # پیش از شروع {#sec-11-1}

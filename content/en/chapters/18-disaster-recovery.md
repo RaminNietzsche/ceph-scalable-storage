@@ -13,6 +13,12 @@ lang: en
 - Stretch mode keeps one cluster across two sites with a tiebreaker MON, for zero RPO when a whole site is lost.
 - If all MONs are lost, the monitor store can be rebuilt from the OSDs; `ceph-objectstore-tool` can export and import PGs from a dead OSD's readable disk.
 
+```bash
+rbd mirror pool enable --site-name site-a vmpool image
+```
+
+[![Four layers of defence against disaster: in-cluster replication, stretch mode, asynchronous cross-site mirroring and independent backups](figures/ch18/f01_layers.png)](#fig-18-f01_layers)
+
 :::
 
 # Before you start {#sec-18-1}

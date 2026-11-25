@@ -13,6 +13,12 @@ lang: fa
 - Tentacle سرویس‌های mgmt-gateway و oauth2-proxy را آورد: یک درِ ورودی برای Dashboard، Grafana، Prometheus و Alertmanager.
 - هر گام در Dashboard معادل CLI دارد؛ داده‌ها از حافظه‌ی ceph-mgr خوانده می‌شوند و تازگی‌شان به گزارش‌های دوره‌ای OSDها بستگی دارد.
 
+```bash
+ceph mgr module enable dashboard
+```
+
+[![اجزای Dashboard: ماژول MGR، Grafana و Prometheus برای نمودارها، و در Tentacle دروازه‌ی nginx و oauth2-proxy به‌عنوان نقطه‌ی ورود واحد](figures/ch09/f02_arch.png)](#fig-09-f02_arch)
+
 :::
 
 # پیش از شروع {#sec-09-1}

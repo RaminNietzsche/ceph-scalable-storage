@@ -13,6 +13,12 @@ lang: en
 - Tunables fix old CRUSH behaviours but change mappings, so enabling them moves data.
 - cephx gives Kerberos-like mutual authentication with time-limited tickets; device classes put a pool on chosen OSDs.
 
+```bash
+ceph osd map rbd rbd_data.12ab.0000000000000004
+```
+
+[![The two placement stages: the object name is mapped to a PG by a hash, and CRUSH maps that PG to a set of OSDs](figures/ch08/f01_place.png)](#fig-08-f01_place)
+
 :::
 
 # Before you start {#sec-08-1}

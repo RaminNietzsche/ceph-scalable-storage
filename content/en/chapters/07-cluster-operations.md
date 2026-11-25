@@ -13,6 +13,12 @@ lang: en
 - A failed OSD is marked out after `mon_osd_down_out_interval` (10 minutes) and recovery starts; replace disks with `ceph orch osd rm --replace` and use host maintenance mode for planned work.
 - Upgrades are staged and automatic with `ceph orch upgrade`; the three full ratios and `MAX AVAIL` in `ceph df` explain why free space is less than it looks.
 
+```bash
+ceph orch ls
+```
+
+[![The daemon management layers in cephadm: from the ceph orch command to the container on the host](figures/ch07/f01_layers.png)](#fig-07-f01_layers)
+
 :::
 
 # Before you start {#sec-07-1}

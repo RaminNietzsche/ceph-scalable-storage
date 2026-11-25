@@ -13,6 +13,12 @@ lang: fa
 - `ceph pg <pgid> query` مسیر PG در ماشین حالت peering و چیزی را که مانع آن است نشان می‌دهد.
 - slow opها را با `dump_ops_in_flight` و `dump_historic_ops` دنبال کنید؛ `ceph-objectstore-tool` و فرمان‌های اشیای unfound را فقط با احتیاط و پس از پشتیبان‌گیری به کار ببرید.
 
+```bash
+ceph health detail
+```
+
+[![روش عیب‌یابی لایه‌ای: از خلاصه‌ی ceph -s و ceph health detail شروع کنید، لایه‌ی درگیر را بیابید و با چرخه‌ی فرضیه و آزمون پیش بروید](figures/ch17/f01_method.png)](#fig-17-f01_method)
+
 :::
 
 # پیش از شروع {#sec-17-1}

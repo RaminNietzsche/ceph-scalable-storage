@@ -13,6 +13,12 @@ lang: fa
 - چند سیگنال کلیدی را زیر نظر بگیرید: سلامت، وضعیت PGها، تأخیر، ظرفیت و slow opها؛ قانون‌های هشدار خودتان را کنار ceph-mixin اضافه کنید، نه به جای آن.
 - mgmt-gateway در Tentacle همه‌ی رابط‌های پایش را پشت یک درِ ورودی می‌برد؛ نماهای SLO را روی داشبوردهای ceph-mixin بسازید.
 
+```bash
+ceph mgr module enable prometheus
+```
+
+[![معماری پشته‌ی پایش: ceph-exporter و node-exporter متریک‌ها را منتشر می‌کنند و Prometheus، Alertmanager و Grafana آن‌ها را پایش و نمایش می‌دهند](figures/ch20/f01_stack.png)](#fig-20-f01_stack)
+
 :::
 
 # پیش از شروع {#sec-20-1}

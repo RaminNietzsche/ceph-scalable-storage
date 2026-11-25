@@ -13,6 +13,12 @@ lang: en
 - Planning decides success: workload, failure domain, network and MTU, fill ratio, and SSDs with power-loss protection for DB/WAL and MONs.
 - cephadm is the official deployment tool: bootstrap one host, add hosts, and declare the desired services with `ceph orch apply`.
 
+```bash
+ceph -s
+```
+
+[![Ceph layers: the three block, object and file interfaces are all built on a common RADOS layer](figures/ch01/f01_stack.png)](#fig-01-f01_stack)
+
 :::
 
 # Before you start {#sec-01-1}

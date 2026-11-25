@@ -13,6 +13,12 @@ lang: en
 - fio's rbd engine, warp for S3 and the admin socket (`perf dump`, `dump_historic_ops`) are the operator's main tools.
 - A benchmark report without hardware, versions, settings, duration and percentiles is worthless.
 
+```bash
+ceph tell osd.0 bench
+```
+
+[![Layer-by-layer measurement: measure each layer only after you know the ceiling of the layer below](figures/ch10/f01_layers.png)](#fig-10-f01_layers)
+
 :::
 
 # Before you start {#sec-10-1}

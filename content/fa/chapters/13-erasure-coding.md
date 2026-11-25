@@ -13,6 +13,12 @@ lang: fa
 - در Tentacle افزونه‌ی پیش‌فرض کلاسترهای تازه ISA-L شد و FastEC (خواندن و نوشتن جزئی و parity-delta) پشت `allow_ec_optimizations` آمد.
 - عدد `2147483647` در نگاشت PG همان `CRUSH_ITEM_NONE` است: CRUSH برای آن shard هیچ OSDی پیدا نکرده است.
 
+```bash
+ceph osd erasure-code-profile get default
+```
+
+[![کدگذاری 4+2: یک stripe شانزده‌کیلوبایتی به چهار shard داده‌ی چهارکیلوبایتی تقسیم و دو shard parity از آن‌ها محاسبه می‌شود](figures/ch13/f01_km.png)](#fig-13-f01_km)
+
 :::
 
 # پیش از شروع {#sec-13-1}

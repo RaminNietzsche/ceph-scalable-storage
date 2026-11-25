@@ -13,6 +13,12 @@ lang: fa
 - snapshot فوری و copy-on-write است، clone قابل نوشتن و ارزان است و `flatten` وابستگی clone به والد را قطع می‌کند؛ snapshot بدون freeze فقط crash-consistent است.
 - mirroring در حالت journal (RPO چند ثانیه، نوشتن دوبرابر) یا snapshot (RPO برابر زمان‌بندی) کار می‌کند؛ promote اجباری بدون fencing خطر split-brain دارد.
 
+```bash
+rbd create rbd/disk01 --size 10G
+```
+
+[![ساختار یک image در RADOS: شیء header برای فراداده و اشیای داده‌ی ۴ مگابایتی که فقط پس از نوشتن ساخته می‌شوند](figures/ch02/f01_rbd_objects.png)](#fig-02-f01_rbd_objects)
+
 :::
 
 # پیش از شروع {#sec-02-1}

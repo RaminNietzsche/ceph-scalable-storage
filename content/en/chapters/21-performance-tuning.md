@@ -13,6 +13,12 @@ lang: en
 - `osd_memory_target` (4 GiB by default) is the per-OSD memory budget that BlueStore's cache autotuning follows.
 - Tune the OS, network (consistent MTU) and CPU, and always report latency percentiles (p99, p99.9), not just averages.
 
+```bash
+ceph config get osd osd_mclock_profile
+```
+
+[![The performance tuning cycle: define a measurable goal, take a baseline, apply one change, measure again and record the result](figures/ch21/f04_method.png)](#fig-21-f04_method)
+
 :::
 
 # Before you start {#sec-21-1}

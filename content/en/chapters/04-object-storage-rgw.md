@@ -13,6 +13,12 @@ lang: en
 - Users, subusers, tenants and accounts are different identity levels; for a new design consider accounts (Squid+).
 - Versioning, object lock, lifecycle, storage classes, policies, SSE and bucket notifications make RGW a complete S3 service; remember lifecycle rules for incomplete multipart uploads and that gc frees space later.
 
+```bash
+ceph orch apply rgw objstore --placement="label:rgw count-per-host:1" --port=8080
+```
+
+[![RGW architecture: stateless instances behind a load balancer, and separate pools for the index, data and metadata](figures/ch04/f01_arch.png)](#fig-04-f01_arch)
+
 :::
 
 # Before you start {#sec-04-1}

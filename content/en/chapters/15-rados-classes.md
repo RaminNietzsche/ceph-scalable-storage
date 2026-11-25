@@ -13,6 +13,12 @@ lang: en
 - You can write your own class in C++ (the chapter builds `tally`) or run Lua scripts with cls_lua.
 - Method flags (RD, WR) must match what the method really does; measure cost and correctness on a real cluster.
 
+```bash
+ceph config get osd osd_class_dir
+```
+
+[![Comparing two ways of incrementing a counter: with the class method numops.add, the OSD runs requests serially inside the PG](figures/ch15/f03_rmw.png)](#fig-15-f03_rmw)
+
 :::
 
 # Before you start {#sec-15-1}

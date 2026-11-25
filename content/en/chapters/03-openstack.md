@@ -13,6 +13,12 @@ lang: en
 - Copy-on-write from image to volume needs raw-format images and `show_image_direct_url = True`; qcow2 silently loses it.
 - The libvirt secret UUID must be identical on every compute node and equal to `rbd_secret_uuid`; `images_type = rbd` moves ephemeral disks to Ceph for easy live migration and evacuate.
 
+```bash
+ceph osd pool ls detail | grep -E "images|volumes|backups|vms"
+```
+
+[![Mapping OpenStack services to Ceph components: each service has its own pool or interface](figures/ch03/f01_map.png)](#fig-03-f01_map)
+
 :::
 
 # Before you start {#sec-03-1}

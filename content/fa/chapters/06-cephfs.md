@@ -13,6 +13,12 @@ lang: fa
 - `fs volumes` برای Kubernetes و Manila، subvolume با quota و snapshot فراهم می‌کند؛ NFS-Ganesha و در Tentacle سرویس SMB به کلاینت‌هایی می‌رسند که نمی‌توانند CephFS را mount کنند.
 - cephfs-mirror، snapshotها را به کلاستر دیگری می‌برد؛ کلاینتی که mountش قفل شده معمولاً evict شده است، پس `dmesg` را ببینید و دوباره mount کنید.
 
+```bash
+ceph fs status fs01
+```
+
+[![معماری CephFS: کلاینت فراداده را از MDS و داده را مستقیم از OSDها می‌گیرد؛ MDS journal و inodeها را در pool فراداده نگه می‌دارد](figures/ch06/f01_arch.png)](#fig-06-f01_arch)
+
 :::
 
 # پیش از شروع {#sec-06-1}
