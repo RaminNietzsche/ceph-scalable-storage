@@ -107,6 +107,9 @@ memtable به‌طور پیش‌فرض یک skiplist است. با پیش‌فر�
 **چرا ضریب ۸ و نه ۱۰؟** write amplification در compaction سطحی تقریباً با ضریب سطوح متناسب است (هر بایت در هر سطح حدوداً به اندازه‌ی ضریب بار دیگر بازنویسی می‌شود)، و فضای اضافه برابر 1/(multiplier−1) است. ضریب ۸ در برابر ۱۰ کمی فضای بیشتری می‌گیرد ولی write amplification را کاهش می‌دهد و اندازه‌ی سطوح را با اندازه‌های رایج دستگاه‌های DB هم‌خوان‌تر می‌کند. این یک انتخاب طراحی در پیش‌فرض‌های Ceph است. پیش از تغییر آن، تأثیرش را روی اندازه‌ی DB خود محاسبه کنید.
 :::
 
+::: {.sim name="ssdwear"}
+:::
+
 # column family sharding {#sec-25-7}
 
 ![column family sharding در BlueStore. پیش‌فرض main این است: «m(3) p(3,0-12) O(3,0-13)=block_cache={type=binned_lru} L=min_write_buffer_number_to_merge=32 P=min_write_buffer_number_to_merge=32». هر پیشوند فهرست‌شده CF(های) جداگانه‌ی خودش را دارد. برای انتخاب shard، بازه‌ی بایت مشخص‌شده از کلید با ceph_str_hash_rjenkins هش و باقیمانده‌ی آن بر تعداد shard محاسبه می‌شود. پیشوندهای فهرست‌نشده در CF پیش‌فرض می‌مانند](figures/ch25/f03_cf.png){#fig-25-f03_cf}

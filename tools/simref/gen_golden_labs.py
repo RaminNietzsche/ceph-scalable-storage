@@ -650,8 +650,27 @@ int main() {
         c['out'] = res
     OUT['balancer'] = {'options': opts, 'cases': cases}
 
+# ---------------------------------------------------------------- ssdwear
+def ssdwear():
+    """BlueStore's SSD defaults and RocksDB level options (global.yaml.in), the EC stripe unit default (mon.yaml.in),
+    and the names of the BlueFS and BlueStore perf counters the lab tells the reader to watch."""
+    y = read('common/options/global.yaml.in')
+    def dflt(src, o):
+        return re.search(r'^- name: ' + o + r'\n(?:  .*\n)*?  default: (.+)', src, re.M).group(1).strip()
+    def size(v):
+        return int(v[:-2]) << {'K': 10, 'M': 20}[v[-1]] if v[-2:-1] == '_' else int(v)
+    opts = {o: size(dflt(y, o)) for o in ('bluestore_min_alloc_size_ssd', 'bluestore_prefer_deferred_size_ssd', 'bdev_block_size')}
+    mon = read('common/options/mon.yaml.in')
+    opts['osd_pool_erasure_code_stripe_unit'] = size(dflt(mon, 'osd_pool_erasure_code_stripe_unit'))
+    desc = re.search(r'^- name: osd_pool_erasure_code_stripe_unit\n(?:  .*\n)*?  long_desc: ((?:.*\n)*?)  default:', mon, re.M).group(1)
+    rocks = dict(kv.split('=', 1) for kv in dflt(y, 'bluestore_rocksdb_options').split(','))
+    counters = sorted(set(re.findall(r'add_u64_counter\(\s*l_\w+,\s*"(\w+)"', read('os/bluestore/BlueFS.cc') + read('os/bluestore/BlueStore.cc'))))
+    OUT['ssdwear'] = {'options': opts, 'rocksdb': {k: int(rocks[k]) for k in ('max_bytes_for_level_base', 'max_bytes_for_level_multiplier', 'write_buffer_size',
+                                                                                'min_write_buffer_number_to_merge', 'level0_file_num_compaction_trigger')},
+                      'stripe_unit_desc': ' '.join(desc.split()), 'counters': counters}
 
-STEPS = [capacity, reshard, mdspin, ecdecode, mclock, scrub, sigv4, bluespace, balancer]
+
+STEPS = [capacity, reshard, mdspin, ecdecode, mclock, scrub, sigv4, bluespace, balancer, ssdwear]
 if __name__ == '__main__':
     only = sys.argv[1:]
     for f in STEPS:

@@ -107,6 +107,9 @@ With `compaction_style=kCompactionStyleLevel`, each level Ln (n ≥ 1) is a set 
 **Why a multiplier of 8 and not 10?** Write amplification in leveled compaction is roughly proportional to the level multiplier (each byte at each level is rewritten about multiplier times more), and the extra space is 1/(multiplier−1). A multiplier of 8 versus 10 takes a little more space but reduces write amplification and makes level sizes fit common DB device sizes better. This is a design choice in Ceph's defaults. Before changing it, compute its effect on your DB size.
 :::
 
+::: {.sim name="ssdwear"}
+:::
+
 # Column family sharding {#sec-25-7}
 
 ![Column family sharding in BlueStore. The default on main is: "m(3) p(3,0-12) O(3,0-13)=block_cache={type=binned_lru} L=min_write_buffer_number_to_merge=32 P=min_write_buffer_number_to_merge=32". Each listed prefix has its own separate CF(s). To choose the shard, the specified byte range of the key is hashed with ceph_str_hash_rjenkins and the remainder modulo the number of shards is taken. Unlisted prefixes stay in the default CF](figures/ch25/f03_cf.png){#fig-25-f03_cf}

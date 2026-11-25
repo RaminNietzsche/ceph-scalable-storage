@@ -374,7 +374,7 @@ def sim_icon(name):
 THUMB_PARTS = {'crush': ('sim-stats', 'sim-fig'), 'placement': ('pl-flow', 'sim-stats'), 'pgcalc': ('sim-stats', 'table-wrap'), 'ecprofile': ('sim-stats', 'ec-cards'),
                'peering': ('ps-top', 'ps-osds'), 'bluestore': ('sim-stats', 'sim-fig'), 'rgwput': ('sim-stats', 'sim-fig'),
                'striping': ('sim-stats', 'st-sets'), 'capacity': ('sim-stats', 'sim-fig'), 'reshard': ('sim-stats', 'sim-fig'), 'mdspin': ('sim-stats', 'sim-fig'), 'ecdecode': ('sim-stats', 'lx-grid'), 'mclock': ('sim-stats', 'sim-fig'), 'scrub': ('sim-stats', 'sim-fig'), 'quorum': ('sim-stats', 'sim-fig'), 'sigv4': ('sim-stats', 'lx-steps'), 'bluespace': ('sim-stats', 'bsp-list'), 'rbdclone': ('sim-stats', 'rc-grid'), 'cephx': ('sim-stats', 'sim-fig'), 'netbw': ('sim-stats', 'bsp-list'),
-               'balancer': ('sim-stats', 'sim-fig')}
+               'balancer': ('sim-stats', 'sim-fig'), 'ssdwear': ('sim-stats', 'sim-fig')}
 
 
 def sim_thumb(name):

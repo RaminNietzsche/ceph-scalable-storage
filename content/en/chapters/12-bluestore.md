@@ -255,6 +255,9 @@ in addition: L0 (up to 8 memtable files of 16 MiB before compaction) and the WAL
 
 ![The target sizes of levels L1 to L4 in RocksDB with BlueStore's default options (bars) and their cumulative sum (red line) on a logarithmic axis. Each cumulative step is a block.db size that fits the next level completely. L0 and the WAL each add about 1 GiB](figures/ch12/f10_levels.png){#fig-12-f10_levels}
 
+::: {.sim name="ssdwear"}
+:::
+
 # Inside the code: BlueStore {#sec-12-7}
 
 This section examines BlueStore from the Ceph source code (the main branch of the `ceph/ceph` repository, as of 14 November 2026). We give file and function names so that you can follow along yourself. Behaviour may differ between releases; wherever it matters, we name the release.
