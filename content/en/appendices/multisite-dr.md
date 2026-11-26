@@ -85,7 +85,7 @@ Each RGW keeps sync perf counters per source zone, in the `data-sync-from-<zone>
 ceph daemon client.rgw.eu2.host1.abcdef perf dump
 ```
 
-Alert on: `sync status` not caught up for longer than your RPO target, a growing `sync error list`, `fetch_errors` or `poll_errors` that increase steadily, and an RGW in the destination zone that does not sync at all (for example because `rgw_run_sync_thread` is false on it). The Prometheus exporter of the manager exposes the RGW perf counters, so the same values can be graphed (chapter 20).
+Alert on: `sync status` not caught up for longer than your RPO target, a growing `sync error list`, `fetch_errors` or `poll_errors` that increase steadily, and a destination zone in which no RGW syncs at all (for example because `rgw_run_sync_thread` is false on every RGW of the zone, not only on the ones that serve clients). The Prometheus exporter of the manager exposes the RGW perf counters, so the same values can be graphed (chapter 20).
 
 # Planned switchover
 

@@ -85,7 +85,7 @@ radosgw-admin sync info
 ceph daemon client.rgw.eu2.host1.abcdef perf dump
 ```
 
-برای این‌ها هشدار بگذارید: `sync status` که بیش از هدف RPO شما caught up نیست، `sync error list` که بزرگ‌تر می‌شود، `fetch_errors` یا `poll_errors` که پیوسته زیاد می‌شوند، و RGWی در zone مقصد که اصلاً sync نمی‌کند (مثلاً چون `rgw_run_sync_thread` روی آن false است). خروجی Prometheus در manager شمارنده‌های RGW را ارائه می‌دهد، پس همین مقدارها را می‌توان نمودار کرد (فصل ۲۰).
+برای این‌ها هشدار بگذارید: `sync status` که بیش از هدف RPO شما caught up نیست، `sync error list` که بزرگ‌تر می‌شود، `fetch_errors` یا `poll_errors` که پیوسته زیاد می‌شوند، و zone مقصدی که هیچ RGWی در آن sync نمی‌کند (مثلاً چون `rgw_run_sync_thread` روی همه‌ی RGWهای آن zone false است، نه فقط روی آن‌هایی که به کلاینت سرویس می‌دهند). خروجی Prometheus در manager شمارنده‌های RGW را ارائه می‌دهد، پس همین مقدارها را می‌توان نمودار کرد (فصل ۲۰).
 
 # جابه‌جایی برنامه‌ریزی‌شده
 

@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Appendix K: the sync-thread alert refers to a zone in which no RGW syncs.
 - Cheat sheet: nine multisite and DR commands (sync errors, data sync, zone promotion, period pull, RBD demote/force-promote/resync, cephfs-mirror status) linked to appendix K; 187 commands.
 - Appendix K: per-directory CephFS mirroring metrics with `ceph fs snapshot mirror status` (Umbrella).
 - Appendix K "Multisite and Disaster Recovery: A Practical Guide" / «راهنمای عملی multisite و بازیابی از فاجعه» (both editions, `multisite-dr.html`): topology choices, RPO/RTO with asynchronous replication, monitoring sync (sync status, bucket sync status, sync error list, sync perf counters and `sync_delta` from Tentacle), planned switchover, unplanned failover, failback and resync, split brain, metadata versus data sync, sync policy and the archive zone, RBD mirroring (journal vs snapshot, promote/demote, force-promote, resync), CephFS snapshot mirroring, stretch mode versus multisite, and a DR drill runbook and checklist; TL;DR box, two figures, release badges and the embedded multisite lab.
