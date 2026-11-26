@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Chapters 5, 18 and 42 and appendix J link to appendix K; README and CONTRIBUTING list it.
 - Appendix K: the sync-thread alert refers to a zone in which no RGW syncs.
 - Cheat sheet: nine multisite and DR commands (sync errors, data sync, zone promotion, period pull, RBD demote/force-promote/resync, cephfs-mirror status) linked to appendix K; 187 commands.
 - Appendix K: per-directory CephFS mirroring metrics with `ceph fs snapshot mirror status` (Umbrella).

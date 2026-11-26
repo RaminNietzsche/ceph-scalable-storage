@@ -223,6 +223,8 @@ radosgw-admin bucket sync status --bucket logs --source-zone zone-a
 - **پس از تغییر master:** اگر zoneها روی period قدیمی مانده‌اند، `period pull` و راه‌اندازی دوباره‌ی RGW لازم است.
 - **تفاوت محتوا با وجود «caught up»:** `rgw_sync_obj_etag_verify` (پیش‌فرض false) را موقتاً روشن کنید تا ETag هر شیء کپی‌شده بررسی شود.
 
+نگاه اپراتور به همین سازوکار (پایش تأخیر، failover، failback و همگام‌سازی دوباره، و تمرین DR) در [پیوست ک: multisite و بازیابی از فاجعه](#appL) آمده است.
+
 # تکمیلی و به‌روز {#sec-42-9}
 
 - layout نسل‌دار bilog و همگام‌سازی پس از reshard در multisite از نسخه‌های اخیر پشتیبانی می‌شود و پیش‌نیاز آن ویژگی zonegroup ‏`resharding` است؛ پیش از reshard در multisite، `radosgw-admin zonegroup get` و فهرست `enabled_features` را بررسی کنید.

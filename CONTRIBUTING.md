@@ -69,7 +69,7 @@ Every chapter opens right after its YAML front matter with a single `::: {.tldr}
 
 `make check-tldr` checks all of these rules across both editions.
 
-An appendix written in Markdown may open with the same box (appendix I, the upgrade guide, and appendix J, RGW security, do). Its figure lives in `figures/app/` and the thumbnail points to an appendix figure: `[![caption](figures/app/name.png)](#fig-app-name)`. `check-tldr` covers chapters only; `check-parity` keeps the two editions of the appendix in step.
+An appendix written in Markdown may open with the same box (appendix I, the upgrade guide, appendix J, RGW security, and appendix K, multisite and DR, do). Its figure lives in `figures/app/` and the thumbnail points to an appendix figure: `[![caption](figures/app/name.png)](#fig-app-name)`. `check-tldr` covers chapters only; `check-parity` keeps the two editions of the appendix in step.
 
 The Python tools and the Pandoc filter (`templates/pandoc/book.lua`) both read this
 format. `tools/booklib/mdlower.py` turns it into the print renderer's directive

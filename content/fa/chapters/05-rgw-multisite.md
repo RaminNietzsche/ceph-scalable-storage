@@ -473,6 +473,8 @@ radosgw-admin period update --commit
 5. پس از بازگشت سایت اصلی: pull period، بررسی `sync status` تا caught up، و تصمیم درباره‌ی بازگرداندن master.
 6. ثبت زمان‌ها و درس‌ها در لاگ حادثه.
 
+یک runbook کامل، با جابه‌جایی برنامه‌ریزی‌شده، failback و همگام‌سازی دوباره، split brain، mirroring در RBD و CephFS و یک فهرست بررسی تمرین، در [پیوست ک: multisite و بازیابی از فاجعه](#appL) آمده است.
+
 # sync policy: کنترل دقیق همگام‌سازی {#sec-05-11}
 
 از Octopus، **sync policy** امکان می‌دهد به‌جای «همه‌ی bucketها در همه‌ی zoneها»، تعیین کنید چه چیزی از کجا به کجا برود. سیاست‌ها در قالب گروه، flow (جریان بین zoneها) و pipe (کدام bucketها) تعریف می‌شوند و در سطح zonegroup یا bucket اعمال می‌شوند.

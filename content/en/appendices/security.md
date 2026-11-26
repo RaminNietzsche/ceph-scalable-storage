@@ -256,7 +256,7 @@ aws $EP s3api put-bucket-versioning --bucket audit \
   --versioning-configuration Status=Enabled,MFADelete=Enabled --mfa "admin1-totp 123456"
 ```
 
-MFA delete is rarely used in practice: it protects against a stolen key, but not against a stolen key together with the TOTP seed, and it makes automation harder. Object Lock in compliance mode, together with a replica in another zone, is the stronger protection.
+MFA delete is rarely used in practice: it protects against a stolen key, but not against a stolen key together with the TOTP seed, and it makes automation harder. Object Lock in compliance mode, together with a replica in another zone, is the stronger protection. Replication to another site and failover are covered in [Appendix K: Multisite and Disaster Recovery](#appL).
 
 # Tenant isolation
 

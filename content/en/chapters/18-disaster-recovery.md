@@ -49,6 +49,8 @@ rbd mirror pool enable --site-name site-a vmpool image
 Replication is not backup. An `rbd rm` on the primary site, or deleting a bucket, is carried to the second site by asynchronous replication too. For human error and ransomware you need a copy that is **out of reach of the same credentials**: protected snapshots, object lock in COMPLIANCE mode, or a backup in another system.
 :::
 
+Runbooks for failover and failback across all of these layers, with RPO and RTO and a drill checklist, are in [Appendix K: Multisite and Disaster Recovery](#appL).
+
 # rbd-mirror {#sec-18-3}
 
 ## Two modes {#sec-18-3-1}

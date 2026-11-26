@@ -256,7 +256,7 @@ aws $EP s3api put-bucket-versioning --bucket audit \
   --versioning-configuration Status=Enabled,MFADelete=Enabled --mfa "admin1-totp 123456"
 ```
 
-MFA delete در عمل کم به کار می‌رود: در برابر کلید دزدیده‌شده محافظت می‌کند، ولی نه در برابر کلید دزدیده‌شده به‌همراه seed آن TOTP، و خودکارسازی را سخت‌تر می‌کند. Object Lock در حالت compliance همراه با یک رونوشت در zone دیگر محافظت قوی‌تری است.
+MFA delete در عمل کم به کار می‌رود: در برابر کلید دزدیده‌شده محافظت می‌کند، ولی نه در برابر کلید دزدیده‌شده به‌همراه seed آن TOTP، و خودکارسازی را سخت‌تر می‌کند. Object Lock در حالت compliance همراه با یک رونوشت در zone دیگر محافظت قوی‌تری است. تکثیر به site دیگر و failover در [پیوست ک: multisite و بازیابی از فاجعه](#appL) آمده‌اند.
 
 # جداسازی مستأجرها
 

@@ -223,6 +223,8 @@ example (output):
 - **After a master change:** if zones are stuck on the old period, `period pull` and an RGW restart are needed.
 - **Content differences despite "caught up":** temporarily turn on `rgw_sync_obj_etag_verify` (default false) so that the ETag of each copied object is checked.
 
+The operator's side of the same machinery (monitoring the lag, failover, failback and resync, and a DR drill) is in [Appendix K: Multisite and Disaster Recovery](#appL).
+
 # Supplementary and up to date {#sec-42-9}
 
 - The generational bilog layout and sync after a reshard in multisite are supported in recent versions, and they require the zonegroup feature `resharding`; before resharding in multisite, check `radosgw-admin zonegroup get` and the `enabled_features` list.

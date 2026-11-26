@@ -473,6 +473,8 @@ If both zones consider themselves master at the same time (for example because o
 5. After the primary site returns: pull the period, check `sync status` until caught up, and decide whether to move the master back.
 6. Record the times and lessons in the incident log.
 
+A complete runbook, with the planned switchover, failback and resync, split brain, RBD and CephFS mirroring and a drill checklist, is in [Appendix K: Multisite and Disaster Recovery](#appL).
+
 # Sync policy: fine-grained control of sync {#sec-05-11}
 
 Since Octopus, **sync policy** lets you decide what goes from where to where, instead of "all buckets in all zones". Policies are defined as groups, flows (the flow between zones) and pipes (which buckets), and are applied at the zonegroup or bucket level.
