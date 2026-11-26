@@ -25,7 +25,7 @@ make pdf                                     # build/fa/ceph-scalable-storage-fa
 make site                                    # web book, fa and en: build/site/index.html
 make site SITE_URL=https://example.org/ceph  # the same, with canonical links and absolute OG/sitemap URLs
 make all                                     # pdf + web book + html-single + epub + docx, fa and en
-make check                                   # lint, spell, refs, links, parity
+make check                                   # lint, spell, refs, links, parity, reading paths
 ```
 
 `LANG` must be `fa` or `en`. A locale value inherited from the environment, such as `en_US.UTF-8`, is ignored, so the default edition is `fa`. `make` and `make pdf` build the Persian edition; use `make pdf LANG=en` for English. `make help` lists every target.
@@ -84,6 +84,7 @@ glossary/glossary.yaml        bilingual glossary (single source)
 references/references.json    CSL-JSON bibliography (curated official sources)
 references/ceph-release-changes.yaml  changes per Ceph release (appendix H) for the release labels
 references/cheatsheet.yaml           bilingual command cheat sheet (Appendix B, web page & A4 PDF)
+references/reading-paths.yaml        suggested reading paths per reader (web page paths.html, preface table, on-page hint)
 templates/                    html front matter, print CSS (RTL/LTR), cover, Pandoc filter/CSS,
                               site/ (web book page template, CSS, JS, UI strings)
 assets/                       rendered covers
