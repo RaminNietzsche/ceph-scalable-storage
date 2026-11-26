@@ -61,7 +61,7 @@ WEBFIG_STAMP := build/webfig/.stamp
 .PHONY: help all pdf cheatsheet html epub docx book figures cover lint markdownlint spell check-commands check-cheatsheet \
         check check-labs check-quizzes check-links check-links-online check-refs check-parity check-versions check-tldr check-publish check-sims check-paths \
         html-single site check-site shoot-site webfig fonts \
-        sync-translations stats clean distclean dist
+        check-cli-reference cli-reference sync-translations stats clean distclean dist
 
 help: ## show this help
 	@grep -hE '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | \
@@ -173,7 +173,22 @@ check-quizzes: ## validate references/quizzes/chNN.yaml (fa/en parity, anchors, 
 check-cheatsheet: ## validate references/cheatsheet.yaml (schema, anchors, prose lint, commands)
 	$(PYTHON) tools/check_cheatsheet.py
 
-check: lint spell check-refs check-links check-parity check-versions check-tldr check-publish check-sims check-cheatsheet check-paths check-quizzes ## all offline checks
+check-cli-reference: ## validate references/cli-reference.yaml (schema, tags vs sources, summary counts, cheat-sheet links)
+	$(PYTHON) tools/check_cli_reference.py
+
+# Regenerating the CLI reference needs the Ceph source tree, so it is a manual target and
+# not part of CI: CEPH_SRC=/path/to/ceph (checked out at a release tag), or a shallow clone
+# of the tag recorded in the data (meta.ceph_tag; override with CEPH_TAG=v20.2.N).
+CEPH_SRC    ?=
+CEPH_TAG    ?= $(shell sed -n 's/^  ceph_tag: *//p' references/cli-reference.yaml)
+cli-reference: ## regenerate references/cli-reference.yaml from the Ceph source (network unless CEPH_SRC is set)
+	@src='$(CEPH_SRC)'; \
+	 if [ -z "$$src" ]; then src=build/ceph-src-$(CEPH_TAG); \
+	   [ -d "$$src/.git" ] || git clone -q --depth 1 --branch $(CEPH_TAG) https://github.com/ceph/ceph.git "$$src"; fi; \
+	 $(PYTHON) tools/gen_cli_reference.py --ceph-src "$$src" --tag $(CEPH_TAG)
+	$(PYTHON) tools/check_cli_reference.py
+
+check: lint spell check-refs check-links check-parity check-versions check-tldr check-publish check-sims check-cheatsheet check-paths check-quizzes check-cli-reference ## all offline checks
 
 check-publish: ## .zenodo.json and CITATION.cff are complete and match the book version
 	$(PYTHON) tools/check_publish.py
