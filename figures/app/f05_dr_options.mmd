@@ -1,0 +1,16 @@
+flowchart LR
+  subgraph S["یک کلاستر در دو site"]
+    st["stretch mode<br/>RPO صفر، تأخیر شبکه‌ی کم<br/>tiebreaker در site سوم"]
+  end
+  subgraph M["کلاسترهای مستقل، تکثیر ناهمگام"]
+    direction TB
+    rg["RGW multisite<br/>شیء: ثانیه تا دقیقه"]
+    rb["rbd-mirror<br/>journal: ثانیه؛ snapshot: بازه‌ی زمان‌بندی"]
+    cf["cephfs-mirror<br/>بازه‌ی snapshot"]
+  end
+  subgraph B["پشتیبان مستقل"]
+    bk["نسخه‌ی جدا با Object Lock<br/>RPO: بازه‌ی پشتیبان"]
+  end
+  S ~~~ M ~~~ B
+  style st fill:#EAF2FB,stroke:#2E6DA4
+  style bk fill:#E8F6EC,stroke:#2E8B57

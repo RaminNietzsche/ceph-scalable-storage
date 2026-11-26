@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Figures app/f04_multisite_failover and app/f05_dr_options (fa/en): the multisite switchover/failover/failback flow and the DR options with their RPO.
 - Cross-references written as [text](#anchor) in prose now render as links in the print book, on the site and in the Pandoc exports (they were printed as raw Markdown).
 - Chapters 4 and 41 link to appendix J; README and CONTRIBUTING list it.
 - Cheat sheet: eight RGW security commands (key rotation, user suspension, rate limits, presigned URLs, bucket logging, msgr2 secure mode) linked to appendix J and chapter 26; 178 commands.

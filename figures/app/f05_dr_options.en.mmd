@@ -1,0 +1,16 @@
+flowchart LR
+  subgraph S["One cluster across two sites"]
+    st["stretch mode<br/>RPO zero, low network latency<br/>tiebreaker in a third site"]
+  end
+  subgraph M["Independent clusters, asynchronous replication"]
+    direction TB
+    rg["RGW multisite<br/>objects: seconds to minutes"]
+    rb["rbd-mirror<br/>journal: seconds; snapshot: the schedule interval"]
+    cf["cephfs-mirror<br/>the snapshot interval"]
+  end
+  subgraph B["Independent backup"]
+    bk["A separate copy with Object Lock<br/>RPO: the backup interval"]
+  end
+  S ~~~ M ~~~ B
+  style st fill:#EAF2FB,stroke:#2E6DA4
+  style bk fill:#E8F6EC,stroke:#2E8B57

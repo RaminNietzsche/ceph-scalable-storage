@@ -1,0 +1,16 @@
+flowchart TB
+  s["zone اصلی از دسترس خارج شد<br/>یا جابه‌جایی برنامه‌ریزی‌شده"] --> q{"برنامه‌ریزی‌شده؟"}
+  q -- "بله" --> p1["نوشتن روی zone اصلی را متوقف کنید<br/>sync status: caught up"]
+  p1 --> pr
+  q -- "خیر" --> u1["از کار افتادن را از دو مسیر تأیید کنید<br/>RGWهای zone قدیمی را متوقف کنید"]
+  u1 --> pr["ارتقای zone ثانویه<br/>zone modify --master --default"]
+  pr --> c["period update --commit<br/>روی zone تازه‌ی اصلی"]
+  c --> d["DNS یا GSLB و endpointها<br/>را به zone تازه بفرستید"]
+  d --> r["بازگشت site قدیمی:<br/>realm pull و period pull پیش از هر نوشتن"]
+  r --> y["sync status تا رسیدن به caught up<br/>در صورت نیاز data sync init"]
+  y --> f{"بازگرداندن master؟"}
+  f -- "بله" --> p1
+  f -- "خیر" --> e["پایان: ثبت زمان‌ها<br/>RPO و RTO واقعی"]
+  style pr fill:#FDECEA,stroke:#C0392B
+  style c fill:#FDECEA,stroke:#C0392B
+  style e fill:#E8F6EC,stroke:#2E8B57

@@ -1,0 +1,16 @@
+flowchart TB
+  s["The master zone is down<br/>or a planned switchover"] --> q{"Planned?"}
+  q -- "yes" --> p1["Stop writes to the master zone<br/>sync status: caught up"]
+  p1 --> pr
+  q -- "no" --> u1["Confirm the failure on two paths<br/>stop the old zone's RGWs"]
+  u1 --> pr["Promote the secondary zone<br/>zone modify --master --default"]
+  pr --> c["period update --commit<br/>on the new master zone"]
+  c --> d["Point DNS or GSLB and the endpoints<br/>at the new zone"]
+  d --> r["The old site returns:<br/>realm pull and period pull before any write"]
+  r --> y["sync status until caught up<br/>data sync init if needed"]
+  y --> f{"Move the master back?"}
+  f -- "yes" --> p1
+  f -- "no" --> e["Done: record the times<br/>and the real RPO and RTO"]
+  style pr fill:#FDECEA,stroke:#C0392B
+  style c fill:#FDECEA,stroke:#C0392B
+  style e fill:#E8F6EC,stroke:#2E8B57
