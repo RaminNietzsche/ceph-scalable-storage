@@ -41,7 +41,7 @@ out = a.out or os.path.join(B, f'ceph-scalable-storage-{a.lang}.{a.format}')
 IMG = re.compile(r'^(!\[.*\]\()(\S+?)(\)\{#[\w:.-]+\})\s*$')
 TLDR_IMG = re.compile(r'^(\[!\[.*\]\()(\S+?)(\)\]\(#[\w:.-]+\))\s*$')
 # appendix anchors of the print book whose Pandoc heading ids differ
-APP_IDS = {'appJ': 'app-upgrade', 'appK': 'app-security', 'appL': 'app-multisite-dr'}
+APP_IDS = {'appJ': 'app-upgrade', 'appK': 'app-security', 'appL': 'app-multisite-dr', 'appM': 'app-cli-reference'}
 XREF_APP = re.compile(r'\]\(#(' + '|'.join(APP_IDS) + r')\)')
 
 
@@ -147,6 +147,9 @@ parts += ['', f'# {UI["appendix"]} {letter}: {title} {{#app-security .unnumbered
 fm, lines = body_of(os.path.join(C, 'appendices', 'multisite-dr.md'))
 letter, title, _ = UI['app']['multisite-dr']
 parts += ['', f'# {UI["appendix"]} {letter}: {title} {{#app-multisite-dr .unnumbered}}', ''] + lines
+fm, lines = body_of(os.path.join(C, 'appendices', 'cli-reference.md'))
+letter, title, _ = UI['app']['cli-reference']
+parts += ['', f'# {UI["appendix"]} {letter}: {title} {{#app-cli-reference .unnumbered}}', ''] + lines
 src = os.path.join(B, f'pandoc-{a.lang}.md')
 SIMSTR = yaml.safe_load(open(os.path.join(ROOT, 'templates', 'site', 'sims', f'strings-{a.lang}.yaml'), encoding='utf-8'))
 labels = {'algorithm': UI['algorithm'], 'algo_src': UI['algo_src'], 'algo_complexity': UI['algo_complexity'], **UI['callouts'],

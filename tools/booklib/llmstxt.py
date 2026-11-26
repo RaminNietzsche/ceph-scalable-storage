@@ -33,6 +33,7 @@ APP_SRC = {
     'upgrade': os.path.join('appendices', 'upgrade.md'),
     'security': os.path.join('appendices', 'security.md'),
     'multisite-dr': os.path.join('appendices', 'multisite-dr.md'),
+    'cli-reference': os.path.join('appendices', 'cli-reference.md'),
 }
 
 # Pages included in llms-full.txt, in reading order (slug, kind).
@@ -50,6 +51,7 @@ FULL_ORDER = (
     ('upgrade', 'appendix'),
     ('security', 'appendix'),
     ('multisite-dr', 'appendix'),
+    ('cli-reference', 'appendix'),
 )
 
 CALLOUT_LABEL = {

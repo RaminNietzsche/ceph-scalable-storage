@@ -12,6 +12,8 @@ needs a Ceph checkout (make cli-reference). Checks:
   - help strings: one line, at most 240 characters, no Markdown or HTML
   - doc:/src: locations: paths inside doc/ or src/ with an optional :line
   - the cheat-sheet commands of these tools resolve to reference entries
+  - the print pointer (content/<lang>/appendices/cli-reference.md) states the
+    release and the command and option counts of the data
 """
 from __future__ import annotations
 
@@ -154,13 +156,23 @@ def main() -> int:
         n = sum(len(v) for v in links.values())
         if n < MIN_CS_LINKS:
             errs.append(f'only {n} cheat-sheet commands resolve to reference entries (expected at least {MIN_CS_LINKS})')
+    if not errs:
+        nc, no = clirefs.counts(data)
+        ver = meta['ceph_tag'][1:]
+        fa = str.maketrans('0123456789', '۰۱۲۳۴۵۶۷۸۹')
+        for lang, want in (('en', (f'Ceph {ver}', f'{nc} commands and {no} options')),
+                           ('fa', (f'Ceph {ver}', f'{str(nc).translate(fa)} دستور و {str(no).translate(fa)} گزینه'))):
+            p = os.path.join(ROOT, 'content', lang, 'appendices', 'cli-reference.md')
+            txt = open(p, encoding='utf-8').read() if os.path.exists(p) else ''
+            for w in want:
+                if w not in txt:
+                    errs.append(f'{os.path.relpath(p, ROOT)}: must say {w!r} (from the data)')
     if errs:
         for e in errs[:60]:
             print(f'check_cli_reference: {e}')
         if len(errs) > 60:
             print(f'check_cli_reference: ... and {len(errs) - 60} more')
         return 1
-    nc, no = clirefs.counts(data)
     print(f'cli reference: OK ({meta["ceph_tag"]} {meta["ceph_commit"][:12]}, {len(tools)} tools, '
           f'{nc} commands, {no} options, {n} cheat-sheet links)')
     return 0
