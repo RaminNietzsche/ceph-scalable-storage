@@ -123,6 +123,7 @@ figcaption b { color: #1F3864; }
 td.ltr { direction: ltr; text-align: left; font-family: "DejaVu Sans"; font-size: 8pt; font-weight: 600; color: #10264f; width: 32%; }
 .gloss td { font-size: 8.3pt; }
 h2.cmdtool { font-size: 12.5pt; margin-top: 7mm; }
+h3.cmdtool { font-size: 11pt; margin-top: 5mm; }
 table.cmds td { border: none; border-bottom: .3pt solid #dde3ee; padding: .8mm 1.5mm; background: none !important; }
 table.cmds tr.subh td { background: #eef2fa !important; font-weight: 700; color: #1F3864; font-size: 8.6pt; padding-top: 1.4mm; }
 table.cmds tr.subh td .en { font-family: "DejaVu Sans Mono"; font-size: 8pt; }

@@ -630,6 +630,31 @@ for cat in CS.get('categories', []):
                    + (f'; {cephver.label(since, LANG)}' if newer else '')
                    + (f'; {UI["cheatsheet_danger"]}' if danger else '') + ')')
     bh.append('</tbody></table>')
+# full index of every command line in the chapters' code blocks, by tool and subcommand (kept after the curated sheet)
+by = collections.OrderedDict()
+seen_all = set()
+order = ['ceph', 'rados', 'rbd', 'radosgw-admin', 'cephadm', 'ceph-volume', 'ceph-bluestore-tool', 'ceph-objectstore-tool', 'ceph-kvstore-tool', 'osdmaptool', 'crushtool', 'monmaptool', 'ceph-dencoder', 'cephfs-journal-tool', 'kubectl']
+for tool, sub, line, ch, since in cmds:
+    key = re.sub(r'\s+', ' ', line)
+    if key in seen_all or len(key) > 110:
+        continue
+    seen_all.add(key)
+    by.setdefault(tool, collections.OrderedDict()).setdefault(sub, []).append((key, ch, since))
+bh.append(f'<h2 class="cmdtool cs-index" id="cs-index">{esc(UI["cheatsheet_index_title"])}</h2><p>{UI["cheatsheet_index_intro"]}</p>')
+MDA.append(f'\n## {UI["cheatsheet_index_title"]}\n')
+for tool in sorted(by, key=lambda t: order.index(t) if t in order else 99):
+    bh.append(f'<h3 class="cmdtool"><span class="en">{tool}</span> · {TOOL_DESC.get(tool, "")}</h3><table class="cmds"><tbody>')
+    MDA.append(f'\n### {tool} — {TOOL_DESC.get(tool, "")}\n')
+    subs = by[tool]
+    for sub in sorted(subs, key=lambda s: -len(subs[s])):
+        bh.append(f'<tr class="subh"><td colspan="2"><span class="en">{esc(tool)} {esc(sub)}</span></td></tr>')
+        MDA.append(f'\n**{tool} {sub}**\n')
+        for line, ch, since in subs[sub]:
+            newer = since and since != cephver.BASELINE
+            bdg = ' ' + since_badge(since) if newer else ''
+            bh.append(f'<tr><td class="cmd"><code>{esc(line)}</code>{bdg}</td><td class="chref">{UI["chapter_ref"].format(n=fa(ch))}</td></tr>')
+            MDA.append(f'- `{line}` ({UI["chapter_ref"].format(n=ch)}' + (f'; {cephver.label(since, LANG)}' if newer else '') + ')')
+    bh.append('</tbody></table>')
 bh.append('</section>')
 app.append('\n'.join(bh))
 def source_appendix(aid, key, fn):
@@ -784,7 +809,7 @@ md.append(f'\n# {UI["lof"]}\n')
 md += [f'- {UI["figure"]} {num.translate(EN)}: {short(cap)}' for fid, num, cap in figs]
 write_atomic(os.path.join(OUT, 'book.md'), '\n'.join(md) + '\n'.join(MD) + '\n'.join(MDA) + '\n')
 stats = dict(lang=LANG, chapters=len(chapters), figures=len(figs), algorithms=len(ALGOS), references=len(allu),
-             answers=sum(len(v) for v in ANS.values()), toc=len(toc), commands=len(seen), index_terms=len(ix_hits),
+             answers=sum(len(v) for v in ANS.values()), toc=len(toc), commands=len(seen), command_index=len(seen_all), index_terms=len(ix_hits),
              pending_chapters=pending)
 json.dump(stats, open(os.path.join(OUT, 'stats.json'), 'w'), indent=1)
 print(json.dumps(stats))

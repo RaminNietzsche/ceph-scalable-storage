@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Appendix B again includes the full index of every command used in the chapters (by tool and subcommand, with the chapter of first use) after the 14 curated categories; it had been dropped when the cheat sheet was rewritten (print editions back to 1348 fa pages).
 - Linked Appendix B / cheatsheet from the troubleshooting and upgrade appendices and README.md; added make cheatsheet and make check-cheatsheet targets and WeasyPrint dependencies to the CI site job.
 - Web cheat sheet (fa/en cheatsheet.html): live search and dangerous-command filter, category jump bar, release-badge links, downloadable A4 PDF (ceph-cheatsheet-{fa,en}.pdf) and links from the sidebar navigation and home page.
 - Standalone printable A4 multi-column cheat-sheet PDFs (tools/render_cheatsheet.py -> ceph-cheatsheet-{fa,en}.pdf, 3 pages each with RTL/LTR bidi isolation) and categorized Appendix B in the print PDF and Pandoc exports (tools/build_book.py, tools/export_pandoc.py).

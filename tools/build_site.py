@@ -1318,7 +1318,7 @@ for p in pages:
         index_docs(p)
     if p.slug == 'cheatsheet':
         cs_pdf_name = f'ceph-cheatsheet-{LANG}.pdf'
-        jump_links = ''.join(f'<a href="#{esc(h["id"])}">{esc(text_of(frag(heading_inner(h))))}</a>' for h in p.body.find_all('h2') if h.get('id'))
+        jump_links = ''.join(f'<a href="#{esc(h["id"])}">{esc(text_of(frag(heading_inner(h))))}</a>' for h in p.body.find_all('h2') if h.get('id', '').startswith('cs-'))
         cs_ui = (
             f'<div class="cs-bar">'
             f'<a class="btn primary" href="{esc(cs_pdf_name)}" download>{ICON["download"]}{esc(S["cheatsheet_pdf"])}</a>'

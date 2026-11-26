@@ -62,6 +62,8 @@ cheatsheet_intro: "Essential Ceph commands organized into 14 operational categor
 cheatsheet_cols: ["Command", "Description", "Section"]
 cheatsheet_danger: "⚠ Danger"
 answers_intro: "The answers below are short and indicative; for full explanations go back to the corresponding chapter."
+cheatsheet_index_title: "Index of every command in the chapters"
+cheatsheet_index_intro: "Every command line that appears in a code block of a chapter, grouped by tool and subcommand; the right-hand column shows the chapter of first use."
 bib_intro: "This bibliography gathers every source listed in the chapters' “Sources” sections, together with general references. All links were checked in November 2026. Official project documentation is always the most current source; read the documentation for your own version before using any feature in production."
 bib_general: "General sources"
 bib_chapters: "Sources by chapter"
