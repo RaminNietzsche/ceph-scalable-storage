@@ -34,7 +34,8 @@ The design follows three ideas from the research and from well-known learning pr
 | Reading a section | 5 | Credited once per section, only after time spent with the section on screen (35 % of its estimated reading time, 6–120 s) *and* scrolling to its end, while the tab is visible and the reader was active in the last 90 s; 300 XP per day |
 | Finishing a chapter | 50 | Once per chapter; only 10 if fewer than half of its sections were credited (a "mark as read" click alone earns little) |
 | Reviewing a flashcard | 2 | 150 XP per day |
-| Quiz answer | 3 right, 1 wrong | 120 XP per day; a wrong answer still earns effort XP |
+| Quiz answer | 3 right, 1 wrong | 120 XP per day; a wrong answer still earns effort XP. In end-of-chapter quizzes only the first answer to each question ever counts, so retrying earns nothing |
+| Passing an end-of-chapter quiz | 30 | Every answer right in one run; once per chapter |
 | Seeing an algorithm box | 1 | Box at least half visible for 1.5 s; once per box; 60 XP per day |
 | Daily goal met | 20 | Once per day |
 | Weekly challenge done | 40 | Three challenges per week, chosen deterministically from the week number |
@@ -48,12 +49,13 @@ Twelve levels with thresholds 0, 100, 250, 500, 850, 1300, 1900, 2700, 3700, 500
 
 ### Badges
 
-50 badges: 27 general ones and 23 lab medals. Twelve are tiered (bronze, silver, gold): chapters, sections, hours, streak, algorithm boxes, zoomed figures, reviewed cards, correct quiz answers, mastered glossary terms, bookmarks, XP, goal days. Seven are single: one per part (Part IV is the specialist badge), one path, all paths, and clearing the review queue. Eight are hidden until earned, a light "curiosity" drive: night owl, early bird, rest-day reader, comeback after a week away, a 60-minute day, ten correct answers in a row, reading both editions, a streak saved by a freeze. The gallery shows locked badges greyed out with a progress bar toward the next tier.
+52 badges: 29 general ones and 23 lab medals. Fourteen are tiered (bronze, silver, gold): chapters, sections, hours, streak, algorithm boxes, zoomed figures, labs used (*Experimenter*), reviewed cards, correct quiz answers, mastered glossary terms, bookmarks, XP, goal days, and passed end-of-chapter quizzes («قهرمان آزمون فصل» / "Chapter Quiz Champion": 5, 20 and all 42 chapters). Seven are single: one per part (Part IV is the specialist badge), one path, all paths, and clearing the review queue. Eight are hidden until earned, a light "curiosity" drive: night owl, early bird, rest-day reader, comeback after a week away, a 60-minute day, ten correct answers in a row, reading both editions, a streak saved by a freeze. The gallery shows locked badges greyed out with a progress bar toward the next tier.
 
 **Lab medals.** Each of the 23 interactive labs has its own medal (single tier, silver, 25 XP, never hidden), with its own icon and name in both editions, for example «نقشه‌بردار CRUSH» / "CRUSH Cartographer" or «ساعت‌ساز mClock» / "Clock Keeper". A medal is earned the first time the reader works hands-on in that lab (changes a control or presses a button; the same `sim:use` event that feeds the tiered *Experimenter* badge). The gallery has a separate "Lab medals" section that shows all 23 locked or earned, and each lab page shows its own medal under the intro line. Saved progress is unaffected: medals are stored in the same `badges` map as other badges, and medals for labs already used are awarded on the next page load.
 
 ### Review: flashcards and quiz
 
+- **End-of-chapter quizzes**: every chapter page ends with four to six multiple-choice questions written for that chapter (210 in all, the same in both editions). Each answer is checked at once, explained, and linked to the section it comes from. A quiz is passed when every answer in one run is right; it can be retried at any time. The review page has a «آزمون فصل‌ها» / "Chapter quizzes" tab that lists every chapter's status. The data, the format and the print decision are described in [QUIZZES.md](QUIZZES.md). Progress is kept in `g.cq` (per chapter: passed, best score, attempts) and `g.cqa` (first answer per question).
 - **Flashcards** come only from the book: each chapter's review questions with the answers from the answers appendix (420 cards in the Persian edition; the English edition has none until its answers are translated). The reader reveals the answer and rates themselves *Again / Hard / Knew it*. Each card links back to its source.
 - **Glossary quiz**: multiple choice built from the glossary, either "which definition belongs to this term" or "which term does this definition describe". The three wrong options are other glossary definitions or terms, so nothing is invented.
 - **Spaced repetition**: a Leitner system with six boxes and intervals of 1, 2, 4, 8, 16 and 32 days. *Knew it* moves a card up one box, *Hard* keeps it in its box at half the interval, *Again* sends it back to box 1 and repeats it later in the same round. Cards of a chapter join the daily queue once the chapter is read, with at most 10 new cards a day. Glossary terms are optional («واژه‌نامه را هم در مرور روزانه بیاور»). «مرور امروز» shows how many cards are due.
@@ -82,6 +84,7 @@ The six paths match the home page's "Where to start" cards. When every chapter o
 - that a flashcard reveals its answer and moves to the next Leitner box when rated
 - the level-up toast
 - that the quiz marks the right answer
+- that an end-of-chapter quiz can be answered with the keyboard, shows feedback, awards the pass XP once, and appears in the review page's chapter-quiz tab
 - the certificate with the stored name
 
 It also takes screenshots of each of these.
