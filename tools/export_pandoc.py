@@ -136,6 +136,9 @@ for rk, ri in RC['releases'].items():
 fm, lines = body_of(os.path.join(C, 'appendices', 'upgrade.md'))
 letter, title, _ = UI['app']['upgrade']
 parts += ['', f'# {UI["appendix"]} {letter}: {title} {{#app-upgrade .unnumbered}}', ''] + lines
+fm, lines = body_of(os.path.join(C, 'appendices', 'security.md'))
+letter, title, _ = UI['app']['security']
+parts += ['', f'# {UI["appendix"]} {letter}: {title} {{#app-security .unnumbered}}', ''] + lines
 src = os.path.join(B, f'pandoc-{a.lang}.md')
 SIMSTR = yaml.safe_load(open(os.path.join(ROOT, 'templates', 'site', 'sims', f'strings-{a.lang}.yaml'), encoding='utf-8'))
 labels = {'algorithm': UI['algorithm'], 'algo_src': UI['algo_src'], 'algo_complexity': UI['algo_complexity'], **UI['callouts'],

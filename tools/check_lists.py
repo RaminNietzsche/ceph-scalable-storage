@@ -86,8 +86,8 @@ for lang in ('fa', 'en'):
 summary.append(f'{n_pages} pages')
 
 # ---- list of figures
-# chapters and the appendices that can hold figures (the upgrade guide)
-APPENDIX_PAGES = {'troubleshooting', 'versions', 'upgrade'}
+# chapters and the appendices that can hold figures (the upgrade and RGW security guides)
+APPENDIX_PAGES = {'troubleshooting', 'versions', 'upgrade', 'security'}
 FIGN = {}
 for lang in ('fa', 'en'):
     lof = page(lang, 'figures')

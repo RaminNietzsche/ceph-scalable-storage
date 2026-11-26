@@ -21,7 +21,7 @@ EXPECTED_CATS = (
     'status', 'mon_mgr', 'osd', 'pools_crush', 'balancer', 'bluestore',
     'rbd', 'cephfs', 'rgw', 'auth', 'orch', 'upgrade', 'debug', 'perf',
 )
-VALID_APPS = {'appA', 'appB', 'appC', 'appD', 'appF', 'appG', 'appH', 'appI', 'appJ'}
+VALID_APPS = {'appA', 'appB', 'appC', 'appD', 'appF', 'appG', 'appH', 'appI', 'appJ', 'appK'}
 
 RULES_FA = [
     (re.compile('[\u064A\u0643]'), 'Arabic ي/ك instead of Persian ی/ک'),

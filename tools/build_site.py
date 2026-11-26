@@ -114,10 +114,11 @@ for p in sorted(glob.glob(os.path.join(C, 'chapters', '[0-9][0-9]-*.md'))):
     CHFILES[int(fm['chapter'])] = p
 
 APPS = [('appA', 'glossary'), ('appB', 'cheatsheet'), ('appC', 'troubleshooting'), ('appD', 'versions'),
-        ('appF', 'answers'), ('appG', 'bibliography'), ('appH', 'algorithms'), ('appI', 'changes'), ('appJ', 'upgrade')]
+        ('appF', 'answers'), ('appG', 'bibliography'), ('appH', 'algorithms'), ('appI', 'changes'), ('appJ', 'upgrade'), ('appK', 'security')]
 APPSRC = {'appC': os.path.join(C, 'appendices', 'troubleshooting.md'),
           'appD': os.path.join(C, 'appendices', 'versions.md'),
-          'appJ': os.path.join(C, 'appendices', 'upgrade.md')}
+          'appJ': os.path.join(C, 'appendices', 'upgrade.md'),
+          'appK': os.path.join(C, 'appendices', 'security.md')}
 
 # ---------------------------------------------------------------- helpers
 FIGDIR = os.path.join(OUT, 'figures')

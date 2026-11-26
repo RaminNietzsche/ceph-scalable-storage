@@ -29,6 +29,7 @@ APP_SRC = {
     'troubleshooting': os.path.join('appendices', 'troubleshooting.md'),
     'versions': os.path.join('appendices', 'versions.md'),
     'upgrade': os.path.join('appendices', 'upgrade.md'),
+    'security': os.path.join('appendices', 'security.md'),
 }
 
 # Pages included in llms-full.txt, in reading order (slug, kind).
@@ -44,6 +45,7 @@ FULL_ORDER = (
     ('algorithms', 'appendix'),
     ('changes', 'appendix'),
     ('upgrade', 'appendix'),
+    ('security', 'appendix'),
 )
 
 CALLOUT_LABEL = {

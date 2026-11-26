@@ -40,7 +40,7 @@ def format_ref(ref: str, lang: str, ui: dict) -> str:
     app_map = {
         'appA': 'glossary', 'appB': 'cheatsheet', 'appC': 'troubleshooting',
         'appD': 'versions', 'appF': 'answers', 'appG': 'bibliography',
-        'appH': 'algorithms', 'appI': 'changes', 'appJ': 'upgrade',
+        'appH': 'algorithms', 'appI': 'changes', 'appJ': 'upgrade', 'appK': 'security',
     }
     key = app_map.get(ref)
     if key and key in ui.get('app', {}):
