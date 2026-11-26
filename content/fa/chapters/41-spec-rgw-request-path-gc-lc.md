@@ -102,6 +102,8 @@ Signature                 = 5e63a875b9d9e0ec540db8784929f6d4c5799c453bd5442804a9
 هیچ‌گاه لاگ `debug_rgw = 20` یک محیط واقعی را بدون پاک کردن سرآیندها به اشتراک نگذارید؛ مقدار Authorization، توکن‌های STS و گاهی بدنه‌ی درخواست در آن است.
 :::
 
+برای نگاه اپراتور به احراز هویت (SigV2 در برابر SigV4، عمر URLهای پیش‌امضا، چرخش کلید و STS) [پیوست ی: امنیت RGW](#appK) را ببینید.
+
 # PUT و GET در حرکت {#sec-41-4}
 
 ::: {.algo #alg-41-3 title="جریان داده در PUT و GET" src="src/rgw/driver/rados/rgw_putobj_processor.cc؛ src/rgw/rgw_op.cc :: RGWPutObj::execute، RGWGetObj::execute؛ src/rgw/driver/rados/rgw_rados.cc :: get_obj_iterate" complexity="PUT: O(size) با حداکثر rgw_put_obj_min_window_size بایت در پرواز؛ GET: پنجره‌ی rgw_get_obj_window_size"}

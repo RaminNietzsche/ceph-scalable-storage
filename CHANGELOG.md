@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Chapters 4 and 41 link to appendix J; README and CONTRIBUTING list it.
 - Cheat sheet: eight RGW security commands (key rotation, user suspension, rate limits, presigned URLs, bucket logging, msgr2 secure mode) linked to appendix J and chapter 26; 178 commands.
 - Appendix J "RGW Security: From Threat Model to Hardening" / «امنیت RGW: از مدل تهدید تا مقاوم‌سازی» (both editions, `security.html`): threat model, authentication (keys, subusers, SigV4/SigV2, presigned URL limits, key rotation), authorization (evaluation order, bucket policies, ACL pitfalls, Block Public Access, accounts and IAM from Squid), STS and OIDC, encryption (TLS, SSE-S3/SSE-KMS/SSE-C with Vault, KMIP or Barbican, msgr2 secure mode), Object Lock, versioning and MFA delete, tenant isolation, rate limits and quotas, a hardening checklist, logging and auditing, and following Ceph security advisories; TL;DR box, two figures and release badges.
 - Figures app/f02_rgw_security_layers and app/f03_rgw_policy_eval (fa/en): the security layers of an S3 request and the RGW policy evaluation order.

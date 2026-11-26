@@ -102,6 +102,8 @@ Changing one byte in any of the inputs changes the signature completely. Two com
 Never share a `debug_rgw = 20` log from a real environment without scrubbing the headers; it contains the Authorization value, STS tokens and sometimes the request body.
 :::
 
+For the operator's side of authentication (SigV2 versus SigV4, presigned URL lifetimes, key rotation and STS), see [Appendix J: RGW Security](#appK).
+
 # PUT and GET in motion {#sec-41-4}
 
 ::: {.algo #alg-41-3 title="Data flow in PUT and GET" src="src/rgw/driver/rados/rgw_putobj_processor.cc; src/rgw/rgw_op.cc :: RGWPutObj::execute, RGWGetObj::execute; src/rgw/driver/rados/rgw_rados.cc :: get_obj_iterate" complexity="PUT: O(size) with at most rgw_put_obj_min_window_size bytes in flight; GET: a window of rgw_get_obj_window_size"}

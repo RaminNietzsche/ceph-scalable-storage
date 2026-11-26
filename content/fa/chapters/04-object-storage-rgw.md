@@ -608,7 +608,7 @@ RGW زبان سیاست AWS را پشتیبانی می‌کند. نمونه‌ی
 aws $EP s3api put-bucket-policy --bucket builds --policy file://policy.json
 ```
 
-با account (از Squid) می‌توان همین سیاست‌ها را روی کاربران و گروه‌ها هم با APIهای IAM گذاشت و از STS برای اعتبارنامه‌ی موقت و AssumeRoleWithWebIdentity (OIDC) استفاده کرد.
+با account (از Squid) می‌توان همین سیاست‌ها را روی کاربران و گروه‌ها هم با APIهای IAM گذاشت و از STS برای اعتبارنامه‌ی موقت و AssumeRoleWithWebIdentity (OIDC) استفاده کرد. ترتیب ارزیابی سیاست‌ها، STS، Block Public Access و یک فهرست مقاوم‌سازی در [پیوست ی: امنیت RGW](#appK) آمده‌اند.
 
 ## رمزنگاری سمت سرور {#sec-04-11-4}
 

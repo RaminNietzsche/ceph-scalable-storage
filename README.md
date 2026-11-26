@@ -70,7 +70,7 @@ content/<lang>/
   front/preface.md
   chapters/NN-slug.md         one file per chapter (YAML front matter + Pandoc Markdown)
   answers/NN.md               answers to each chapter's review questions
-  appendices/                 troubleshooting guide, release table, upgrade guide
+  appendices/                 troubleshooting guide, release table, upgrade guide, RGW security
   data/tools.yaml             tool descriptions
 labs/                         hands-on labs with scripts (see labs/README.md)
 figures/

@@ -608,7 +608,7 @@ RGW supports the AWS policy language. The example below allows the user `ci-bot`
 aws $EP s3api put-bucket-policy --bucket builds --policy file://policy.json
 ```
 
-With accounts (since Squid), the same policies can also be attached to users and groups with the IAM APIs, and STS can be used for temporary credentials and AssumeRoleWithWebIdentity (OIDC).
+With accounts (since Squid), the same policies can also be attached to users and groups with the IAM APIs, and STS can be used for temporary credentials and AssumeRoleWithWebIdentity (OIDC). The policy evaluation order, STS, Block Public Access and a hardening checklist are in [Appendix J: RGW Security](#appK).
 
 ## Server-side encryption {#sec-04-11-4}
 
