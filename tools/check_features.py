@@ -7,6 +7,9 @@
 * every chapter has an "Edit this page" link to REPO_URL/edit/<branch>/<source path>,
   and the source file exists;
 * every chapter has "Was this section helpful?" rows, each naming an h2 that exists;
+* every chapter ends with its quiz (section#chapter-quiz): as many questions as
+  references/quizzes/chNN.yaml, radio buttons with exactly one correct option (checkboxes
+  for multi-select), and a "see section" link that resolves to an id in the built site;
 * the home pages have the newsletter section: a form posting to NEWSLETTER_ACTION
   when it was set, otherwise "Watch releases on GitHub" and the Atom feed; and a privacy note;
 * paths.html has one section per path of references/reading-paths.yaml with all of its steps, paths-data.js
@@ -28,6 +31,8 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
+import yaml
+
 from bs4 import BeautifulSoup
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -41,7 +46,18 @@ a = ap.parse_args()
 SITE = os.path.abspath(a.site)
 F = json.load(open(os.path.join(SITE, 'features.json')))
 errors: list[str] = []
-stats = {'chapters': 0, 'badges': 0, 'fb_rows': 0, 'pages': 0}
+stats = {'chapters': 0, 'badges': 0, 'fb_rows': 0, 'pages': 0, 'quiz_q': 0}
+QUIZ = {}
+for qp in glob.glob(os.path.join(ROOT, 'references', 'quizzes', 'ch[0-9][0-9].yaml')):
+    qd = yaml.safe_load(open(qp, encoding='utf-8')) or {}
+    QUIZ[int(qd.get('chapter', 0))] = qd.get('questions') or []
+_ids: dict[str, set] = {}
+
+
+def ids_of(path):
+    if path not in _ids:
+        _ids[path] = {x['id'] for x in soup(path).select('[id]')} if os.path.exists(path) else set()
+    return _ids[path]
 
 
 def err(m):
@@ -118,6 +134,41 @@ for lang in ('fa', 'en'):
                 err(f'{rel}: feedback row names #{r["data-sec"]}, which is not an h2 of the page')
             if len(r.select('button.fb-b')) != 2:
                 err(f'{rel}: feedback row #{r["data-sec"]} needs a yes and a no button')
+        cq = s.select('section#chapter-quiz')
+        if len(cq) != 1:
+            err(f'{rel}: expected one end-of-chapter quiz (section#chapter-quiz)')
+            continue
+        cq = cq[0]
+        ch = int(cq.get('data-ch', 0))
+        want_q = QUIZ.get(ch, [])
+        qs = cq.select('li.cq-q')
+        stats['quiz_q'] += len(qs)
+        if not want_q or len(qs) != len(want_q) or cq.get('data-n') != str(len(want_q)):
+            err(f'{rel}: quiz has {len(qs)} questions, references/quizzes/ch{ch:02d}.yaml has {len(want_q)}')
+        if not s.select_one('a[href="#chapter-quiz"]'):
+            err(f'{rel}: the table of contents does not link to the quiz')
+        for li, src in zip(qs, want_q):
+            qid = li.get('id', '?')
+            multi = bool(src.get('multi'))
+            ins = li.select('input')
+            kinds = {x.get('type') for x in ins}
+            ok = [x for x in ins if x.has_attr('data-ok')]
+            if kinds != {'checkbox' if multi else 'radio'}:
+                err(f'{rel}: {qid}: inputs are {sorted(kinds)}')
+            if len(ins) != len(src.get('options') or []):
+                err(f'{rel}: {qid}: {len(ins)} options, the source has {len(src.get("options") or [])}')
+            if (len(ok) < 2) if multi else (len(ok) != 1):
+                err(f'{rel}: {qid}: {len(ok)} correct options')
+            if any(x.find_parent('label') is None for x in ins) or not li.select_one('fieldset > legend'):
+                err(f'{rel}: {qid}: every option needs a label and the question a legend')
+            see = li.select_one('p.cq-see a[href]')
+            if not see:
+                err(f'{rel}: {qid}: no link to its section')
+                continue
+            page, _, frag = see['href'].partition('#')
+            target = path if not page else os.path.join(os.path.dirname(path), page)
+            if frag != src.get('ref') or frag not in ids_of(target):
+                err(f'{rel}: {qid}: section link {see["href"]} does not resolve to #{src.get("ref")}')
     home = os.path.join(SITE, lang, 'index.html')
     hs = soup(home)
     nl = hs.select_one('section#newsletter')
@@ -198,6 +249,6 @@ if have != (F.get('cname') or ''):
 for e in errors[:200]:
     print('check_features:', e)
 print(f'check_features: {stats["pages"]} pages, {stats["chapters"]} chapter pages, {stats["badges"]} release badges, '
-      f'{stats["fb_rows"]} feedback rows, analytics={F.get("analytics") or "none"}, newsletter={"form" if F.get("newsletter") else "GitHub+feed"}, '
+      f'{stats["fb_rows"]} feedback rows, {stats["quiz_q"]} quiz questions, analytics={F.get("analytics") or "none"}, newsletter={"form" if F.get("newsletter") else "GitHub+feed"}, '
       f'CNAME={F.get("cname") or "-"}; {len(errors)} problems')
 sys.exit(1 if errors else 0)
