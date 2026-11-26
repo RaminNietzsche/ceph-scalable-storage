@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 30 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 30
+questions:
+  - id: crimson-status
+    ref: sec-30-1
+    q:
+      fa: "بر پایه‌ی مستندات رسمی، وضعیت Crimson چیست؟"
+      en: "According to the official documentation, what is Crimson's status?"
+    options:
+      - fa: "OSD پیش‌فرض از Squid"
+        en: "The default OSD since Squid"
+      - fa: "پیش‌نمایش فنی (tech preview)، نامناسب برای محیط عملیاتی"
+        en: "A tech preview, not suitable for production"
+        correct: true
+      - fa: "منسوخ و در برنامه‌ی حذف"
+        en: "Deprecated and scheduled for removal"
+      - fa: "آماده‌ی محیط عملیاتی فقط برای poolهای RGW"
+        en: "Production-ready only for RGW pools"
+    why:
+      fa: "فعال کردنش سه پرچم صریح لازم دارد که خود یادآور آزمایشی بودن آن است."
+      en: "Enabling it takes three explicit flags, which is a reminder that it is experimental."
+  - id: cross-core
+    ref: sec-30-2-1
+    q:
+      fa: "در مدل shared-nothing در Crimson، کد روی یک هسته چطور از داده‌ای استفاده می‌کند که مال هسته‌ی دیگری است؟"
+      en: "In Crimson's shared-nothing model, how does code on one core use data owned by another core?"
+    options:
+      - fa: "با یک mutex دور ساختار مشترک"
+        en: "With a mutex around the shared structure"
+      - fa: "با متغیرهای atomic که همه‌ی هسته‌ها مستقیم می‌خوانند"
+        en: "With atomic variables that every core reads directly"
+      - fa: "با پیام صریح: `smp::submit_to` یک future برمی‌گرداند، `sharded<T>` روی هر هسته یک نمونه نگه می‌دارد و `foreign_ptr` مالکیت را منتقل می‌کند"
+        en: "By explicit messages: `smp::submit_to` returns a future, `sharded<T>` keeps one instance per core, and `foreign_ptr` transfers ownership"
+        correct: true
+      - fa: "از طریق یک نمونه‌ی مشترک RocksDB"
+        en: "Through a shared RocksDB instance"
+    why:
+      fa: "این سه، تنها راه‌های عبور داده میان هسته‌هاست. بدون قفل، هر reactor شبکه و PGهای خودش را اجرا می‌کند."
+      en: "These are the only three ways data crosses cores. Without locks, each reactor runs its own network and PGs."
+  - id: hot-reactor
+    ref: sec-30-8
+    q:
+      fa: "یکی از reactorهای Crimson نزدیک ۱۰۰ درصد است و بقیه کم‌بارند و poll mode هم علت نیست. راه‌حل چیست؟"
+      en: "One Crimson reactor is near 100% while the others are lightly loaded, and poll mode is not the cause. What is the fix?"
+    options:
+      - fa: "رشته‌های بیشتری به آن هسته اضافه کنید"
+        en: "Add more threads to that core"
+      - fa: "`crimson_reactor_task_quota_ms` را بالا ببرید"
+        en: "Raise `crimson_reactor_task_quota_ms`"
+      - fa: "OSD را به CyanStore ببرید"
+        en: "Switch the OSD to CyanStore"
+      - fa: "PGهای پرکار را با `dump_store_shards` پیدا کنید و PGها را دوباره پخش کنید، مثلاً با بالا بردن pg_num یا با upmap"
+        en: "Find the busy PGs with `dump_store_shards` and redistribute PGs, for example by raising pg_num or with upmap"
+        correct: true
+    why:
+      fa: "هر PG به یک هسته سنجاق شده است، پس چند PG داغ روی یک هسته آن را پربار می‌کنند. بارشان را با `ceph pg dump pgs` مقایسه کنید."
+      en: "Every PG is pinned to one core, so a few hot PGs on one core overload it. Compare their load with `ceph pg dump pgs`."
+  - id: cyanstore
+    ref: sec-30-5
+    q:
+      fa: "CyanStore برای چه به کار می‌رود؟"
+      en: "What is CyanStore used for?"
+    options:
+      - fa: "سنجیدن سربار خود OSD؛ در حافظه اجرا می‌شود و هیچ داده‌ای ذخیره نمی‌کند"
+        en: "Measuring the overhead of the OSD itself; it runs in memory and stores no data"
+        correct: true
+      - fa: "backend پیش‌فرض عملیاتی Crimson"
+        en: "The default production backend of Crimson"
+      - fa: "اجرای BlueStore در رشته‌های alien"
+        en: "Running BlueStore in alien threads"
+      - fa: "نگه‌داری RocksDB روی HDD"
+        en: "Storing RocksDB on HDD"
+    why:
+      fa: "پیش‌فرض Crimson، AlienStore همراه BlueStore است که store کلاسیک را در یک thread pool بیرون از Seastar اجرا می‌کند. SeaStore طراحی بومی تازه برای NVMe است و هنوز در مراحل اولیه است."
+      en: "The default in Crimson is AlienStore with BlueStore, which runs the classic store in a thread pool outside Seastar. SeaStore is the new native design for NVMe and is still early."
+  - id: gc-victim
+    ref: sec-30-7
+    q:
+      fa: "در سیاست هزینه-فایده، بهترین segment برای بازپس‌گیری توسط cleaner در SeaStore کدام است؟"
+      en: "Under the cost-benefit policy, which segment is the best one for SeaStore's cleaner to reclaim?"
+    options:
+      - fa: "تازه‌ترین segment، چون داده‌اش در cache است"
+        en: "The newest segment, because its data is in cache"
+      - fa: "segmentی که بیشترین داده‌ی زنده را دارد"
+        en: "The segment with the most live data"
+      - fa: "یک segment قدیمی با داده‌ی زنده‌ی کم"
+        en: "An old segment with little live data"
+        correct: true
+      - fa: "هر segmentی که تصادفی انتخاب شود"
+        en: "Any segment chosen at random"
+    why:
+      fa: "تمیز کردن به اندازه‌ی (1 − u) فضا آزاد می‌کند و هزینه‌اش خواندن و نوشتن بخش زنده‌ی u است. داده‌ی قدیمی و پایدار احتمالاً به‌زودی بازنویسی نمی‌شود، پس جابه‌جایی‌اش ارزش بیشتری دارد."
+      en: "Cleaning frees (1 − u) of space and costs reading and writing the live part u. Old, stable data is unlikely to be overwritten soon, so moving it is worth more."
