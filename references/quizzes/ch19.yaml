@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 19 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 19
+questions:
+  - id: pg-split-move
+    ref: sec-19-8-2
+    q:
+      fa: "`pg_num` یک pool را دو برابر می‌کنید (و `pgp_num` هم دنبالش می‌آید). تقریباً چه مقدار از داده‌ی pool جابه‌جا می‌شود؟"
+      en: "You double a pool's `pg_num` (with `pgp_num` following). Roughly how much of the pool's data moves?"
+    options:
+      - fa: "تقریباً هیچ، چون PGهای فرزند روی OSDهای والد می‌مانند"
+        en: "Almost none, because the children stay on the parents' OSDs"
+      - fa: "حدود نصف، چون نیمی از داده به PGهای فرزند می‌رود و آن‌ها معمولاً روی OSDهای دیگری قرار می‌گیرند"
+        en: "About half, because half the data goes to the child PGs and they usually land on other OSDs"
+        correct: true
+      - fa: "همه‌اش، چون همه‌ی PGها شماره‌گذاری دوباره می‌شوند"
+        en: "All of it, because every PG is renumbered"
+      - fa: "حدود ۵ درصد، یعنی `target_max_misplaced_ratio`"
+        en: "About 5%, the `target_max_misplaced_ratio`"
+    why:
+      fa: "در اندازه‌گیری حدود ۹۲ درصد PGهای فرزند روی سه OSD تازه افتادند، نزدیک به برآورد 0.5 × (1 − 3/120) ≈ 48.75% از داده. mgr تغییر را در گام‌هایی پخش می‌کند که `target_max_misplaced_ratio` محدودشان می‌کند."
+      en: "In the measurement about 92% of the child PGs landed on three new OSDs, close to the estimate 0.5 × (1 − 3/120) ≈ 48.75% of the data. The mgr spreads the change in steps limited by `target_max_misplaced_ratio`."
+  - id: injectargs-temp
+    ref: sec-19-9
+    q:
+      fa: "در یک حادثه تنظیمی را با `ceph tell osd.* injectargs` تغییر داده‌اید. پس از راه‌اندازی دوباره‌ی OSDها چه می‌شود؟"
+      en: "You changed a setting with `ceph tell osd.* injectargs` during an incident. What happens after the OSDs restart?"
+    options:
+      - fa: "تغییر از دست می‌رود؛ برای ماندگاری از `ceph config set` استفاده کنید"
+        en: "The change is lost; for persistence use `ceph config set`"
+        correct: true
+      - fa: "تغییر خودکار در `ceph.conf` نوشته می‌شود"
+        en: "The change is written to `ceph.conf` automatically"
+      - fa: "تغییر در پایگاه MON به‌عنوان پیش‌فرض تازه نگه داشته می‌شود"
+        en: "The change is kept in the MON database as a new default"
+      - fa: "OSDها تا برگرداندن تغییر راه نمی‌افتند"
+        en: "The OSDs refuse to start until the change is reverted"
+    why:
+      fa: "تغییرات زمان اجرا عمداً موقت‌اند. آگاهانه به کارشان ببرید و در لاگ حادثه ثبت کنید؛ `ceph config log` و `ceph config reset` تغییرات ماندگار را برمی‌گردانند."
+      en: "Runtime changes are temporary on purpose. Use them deliberately and record them in the incident log; `ceph config log` and `ceph config reset` revert persistent changes."
+  - id: nobackfill-danger
+    ref: sec-19-10
+    q:
+      fa: "چرا فصل `nobackfill` و `norecover` را خطرناک می‌نامد؟"
+      en: "Why does the chapter call `nobackfill` and `norecover` dangerous?"
+    options:
+      - fa: "اشیای misplaced را حذف می‌کنند"
+        en: "They delete misplaced objects"
+      - fa: "جلوی بازگرداندن افزونگی را می‌گیرند، پس تا وقتی برقرارند داده‌ی degraded در خطر می‌ماند"
+        en: "They stop the cluster from restoring redundancy, so degraded data stays at risk while they are set"
+        correct: true
+      - fa: "هر OSD پایین را فوراً out می‌کنند"
+        en: "They mark every down OSD out immediately"
+      - fa: "نوشتن کلاینت‌ها را غیرفعال می‌کنند"
+        en: "They disable client writes"
+    why:
+      fa: "این پرچم‌ها فقط بار را در زمان اوج کم می‌کنند و باید بعد برداشته شوند. برای نگه‌داری کوتاه، `noout` (ترجیحاً برای یک میزبان) پرچم درست است."
+      en: "These flags only reduce load at peak times and must be unset afterwards. For short maintenance, `noout` (preferably for one host) is the right flag."
+  - id: autoscale-pow2
+    ref: sec-19-7-1
+    q:
+      fa: "پیش از Umbrella، pg_autoscaler برای یک pool هدف ۱۰۰ PG را حساب کرده است. با این عدد چه می‌کند؟"
+      en: "Before Umbrella, the pg_autoscaler computed a target of 100 PGs for a pool. What does it do with that number?"
+    options:
+      - fa: "`pg_num` را دقیقاً ۱۰۰ می‌گذارد"
+        en: "Sets `pg_num` to exactly 100"
+      - fa: "آن را به نزدیک‌ترین توان دو (۱۲۸) گرد می‌کند و فقط اگر مقدار کنونی بیش از آستانه (سه برابر) فاصله داشته باشد `pg_num` را تغییر می‌دهد"
+        en: "Rounds it to the nearest power of two (128), and changes `pg_num` only if the current value is off by more than the threshold (3x)"
+        correct: true
+      - fa: "آن را برای صرفه‌جویی در حافظه به ۶۴ گرد می‌کند"
+        en: "Rounds it down to 64 to save memory"
+      - fa: "نادیده‌اش می‌گیرد، مگر این‌که pool با `bulk` علامت خورده باشد"
+        en: "Ignores it unless the pool is marked `bulk`"
+    why:
+      fa: "مرز تصمیم ۱٫۵ برابر توان پایین‌تر دو است و آستانه نمی‌گذارد تغییرات کوچک مدام داده جابه‌جا کنند. Umbrella گرد کردن سراسری با یک گام knapsack اضافه می‌کند."
+      en: "The decision boundary is 1.5 times the lower power of two, and the threshold stops small changes from causing constant data movement. Umbrella adds global rounding with a knapsack step."
+  - id: periodic
+    ref: sec-19-11
+    q:
+      fa: "فصل کدام کار را در برنامه‌ی ماهانه گذاشته است؟"
+      en: "Which task does the chapter put in the monthly routine?"
+    options:
+      - fa: "`ceph crash ls-new`"
+        en: "`ceph crash ls-new`"
+      - fa: "بررسی `ceph -s` برای هشدارهای تازه"
+        en: "Checking `ceph -s` for new warnings"
+      - fa: "یک آزمون بازیابی، همراه با بررسی نسخه‌ها و داده‌ی SMART دیسک‌ها"
+        en: "A restore test, with a check of versions and disk SMART data"
+        correct: true
+      - fa: "نگاه به `ceph df` برای پرشدگی"
+        en: "Looking at `ceph df` for fullness"
+    why:
+      fa: "روزانه: وضعیت، crashهای تازه و پرشدگی. هفتگی: `ceph osd df tree`، deep scrubهای عقب‌افتاده، mirroring و multisite. ماهانه: نسخه‌ها، داده‌ی SMART و یک آزمون بازیابی."
+      en: "Daily: status, new crashes and fullness. Weekly: `ceph osd df tree`, overdue deep scrubs, mirroring and multisite. Monthly: versions, SMART data and a restore test."

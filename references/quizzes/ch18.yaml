@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 18 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 18
+questions:
+  - id: defence-layers
+    ref: sec-18-2
+    q:
+      fa: "تکثیر یا EC درون یک کلاستر در برابر کدام تهدید محافظت نمی‌کند؟"
+      en: "Which threat does replication or EC inside one cluster not protect against?"
+    options:
+      - fa: "خرابی یک دیسک"
+        en: "The failure of one disk"
+      - fa: "از دست رفتن یک میزبان"
+        en: "The loss of a host"
+      - fa: "حذف تصادفی یا باگ نرم‌افزاری"
+        en: "Accidental deletion or a software bug"
+        correct: true
+      - fa: "خرابی یک رک، اگر failure domain از نوع rack باشد"
+        en: "The failure of a rack, if the failure domain is rack"
+    why:
+      fa: "تکثیر یک حذف را هم با دقت در همه‌ی نسخه‌ها تکرار می‌کند. به نسخه‌هایی نیاز دارید که از دسترس همان اعتبارنامه‌ها بیرون باشند، مثل snapshotهای محافظت‌شده، کلاستری دیگر یا پشتیبان مستقل."
+      en: "Replication faithfully copies a deletion to every replica. You need copies out of reach of the same credentials, such as protected snapshots, another cluster or an independent backup."
+  - id: degraded-stretch
+    ref: sec-18-7-3
+    q:
+      fa: "در stretch mode یک سایت از دست می‌رود. کلاستر چطور PGها را فعال نگه می‌دارد؟"
+      en: "In stretch mode one site is lost. How does the cluster keep PGs active?"
+    options:
+      - fa: "`size` را دو برابر می‌کند تا سایت باقی‌مانده همه‌ی نسخه‌ها را داشته باشد"
+        en: "It doubles `size` so that the surviving site holds all copies"
+      - fa: "MONها با tiebreaker حد نصاب را نگه می‌دارند و `min_size` مربوط به poolها به ۱ کاهش می‌یابد، در حالی که `size` تغییر نمی‌کند"
+        en: "The MONs keep quorum with the tiebreaker, and the pools' `min_size` drops to 1 while `size` stays"
+        correct: true
+      - fa: "همه‌ی poolها را برای صرفه‌جویی در فضا به EC می‌برد"
+        en: "It switches every pool to EC to save space"
+      - fa: "تا برگشتن سایت از دست رفته نوشتن را نمی‌پذیرد"
+        en: "It stops accepting writes until the lost site returns"
+    why:
+      fa: "این حالت degraded stretch mode است. MON نقش tiebreaker باید در سایت سوم مستقلی باشد؛ stretch mode عادی رفت‌وبرگشت میان سایت‌ها را به هر نوشتن اضافه می‌کند."
+      en: "This is degraded stretch mode. The tiebreaker MON must be at an independent third site; normal stretch mode adds the round trip between sites to every write."
+  - id: mon-backup
+    ref: sec-18-8-1
+    q:
+      fa: "از Umbrella به بعد، ساده‌ترین و امن‌ترین راه برای امکان بازیابی یک MON چیست؟"
+      en: "Since Umbrella, what is the simplest and safest way to be able to recover a MON?"
+    options:
+      - fa: "بازسازی monitor store از روی OSDها"
+        en: "Rebuilding the monitor store from the OSDs"
+      - fa: "پشتیبان از RocksDB مربوط به MON با `mon_backup_interval` یا `ceph tell mon.* backup` و بازگرداندن با `ceph-mon --restore-backup`"
+        en: "Backups of the monitor's RocksDB with `mon_backup_interval` or `ceph tell mon.* backup`, restored with `ceph-mon --restore-backup`"
+        correct: true
+      - fa: "کپی کردن `ceph.conf` در جایی امن"
+        en: "Copying `ceph.conf` to a safe place"
+      - fa: "داشتن تعداد زوجی MON"
+        en: "Running an even number of MONs"
+    why:
+      fa: "همچنین `ceph config dump`، `ceph auth export` و specهای سرویس از `ceph orch ls --export` را بیرون از کلاستر و رمزشده نگه دارید، چون کلید دارند."
+      en: "Also keep `ceph config dump`, `ceph auth export` and the service specs from `ceph orch ls --export` outside the cluster, encrypted, because they include keys."
+  - id: rgw-backup
+    ref: sec-18-10
+    q:
+      fa: "فصل کدام پیکربندی RGW را پیشنهاد می‌کند تا حتی یک مدیر هم نتواند پشتیبان‌ها را پیش از موعد حذف کند؟"
+      en: "Which RGW setup does the chapter suggest so that even an administrator cannot delete backups before their time?"
+    options:
+      - fa: "یک قاعده‌ی lifecycle که اشیا را به storage class سرد ببرد"
+        en: "A lifecycle rule that moves objects to a cold storage class"
+      - fa: "فقط versioning روی bucket"
+        en: "Bucket versioning alone"
+      - fa: "versioning روی bucket همراه با S3 Object Lock در حالت COMPLIANCE"
+        en: "Bucket versioning with S3 Object Lock in COMPLIANCE mode"
+        correct: true
+      - fa: "یک bucket policy که `DeleteObject` را برای همه جز مالک ممنوع کند"
+        en: "A bucket policy that denies `DeleteObject` to everyone except the owner"
+    why:
+      fa: "versioning به‌تنهایی را هر کسی با دسترسی کافی می‌تواند خنثی کند. حالت COMPLIANCE حذف را در کل دوره‌ی نگه‌داری برای همه‌ی کاربران مسدود می‌کند."
+      en: "Versioning alone can be undone by anyone with enough rights. COMPLIANCE mode blocks deletion for the whole retention period, for every user."
+  - id: mirror-throttle
+    ref: sec-18-6-3
+    q:
+      fa: "۱۰۰ image میان daemonهای A و B از rbd-mirror پخش شده‌اند. daemon C دویست ثانیه پس از B اضافه می‌شود. چرا C در آغاز فقط ۱۷ image می‌گیرد؟"
+      en: "100 images are spread over rbd-mirror daemons A and B. Daemon C joins 200 seconds after B. Why does C get only 17 images at first?"
+    options:
+      - fa: "چون C به یک image در هر ۱۲ ثانیه محدود است"
+        en: "Because C is limited to one image per 12 seconds"
+      - fa: "چون imageهای B کمتر از ۳۰۰ ثانیه پیش نگاشت شده‌اند و هنوز نمی‌توان جابه‌جایشان کرد (migration_throttle)"
+        en: "Because B's images were mapped less than 300 seconds ago and cannot be moved yet (migration_throttle)"
+        correct: true
+      - fa: "چون A هیچ imageی را واگذار نمی‌کند"
+        en: "Because A refuses to give up any images"
+      - fa: "چون C اول باید همه‌ی journalها را بازپخش کند"
+        en: "Because C must first replay every journal"
+    why:
+      fa: "SimplePolicy برای هر daemon سهم برابر (با سه daemon، ۳۳) را هدف می‌گیرد، اما throttle نمی‌گذارد imageها درست پس از یک جابه‌جایی دوباره جابه‌جا شوند."
+      en: "SimplePolicy aims for an equal share per daemon (33 with three), but the throttle prevents images from moving back and forth right after a move."

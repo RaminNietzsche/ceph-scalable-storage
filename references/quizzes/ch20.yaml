@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 20 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 20
+questions:
+  - id: ceph-exporter
+    ref: sec-20-2
+    q:
+      fa: "در پشته‌ی پایش کنونی، ceph-exporter چه چیزی فراهم می‌کند؟"
+      en: "In the current monitoring stack, what does ceph-exporter provide?"
+    options:
+      - fa: "سلامت کلاستر و وضعیت PGها، که فقط mgr فعال ارائه می‌دهد"
+        en: "Cluster health and PG states, served only by the active mgr"
+      - fa: "شمارنده‌های کارایی هر daemon محلی، که روی هر میزبان از admin socket خوانده می‌شوند"
+        en: "The performance counters of each local daemon, read from the admin socket on every host"
+        correct: true
+      - fa: "معیارهای سیستم‌عامل مثل پردازنده و حافظه"
+        en: "Operating system metrics such as CPU and memory"
+      - fa: "قواعد هشدار برای Alertmanager"
+        en: "Alert rules for Alertmanager"
+    why:
+      fa: "بیرون بردن شمارنده‌های هر daemon از ماژول prometheus در mgr (درگاه ۹۲۸۳) بار mgr را کم می‌کند. node-exporter معیارهای سیستم‌عامل را می‌دهد."
+      en: "Moving per-daemon counters out of the mgr's prometheus module (port 9283) reduces the mgr's load. node-exporter supplies the OS metrics."
+  - id: health-code-metric
+    ref: sec-20-4
+    q:
+      fa: "چطور روی یک کد سلامت مشخص، مثل `MON_DOWN`، هشدار بگذارید؟"
+      en: "How do you alert on one specific health code, such as `MON_DOWN`?"
+    options:
+      - fa: "`ceph_health_status == 2`"
+        en: "`ceph_health_status == 2`"
+      - fa: "`ceph_health_detail{name=\"MON_DOWN\"} == 1`"
+        en: "`ceph_health_detail{name=\"MON_DOWN\"} == 1`"
+        correct: true
+      - fa: "`count(ceph_osd_up == 0) > 0`"
+        en: "`count(ceph_osd_up == 0) > 0`"
+      - fa: "`ceph_mon_quorum_status > 0`"
+        en: "`ceph_mon_quorum_status > 0`"
+    why:
+      fa: "`ceph_health_status` فقط خلاصه است (۰، ۱ یا ۲). `ceph_health_detail` برای هر کد یک سری دارد؛ SLOW_OPS معیار جدای خودش را دارد: `ceph_healthcheck_slow_ops`."
+      en: "`ceph_health_status` is only the summary (0, 1 or 2). `ceph_health_detail` has one series per code; SLOW_OPS has its own metric, `ceph_healthcheck_slow_ops`."
+  - id: alert-threshold
+    ref: sec-20-5
+    q:
+      fa: "آستانه‌ی یک هشدار محلی تأخیر را چطور باید انتخاب کرد؟"
+      en: "How should you pick the threshold of a local latency alert?"
+    options:
+      - fa: "همان ۵۰ میلی‌ثانیه‌ی مثال کتاب را بردارید"
+        en: "Copy the 50 ms in the book's example"
+      - fa: "تا جای ممکن پایین، تا چیزی از دست نرود"
+        en: "As low as possible, so that nothing is missed"
+      - fa: "از رفتار پایه‌ی کلاستر خودتان، مثلاً صدک ۹۵ هفته‌ی گذشته، و SLOهای سرویس"
+        en: "From your cluster's own baseline, such as last week's 95th percentile, and the service SLOs"
+        correct: true
+      - fa: "از برگه‌ی مشخصات دیسک سازنده"
+        en: "From the vendor's disk datasheet"
+    why:
+      fa: "هشداری که هر روز بی‌دلیل به صدا درآید زود نادیده گرفته می‌شود. قواعد محلی را کنار ceph-mixin اضافه کنید، نه به‌جای آن."
+      en: "An alert that fires every day for no reason is soon ignored. Add local rules next to ceph-mixin, not instead of it."
+  - id: stale-cache
+    ref: sec-20-7-2
+    q:
+      fa: "ماژول prometheus در mgr کی cache معیارهایش را کهنه (stale) حساب می‌کند؟"
+      en: "When does the mgr prometheus module treat its metric cache as stale?"
+    options:
+      - fa: "وقتی cache قدیمی‌تر از ۶۰ ثانیه باشد"
+        en: "When the cache is older than 60 seconds"
+      - fa: "وقتی آخرین جمع‌آوری بیش از `scrape_interval` طول کشیده باشد، حتی اگر همین الان تمام شده باشد"
+        en: "When the last collection took longer than `scrape_interval`, even if it has just finished"
+        correct: true
+      - fa: "وقتی یک scrape در Prometheus شکست بخورد"
+        en: "When a Prometheus scrape fails"
+      - fa: "هیچ‌وقت؛ همیشه آخرین نتیجه را ارائه می‌دهد"
+        en: "Never; it always serves the last result"
+    why:
+      fa: "کهنگی با مدت آخرین `collect()` سنجیده می‌شود، نه با عمر cache. در peering گسترده، جمع‌آوری‌های کند می‌توانند باعث شوند scrapeها نتیجه‌ی کهنه بگیرند."
+      en: "Staleness is measured by the duration of the last `collect()`, not the cache's age. During widespread peering, slow collections can make scrapes return stale results."
+  - id: flapping-rate
+    ref: sec-20-7-3
+    q:
+      fa: "قاعده‌ی CephOSDFlapping تابع `rate()` را روی gauge به نام `ceph_osd_up` به کار می‌برد. چرا این کار جواب می‌دهد؟"
+      en: "The CephOSDFlapping rule applies `rate()` to the gauge `ceph_osd_up`. Why does that work?"
+    options:
+      - fa: "چون `ceph_osd_up` در واقع یک counter است"
+        en: "Because `ceph_osd_up` is really a counter"
+      - fa: "چون `rate()` هر افت را reset شمارنده حساب می‌کند، پس هر بالا رفتن از ۰ به ۱ یک واحد افزایش شمرده می‌شود"
+        en: "Because `rate()` treats each drop as a counter reset, so every rise from 0 to 1 counts as one unit of increase"
+        correct: true
+      - fa: "چون Prometheus خودکار gaugeها را به counter تبدیل می‌کند"
+        en: "Because Prometheus converts gauges to counters automatically"
+      - fa: "کار نمی‌کند؛ این قاعده هرگز فعال نمی‌شود"
+        en: "It does not work; the rule never fires"
+    why:
+      fa: "پس `rate × 60` تقریباً نشان می‌دهد OSD در آن پنجره چند بار در دقیقه دوباره بالا آمده است، یعنی همان flapping."
+      en: "So `rate × 60` approximates how many times per minute the OSD came back up in the window, which is what flapping means."

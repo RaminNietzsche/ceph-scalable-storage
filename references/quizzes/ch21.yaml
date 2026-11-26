@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 21 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 21
+questions:
+  - id: three-questions
+    ref: sec-21-2
+    q:
+      fa: "فصل می‌گوید پیش از هر تنظیم نرم‌افزاری، پاسخ کدام سه پرسش بیشتر مشکلات کارایی را حل می‌کند؟"
+      en: "Before any software tuning, which three questions does the chapter say solve most performance problems?"
+    options:
+      - fa: "آیا شبکه اشباع است، آیا یک دیسک (به‌ویژه block.db) گلوگاه است، و آیا پردازنده در حالت صرفه‌جویی انرژی است؟"
+        en: "Is the network saturated, is a disk (especially block.db) the bottleneck, and is the CPU in power-saving mode?"
+        correct: true
+      - fa: "آیا mClock فعال است، چند shard هست، و `osd_memory_target` چند است؟"
+        en: "Is mClock enabled, how many shards are there, and what is `osd_memory_target`?"
+      - fa: "آیا pool از نوع EC است، آیا فشرده‌سازی روشن است، و آیا balancer فعال است؟"
+        en: "Is the pool EC, is compression on, and is the balancer active?"
+      - fa: "کدام نسخه‌ی Ceph، کدام هسته و کدام فایل‌سیستم؟"
+        en: "Which Ceph release, which kernel, and which file system?"
+    why:
+      fa: "بزرگ‌ترین اثر معمولاً از لایه‌های پایین می‌آید: سخت‌افزار، شبکه و سیستم‌عامل. بعد با یک خط پایه و هر بار یک تغییر تنظیم کنید."
+      en: "The biggest effect usually comes from the lower layers: hardware, network and OS. Then tune with a baseline and one change at a time."
+  - id: memory-target
+    ref: sec-21-5
+    q:
+      fa: "`osd_memory_target` چیست؟"
+      en: "What is `osd_memory_target`?"
+    options:
+      - fa: "سقف سخت RSS فرایند OSD؛ هسته OSD را بالاتر از آن می‌کُشد"
+        en: "A hard cap on the OSD process's RSS; the kernel kills the OSD above it"
+      - fa: "بودجه‌ی حافظه‌ی هر OSD (پیش‌فرض ۴ گیگابایت) که تنظیم خودکار cache در BlueStore از آن پیروی می‌کند"
+        en: "The per-OSD memory budget (4 GiB by default) that BlueStore's cache autotuning follows"
+        correct: true
+      - fa: "اندازه‌ی WAL مربوط به RocksDB در حافظه"
+        en: "The size of the RocksDB WAL in memory"
+      - fa: "حافظه‌ای که فقط برای recovery رزرو می‌شود"
+        en: "The memory reserved for recovery only"
+    why:
+      fa: "این هدفی برای حافظه‌ی heap نگاشت‌شده است، نه سقف RSS. OSDهای NVMe با فراداده‌ی سنگین (RGW با اشیای کوچک، CephFS) از ۸ تا ۱۶ گیگابایت سود می‌برند."
+      en: "It is a target for mapped heap memory, not an RSS cap. NVMe OSDs with heavy metadata (RGW with small objects, CephFS) gain from 8 to 16 GiB."
+  - id: autotune-rgw
+    ref: sec-21-7-2
+    q:
+      fa: "cephadm مقدار `osd_memory_target` را خودکار تنظیم می‌کند. یک RGW روی همان میزبان ناگهان ۱۰ گیگابایت مصرف می‌کند. چه می‌شود؟"
+      en: "cephadm autotunes `osd_memory_target`. An RGW on the same host suddenly uses 10 GiB. What happens?"
+    options:
+      - fa: "هیچ؛ سهم OSDها هنگام استقرار ثابت شده"
+        en: "Nothing; the OSD shares are fixed at deployment"
+      - fa: "حدود ده دقیقه بعد سهم هر OSD کم می‌شود، چون مصرف کنونی daemonهای دیگر در محاسبه وارد می‌شود"
+        en: "About ten minutes later each OSD's share drops, because the current usage of other daemons enters the calculation"
+        correct: true
+      - fa: "RGW برای آزاد کردن حافظه برای OSDها دوباره راه‌اندازی می‌شود"
+        en: "The RGW is restarted to free memory for the OSDs"
+      - fa: "OSDها به میزبان دیگری منتقل می‌شوند"
+        en: "The OSDs move to another host"
+    why:
+      fa: "تنظیم‌کننده‌ی خودکار هر ۶۰۰ ثانیه اجرا می‌شود، ۷۰ درصد حافظه‌ی میزبان را در نظر می‌گیرد، سهم daemonهای دیگر را کم می‌کند و بقیه را میان OSDها تقسیم می‌کند."
+      en: "The autotuner runs every 600 seconds, takes 70% of host memory, subtracts the other daemons and divides the rest between the OSDs."
+  - id: numa
+    ref: sec-21-8-2
+    q:
+      fa: "`osd_numa_auto_affinity` چه می‌کند؟"
+      en: "What does `osd_numa_auto_affinity` do?"
+    options:
+      - fa: "وقفه‌ها را مثل irqbalance میان همه‌ی پردازنده‌ها پخش می‌کند"
+        en: "It balances interrupts across all CPUs like irqbalance"
+      - fa: "وقتی دستگاه ذخیره‌سازی و کارت شبکه‌ی یک OSD روی یک NUMA node باشند، OSD را به همان node سنجاق می‌کند"
+        en: "It pins an OSD to a NUMA node when its storage device and network interface are on that node"
+        correct: true
+      - fa: "NUMA را در هسته خاموش می‌کند"
+        en: "It turns off NUMA in the kernel"
+      - fa: "OSDها را به nodeی با بیشترین حافظه‌ی آزاد می‌برد"
+        en: "It moves OSDs to the node with the most free memory"
+    why:
+      fa: "مستندات Ceph توصیه‌ای درباره‌ی irqbalance ندارد. اگر وقفه‌های یک کارت شبکه روی پردازنده‌های node دیگر بیفتند، می‌توانید پردازنده‌ها یا وقفه‌ها را از irqbalance کنار بگذارید و خودتان سنجاق کنید."
+      en: "The Ceph documentation gives no irqbalance recommendation. If a NIC's interrupts land on CPUs of the other node, you can exclude CPUs or interrupts from irqbalance and pin them yourself."
+  - id: pool-design
+    ref: sec-21-9
+    q:
+      fa: "یک پایگاه داده روی RBD نوشتن‌های تصادفی کوچک انجام می‌دهد. فصل کدام نوع pool را توصیه می‌کند؟"
+      en: "A database on RBD does small random writes. Which pool type does the chapter recommend?"
+    options:
+      - fa: "EC، چون داده‌ی کمتری می‌نویسد"
+        en: "EC, because it writes less data"
+      - fa: "تکثیری، چون برای نوشتن‌های تصادفی کوچک تأخیر کمتری دارد"
+        en: "Replicated, because it has lower latency for small random writes"
+        correct: true
+      - fa: "poolی با کمترین تعداد ممکن PG"
+        en: "A pool with as few PGs as possible"
+      - fa: "هر نوعی، به شرط روشن بودن فشرده‌سازی"
+        en: "Any type, as long as compression is on"
+    why:
+      fa: "EC برای داده‌ی بزرگ و ترتیبی مناسب است؛ FastEC در Tentacle این فاصله را برای بارهای ترکیبی کم کرده است. PG خیلی کم هم موازی‌سازی را روی OSDهای سریع محدود می‌کند."
+      en: "EC suits large, sequential data; FastEC in Tentacle narrows the gap for mixed workloads. Too few PGs also limit parallelism on fast OSDs."
