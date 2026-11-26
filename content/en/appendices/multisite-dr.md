@@ -230,6 +230,12 @@ ceph fs snapshot mirror add cephfs /projects
 ceph fs snapshot mirror daemon status
 ```
 
+From Umbrella, the mirroring module also reports per-directory sync metrics (the last synced snapshot, sync durations and failures) without access to the mirror daemon, which is the easiest way to measure the CephFS RPO in a drill:
+
+```bash {since=umbrella}
+ceph fs snapshot mirror status cephfs /projects
+```
+
 The RPO is the interval of the snapshots (for example with `snap_schedule`). For failover, mount the copy on the other cluster; it is read-only from the mirror's point of view, so after failover disable mirroring for that directory before you write to it, and set up mirroring in the other direction for failback.
 
 # Stretch mode or multisite?

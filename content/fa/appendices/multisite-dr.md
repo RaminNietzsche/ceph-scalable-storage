@@ -230,6 +230,12 @@ ceph fs snapshot mirror add cephfs /projects
 ceph fs snapshot mirror daemon status
 ```
 
+از Umbrella ماژول mirroring سنجه‌های sync هر دایرکتوری (آخرین snapshot همگام‌شده، مدت sync و شکست‌ها) را بدون دسترسی به daemon به نام cephfs-mirror هم گزارش می‌کند؛ ساده‌ترین راه برای اندازه‌گیری RPO در CephFS هنگام تمرین:
+
+```bash {since=umbrella}
+ceph fs snapshot mirror status cephfs /projects
+```
+
 RPO برابر بازه‌ی snapshotهاست (مثلاً با `snap_schedule`). برای failover نسخه را در کلاستر دیگر mount کنید؛ از دید mirror این نسخه فقط‌خواندنی است، پس پس از failover پیش از نوشتن در آن mirroring را برای آن دایرکتوری خاموش کنید و برای failback، mirroring را در جهت مخالف راه بیندازید.
 
 # stretch mode یا multisite؟
