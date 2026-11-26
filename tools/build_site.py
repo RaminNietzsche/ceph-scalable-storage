@@ -848,7 +848,7 @@ open(os.path.join(ASSETS, 'fonts', 'README.txt'), 'w', encoding='utf-8').write(
     'Vazirmatn (github.com/rastikerdar/vazirmatn), Inter (github.com/rsms/inter) and JetBrains Mono\n'
     '(github.com/JetBrains/JetBrainsMono) are subset copies licensed under the SIL Open Font License 1.1\n'
     '(openfontlicense.org). They are not covered by the book\'s CC BY-NC-SA 4.0 licence.\n')
-for f in ('site.css', 'site.js', 'game.js', 'ask.js'):
+for f in ('site.css', 'site.js', 'game.js', 'ask.js', 'paths.js'):
     shutil.copy2(os.path.join(TPL, f), os.path.join(ASSETS, f))
 # KaTeX (MIT) styles + woff2 fonts for the formulas that build_book.py pre-renders; no runtime JS, no CDN
 _kx = os.path.join(ROOT, 'templates', 'vendor', 'katex')
@@ -930,6 +930,7 @@ ICON = {
 }
 ICON['list'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>'
 ICON['flask'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6l-5.6 9.6A1.6 1.6 0 0 0 5.8 21h12.4a1.6 1.6 0 0 0 1.4-2.4L14 9V3M7.2 15h9.6"/></svg>'
+ICON['route'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.8"/></svg>'
 ICON['terminal'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M12 15h5"/></svg>'
 GROUPS = [('front', S['front']), ('chapters', S['chapters']), ('appendices', S['appendices']), ('lists', S['lists'])]
 order = [None] + pages  # None = home
@@ -969,6 +970,10 @@ for _p in pages:
 GAMEY = yaml.safe_load(open(os.path.join(TPL, 'game.yaml'), encoding='utf-8'))
 GM = GAMEY[LANG]
 PG_BY = {_p.slug: _p for _p in pages}
+# suggested reading paths (references/reading-paths.yaml): steps resolved to pages of this edition
+from booklib import readingpaths as RP  # noqa: E402
+PS = RP.ui_strings(ROOT, LANG)
+PATHS_MODEL = RP.site_model(ROOT, LANG, UI, PS, SIMY, ids, PG_BY, lambda h: text_of(frag(h)))
 CARDS, GLOSS = [], []
 
 
@@ -1059,6 +1064,7 @@ def sidebar(cur):
                f'<li><a class="sb-link app" href="progress.html"{acur("progress")}>{ICON["trophy"]}<span>{esc(GM["s"]["my_progress"])}</span></a></li>'
                f'<li><a class="sb-link app" href="review.html"{acur("review")}>{ICON["cards"]}<span>{esc(GM["s"]["review_today"])}</span><span class="sb-due" data-due hidden></span></a></li>'
                f'<li><a class="sb-link app" href="lab.html"{acur("lab")}>{ICON["flask"]}<span>{esc(SIMY["lab_title"])}</span></a></li>'
+               f'<li><a class="sb-link app" href="paths.html"{acur("paths")}>{ICON["route"]}<span>{esc(PS["paths_nav"])}</span></a></li>'
                f'<li><a class="sb-link app" href="cheatsheet.html"{acur("cheatsheet")}>{ICON["terminal"]}<span>{esc(S["cheatsheet_nav"])}</span></a></li></ul>')
     for g, label in GROUPS:
         out.append(f'<div class="sb-group">{esc(label)}</div><ul class="sb-list">')
@@ -1220,6 +1226,7 @@ def emit(cur, main_html, title_text, desc=None, ld=None, og_img=None):
     if 'class="katex"' in main_html:
         head_extra += '<link rel="stylesheet" href="../assets/katex/katex.min.css">'
     scripts_extra = '<script src="sim-data.js" defer></script>\n<script src="../assets/sims.js" defer></script>' if has_sims else ''
+    scripts_extra += '\n<script src="paths-data.js" defer></script>\n<script src="../assets/paths.js" defer></script>'
     for _n in dict.fromkeys(n for n in (getattr(cur, 'sims', None) or []) if n in SIM_LAZY):
         scripts_extra += f'\n<script src="sim-data-{_n}.js" defer></script>\n<script src="../assets/lab-{_n}.js" defer></script>'
     if cur is None:
@@ -1532,6 +1539,8 @@ home = f'''<article class="content home" id="top">
 </p>
 <p class="cta-more"><a href="#get-started">{esc(S["get_started"])}</a>
 <span aria-hidden="true">·</span>
+<a href="paths.html">{esc(PS["paths_nav"])}</a>
+<span aria-hidden="true">·</span>
 <a href="cheatsheet.html">{esc(S["cheatsheet_nav"])}</a>
 <span aria-hidden="true">·</span>
 <a href="../{OTHER}/index.html" hreflang="{OTHER}" lang="{OTHER}">{esc(S["read_in_other"])}</a></p>
@@ -1540,7 +1549,7 @@ home = f'''<article class="content home" id="top">
 <p class="byline">{esc(S["written_by"])}</p><p class="meta">{esc(S["version"])} {esc(loc(META["version_display"]))} · {esc(META["date_display"])}<br>{esc(S["basis"])}: <span dir="auto">{esc(META["technical_basis"])}</span></p></div>
 <div class="hero-art"><div class="glow" aria-hidden="true"></div><img class="cover" src="../assets/cover.{LANG}.webp" width="{COVER_WH[0]}" height="{COVER_WH[1]}" fetchpriority="high" alt="{esc(S['cover_alt'].format(book=BOOK))}">{term}</div></section>
 {learn}
-<section class="hsec" id="get-started" aria-labelledby="gs-h"><div class="hsec-head"><h2 id="gs-h">{esc(S["gs_title"])}</h2><p>{esc(S["gs_sub"])}</p></div><div class="hgrid roles">{"".join(gs_cards)}</div></section>
+<section class="hsec" id="get-started" aria-labelledby="gs-h"><div class="hsec-head"><h2 id="gs-h">{esc(S["gs_title"])}</h2><p>{esc(S["gs_sub"])}</p></div><div class="hgrid roles">{"".join(gs_cards)}</div><p class="gs-more"><a class="btn" href="paths.html">{ICON["route"]}{esc(PS["paths_home_t"])} {ICON["arrow"]}</a> <span class="gs-more-d">{esc(PS["paths_home_d"])}</span></p></section>
 <section class="hsec" id="lab" aria-labelledby="lab-h"><div class="hsec-head"><h2 id="lab-h">{esc(SIMY["lab_title"])}</h2><p>{esc(SIMY["lab_intro"])}</p></div><div class="lab-grid">{LAB_CARDS}</div><p><a class="btn" href="lab.html">{ICON["flask"]}{esc(SIMY["lab_all"].replace("{n}", str(loc(len(SIM_NAMES)))))} {ICON["arrow"]}</a></p></section>
 <section class="hsec" id="cheatsheet" aria-labelledby="cs-h"><div class="hsec-head"><h2 id="cs-h">{esc(S["cheatsheet_home_t"])}</h2><p>{esc(S["cheatsheet_home_d"])}</p></div><p class="cs-acts"><a class="btn primary" href="cheatsheet.html">{ICON["terminal"]}{esc(S["cheatsheet_nav"])} {ICON["arrow"]}</a> <a class="btn" href="ceph-cheatsheet-{LANG}.pdf" download>{ICON["download"]}{esc(S["cheatsheet_pdf"])}</a></p></section>
 <section class="hsec" id="parts" aria-labelledby="parts-h"><div class="hsec-head"><h2 id="parts-h">{esc(S["parts_title"])}</h2><p>{esc(S["parts_sub"])}</p></div><div class="hgrid parts">{"".join(part_cards)}</div></section>
@@ -1558,6 +1567,20 @@ CONTENTS = AppPage('contents', S['contents'])
 emit(CONTENTS, f'<article class="content toc-page" id="top"><header class="page-head"><h1>{esc(S["contents"])}</h1></header>'
                f'<p class="lead">{esc(S["contents_intro"])}</p>{"".join(grp)}</article>', f'{S["contents"]} · {BOOK}',
      seo.describe(f'{S["contents"]} — {BOOK}: {S["contents_intro"]}'))
+
+# suggested reading paths: page, hint data (paths.js) and the search document
+PATHS_PAGE = AppPage('paths', PS['paths_title'])
+_fig = os.path.join(ROOT, 'figures', 'app', 'f10_reading_paths' + ('' if LANG == 'fa' else '.en') + '.png')
+_fig_html = (f'<figure id="fig-paths" class="wide"><img src="file://{_fig}" alt=""/>'
+             f'<figcaption>{esc(PS["paths_fig_cap"])}</figcaption></figure>')
+_paths_art = frag(RP.page_html(PATHS_MODEL, PS, LANG, ICON, _fig_html))
+decorate(_paths_art, PATHS_PAGE)
+for _img in _paths_art.select('figure img'):
+    _img['alt'] = PS['paths_fig_alt']
+_paths_text = text_of(_paths_art)
+emit(PATHS_PAGE, str(_paths_art), f'{PS["paths_title"]} · {BOOK}', seo.describe(f'{PS["paths_title"]} — {BOOK}: {PS["paths_intro"]}'))
+open(os.path.join(LOUT, 'paths-data.js'), 'w', encoding='utf-8').write(
+    'window.__PATHS__=' + json.dumps(RP.hint_data(PATHS_MODEL, PS, LANG), ensure_ascii=False, separators=(',', ':')) + ';\n')
 
 # gamification: app pages and data ---------------------------------------------
 GS = GM['s']
@@ -1609,6 +1632,7 @@ open(os.path.join(LOUT, 'game-data.js'), 'w', encoding='utf-8').write(
 open(os.path.join(LOUT, 'learn-data.js'), 'w', encoding='utf-8').write(
     'window.__LEARN__=' + json.dumps({'cards': CARDS, 'gloss': GLOSS}, ensure_ascii=False, separators=(',', ':')) + ';\n')
 docs.insert(0, ['index.html', BOOK, '', text_of(frag(about))])
+docs.insert(2, ['paths.html', PS['paths_title'], '', _paths_text[:6000]])
 docs.insert(1, ['contents.html', S['contents'], '', S['contents_intro'] + ' ' + ' · '.join(p.nav_text for p in pages)])
 open(os.path.join(LOUT, 'search-index.js'), 'w', encoding='utf-8').write(
     'window.__SEARCH_DOCS__=' + json.dumps(docs, ensure_ascii=False, separators=(',', ':')) + ';\n')

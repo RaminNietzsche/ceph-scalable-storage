@@ -9,6 +9,9 @@
 * every chapter has "Was this section helpful?" rows, each naming an h2 that exists;
 * the home pages have the newsletter section: a form posting to NEWSLETTER_ACTION
   when it was set, otherwise "Watch releases on GitHub" and the Atom feed; and a privacy note;
+* paths.html has one section per path of references/reading-paths.yaml with all of its steps, paths-data.js
+  carries the same paths for the on-page hint, and the home page, the sidebar and every chapter page
+  link or load them;
 * releases.xml is a well-formed Atom feed with one entry per released CHANGELOG version;
 * CNAME holds the configured custom domain (or is absent), and the analytics beacon is on
   every page exactly when analytics was configured.
@@ -29,6 +32,7 @@ from bs4 import BeautifulSoup
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
+from booklib import readingpaths  # noqa: E402
 from booklib import siteconf  # noqa: E402
 
 ap = argparse.ArgumentParser()
@@ -148,6 +152,45 @@ try:
                 err(f'releases.xml: entry without <{f}>')
 except (OSError, ET.ParseError) as e:
     err(f'releases.xml: {e}')
+# suggested reading paths: the page, the hint data and the entry points
+_rp = readingpaths.load(ROOT)
+for lang in ('fa', 'en'):
+    pp = os.path.join(SITE, lang, 'paths.html')
+    if not os.path.exists(pp):
+        err(f'{lang}/paths.html missing')
+        continue
+    ps = soup(pp)
+    for p in _rp['paths']:
+        sec = ps.select_one(f'section.rtp[data-path="{p["id"]}"]')
+        if sec is None:
+            err(f'{lang}/paths.html: no section for path {p["id"]}')
+            continue
+        want_n = sum(len(st['steps']) for st in p['stages'])
+        have_n = len(sec.select('li.rtp-step'))
+        if have_n != want_n:
+            err(f'{lang}/paths.html: path {p["id"]} shows {have_n} steps, the data has {want_n}')
+        if not sec.select_one('button.rtp-follow[data-follow]'):
+            err(f'{lang}/paths.html: path {p["id"]} has no follow button')
+    for fn in ('paths-data.js',):
+        pd = os.path.join(SITE, lang, fn)
+        m = re.match(r'window\.__PATHS__=(.*);\s*$', open(pd, encoding='utf-8').read(), re.S) if os.path.exists(pd) else None
+        try:
+            dj = json.loads(m.group(1)) if m else None
+        except ValueError:
+            dj = None
+        if not dj or [x['id'] for x in dj['paths']] != [p['id'] for p in _rp['paths']]:
+            err(f'{lang}/{fn}: missing, malformed, or its paths differ from the data')
+    for page_name in ('index.html', 'contents.html', '01-introduction-and-first-cluster.html'):
+        pg = os.path.join(SITE, lang, page_name)
+        if not os.path.exists(pg):
+            continue
+        html_ = open(pg, encoding='utf-8').read()
+        if 'href="paths.html"' not in html_:
+            err(f'{lang}/{page_name}: no link to paths.html')
+        if 'paths-data.js' not in html_ or 'assets/paths.js' not in html_:
+            err(f'{lang}/{page_name}: the reading-path scripts are not loaded')
+    if not os.path.exists(os.path.join(SITE, 'assets', 'paths.js')):
+        err('assets/paths.js missing')
 cn = os.path.join(SITE, 'CNAME')
 have = open(cn).read().strip() if os.path.exists(cn) else ''
 if have != (F.get('cname') or ''):

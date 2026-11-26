@@ -29,6 +29,7 @@ ap.add_argument('--chapter-fa', default='12-bluestore')
 ap.add_argument('--chapter-en', default='11-deployment')
 ap.add_argument('--sims-only', action='store_true', help='only the interactive lab section')
 ap.add_argument('--bookmarks-only', action='store_true', help='only the heading-bookmark section (file:// and http)')
+ap.add_argument('--paths-only', action='store_true', help='only the reading-paths section (paths.html and the on-page hint)')
 ap.add_argument('--ui-only', action='store_true', help='only the UI consistency section (fonts, equal cards)')
 a = ap.parse_args()
 SITE = os.path.abspath(a.site)
@@ -267,6 +268,72 @@ def bookmark_section(browser):
         srv.shutdown()
 
 
+def paths_section(browser):
+    """paths.html: follow buttons, the saved choice, and the note on a page of the followed path
+    (fa + en, light/dark, desktop/mobile). Screenshots f7-*.png."""
+    for lang in ('fa', 'en'):
+        for color, w, h, tag in (('light', 1440, 900, 'desktop'), ('dark', 1440, 900, 'dark'), ('light', 390, 844, 'mobile')):
+            where = f'paths {lang} {tag}'
+            ctx = browser.new_context(viewport={'width': w, 'height': h}, device_scale_factor=1 if w > 800 else 2,
+                                      has_touch=w < 800, color_scheme=color, reduced_motion='reduce')
+            ctx.route('http*://**', lambda r, wh=where: (problems.append(f'[{wh}] network request {r.request.url}'), r.abort()))
+            page = ctx.new_page()
+            page.on('console', lambda m, wh=where: m.type == 'error' and problems.append(f'[{wh}] console: {m.text}'))
+            page.on('pageerror', lambda e, wh=where: problems.append(f'[{wh}] pageerror: {e}'))
+            page.goto(url(lang, 'paths'))
+            data = page.evaluate('window.__PATHS__')
+            if not data or len(data['paths']) < 5:
+                problems.append(f'[{where}] paths-data.js missing or short')
+                ctx.close()
+                continue
+            n_sec = page.locator('section.rtp').count()
+            if n_sec != len(data['paths']):
+                problems.append(f'[{where}] {n_sec} sections for {len(data["paths"])} paths')
+            if page.locator('.rtp-follow:visible').count() != n_sec:
+                problems.append(f'[{where}] follow buttons are not all visible')
+            if page.locator('.rtp-follow[aria-pressed="true"]').count():
+                problems.append(f'[{where}] a path is followed before any click')
+            if tag == 'desktop':
+                p = os.path.join(OUT, f'f7-{lang}-paths-top.png'); page.screenshot(path=p); shots.append(p)
+            pid = 'sre'
+            sec = page.locator(f'section.rtp[data-path="{pid}"]')
+            sec.scroll_into_view_if_needed()
+            sec.locator('.rtp-follow').click()
+            if page.evaluate("localStorage.getItem('book-path')") != pid:
+                problems.append(f'[{where}] follow did not store the path')
+            if sec.locator('.rtp-follow').get_attribute('aria-pressed') != 'true':
+                problems.append(f'[{where}] follow button not pressed after click')
+            p = os.path.join(OUT, f'f7-{lang}-paths-{tag}.png')
+            page.screenshot(path=p); shots.append(p)
+            if tag == 'desktop':
+                p = os.path.join(OUT, f'f7-{lang}-paths-pick.png'); page.locator('.rtp-pick').screenshot(path=p); shots.append(p)
+            steps = next(x for x in data['paths'] if x['id'] == pid)['steps']
+            first, nxt = steps[0], next((s for s in steps[1:] if s['slug'] != steps[0]['slug']), None)
+            page.goto(url(lang, first['slug']))
+            hint = page.locator('.path-hint')
+            if hint.count() != 1:
+                problems.append(f'[{where}] {first["slug"]}: expected one path hint, found {hint.count()}')
+            else:
+                href = hint.locator('.ph-next').get_attribute('href')
+                if nxt is None or href != nxt['href']:
+                    problems.append(f'[{where}] hint links to {href}, expected {nxt and nxt["href"]}')
+                hint.scroll_into_view_if_needed()
+                if tag != 'desktop' or lang == 'fa':
+                    p = os.path.join(OUT, f'f7-{lang}-hint-{tag}.png'); page.screenshot(path=p); shots.append(p)
+                hint.locator('.ph-stop').click()
+                if hint.count() or page.evaluate("localStorage.getItem('book-path')") is not None:
+                    problems.append(f'[{where}] stop following left the hint or the choice behind')
+                page.reload()
+                if page.locator('.path-hint').count():
+                    problems.append(f'[{where}] hint came back after stopping')
+            # a page that is on no step of the path shows nothing
+            page.evaluate("localStorage.setItem('book-path', 'sre')")
+            page.goto(url(lang, 'contents'))
+            if page.locator('.path-hint').count():
+                problems.append(f'[{where}] hint on a page outside the path')
+            ctx.close()
+
+
 def finish():
     json.dump({'screenshots': shots, 'problems': problems, 'notes': notes}, open(os.path.join(OUT, 'report.json'), 'w'), indent=1, ensure_ascii=False)
     for p in problems:
@@ -278,12 +345,17 @@ def finish():
 
 with sync_playwright() as pw:
     browser = pw.chromium.launch(executable_path=chrome, args=['--no-sandbox'])
+    if a.paths_only:
+        paths_section(browser)
+        browser.close()
+        finish()
     if a.bookmarks_only:
         bookmark_section(browser)
         browser.close()
         finish()
     if not (a.ui_only or a.sims_only):
         bookmark_section(browser)
+        paths_section(browser)
     if a.ui_only:
         ui_section(browser)
         browser.close()
