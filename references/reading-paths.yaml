@@ -9,7 +9,8 @@
 #   sec-NN-K    a section (or sub-section)        sec-07-6
 #   appX        an appendix, by its print id      appJ   (A glossary, B cheat sheet, C troubleshooting, D release
 #                                                 table, F answers, G bibliography, H algorithms, I changes,
-#                                                 J upgrade guide, K RGW security, L multisite and DR)
+#                                                 J upgrade guide, K RGW security, L multisite and DR,
+#                                                 M command-line reference)
 #   lab:NAME    an interactive lab of the site    lab:balancer
 # `optional: true` marks a step that can be skipped; `why` says what the reader gets from it; `hands_on` adds the
 # minutes a step needs for its exercises.
@@ -557,6 +558,9 @@ paths:
             why: {fa: "نقشه‌ی مخزن، ساخت و محیط توسعه، کلاس‌های اصلی، مدل thread و مسیر کامل یک نوشتن.", en: "The repository map, build and development environment, the main classes, the thread model and a full write path."}
           - ref: sec-08-6
             why: {fa: "از درون کد: جایگذاری، احراز هویت و پیام‌رسانی.", en: "Inside the code: placement, authentication and messaging."}
+          - ref: appM
+            optional: true
+            why: {fa: "هر دستور و گزینه‌ی خط فرمان با خط سورس آن؛ موارد مستندنشده و کهنه جای خوبی برای نخستین وصله به کد یا مستندات‌اند.", en: "Every command-line command and option with its source line; the undocumented and stale ones are a good place for a first patch to the code or the docs."}
       - title: {fa: "هسته‌ی RADOS", en: "The RADOS core"}
         steps:
           - ref: ch34
