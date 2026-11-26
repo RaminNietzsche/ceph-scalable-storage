@@ -616,11 +616,13 @@ html.no-game .g-offnote { display: block; padding: 10px 14px; border-radius: 12p
 .cq-o input:disabled { cursor: default; }
 .cq-l { flex: none; min-width: 1.6em; font-weight: 700; color: var(--fg-mute); }
 .cq-t { flex: 1; min-width: 0; }
-.cq-o.right { border-color: var(--accent-3); background: color-mix(in srgb, var(--accent-3) 12%, var(--bg)); }
-.cq-o.wrong { border-color: #dc2626; background: color-mix(in srgb, #dc2626 9%, var(--bg)); }
+.cq-o.right, .cq-o.right:has(input:checked) { border-color: var(--accent-3); background: color-mix(in srgb, var(--accent-3) 12%, var(--bg)); }
+.cq-o.wrong, .cq-o.wrong:has(input:checked) { border-color: #dc2626; background: color-mix(in srgb, #dc2626 9%, var(--bg)); }
 .cq-o.right .cq-l::after { content: " ✓"; color: var(--accent-3); }
 .cq-o.wrong .cq-l::after { content: " ✗"; color: #dc2626; }
 .cq code, .cq-index code { unicode-bidi: isolate; }
+.content .cq li, .content .cq p { text-align: start; }
+.cq-js .cq-ans { display: none; }
 .cq-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
 .cq-acts .btn[hidden] { display: none; }
 .cq-fb { margin: 0; font-weight: 700; min-height: 1.5em; }
