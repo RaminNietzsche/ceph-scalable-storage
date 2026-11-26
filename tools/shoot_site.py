@@ -594,6 +594,77 @@ with sync_playwright() as pw:
         page.evaluate('window.scrollBy(0, -200)')
         page.wait_for_timeout(300)
         gsnap('desktop-chapter-quiz')
+        # end-of-chapter quiz: keyboard answer, feedback, pass XP once, retry, review tab
+        GX = "JSON.parse(localStorage.getItem('book-progress:fa')).g"
+        page.goto(url('fa', a.chapter_fa))
+        page.wait_for_selector('#chapter-quiz.cq-js')
+        cq_ch = page.get_attribute('#chapter-quiz', 'data-ch')
+        if page.locator('#chapter-quiz .cq-key:visible').count():
+            problems.append('[cq] answer keys are visible before answering')
+        xp0 = page.evaluate(GX)['xp']
+        qs = page.locator('#chapter-quiz li.cq-q')
+        first = qs.nth(0)
+        first.locator('input[data-ok]').first.focus()
+        page.keyboard.press(' ')
+        page.keyboard.press('Enter')
+        page.wait_for_timeout(200)
+        if 'is-ok' not in (first.get_attribute('class') or '') or not first.locator('.cq-fb').inner_text().strip():
+            problems.append('[cq] keyboard answer was not checked or gave no feedback')
+        if not first.locator('.cq-key').evaluate('d => d.open'):
+            problems.append('[cq] explanation did not open after answering')
+        for i in range(1, qs.count()):
+            q = qs.nth(i)
+            for k in range(q.locator('input[data-ok]').count()):
+                q.locator('input[data-ok]').nth(k).check()
+            q.locator('.cq-check').click()
+        page.wait_for_timeout(400)
+        g = page.evaluate(GX)
+        if not (g.get('cq', {}).get(cq_ch) or {}).get('p'):
+            problems.append('[cq] answering every question right did not pass the quiz')
+        if g['xp'] - xp0 < 30:
+            problems.append(f'[cq] passing earned {g["xp"] - xp0} XP, expected at least 30')
+        if page.locator('#chapter-quiz .cq-sum.pass').count() != 1:
+            problems.append('[cq] no pass summary')
+        page.locator('#chapter-quiz').scroll_into_view_if_needed()
+        gsnap('desktop-cq-pass', el='#chapter-quiz')
+        xp1 = g['xp']
+        page.locator('#chapter-quiz .cq-retry').click()
+        page.wait_for_timeout(200)
+        if page.locator('#chapter-quiz li.cq-q.is-ok, #chapter-quiz li.cq-q.is-bad').count():
+            problems.append('[cq] retry did not clear the answers')
+        for i in range(qs.count()):
+            q = qs.nth(i)
+            for k in range(q.locator('input[data-ok]').count()):
+                q.locator('input[data-ok]').nth(k).check()
+            q.locator('.cq-check').click()
+        page.wait_for_timeout(400)
+        if page.evaluate(GX)['xp'] != xp1:
+            problems.append('[cq] a second pass earned XP again')
+        page.goto(url('fa', 'review') + '?mode=cq')
+        page.wait_for_timeout(500)
+        if page.locator('#rv-panel a[href$="#chapter-quiz"]').count() < 40:
+            problems.append('[cq] the review page does not list the chapter quizzes')
+        gsnap('desktop-cq-review', el='#rv-panel')
+        page.goto(url('en', a.chapter_en))
+        page.wait_for_selector('#chapter-quiz.cq-js')
+        qs = page.locator('#chapter-quiz li.cq-q')
+        qs.nth(0).locator('input[data-ok]').first.check()
+        qs.nth(0).locator('.cq-check').click()
+        qs.nth(1).locator('input:not([data-ok])').first.check()
+        qs.nth(1).locator('.cq-check').click()
+        page.wait_for_timeout(300)
+        if 'is-ok' not in (qs.nth(0).get_attribute('class') or ''):
+            problems.append('[cq en] a right answer was not marked right')
+        if 'is-bad' not in (qs.nth(1).get_attribute('class') or ''):
+            problems.append('[cq en] a wrong answer was not marked wrong')
+        page.locator('#chapter-quiz').scroll_into_view_if_needed()
+        p = os.path.join(OUT, 'en-desktop-cq.png')
+        page.locator('#chapter-quiz').screenshot(path=p, style='.topbar, .g-toasts { visibility: hidden !important; }')
+        shots.append(p)
+        page.goto(url('fa', 'progress'))
+        page.wait_for_timeout(400)
+        if 'قهرمان آزمون فصل' not in page.inner_text('#gm-badges'):
+            problems.append('[cq] the badge gallery has no Chapter Quiz Champion badge')
         page.goto(url('fa', 'certificate') + '?p=2')
         page.wait_for_timeout(300)
         if page.locator('#cert').count() != 1 or 'خواننده‌ی نمونه' not in page.inner_text('#cert'):
@@ -622,6 +693,16 @@ with sync_playwright() as pw:
         page.keyboard.press(' ')
         page.wait_for_timeout(200)
         gsnap('mobile-review')
+        page.goto(url('fa', a.chapter_fa))
+        page.wait_for_selector('#chapter-quiz.cq-js')
+        q = page.locator('#chapter-quiz li.cq-q').first
+        q.locator('input:not([data-ok])').first.check()
+        q.locator('.cq-check').click()
+        page.wait_for_timeout(200)
+        if 'is-bad' not in (q.get_attribute('class') or ''):
+            problems.append('[cq mobile] a wrong answer was not marked wrong')
+        q.scroll_into_view_if_needed()
+        gsnap('mobile-cq-wrong', el='#chapter-quiz li.cq-q >> nth=0')
         ctx.close()
         # full motion once: entrance animations, scroll reveal and hero counters must settle without errors
         ctx = browser.new_context(viewport={'width': 1440, 'height': 900}, color_scheme='dark', reduced_motion='no-preference')
