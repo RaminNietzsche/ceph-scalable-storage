@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- The Markdown alternates of the preface (preface.md, llms-full.txt) show the ALGO and figure counts instead of the raw @NALGO@/@NFIG@ tokens.
 - Home page: the cheat-sheet blurb takes its command and category counts from references/cheatsheet.yaml (187 commands, 14 categories) instead of a fixed number.
 - Reading paths: the SRE/operator and storage-architect paths include appendix K (multisite and disaster recovery).
 - Chapters 5, 18 and 42 and appendix J link to appendix K; README and CONTRIBUTING list it.

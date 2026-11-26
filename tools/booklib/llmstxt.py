@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 
 from booklib import readingpaths
 from booklib.mdlower import split_front_matter
+from booklib.structure import canonical_counts
 
 CONCEPT_DOI = '10.5281/zenodo.24253822'
 LICENSE = 'CC BY-NC-SA 4.0'
@@ -67,6 +68,14 @@ _ATTR = re.compile(r'([\w-]+)="((?:[^"\\]|\\.)*)"')
 def loc(n, lang):
     s = str(n)
     return s.translate(FA_DIGITS) if lang == 'fa' else s
+
+
+def expand_counts(text, root, lang):
+    """Replace the @NALGO@ / @NFIG@ tokens of the preface with the book's ALGO and figure counts."""
+    if '@NALGO@' not in text and '@NFIG@' not in text:
+        return text
+    n_algo, n_fig = canonical_counts(root)
+    return text.replace('@NALGO@', loc(n_algo, lang)).replace('@NFIG@', loc(n_fig, lang))
 
 
 def lastmod_date(date):
@@ -300,6 +309,7 @@ def write_page_markdown(out_dir, slug, title, lang, u, root=None, source=None,
         text = open(source, encoding='utf-8').read()
         if root:
             text = readingpaths.expand_text(text, root, lang, 'text')
+            text = expand_counts(text, root, lang)
         body = clean_source_markdown(text, fig_prefix=fig_prefix)
     elif slug == 'answers' and root:
         body = answers_markdown(root, lang, fig_prefix=fig_prefix)
@@ -410,7 +420,7 @@ def write_llms_full(out, u, root, lang, version='1.6'):
     pref = os.path.join(root, 'content', lang, 'front', 'preface.md')
     if os.path.exists(pref):
         parts.append(f'# {ui["preface"]}\n')
-        parts.append(clean_source_markdown(readingpaths.expand_text(open(pref, encoding='utf-8').read(), root, lang, 'text'),
+        parts.append(clean_source_markdown(expand_counts(readingpaths.expand_text(open(pref, encoding='utf-8').read(), root, lang, 'text'), root, lang),
                                            fig_prefix=fig_prefix))
     ch_word = 'Chapter' if lang == 'en' else 'فصل'
     for n, slug, path, title in chapter_files(root, lang):
