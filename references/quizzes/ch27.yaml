@@ -1,0 +1,96 @@
+# End-of-chapter quiz, chapter 27 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 27
+questions:
+  - id: stripe-width
+    ref: sec-27-4
+    q:
+      fa: "یک pool با k=4، m=2 و `stripe_unit` برابر 4K داریم. `stripe_width` آن چقدر است و یک شیء 64K چند stripe دارد؟"
+      en: "A pool has k=4, m=2 and `stripe_unit` 4K. What is its `stripe_width`, and how many stripes does a 64K object have?"
+    options:
+      - fa: "24K و حدود سه stripe"
+        en: "24K, and about three stripes"
+      - fa: "16K و چهار stripe"
+        en: "16K, and four stripes"
+        correct: true
+      - fa: "4K و شانزده stripe"
+        en: "4K, and sixteen stripes"
+      - fa: "8K و هشت stripe"
+        en: "8K, and eight stripes"
+    why:
+      fa: "`stripe_width` برابر k × `stripe_unit` است و parity در آن شمرده نمی‌شود. در هر stripe چهار ناحیه‌ی 4K به shardهای داده‌ی ۰ تا ۳ و دو parity به shardهای ۴ و ۵ می‌روند."
+      en: "`stripe_width` is k × `stripe_unit`; parity is not counted. In each stripe four 4K regions go to data shards 0 to 3 and two parities to shards 4 and 5."
+  - id: old-rmw
+    ref: sec-27-5
+    q:
+      fa: "در backend قدیمی EC، یک نوشتن 4K در میانه‌ی داده‌ی موجود چه هزینه‌ای دارد؟"
+      en: "In the old EC backend, what does a 4K write into the middle of existing data cost?"
+    options:
+      - fa: "فقط نوشتن همان 4K روی یک shard"
+        en: "Only writing the 4K to one shard"
+      - fa: "نوشتن 4K و parityها، بدون هیچ خواندنی"
+        en: "Writing the 4K and the parities, without any reads"
+      - fa: "خواندن کل stripe از k شارد، ادغام، encode دوباره و بازنویسی همه‌ی shardها"
+        en: "Reading the whole stripe from k shards, merging, encoding again and rewriting all the shards"
+        correct: true
+      - fa: "پذیرفته نمی‌شود مگر این‌که pool تکثیری باشد"
+        en: "It is refused unless the pool is replicated"
+    why:
+      fa: "این read-modify-write به `allow_ec_overwrites=true` نیاز دارد (که برای RBD و CephFS لازم است). EC بهینه‌ی Tentacle به‌جایش فقط 4K قدیمی و parityها را می‌خواند."
+      en: "This read-modify-write needs `allow_ec_overwrites=true` (required for RBD and CephFS). Tentacle's optimized EC reads only the old 4K and the parities instead."
+  - id: repair-plugins
+    ref: sec-27-6
+    multi: true
+    q:
+      fa: "کدام افزونه‌ها هدفشان کم کردن ترافیک لازم برای بازسازی یک shard گم‌شده در مقایسه با Reed–Solomon ساده است؟ همه‌ی موارد درست را برگزینید."
+      en: "Which plugins aim to reduce the traffic needed to rebuild one lost shard compared with plain Reed–Solomon? Select all that apply."
+    options:
+      - fa: "`lrc`، با یک parity محلی برای هر گروه l تایی"
+        en: "`lrc`, with a local parity for every group of l chunks"
+        correct: true
+      - fa: "`clay`، که کسری از هر chunk را از d کمک‌کننده می‌خواند"
+        en: "`clay`, which reads a fraction of a chunk from d helpers"
+        correct: true
+      - fa: "`shec`، که هر parity آن فقط بخشی از داده را پوشش می‌دهد"
+        en: "`shec`, whose parities each cover only part of the data"
+        correct: true
+      - fa: "`crc32c`، با بررسی هر shard هنگام خواندن"
+        en: "`crc32c`, by checking each shard on read"
+    why:
+      fa: "در RS بازسازی یک shard یعنی خواندن k chunk کامل. هر سه افزونه بهای تعمیر ارزان‌تر را به شکلی می‌پردازند: فضای بیشتر در LRC و خواندن‌های ریز sub-chunk در CLAY."
+      en: "In RS, rebuilding a shard means reading k whole chunks. Each of the three plugins pays for cheaper repair differently: more space for LRC, many tiny sub-chunk reads for CLAY."
+  - id: ec-integrity
+    ref: sec-27-7
+    q:
+      fa: "در یک pool از نوع EC با `allow_ec_overwrites`، چه چیزی هر shard را از خرابی بی‌صدا حفظ می‌کند؟"
+      en: "In an EC pool with `allow_ec_overwrites`, what protects each shard against silent corruption?"
+    options:
+      - fa: "هش `hinfo_key` در xattr که با هر نوشتن به‌روز می‌شود"
+        en: "The `hinfo_key` hash in an xattr, updated on every write"
+      - fa: "checksumهای BlueStore در هر shard، به‌علاوه‌ی deep scrub که دوباره encode می‌کند و سازگاری parity را می‌سنجد"
+        en: "BlueStore's checksums in each shard, plus deep scrub, which re-encodes and checks parity consistency"
+        correct: true
+      - fa: "هیچ؛ poolهای EC خرابی را تشخیص نمی‌دهند"
+        en: "Nothing; EC pools cannot detect corruption"
+      - fa: "یک نسخه‌ی کامل دوم که OSD اصلی نگه می‌دارد"
+        en: "A second full replica kept by the primary"
+    why:
+      fa: "هش هر shard فقط برای poolهای append-only نگه داشته می‌شد. با overwrite دیگر به‌روز نمی‌شود، پس یکپارچگی به BlueStore (فصل ۲۳) تکیه دارد."
+      en: "The per-shard hash was only kept for append-only pools. With overwrites it is no longer updated, so integrity relies on BlueStore (chapter 23)."
+  - id: lrc-layout
+    ref: sec-27-12
+    q:
+      fa: "با LRC و k=4، m=2 و l=3، هر شیء روی هم چند chunk دارد؟"
+      en: "With LRC k=4, m=2 and l=3, how many chunks does each object have in total?"
+    options:
+      - fa: "۶"
+        en: "6"
+      - fa: "۷"
+        en: "7"
+      - fa: "۸: ۴ داده، ۲ parity سراسری و ۲ parity محلی"
+        en: "8: 4 data, 2 global parities and 2 local parities"
+        correct: true
+      - fa: "۹"
+        en: "9"
+    why:
+      fa: "g = 6/3 = 2 گروه داریم و هر گروه ۲ chunk داده، ۱ parity سراسری و ۱ parity محلی دارد. تعمیر یک chunk فقط گروه محلی‌اش را می‌خواند."
+      en: "There are g = 6/3 = 2 groups, each with 2 data chunks, 1 global parity and 1 local parity. Repairing one chunk reads only its local group."

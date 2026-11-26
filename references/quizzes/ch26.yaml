@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 26 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 26
+questions:
+  - id: v1-v2-ports
+    ref: sec-26-2
+    q:
+      fa: "چرا مانیتورها دو نشانی منتشر می‌کنند، مثل `v2:...:3300` و `v1:...:6789`؟"
+      en: "Why do monitors publish two addresses, such as `v2:...:3300` and `v1:...:6789`?"
+    options:
+      - fa: "یکی برای کلاینت‌ها و دیگری برای OSDهاست"
+        en: "One is for clients and the other for OSDs"
+      - fa: "کلاینت قدیمی با banner نسخه‌ی ۱ نمی‌تواند با درگاه msgr2 حرف بزند، چون بایت‌های banner فرق دارند"
+        en: "An old client with a version 1 banner cannot talk to an msgr2 port, because the banner bytes differ"
+        correct: true
+      - fa: "درگاه ۳۳۰۰ رمزنگاری‌شده است و ۶۷۸۹ نه"
+        en: "Port 3300 is encrypted and 6789 is not"
+      - fa: "نشانی دوم پشتیبانی است برای وقتی درگاه اول بسته باشد"
+        en: "The second address is a backup in case the first port is blocked"
+    why:
+      fa: "با `ms_bind_msgr1=false`، کلاینت‌های قدیمی، از جمله krbd پیش از هسته‌ی ۵٫۱۱، نمی‌توانند وصل شوند."
+      en: "With `ms_bind_msgr1=false`, old clients, including krbd from before kernel 5.11, cannot connect."
+  - id: msg-segments
+    ref: sec-26-3-2
+    q:
+      fa: "یک فریم `MESSAGE` در msgr2 همیشه چهار segment دارد. کدام فهرست درست است؟"
+      en: "A msgr2 `MESSAGE` frame always has four segments. Which list is right?"
+    options:
+      - fa: "preamble، payload، padding، epilogue"
+        en: "preamble, payload, padding, epilogue"
+      - fa: "key، nonce، متن رمزشده، tag"
+        en: "key, nonce, ciphertext, tag"
+      - fa: "header، front، middle، data"
+        en: "header, front, middle, data"
+        correct: true
+      - fa: "banner، ident، auth، data"
+        en: "banner, ident, auth, data"
+    why:
+      fa: "HEADER همان `ceph_msg_header2` است (seq، tid، type و…)، FRONT بدنه‌ی اصلی encodeشده (مثلاً فیلدهای MOSDOp) و DATA بار اصلی مثل بایت‌های نوشته‌شده را حمل می‌کند."
+      en: "HEADER is `ceph_msg_header2` (seq, tid, type and so on), FRONT is the main encoded body (for example the fields of MOSDOp), and DATA carries the payload such as the written bytes."
+  - id: secure-default
+    ref: sec-26-4
+    q:
+      fa: "چرا پیش‌فرض ترافیک داده `crc secure` با ترجیح crc است؟"
+      en: "Why is the default connection mode for data traffic `crc secure`, preferring crc?"
+    options:
+      - fa: "چون حالت secure میان OSDها کار نمی‌کند"
+        en: "Because secure mode does not work between OSDs"
+      - fa: "چون AES-GCM روی OSDهای پرکار NVMe هزینه‌ی CPU محسوسی دارد، در حالی که پیش‌فرض مانیتورها `secure crc` است"
+        en: "Because AES-GCM costs measurable CPU on busy NVMe OSDs, while the monitors default to `secure crc`"
+        correct: true
+      - fa: "چون حالت crc داده را با رمزی سبک‌تر رمزنگاری می‌کند"
+        en: "Because crc mode encrypts the data with a lighter cipher"
+      - fa: "چون حالت secure اندازه‌ی هر نوشتن 4M را دو برابر می‌کند"
+        en: "Because secure mode doubles the size of every 4M write"
+    why:
+      fa: "سربار بایتی حالت secure کم است (حدود ۹۶ بایت در برابر ۴۴ برای یک پیام کنترلی کوچک) و برای نوشتن 4M ناچیز؛ هزینه، CPU مربوط به AES-128-GCM است."
+      en: "The byte overhead of secure mode is small (about 96 bytes versus 44 for a small control message), and negligible for a 4M write; the cost is the CPU of AES-128-GCM."
+  - id: worker-sticky
+    ref: sec-26-6
+    q:
+      fa: "در AsyncMessenger، اتصال‌ها چطور میان رشته‌های worker پخش می‌شوند؟"
+      en: "In AsyncMessenger, how are connections spread over the worker threads?"
+    options:
+      - fa: "هر اتصال هنگام ساخته شدن به یکی از workerهای `ms_async_op_threads` (پیش‌فرض ۳) سپرده می‌شود و تمام عمرش همان‌جا می‌ماند"
+        en: "Each connection is assigned to one of the `ms_async_op_threads` (default 3) workers when it is created and stays there for its whole life"
+        correct: true
+      - fa: "برای هر اتصال یک رشته‌ی worker تازه راه می‌افتد"
+        en: "A new worker thread is started for every connection"
+      - fa: "هر پیام به کم‌کارترین worker می‌رود"
+        en: "Every message goes to the least busy worker"
+      - fa: "همه‌ی اتصال‌ها یک رشته‌ی مشترک با یک قفل سراسری دارند"
+        en: "All connections share a single thread with a global lock"
+    why:
+      fa: "هر worker یک EventCenter مبتنی بر epoll اجرا می‌کند. ماندن هر اتصال روی یک worker از قفل‌کردن وضعیتش میان رشته‌ها جلوگیری می‌کند."
+      en: "Each worker runs an epoll-based EventCenter. Keeping a connection on one worker avoids locking its state across threads."
+  - id: reconnect-seq
+    ref: sec-26-11
+    q:
+      fa: "یک کلاینت lossless تا seq ۱۲۰ فرستاده اما فقط تا ۱۱۷ ack گرفته است. TCP قطع می‌شود؛ OSD پیش‌تر ۱۱۸ را دریافت کرده بود. هنگام اتصال دوباره چه می‌شود؟"
+      en: "A lossless client has sent up to seq 120 but has acks only up to 117. TCP drops; the OSD had already received 118. What happens on reconnect?"
+    options:
+      - fa: "هر سه پیام گم می‌شوند و کلاینت EIO گزارش می‌دهد"
+        en: "All three messages are lost and the client reports EIO"
+      - fa: "کلاینت ۱۱۸، ۱۱۹ و ۱۲۰ را دوباره می‌فرستد و OSD پیام ۱۱۸ را دو بار اجرا می‌کند"
+        en: "The client resends 118, 119 and 120, and the OSD runs 118 twice"
+      - fa: "OSD در RECONNECT_OK عدد ۱۱۸ را اعلام می‌کند، پس کلاینت تا ۱۱۸ را دور می‌ریزد و فقط ۱۱۹ و ۱۲۰ را دوباره می‌فرستد"
+        en: "The OSD reports 118 in RECONNECT_OK, so the client discards up to 118 and resends only 119 and 120"
+        correct: true
+      - fa: "نشست reset می‌شود و نقشه‌ی OSD باید دوباره گرفته شود"
+        en: "The session is reset and the OSD map has to be fetched again"
+    why:
+      fa: "`requeue_sent` پیام‌های بی‌ack را به سر صف برمی‌گرداند و `discard_requeued_up_to` آن‌هایی را که طرف مقابل دارد حذف می‌کند. هیچ پیامی گم یا تکرار نمی‌شود."
+      en: "`requeue_sent` puts the unacknowledged messages back at the head of the queue, and `discard_requeued_up_to` removes the ones the peer already has. Nothing is lost or repeated."
