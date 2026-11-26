@@ -1,0 +1,95 @@
+# End-of-chapter quiz, chapter 17 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 17
+questions:
+  - id: one-change
+    ref: sec-17-2
+    q:
+      fa: "در هنگام حادثه، فصل چه قاعده‌ای برای اقدام می‌دهد؟"
+      en: "During an incident, which rule does the chapter give for acting?"
+    options:
+      - fa: "اول همه‌ی OSDها را دوباره راه‌اندازی کنید تا وضعیت گیرکرده پاک شود"
+        en: "Restart all OSDs first, to clear stuck state"
+      - fa: "همه‌ی OSDهای مشکوک را یک‌جا out کنید"
+        en: "Mark every suspicious OSD out at once"
+      - fa: "اول وضعیت را ثبت کنید، بعد هر بار فقط یک تغییر بدهید و اثرش را ببینید"
+        en: "Record the state first, then make one change at a time and observe its effect"
+        correct: true
+      - fa: "دست‌کم یک ساعت پیش از هر کاری صبر کنید"
+        en: "Wait at least an hour before touching anything"
+    why:
+      fa: "Ceph در بیشتر موارد با recovery و backfill خودش را درمان می‌کند؛ تغییرات عجولانه معمولاً اوضاع را بدتر می‌کند. خروجی ذخیره‌شده‌ی `ceph -s`، `ceph health detail`، `ceph osd tree` و `ceph pg dump_stuck` باارزش‌ترین داده برای بازبینی است."
+      en: "Ceph heals itself in most cases through recovery and backfill; hasty changes usually make things worse. The saved `ceph -s`, `ceph health detail`, `ceph osd tree` and `ceph pg dump_stuck` are the most valuable data for the review."
+  - id: mon-store-growth
+    ref: sec-17-3
+    q:
+      fa: "در یک دوره‌ی طولانی ناسالم، `store.db` مربوط به MONها مدام بزرگ می‌شود. چرا، و چه کمکی می‌کند؟"
+      en: "The MONs' `store.db` keeps growing during a long unhealthy period. Why, and what helps?"
+    options:
+      - fa: "MONها تا وقتی کلاستر ناسالم است نقشه‌های قدیمی را trim نمی‌کنند؛ با `ceph tell mon.* compact` فشرده کنید و علت را رفع کنید"
+        en: "The MONs do not trim old maps while the cluster is unhealthy; compact with `ceph tell mon.* compact` and fix the cause"
+        correct: true
+      - fa: "MONها در recovery داده‌ی کلاینت را نگه می‌دارند؛ OSD بیشتری اضافه کنید"
+        en: "The MONs store client data during recovery; add more OSDs"
+      - fa: "ناهماهنگی ساعت باعث می‌شود Paxos دو بار بنویسد؛ chronyd را دوباره راه بیندازید"
+        en: "Clock skew makes Paxos write twice; restart chronyd"
+      - fa: "MON هر slow op را ثبت می‌کند؛ سطح لاگ را پایین بیاورید"
+        en: "The MON logs every slow op; lower the log level"
+    why:
+      fa: "نقشه‌های قدیمی OSD تا تمیز شدن دوباره‌ی همه‌ی PGها نگه داشته می‌شوند، پس راه‌حل اصلی برگشتن به وضعیت سالم است."
+      en: "Old OSD maps are kept until all PGs are clean again, so the real fix is getting back to health."
+  - id: slow-op-log
+    ref: sec-17-7-2
+    q:
+      fa: "یک عملیات در t = 0 گیر می‌کند. پیام‌های slow op برای آن کی ثبت می‌شوند؟"
+      en: "An operation gets stuck at t = 0. When are slow-op messages logged for it?"
+    options:
+      - fa: "هر ثانیه تا وقتی گیر است"
+        en: "Every second while it is stuck"
+      - fa: "فقط یک بار، در t = 30 ثانیه"
+        en: "Only once, at t = 30 s"
+      - fa: "حدود t = 31 ثانیه، سپس ۶۱، ۱۲۱ و ۲۴۱ ثانیه: فاصله هر بار دو برابر می‌شود"
+        en: "At about t = 31 s, then 61, 121 and 241 s: the interval doubles each time"
+        correct: true
+      - fa: "فقط وقتی عملیات سرانجام تمام شود"
+        en: "Only when the op finally completes"
+    why:
+      fa: "OpTracker روی زمان شکایت ۳۰ ثانیه‌ای یک back-off نمایی به کار می‌برد تا یک گیر طولانی لاگ را پر نکند."
+      en: "The OpTracker uses an exponential back-off on the 30-second complaint time so a long stall does not flood the log."
+  - id: lose-two-hosts
+    ref: sec-17-8-2
+    q:
+      fa: "در مدل فصل (۱۲۰ OSD، size برابر ۳، min_size برابر ۲)، اگر دو میزبان پیش از out شدن OSDهایشان خراب شوند چه می‌شود؟"
+      en: "In the chapter's model (120 OSDs, size 3, min_size 2), what happens if two hosts fail before their OSDs are marked out?"
+    options:
+      - fa: "هیچ PGی غیرفعال نمی‌شود، چون هر PG هنوز یک نسخه دارد"
+        en: "Nothing becomes inactive, because each PG still has one copy"
+      - fa: "برخی PGها (حدود ۷ درصد) غیرفعال می‌شوند چون به زیر `min_size` می‌رسند، هرچند داده‌ای از دست نمی‌رود"
+        en: "Some PGs (about 7%) become inactive because they fall below `min_size`, though no data is lost"
+        correct: true
+      - fa: "حدود ۱ درصد PGها همه‌ی نسخه‌هایشان را از دست می‌دهند"
+        en: "About 1% of the PGs lose every copy"
+      - fa: "همه‌ی PGها غیرفعال می‌شوند"
+        en: "All PGs become inactive"
+    why:
+      fa: "با یک میزبان خراب ۳۰ درصد PGها degraded می‌شوند و هیچ‌کدام غیرفعال نمی‌شود. با دو میزبان ۶٫۶۷ درصد غیرفعال‌اند. فقط با سه میزبان برخی PGها (۰٫۸۳ درصد) هیچ نسخه‌ای ندارند."
+      en: "With one host down 30% of PGs are degraded and none inactive. With two, 6.67% are inactive. Only with three hosts do some PGs (0.83%) have no copy at all."
+  - id: dangerous-tools
+    ref: sec-17-11
+    multi: true
+    q:
+      fa: "کدام‌یک از این فرمان‌ها می‌تواند داده‌ی تأییدشده را از دست بدهد یا به عقب برگرداند؟ همه‌ی گزینه‌های درست را انتخاب کنید."
+      en: "Which of these commands can lose or roll back acknowledged data? Select every correct option."
+    options:
+      - fa: "`ceph osd lost N`"
+        en: "`ceph osd lost N`"
+        correct: true
+      - fa: "`mark_unfound_lost revert` یا `delete`"
+        en: "`mark_unfound_lost revert` or `delete`"
+        correct: true
+      - fa: "`ceph pg dump_stuck`"
+        en: "`ceph pg dump_stuck`"
+      - fa: "`ceph health detail`"
+        en: "`ceph health detail`"
+    why:
+      fa: "`ceph osd lost` اجازه می‌دهد peering بدون نوشتن‌هایی که فقط روی آن OSD بودند پیش برود و `mark_unfound_lost` شیء را برمی‌گرداند یا حذف می‌کند. دو فرمان دیگر فقط وضعیت را می‌خوانند. از فرمان‌های خطرناک فقط با احتیاط و پس از پشتیبان‌گیری استفاده کنید."
+      en: "`ceph osd lost` lets peering go ahead without writes that existed only on that OSD, and `mark_unfound_lost` reverts or deletes the object. The other two only read state. Use the dangerous ones only with care, after a backup."

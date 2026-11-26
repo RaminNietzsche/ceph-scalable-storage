@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 16 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 16
+questions:
+  - id: remove-tier-space
+    ref: sec-16-4
+    q:
+      fa: "پیش از برداشتن یک cache tier از نوع writeback، اول چه چیزی را باید بررسی کرد؟"
+      en: "Before removing a writeback cache tier, what must you check first?"
+    options:
+      - fa: "این‌که pool پایه برای همه‌ی اشیای dirty، که باید به آن نوشته شوند، جا دارد"
+        en: "That the base pool has room for every dirty object, which will be written there"
+        correct: true
+      - fa: "این‌که cache pool از EC استفاده می‌کند"
+        en: "That the cache pool uses EC"
+      - fa: "این‌که `min_read_recency_for_promote` صفر است"
+        en: "That `min_read_recency_for_promote` is zero"
+      - fa: "این‌که همه‌ی کلاینت‌ها قطع شده‌اند"
+        en: "That every client has been disconnected"
+    why:
+      fa: "به حالت proxy بروید تا promotion متوقف شود، با `cache-flush-evict-all` تا خالی شدن cache تخلیه کنید، بعد overlay را بردارید و tier را جدا کنید. تخلیه‌ی انبوه به یک pool با EC روی HDD سنگین است، پس در ساعات خلوت انجامش دهید."
+      en: "Switch to proxy to stop promotion, drain with `cache-flush-evict-all` until the cache is empty, then remove the overlay and detach the tier. A bulk flush to an EC pool on HDD is heavy, so do it in quiet hours."
+  - id: lc-window
+    ref: sec-16-5-2
+    q:
+      fa: "پردازش lifecycle در RGW به‌طور پیش‌فرض کی اجرا می‌شود؟"
+      en: "When does RGW lifecycle processing run by default?"
+    options:
+      - fa: "پیوسته، به محض این‌که شیئی واجد شرایط شود"
+        en: "Continuously, as soon as an object becomes eligible"
+      - fa: "در پنجره‌ی `rgw_lifecycle_work_time`، به‌طور پیش‌فرض ۰۰:۰۰ تا ۰۶:۰۰ به وقت محلی"
+        en: "In the `rgw_lifecycle_work_time` window, by default 00:00 to 06:00 local time"
+        correct: true
+      - fa: "هفته‌ای یک بار، روز یکشنبه"
+        en: "Once a week, on Sunday"
+      - fa: "فقط وقتی مدیر `radosgw-admin lc process` را اجرا کند"
+        en: "Only when an administrator runs `radosgw-admin lc process`"
+    why:
+      fa: "کار میان ۳۲ شارد lc پخش است و هر کدام با یک قفل برداشته می‌شود. برای پنجره برنامه بریزید: جابه‌جایی ۵۰ ترابایت در شش ساعت حدود ۲٫۳ گیگابایت بر ثانیه خواندن و همان‌قدر نوشتن لازم دارد."
+      en: "The work is spread over 32 lc shards, each taken with a lock. Plan for the window: moving 50 TB in six hours needs about 2.3 GB/s of reads and as much writing."
+  - id: lc-expiry-day
+    ref: sec-16-6-5
+    q:
+      fa: "شیئی در روز ۰ ساعت ۱۴:۲۴ نوشته شده و قاعده‌ی Expiration با Days = 30 دارد. اولین بار کی حذف می‌شود؟"
+      en: "An object written at 14:24 on day 0 has an Expiration rule with Days = 30. When is it first deleted?"
+    options:
+      - fa: "دقیقاً ساعت ۱۴:۲۴ روز ۳۰"
+        en: "At 14:24 on day 30 exactly"
+      - fa: "در اجرای روز ۳۰"
+        en: "In the run on day 30"
+      - fa: "در اجرای روز ۳۱، چون زمان مبنا به نیمه‌شب گرد می‌شود"
+        en: "In the run on day 31, because the base time is rounded to midnight"
+        correct: true
+      - fa: "در روز ۶۰، چون نسخه‌ها دو برابر نگه داشته می‌شوند"
+        en: "On day 60, because versions are kept twice as long"
+    why:
+      fa: "`obj_has_expired` زمان را به نیمه‌شب گرد می‌کند: در روز ۳۰ فاصله ۲۹٫۴ روز است و شیء می‌ماند؛ در روز ۳۱ فاصله ۳۰٫۴ روز است و حذف می‌شود."
+      en: "`obj_has_expired` rounds to midnight: on day 30 the gap is 29.4 days and the object stays; on day 31 it is 30.4 days and it is deleted."
+  - id: move-pool-tier
+    ref: sec-16-7-1
+    q:
+      fa: "با device classها، یک pool موجود را چطور از HDD به SSD می‌برید؟"
+      en: "With device classes, how do you move an existing pool from HDD to SSD?"
+    options:
+      - fa: "یک cache tier جلویش بسازید و بگذارید پر شود"
+        en: "Create a cache tier in front of it and let it fill"
+      - fa: "قاعده‌ی CRUSH آن pool را عوض کنید، مثلاً `ceph osd pool set <pool> crush_rule fast-rule`، و بگذارید backfill داده را جابه‌جا کند"
+        en: "Change the pool's CRUSH rule, for example `ceph osd pool set <pool> crush_rule fast-rule`, and let backfill move the data"
+        correct: true
+      - fa: "همه‌ی اشیا را با `rados get` بیرون بکشید و در pool تازه وارد کنید"
+        en: "Export every object with `rados get` and import it into a new pool"
+      - fa: "device class مربوط به OSDهای HDD را به `ssd` تغییر دهید"
+        en: "Change the device class of the HDD OSDs to `ssd`"
+    why:
+      fa: "نگه داشتن داده‌ی داغ و سرد در poolهای جدا ساده‌ترین و پیش‌بینی‌پذیرترین جایگزین cache tiering است. اثر backfill را بر کلاینت‌ها با mClock محدود کنید."
+      en: "Keeping hot and cold data in separate pools is the simplest, most predictable alternative to cache tiering. Limit the backfill's effect on clients with mClock."
+  - id: ec-reason-gone
+    ref: sec-16-4-1
+    q:
+      fa: "بسیاری از کلاسترهای قدیمی یک cache tier جلوی pool با EC می‌گذاشتند. چرا دیگر لازم نیست؟"
+      en: "Many old clusters put a cache tier in front of an EC pool. Why is that no longer needed?"
+    options:
+      - fa: "چون poolهای EC حالا همیشه روی SSD هستند"
+        en: "Because EC pools are now always on SSD"
+      - fa: "چون poolهای EC بازنویسی را پشتیبانی می‌کنند (`allow_ec_overwrites`، و FastEC در Tentacle) و RBD و CephFS مستقیم از آن‌ها استفاده می‌کنند"
+        en: "Because EC pools support overwrites (`allow_ec_overwrites`, and FastEC in Tentacle), so RBD and CephFS can use them directly"
+        correct: true
+      - fa: "چون BlueStore داده‌ی EC را خودکار فشرده می‌کند"
+        en: "Because BlueStore compresses EC data automatically"
+      - fa: "چون RGW دیگر poolهای EC را پشتیبانی نمی‌کند"
+        en: "Because RGW no longer supports EC pools"
+    why:
+      fa: "پیش از Luminous، poolهای EC فقط افزودن به انتها را پشتیبانی می‌کردند. امروز فراداده در یک pool تکثیری و داده مستقیم در pool با EC قرار می‌گیرد."
+      en: "Before Luminous, EC pools only supported appends. Today the metadata goes in a replicated pool and the data directly in the EC pool."

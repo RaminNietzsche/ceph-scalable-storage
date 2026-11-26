@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 15 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 15
+questions:
+  - id: counter-race
+    ref: sec-15-7-1
+    q:
+      fa: "چند کلاینت شمارنده‌ای در omap را با خواندن مقدار و نوشتن دوباره‌ی آن زیاد می‌کنند. فصل با ۲ رشته چه نتیجه‌ای اندازه گرفت؟"
+      en: "Several clients increment a counter in an omap by reading the value and writing it back. What did the chapter measure with 2 threads?"
+    options:
+      - fa: "همه‌ی افزایش‌ها ماند، چون نوشتن در RADOS اتمی است"
+        en: "Every increment survived, because RADOS writes are atomic"
+      - fa: "حدود نیمی از افزایش‌ها از دست رفت، در حالی که `cls_numops` همه را نگه داشت"
+        en: "About half of the increments were lost, while `cls_numops` kept every one"
+        correct: true
+      - fa: "OSD نوشتن‌های رشته‌ی دوم را با خطا رد کرد"
+        en: "The OSD rejected the second thread's writes with an error"
+      - fa: "شمارنده به دلیل ناهماهنگی ساعت عقب رفت"
+        en: "The counter went backwards because of clock skew"
+    why:
+      fa: "دو عملیات جدای کلاینت می‌توانند میان خواندن و نوشتن در هم بروند. متد class درون OSD و زیر قفل PG اجرا می‌شود، پس `add` قطع نمی‌شود."
+      en: "Two separate client ops can interleave between the read and the write. A class method runs under the PG lock inside the OSD, so `add` cannot be interrupted."
+  - id: class-caps
+    ref: sec-15-3-3
+    q:
+      fa: "کلاینتی در دسترسی OSD خود `class-read` و `class-write` دارد. کدام متدهای class را می‌تواند صدا بزند؟"
+      en: "A client has `class-read` and `class-write` in its OSD cap. Which class methods can it call?"
+    options:
+      - fa: "هر متدی از هر class بارشده روی OSD"
+        en: "Any method of any class loaded on the OSD"
+      - fa: "متدهای دارای پرچم RD یا WR از classهای موجود در `osd_class_default_list`؛ classهای دیگر به دسترسی صریح `class <name>` نیاز دارند"
+        en: "Methods with the RD or WR flag of classes in `osd_class_default_list`; other classes need an explicit `class <name>` cap"
+        correct: true
+      - fa: "فقط متدهایی که نه RD دارند و نه WR"
+        en: "Only methods with neither RD nor WR"
+      - fa: "هیچ‌کدام، چون classها به `allow *` روی MON نیاز دارند"
+        en: "None, because classes need `allow *` on the MON"
+    why:
+      fa: "`allow rwx` همه‌ی classها را مجاز می‌کند. برای کنترل دقیق‌تر، یک class مشخص یا حتی یک متد را با دستور زبان capspec در `OSDCap.cc` مجاز کنید."
+      en: "`allow rwx` permits all classes. For tighter control, grant a specific class, or even one method, with the capspec grammar in `OSDCap.cc`."
+  - id: lua-cost
+    ref: sec-15-7-2
+    q:
+      fa: "در آزمایش فصل، فیلتر کردن خطوط کنار داده با cls_lua در مقایسه با خواندن کل شیء در کلاینت، روی loopback چطور بود؟"
+      en: "In the chapter's test, how did filtering lines next to the data with cls_lua compare with reading the whole object on the client, over loopback?"
+    options:
+      - fa: "Lua برای همه‌ی اندازه‌های شیء ده برابر سریع‌تر بود"
+        en: "Lua was ten times faster for every object size"
+      - fa: "Lua چهار تا پنج برابر کندتر بود، هرچند پاسخش فقط چند بایت بود"
+        en: "Lua was four to five times slower, although its reply was only a few bytes"
+        correct: true
+      - fa: "هر دو یک اندازه زمان بردند"
+        en: "Both took the same time"
+      - fa: "Lua نمی‌توانست اشیای بزرگ‌تر از ۶۴ کیلوبایت را بخواند"
+        en: "Lua could not read objects larger than 64 KiB"
+    why:
+      fa: "هر درخواست یک Lua state تازه می‌سازد، اسکریپت را کامپایل و در مفسر اجرا می‌کند. پردازش کنار داده فقط وقتی می‌ارزد که هزینه‌ی اصلی شبکه باشد، نه پردازنده."
+      en: "Each request creates a fresh Lua state, compiles the script and runs it in the interpreter. Processing next to the data pays off only when the network, not the CPU, is the cost."
+  - id: load-list
+    ref: sec-15-9
+    q:
+      fa: "`osd_class_load_list` را فقط روی class تازه‌ی خودتان تنظیم می‌کنید. چه می‌شود؟"
+      en: "You set `osd_class_load_list` to only your new class. What happens?"
+    options:
+      - fa: "هیچ؛ classهای داخلی همیشه بار می‌شوند"
+        en: "Nothing; built-in classes are always loaded"
+      - fa: "فقط داشبورد از کار می‌افتد"
+        en: "Only the Dashboard stops working"
+      - fa: "RBD، RGW و CephFS از کار می‌افتند، چون classهایشان دیگر بار نمی‌شوند"
+        en: "RBD, RGW and CephFS stop working, because their classes are no longer loaded"
+        correct: true
+      - fa: "OSDها تا خالی شدن فهرست راه نمی‌افتند"
+        en: "The OSDs refuse to start until the list is empty"
+    why:
+      fa: "همیشه مقدار کنونی را بخوانید و به آن اضافه کنید. دام‌های دیگر: کار بی‌حد در یک متد PG را مسدود می‌کند و استثنای مدیریت‌نشده‌ی C++ همه‌ی OSDهای نسخه‌ها را از کار می‌اندازد."
+      en: "Always read the current value and append to it. Other pitfalls: unbounded work in a method blocks the PG, and an unhandled C++ exception crashes the OSD on all replicas."
+  - id: fewer-round-trips
+    ref: sec-15-2-1
+    q:
+      fa: "مثال شمارنده کدام فایده‌ی classهای RADOS را نشان می‌دهد؟"
+      en: "Which benefit of RADOS classes does the counter example show?"
+    options:
+      - fa: "داده پیش از خروج از OSD رمز می‌شود"
+        en: "Data is encrypted before it leaves the OSD"
+      - fa: "یک درخواست به‌جای یک خواندن و یک نوشتن، بدون رقابت (race) میان کلاینت‌ها"
+        en: "One request instead of a read and a write, with no race between clients"
+        correct: true
+      - fa: "شیء به همه‌ی OSDهای pool کپی می‌شود"
+        en: "The object is copied to every OSD of the pool"
+      - fa: "class می‌تواند چند شیء را در یک تراکنش به‌روز کند"
+        en: "The class can update several objects in one transaction"
+    why:
+      fa: "بدون class هر کلاینت می‌خواند، اضافه می‌کند و می‌نویسد؛ دو رفت‌وبرگشت به‌علاوه‌ی `assert_version` برای جلوگیری از رقابت. یک متد فقط شیئی را تغییر می‌دهد که روی آن صدا زده شده است."
+      en: "Without a class each client reads, adds and writes back, two round trips plus `assert_version` to avoid races. A method can change only the object it is called on."
