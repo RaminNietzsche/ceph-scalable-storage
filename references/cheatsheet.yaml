@@ -541,6 +541,37 @@ categories:
         en: Check metadata sync status from the master zone
         ref: sec-05-6
 
+      - cmd: radosgw-admin user suspend --uid=<user>
+        fa: تعلیق کاربر RGW هنگام بررسی حادثه، بدون حذف کلیدها و داده
+        en: Suspend an RGW user during an incident without deleting it
+        ref: appK
+      - cmd: radosgw-admin key create --uid=<user> --key-type=s3 --gen-access-key --gen-secret
+        fa: افزودن کلید S3 تازه پیش از حذف کلید قدیمی برای چرخش بدون قطعی
+        en: Add a new S3 key before removing the old one (rotation)
+        ref: appK
+      - cmd: radosgw-admin key rm --uid=<user> --key-type=s3 --access-key=<key>
+        fa: حذف کلید S3 قدیمی پس از جابه‌جایی همه‌ی کلاینت‌ها
+        en: Remove the old S3 key once every client has moved
+        ref: appK
+        danger: true
+      - cmd: radosgw-admin ratelimit set --ratelimit-scope=user --uid=<user> --max-read-ops=<n> --max-write-ops=<n>
+        fa: تعیین محدودیت نرخ عملیات برای یک کاربر در هر نمونه‌ی RGW
+        en: Set per-user request rate limits (counted per RGW instance)
+        ref: appK
+      - cmd: radosgw-admin global ratelimit set --ratelimit-scope=anonymous --max-read-ops=<n>
+        fa: محدودیت نرخ سراسری برای درخواست‌های ناشناس
+        en: Set a global rate limit for anonymous requests
+        ref: appK
+      - cmd: ceph config set client.rgw rgw_s3_auth_disable_signature_url true
+        fa: خاموش کردن کامل URLهای پیش‌امضا وقتی برنامه‌ای به آن‌ها نیاز ندارد
+        en: Disable presigned URLs when no application needs them
+        ref: appK
+        since: squid
+      - cmd: radosgw-admin bucket logging info --bucket=<bucket>
+        fa: نمایش پیکربندی bucket logging یک bucket برای رد ممیزی
+        en: Show the bucket logging configuration of a bucket
+        ref: appK
+        since: tentacle
   - id: auth
     fa: احراز هویت و cephx
     en: Auth & cephx
@@ -581,6 +612,10 @@ categories:
         en: Disable insecure global_id reclaim on monitors
         ref: sec-08-8
 
+      - cmd: ceph config set client.rgw ms_client_mode secure
+        fa: رمزنگاری ترافیک RGW تا monitorها و OSDها با حالت secure در msgr2
+        en: Encrypt RGW traffic to MONs and OSDs with msgr2 secure mode
+        ref: sec-26-4
   - id: orch
     fa: Orchestrator و cephadm
     en: Orchestrator & cephadm
