@@ -1,0 +1,25 @@
+flowchart TB
+  subgraph E["1. Where to start"]
+    direction LR
+    newc["Newcomer<br/>RADOS, CRUSH and a first cluster"]
+    upg["Upgrade in a hurry<br/>checklist and one-way steps"]
+  end
+  subgraph R["2. Pick your role"]
+    direction LR
+    sre["SRE / operator<br/>operations, monitoring and troubleshooting"]
+    s3["S3 developer<br/>RGW, security and scale"]
+    k8s["Kubernetes / platform<br/>Rook, RBD and CephFS"]
+    arc["Storage architect<br/>capacity, EC, media and multisite"]
+  end
+  subgraph D["3. Going deeper"]
+    direction LR
+    con["Code reader / contributor<br/>RADOS, BlueStore and CRUSH in the code"]
+  end
+  newc --> sre
+  newc --> s3
+  newc --> k8s
+  newc --> arc
+  upg -.-> sre
+  sre --> con
+  style newc fill:#E8F1FB,stroke:#2E6FBF
+  style upg fill:#FDECEA,stroke:#C0392B

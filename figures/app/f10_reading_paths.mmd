@@ -1,0 +1,25 @@
+flowchart TB
+  subgraph E["۱. نقطه‌ی ورود"]
+    direction LR
+    newc["تازه‌وارد<br/>RADOS، CRUSH و نخستین کلاستر"]
+    upg["ارتقای فوری<br/>چک‌لیست و گام‌های بی‌بازگشت"]
+  end
+  subgraph R["۲. نقش خود را انتخاب کنید"]
+    direction LR
+    sre["SRE و اپراتور<br/>راهبری، پایش و عیب‌یابی"]
+    s3["توسعه‌دهنده‌ی S3<br/>RGW، امنیت و مقیاس"]
+    k8s["Kubernetes و پلتفرم<br/>Rook، RBD و CephFS"]
+    arc["معمار ذخیره‌سازی<br/>ظرفیت، EC، رسانه و چند سایت"]
+  end
+  subgraph D["۳. رفتن به عمق"]
+    direction LR
+    con["کدخوان و مشارکت‌کننده<br/>RADOS، BlueStore و CRUSH در کد"]
+  end
+  newc --> sre
+  newc --> s3
+  newc --> k8s
+  newc --> arc
+  upg -.-> sre
+  sre --> con
+  style newc fill:#E8F1FB,stroke:#2E6FBF
+  style upg fill:#FDECEA,stroke:#C0392B
