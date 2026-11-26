@@ -1,0 +1,12 @@
+flowchart TB
+  c["کلاینت S3<br/>SDK، aws-cli، مرورگر"] --> t
+  t["۱. TLS<br/>beast یا load balancer"] --> a
+  a["۲. احراز هویت<br/>SigV4، SigV2، URL پیش‌امضا، توکن STS"] --> z
+  z["۳. مجوزدهی<br/>Deny صریح، سیاست هویت و bucket، ACL"] --> r
+  r["۴. محدودیت نرخ و سهمیه<br/>ratelimit، quota"] --> e
+  e["۵. رمزنگاری در حالت سکون<br/>SSE-S3، SSE-KMS، SSE-C"] --> o
+  o["۶. RADOS<br/>cephx و msgr2 در حالت secure"]
+  k["KMS<br/>Vault، KMIP، Barbican"] -.-> e
+  l["ops log و bucket logging<br/>ثبت هر درخواست"] -.- z
+  style z fill:#FDECEA,stroke:#C0392B
+  style o fill:#EAF2FB,stroke:#2E6DA4

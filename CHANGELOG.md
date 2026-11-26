@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Figures app/f02_rgw_security_layers and app/f03_rgw_policy_eval (fa/en): the security layers of an S3 request and the RGW policy evaluation order.
 - Appendix B again includes the full index of every command used in the chapters (by tool and subcommand, with the chapter of first use) after the 14 curated categories; it had been dropped when the cheat sheet was rewritten (print editions back to 1348 fa pages).
 - Linked Appendix B / cheatsheet from the troubleshooting and upgrade appendices and README.md; added make cheatsheet and make check-cheatsheet targets and WeasyPrint dependencies to the CI site job.
 - Web cheat sheet (fa/en cheatsheet.html): live search and dangerous-command filter, category jump bar, release-badge links, downloadable A4 PDF (ceph-cheatsheet-{fa,en}.pdf) and links from the sidebar navigation and home page.

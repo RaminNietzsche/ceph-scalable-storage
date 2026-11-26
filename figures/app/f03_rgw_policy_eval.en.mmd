@@ -1,0 +1,14 @@
+flowchart TB
+  q["Authenticated request"] --> d{"Explicit Deny in an identity,<br/>bucket or session policy?"}
+  d -- "yes" --> no["Deny"]
+  d -- "no" --> x{"Cross-account request?"}
+  x -- "yes" --> both{"Allow from both sides:<br/>identity and bucket policy?"}
+  both -- "yes" --> yes["Allow"]
+  both -- "no" --> no
+  x -- "no" --> al{"Allow from an identity or bucket policy<br/>and, for STS, the session policy?"}
+  al -- "yes" --> yes
+  al -- "no" --> acl{"Do the bucket and object<br/>ACLs grant it?"}
+  acl -- "yes" --> yes
+  acl -- "no" --> no
+  style no fill:#FDECEA,stroke:#C0392B
+  style yes fill:#E8F6EC,stroke:#2E8B57

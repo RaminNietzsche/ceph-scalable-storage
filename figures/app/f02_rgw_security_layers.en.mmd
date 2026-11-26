@@ -1,0 +1,12 @@
+flowchart TB
+  c["S3 client<br/>SDK, aws-cli, browser"] --> t
+  t["1. TLS<br/>beast or load balancer"] --> a
+  a["2. Authentication<br/>SigV4, SigV2, presigned URL, STS token"] --> z
+  z["3. Authorization<br/>explicit Deny, identity and bucket policy, ACL"] --> r
+  r["4. Rate limits and quotas<br/>ratelimit, quota"] --> e
+  e["5. Encryption at rest<br/>SSE-S3, SSE-KMS, SSE-C"] --> o
+  o["6. RADOS<br/>cephx and msgr2 in secure mode"]
+  k["KMS<br/>Vault, KMIP, Barbican"] -.-> e
+  l["ops log and bucket logging<br/>a record of each request"] -.- z
+  style z fill:#FDECEA,stroke:#C0392B
+  style o fill:#EAF2FB,stroke:#2E6DA4

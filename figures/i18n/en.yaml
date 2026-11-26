@@ -2235,3 +2235,24 @@ app/f01_upgrade_path:
   چرخش کلید daemonها<br/>خودکار با cephadm: rotate daemon keys<br/>automatic with cephadm
   چرخش کلید کلاینت‌ها<br/>به‌صورت دستی: rotate client keys<br/>by hand
   ۳. از Squid 19.2 به Tentacle 20.2.4 یا بعدتر: 3. Squid 19.2 to Tentacle 20.2.4 or later
+app/f02_rgw_security_layers:
+  "کلاینت S3<br/>SDK، aws-cli، مرورگر": "S3 client<br/>SDK, aws-cli, browser"
+  "۱. TLS<br/>beast یا load balancer": "1. TLS<br/>beast or load balancer"
+  "۲. احراز هویت<br/>SigV4، SigV2، URL پیش‌امضا، توکن STS": "2. Authentication<br/>SigV4, SigV2, presigned URL, STS token"
+  "۳. مجوزدهی<br/>Deny صریح، سیاست هویت و bucket، ACL": "3. Authorization<br/>explicit Deny, identity and bucket policy, ACL"
+  "۴. محدودیت نرخ و سهمیه<br/>ratelimit، quota": "4. Rate limits and quotas<br/>ratelimit, quota"
+  "۵. رمزنگاری در حالت سکون<br/>SSE-S3، SSE-KMS، SSE-C": "5. Encryption at rest<br/>SSE-S3, SSE-KMS, SSE-C"
+  "۶. RADOS<br/>cephx و msgr2 در حالت secure": "6. RADOS<br/>cephx and msgr2 in secure mode"
+  "KMS<br/>Vault، KMIP، Barbican": "KMS<br/>Vault, KMIP, Barbican"
+  "ops log و bucket logging<br/>ثبت هر درخواست": "ops log and bucket logging<br/>a record of each request"
+app/f03_rgw_policy_eval:
+  "درخواست احرازشده": "Authenticated request"
+  "Deny صریح در سیاست هویت،<br/>سیاست bucket یا سیاست نشست؟": "Explicit Deny in an identity,<br/>bucket or session policy?"
+  "بله": "yes"
+  "خیر": "no"
+  "رد": "Deny"
+  "اجازه": "Allow"
+  "درخواست میان دو حساب؟": "Cross-account request?"
+  "Allow از هر دو سو:<br/>سیاست هویت و سیاست bucket؟": "Allow from both sides:<br/>identity and bucket policy?"
+  "Allow از سیاست هویت یا bucket<br/>و برای STS از سیاست نشست؟": "Allow from an identity or bucket policy<br/>and, for STS, the session policy?"
+  "ACLهای bucket و شیء<br/>اجازه می‌دهند؟": "Do the bucket and object<br/>ACLs grant it?"

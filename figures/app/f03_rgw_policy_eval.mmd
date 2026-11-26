@@ -1,0 +1,14 @@
+flowchart TB
+  q["درخواست احرازشده"] --> d{"Deny صریح در سیاست هویت،<br/>سیاست bucket یا سیاست نشست؟"}
+  d -- "بله" --> no["رد"]
+  d -- "خیر" --> x{"درخواست میان دو حساب؟"}
+  x -- "بله" --> both{"Allow از هر دو سو:<br/>سیاست هویت و سیاست bucket؟"}
+  both -- "بله" --> yes["اجازه"]
+  both -- "خیر" --> no
+  x -- "خیر" --> al{"Allow از سیاست هویت یا bucket<br/>و برای STS از سیاست نشست؟"}
+  al -- "بله" --> yes
+  al -- "خیر" --> acl{"ACLهای bucket و شیء<br/>اجازه می‌دهند؟"}
+  acl -- "بله" --> yes
+  acl -- "خیر" --> no
+  style no fill:#FDECEA,stroke:#C0392B
+  style yes fill:#E8F6EC,stroke:#2E8B57

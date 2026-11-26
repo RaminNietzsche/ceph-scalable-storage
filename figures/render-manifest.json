@@ -1,6 +1,10 @@
 {
  "figures/app/f01_upgrade_path.en.mmd": "abff81845ebfee7272ce2d12a61ecc3daca5866e714de5651fbe80221b68de7f",
  "figures/app/f01_upgrade_path.mmd": "c7e08aeb02e2a7c597562c793d05a678672d23f3d7046230028ec6ddfc366835",
+ "figures/app/f02_rgw_security_layers.en.mmd": "388e15a148ec669f0f08f64da5f289d16d858adb124f927755a86275807078f9",
+ "figures/app/f02_rgw_security_layers.mmd": "5cdeea25157ab58c439696b802c4fc6aca9f0cf9b72d740f1359106d9fa3f56c",
+ "figures/app/f03_rgw_policy_eval.en.mmd": "7e9ffd1ed131795185e7673dfb088bdb162eeab0e094ae30309174f2b36e37b8",
+ "figures/app/f03_rgw_policy_eval.mmd": "017d8cdf6855171579ac61f4fde70cfb93ad7055e5fb54ff4bb70bf8942537eb",
  "figures/ch01/f01_stack.en.mmd": "6425a668dc746dd1fcf664f7a9912ecbbe60a0ca638ad84fc9049475cc849f06",
  "figures/ch01/f01_stack.mmd": "8f796453263d61736fafff5131877efc904c67a5a1c1fa47e0ed7b1a6ce36a07",
  "figures/ch01/f02_raid.en.mmd": "adb67c118dced14a41eb98f0eb75ff1b4579d22811fbb1ea0c508f6380e53edd",
