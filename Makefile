@@ -173,7 +173,7 @@ check-quizzes: ## validate references/quizzes/chNN.yaml (fa/en parity, anchors, 
 check-cheatsheet: ## validate references/cheatsheet.yaml (schema, anchors, prose lint, commands)
 	$(PYTHON) tools/check_cheatsheet.py
 
-check: lint spell check-refs check-links check-parity check-versions check-tldr check-publish check-sims check-cheatsheet check-paths ## all offline checks
+check: lint spell check-refs check-links check-parity check-versions check-tldr check-publish check-sims check-cheatsheet check-paths check-quizzes ## all offline checks
 
 check-publish: ## .zenodo.json and CITATION.cff are complete and match the book version
 	$(PYTHON) tools/check_publish.py
