@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 11 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 11
+questions:
+  - id: reconcile
+    ref: sec-11-4-1
+    q:
+      fa: "این‌که cephadm اعلانی (declarative) است یعنی چه؟"
+      en: "What does it mean that cephadm is declarative?"
+    options:
+      - fa: "هر گام استقرار را به ترتیب اجرا می‌کنید و cephadm کار دیگری نمی‌کند"
+        en: "You run each deployment step in order, and cephadm does nothing else"
+      - fa: "حالت مطلوب را در spec توصیف می‌کنید و orchestrator پیوسته اختلاف‌ها با حالت واقعی را رفع می‌کند"
+        en: "You describe the desired state in specs, and the orchestrator keeps fixing differences from the actual state"
+        correct: true
+      - fa: "cephadm فایل `ceph.conf` را روی هر میزبان می‌خواند و به بقیه کپی می‌کند"
+        en: "cephadm reads `ceph.conf` on every host and copies it to the others"
+      - fa: "هر تغییر باید اول در داشبورد تأیید شود"
+        en: "Every change must be approved in the Dashboard first"
+    why:
+      fa: "یک فایل spec کامل در Git تکرارپذیری، بازبینی و ساختن سریع آزمایشگاهی هم‌شکل با محیط عملیاتی را ممکن می‌کند. در مقابل، ceph-ansible دستوری (imperative) بود."
+      en: "A full spec file kept in Git gives reproducibility, review and quick rebuilds of a lab that matches production. ceph-ansible, by contrast, was imperative."
+  - id: offline-registry
+    ref: sec-11-6-2
+    q:
+      fa: "در استقرار بدون اینترنت با registry محلی، پس از bootstrap با `registry.json` چه باید کرد؟"
+      en: "In an offline deployment with a local registry, what should you do with `registry.json` after bootstrap?"
+    options:
+      - fa: "آن را به همه‌ی میزبان‌ها کپی کنید تا daemonهای تازه بتوانند image بگیرند"
+        en: "Copy it to every host so that new daemons can pull images"
+      - fa: "حذفش کنید؛ cephadm اطلاعات ورود را درون کلاستر نگه می‌دارد"
+        en: "Delete it; cephadm keeps the credentials inside the cluster"
+        correct: true
+      - fa: "آن را همراه spec کلاستر در Git ثبت کنید"
+        en: "Commit it to Git with the cluster spec"
+      - fa: "آن را برای همه خواندنی نگه دارید تا podman بتواند بخواندش"
+        en: "Keep it world-readable so that podman can read it"
+    why:
+      fa: "این فایل نام کاربری و رمز registry را دارد. تا وقتی لازم است مجوزش را `600` نگه دارید و پس از bootstrap حذفش کنید."
+      en: "The file holds the registry user name and password. Keep its permissions at `600` while you need it and remove it after bootstrap."
+  - id: upgrade-order
+    ref: sec-11-8-3
+    q:
+      fa: "چرا ارتقا با cephadm اول MGRها را به‌روز می‌کند و بعد MONها را؟"
+      en: "Why does a cephadm upgrade update the MGRs before the MONs?"
+    options:
+      - fa: "چون MONها نمی‌توانند نسخه‌ای جدیدتر از MGRها اجرا کنند"
+        en: "Because MONs cannot run a newer release than the MGRs"
+      - fa: "چون خود orchestrator در MGR اجرا می‌شود و باید نسخه‌ی تازه را بشناسد"
+        en: "Because the orchestrator itself runs in the MGR and must know the new release"
+        correct: true
+      - fa: "چون MGRها داده‌ی OSDها را که MONها لازم دارند نگه می‌دارند"
+        en: "Because MGRs hold the OSD data that MONs need"
+      - fa: "چون داشبورد باید اول برای کاربران به‌روز شود"
+        en: "Because the Dashboard must be updated first for users"
+    why:
+      fa: "این ترتیب از `CEPH_UPGRADE_ORDER` می‌آید: MGR آماده‌به‌کار و failover، سپس MGR دیگر، MONها یکی‌یکی، بعد OSDها در دسته‌هایی پس از بررسی `ok-to-stop`، و پس از آن‌ها بقیه‌ی daemonها."
+      en: "The order comes from `CEPH_UPGRADE_ORDER`: standby MGR and failover, the other MGR, the MONs one by one, then OSDs in batches after `ok-to-stop` checks, and the other daemons after them."
+  - id: ok-to-stop-host
+    ref: sec-11-8-4
+    q:
+      fa: "در شبیه‌سازی فصل (۴ میزبان، هر کدام ۳ OSD، size برابر ۳ و min_size برابر ۲)، کدام مجموعه از OSDها را می‌شود هم‌زمان متوقف کرد؟"
+      en: "In the chapter's simulation (4 hosts, 3 OSDs each, size 3, min_size 2), which set of OSDs can be stopped at once?"
+    options:
+      - fa: "سه OSD یک میزبان، چون هر PG همچنان دو عضو دارد"
+        en: "The three OSDs of one host, because every PG still keeps two members"
+        correct: true
+      - fa: "از هر چهار میزبان یک OSD"
+        en: "One OSD from each of the four hosts"
+      - fa: "هر شش OSD، به شرط این‌که MON روی آن‌ها نباشد"
+        en: "Any six OSDs, as long as no MON runs on them"
+      - fa: "فقط یک OSD در هر بار"
+        en: "Only one OSD at a time"
+    why:
+      fa: "هر PG سه عضوش را روی سه میزبان مختلف دارد، پس توقف یک میزبان از هر PG حداکثر یک عضو را می‌گیرد. افزودن یک OSD از میزبان دیگر برخی PGها را به زیر `min_size` می‌برد."
+      en: "Each PG has its three members on three different hosts, so stopping one host removes at most one member of each PG. Adding an OSD from another host would take some PGs below `min_size`."
+  - id: size-filter
+    ref: sec-11-4-3
+    q:
+      fa: "در یک OSD spec، فیلتر دستگاه `size: '10T:'` چه چیزی را انتخاب می‌کند؟"
+      en: "In an OSD spec, what does the device filter `size: '10T:'` select?"
+    options:
+      - fa: "دیسک‌های کوچک‌تر از ۱۰ ترابایت"
+        en: "Disks smaller than 10 TB"
+      - fa: "دیسک‌های بزرگ‌تر از ۱۰ ترابایت"
+        en: "Disks larger than 10 TB"
+        correct: true
+      - fa: "دقیقاً ده دیسک در هر میزبان"
+        en: "Exactly ten disks per host"
+      - fa: "۱۰ ترابایت اول هر دیسک"
+        en: "The first 10 TB of every disk"
+    why:
+      fa: "فیلترهایی مثل `rotational`، `size` و `model` دیسک‌ها را بر اساس ویژگی‌شان انتخاب می‌کنند. پیش از اعمال spec نتیجه را با `--dry-run` بررسی کنید."
+      en: "Filters such as `rotational`, `size` and `model` pick disks by their properties. Check the result with `--dry-run` before applying the spec."

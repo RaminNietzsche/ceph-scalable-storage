@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 14 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 14
+questions:
+  - id: compound-guard
+    ref: sec-14-4-1
+    q:
+      fa: "یک عملیات نوشتن ترکیبی روی یک شیء، شرطی (guard) دارد که برقرار نیست. چه چیزی اعمال می‌شود؟"
+      en: "A compound write operation on one object contains a guard that fails. What is applied?"
+    options:
+      - fa: "همه‌ی گام‌های پیش از guard"
+        en: "Every step before the guard"
+      - fa: "همه‌ی گام‌ها جز خود guard"
+        en: "Every step except the guard"
+      - fa: "هیچ؛ OSD همه‌ی عملیات را با هم اجرا می‌کند یا هیچ‌کدام را"
+        en: "Nothing; the OSD runs all the operations together or none of them"
+        correct: true
+      - fa: "نوشتن داده، ولی نه به‌روزرسانی xattr و omap"
+        en: "The data write, but not the xattr and omap updates"
+    why:
+      fa: "تراکنش‌های RADOS روی یک شیء اتمی‌اند: داده، xattr، به‌روزرسانی omap و شرط‌ها در یک `ObjectWriteOperation`. چنین تضمینی میان چند شیء وجود ندارد."
+      en: "RADOS transactions are atomic on a single object: data, xattrs, omap updates and conditions in one `ObjectWriteOperation`. There is no such guarantee across several objects."
+  - id: aio-limit
+    ref: sec-14-3-4
+    q:
+      fa: "نوشتن‌ها را در یک حلقه با aio می‌فرستید. چرا تعداد درخواست‌های در جریان را، مثلاً با یک semaphore، محدود کنید؟"
+      en: "You send writes with aio in a loop. Why limit the number in flight, for example with a semaphore?"
+    options:
+      - fa: "صدها هزار درخواست هم‌زمان حافظه‌ی کلاینت را پر می‌کند و پشت throttleهای Objecter گیر می‌کند"
+        en: "Hundreds of thousands of concurrent requests fill the client's memory and stall on the Objecter throttles"
+        correct: true
+      - fa: "چون RADOS بیش از ۱۶ درخواست از هر کلاینت را رد می‌کند"
+        en: "Because RADOS rejects more than 16 requests per client"
+      - fa: "چون نوشتن‌های aio با بیش از ۶۴ درخواست در جریان اتمی نیستند"
+        en: "Because aio writes are not atomic beyond 64 in flight"
+      - fa: "چون هر درخواست در جریان، قفلی روی PG خود نگه می‌دارد"
+        en: "Because each in-flight request holds a lock on its PG"
+    why:
+      fa: "`objecter_inflight_ops` و `objecter_inflight_op_bytes` کار در جریان را محدود می‌کنند؛ بیش از آن، درخواست‌ها فقط با مصرف حافظه منتظر می‌مانند."
+      en: "`objecter_inflight_ops` and `objecter_inflight_op_bytes` cap the work in flight; beyond that, requests just wait while using memory."
+  - id: watch-linger
+    ref: sec-14-5
+    q:
+      fa: "یک watch در librados چطور از تغییر نقشه‌ی OSD جان سالم به در می‌برد؟"
+      en: "How does a librados watch survive a change of the OSD map?"
+    options:
+      - fa: "MON فهرست watcherها را نگه می‌دارد و برای OSD اصلی تازه بازپخش می‌کند"
+        en: "The MON keeps the list of watchers and replays it to the new primary"
+      - fa: "یک عملیات linger است که Objecter هر بار که نقشه تغییر کند یا اتصال قطع شود، آن را به OSD اصلی کنونی شیء دوباره می‌فرستد"
+        en: "It is a linger operation that the Objecter resends to the object's current primary whenever the map changes or the connection drops"
+        correct: true
+      - fa: "نمی‌تواند؛ کلاینت باید پس از هر تغییر نقشه watch تازه ثبت کند"
+        en: "It does not; the client must register a new watch after every map change"
+      - fa: "watch در داده‌ی شیء ذخیره می‌شود و هر OSDی آن را می‌خواند"
+        en: "The watch is stored in the object's data and read by any OSD"
+    why:
+      fa: "RBD برای خبر دادن تغییرات header، مثل تغییر اندازه، به همه‌ی کلاینت‌هایی که image را باز کرده‌اند به همین سازوکار تکیه دارد."
+      en: "RBD relies on this to tell every client with the image open about header changes, such as a resize."
+  - id: backoff-default
+    ref: sec-14-7
+    q:
+      fa: "با تنظیمات پیش‌فرض، OSD کی به کلاینت backoff می‌فرستد؟"
+      en: "With the default settings, when does an OSD send a backoff to the client?"
+    options:
+      - fa: "هر وقت یک PG در حال peering باشد"
+        en: "Whenever a PG is peering"
+      - fa: "هر وقت یک شیء degraded باشد"
+        en: "Whenever an object is degraded"
+      - fa: "فقط برای اشیای unfound"
+        en: "Only for unfound objects"
+        correct: true
+      - fa: "هر وقت کلاینت از quota خود فراتر رود"
+        en: "Whenever the client exceeds its quota"
+    why:
+      fa: "پیش‌فرض‌ها `osd_backoff_on_unfound=true` و برای degraded و peering مقدار false است. با backoff، کلاینت درخواست‌های آن محدوده را نگه می‌دارد، نه این‌که OSD آن‌ها را در صف خودش نگه دارد."
+      en: "The defaults are `osd_backoff_on_unfound=true` and false for degraded and peering. With a backoff the client holds the ops for that range instead of the OSD queueing them."
+  - id: hot-object
+    ref: sec-14-11
+    q:
+      fa: "برنامه‌ای همه‌ی به‌روزرسانی‌هایش را به یک شیء «داغ» در RADOS می‌فرستد. مشکل و راه‌حل چیست؟"
+      en: "An application sends all its updates to one \"hot\" RADOS object. What is the problem and the fix?"
+    options:
+      - fa: "شیء inconsistent می‌شود؛ deep scrub را هر ساعت روشن کنید"
+        en: "The object becomes inconsistent; enable deep scrub every hour"
+      - fa: "همه‌ی بار روی یک PG و یک OSD می‌افتد؛ کلیدها را میان چند شیء پخش کنید"
+        en: "All load lands on one PG and one OSD; spread the keys over several objects"
+        correct: true
+      - fa: "شیء از `osd_max_object_size` بزرگ‌تر می‌شود؛ فشرده‌اش کنید"
+        en: "The object exceeds `osd_max_object_size`; compress it"
+      - fa: "MON کلاینت را محدود می‌کند؛ از کلیدهای کلاینت بیشتری استفاده کنید"
+        en: "The MON throttles the client; use more client keys"
+    why:
+      fa: "هر شیء دقیقاً در یک PG است، پس از بقیه‌ی کلاستر استفاده نمی‌کند. همین ایده برای شارد کردن omap بزرگ، مثل index مربوط به bucket در RGW، به کار می‌رود."
+      en: "An object lives in exactly one PG, so it cannot use the rest of the cluster. The same idea shards a large omap, like the RGW bucket index."

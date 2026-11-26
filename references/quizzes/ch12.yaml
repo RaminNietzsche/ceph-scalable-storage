@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 12 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 12
+questions:
+  - id: deferred-writes
+    ref: sec-12-3-3
+    q:
+      fa: "روی یک OSD با HDD که block.db آن روی SSD است، یک نوشتن تصادفی کوچک چه سرنوشتی دارد؟"
+      en: "On an HDD OSD with block.db on SSD, what happens to a small random write?"
+    options:
+      - fa: "مستقیم روی HDD نوشته می‌شود و بعد فراداده به RocksDB می‌رود"
+        en: "It is written straight to the HDD and then the metadata goes to RocksDB"
+      - fa: "به تعویق می‌افتد: همراه فراداده در WAL مربوط به RocksDB روی SSD ثبت می‌شود، ack می‌گیرد و بعداً روی HDD اعمال می‌شود"
+        en: "It is deferred: recorded with the metadata in the RocksDB WAL on the SSD, acknowledged, and applied to the HDD later"
+        correct: true
+      - fa: "صبر می‌کند تا آن‌قدر نوشتن کوچک جمع شود که یک شیء ۴ مگابایتی پر شود"
+        en: "It waits until enough small writes collect to fill a 4 MB object"
+      - fa: "رد می‌شود، مگر این‌که `allow_ec_overwrites` تنظیم شده باشد"
+        en: "It is rejected unless `allow_ec_overwrites` is set"
+    why:
+      fa: "تعویق، از یک seek برای هر نوشتن کوچک جلوگیری می‌کند و یکی از دلایل اصلی سودمندی SSD برای DB در OSDهای HDD است. این SSD باید محافظت از قطع برق داشته باشد، وگرنه نوشتن sync در WAL کند می‌شود."
+      en: "Deferring avoids a seek per small write and is a main reason a DB SSD helps HDD OSDs. The SSD needs power-loss protection, or sync writes to the WAL become slow."
+  - id: block-db-size
+    ref: sec-12-4-2
+    q:
+      fa: "مستندات کنونی چه اندازه‌ای را برای block.db، به نسبت دستگاه block، توصیه می‌کند؟"
+      en: "What size does the current documentation recommend for block.db, as a share of the block device?"
+    options:
+      - fa: "دست‌کم ۰٫۵ درصد برای هر نوع بار کاری"
+        en: "At least 0.5 percent for every workload"
+      - fa: "دست‌کم ۲٫۵ درصد، و ۴ درصد برای بارهای سنگین omap مثل RGW"
+        en: "At least 2.5 percent, and 4 percent for heavy omap workloads such as RGW"
+        correct: true
+      - fa: "دقیقاً ۱۰ درصد، وگرنه BlueStore راه نمی‌افتد"
+        en: "Exactly 10 percent, or BlueStore refuses to start"
+      - fa: "هم‌اندازه‌ی دستگاه block"
+        en: "The same size as the block device"
+    why:
+      fa: "برای RBD اغلب ۱ تا ۲ درصد کافی است. مراقب `BLUEFS_SPILLOVER` باشید، که یعنی فراداده دیگر روی دستگاه سریع جا نمی‌شود."
+      en: "For RBD 1 to 2 percent is often enough. Watch for `BLUEFS_SPILLOVER`, which means metadata no longer fits on the fast device."
+  - id: min-alloc-old-osd
+    ref: sec-12-4-3
+    q:
+      fa: "یک OSD پیش از Pacific ساخته شده و کلاستر از آن زمان ارتقا یافته است. `bluestore_min_alloc_size` آن چند است؟"
+      en: "An OSD was created before Pacific and the cluster has since been upgraded. What is its `bluestore_min_alloc_size`?"
+    options:
+      - fa: "پیش‌فرض تازه‌ی ۴ کیلوبایت، که در نخستین راه‌اندازی پس از ارتقا اعمال می‌شود"
+        en: "The new 4 KB default, applied on the first restart after the upgrade"
+      - fa: "هر مقداری که الان در پایگاه پیکربندی MONها تنظیم شده"
+        en: "Whatever is set now in the MON configuration database"
+      - fa: "همان مقدار قدیمی زمان ساخت؛ فقط ساختن دوباره‌ی OSD آن را عوض می‌کند"
+        en: "Still the old value it was created with; only recreating the OSD changes it"
+        correct: true
+      - fa: "با `ceph-bluestore-tool fsck` دوباره محاسبه می‌شود"
+        en: "It is recomputed by `ceph-bluestore-tool fsck`"
+    why:
+      fa: "این مقدار هنگام ساختن OSD ثابت می‌شود. با `ceph osd metadata <id>` بررسی‌اش کنید؛ مقدار قدیمی ۶۴ کیلوبایت روی اشیای کوچک فضا هدر می‌دهد و فشرده‌سازی را بی‌اثر می‌کند."
+      en: "The value is fixed when the OSD is created. Check it with `ceph osd metadata <id>`; an old 64 KB value wastes space on small objects and makes compression useless."
+  - id: filestore-migrate
+    ref: sec-12-5-1
+    q:
+      fa: "هنوز OSDهای FileStore دارید و می‌خواهید به Reef ارتقا دهید. چه باید کرد؟"
+      en: "You still have FileStore OSDs and want to upgrade to Reef. What must you do?"
+    options:
+      - fa: "با `ceph-bluestore-tool` تبدیل درجا انجام دهید"
+        en: "Run an in-place conversion with `ceph-bluestore-tool`"
+      - fa: "هیچ؛ Reef در نخستین راه‌اندازی OSDهای FileStore را تبدیل می‌کند"
+        en: "Nothing; Reef converts FileStore OSDs on first start"
+      - fa: "اول ارتقا دهید، بعد OSDها را در حال کار تبدیل کنید"
+        en: "Upgrade first, then convert while the OSDs run"
+      - fa: "پیش از ارتقا آن‌ها را به‌صورت BlueStore دوباره بسازید، OSD به OSD یا میزبان به میزبان"
+        en: "Recreate them as BlueStore before the upgrade, OSD by OSD or host by host"
+        correct: true
+    why:
+      fa: "تبدیل درجا وجود ندارد. جایگزینی OSD به OSD با `--replace --zap` ساده است ولی برای هر OSD دو بار داده جابه‌جا می‌کند؛ روش میزبان به میزبان جابه‌جایی کمتری دارد ولی یک میزبان یدک لازم دارد."
+      en: "There is no in-place conversion. OSD-by-OSD replacement with `--replace --zap` is simple but moves data twice per OSD; host-by-host moves less but needs a spare host."
+  - id: compress-accept
+    ref: sec-12-6-1
+    q:
+      fa: "با `min_alloc_size` برابر 64K، فشرده‌سازی یک blob شصت‌وچهار کیلوبایتی چقدر فضا صرفه‌جویی می‌کند؟"
+      en: "With `min_alloc_size` 64K, how much space does BlueStore save by compressing a 64 KiB blob?"
+    options:
+      - fa: "هیچ؛ همیشه ۶۴ کیلوبایت تخصیص می‌یابد و فشرده‌سازی بی‌اثر است"
+        en: "None; 64 KiB is always allocated, so compression has no effect"
+        correct: true
+      - fa: "دقیقاً نصف، هر داده‌ای که باشد"
+        en: "Exactly half, whatever the data"
+      - fa: "به اندازه‌ی نسبت فشرده‌سازی، گرد شده به پایین تا ۴ کیلوبایت"
+        en: "As much as the compression ratio, rounded down to 4 KiB"
+      - fa: "تا ۸ کیلوبایت، چون همیشه یک بلوک صرفه‌جویی می‌شود"
+        en: "Up to 8 KiB, because one block is always saved"
+    why:
+      fa: "نتیجه‌ی فشرده به بالا تا واحد تخصیص گرد می‌شود و باید آن‌قدر صرفه‌جویی کند که پذیرفته شود. با 4K، blobی که به ۵۰ کیلوبایت فشرده شود ۵۲ کیلوبایت می‌گیرد و ۱۲ کیلوبایت صرفه‌جویی می‌کند؛ با 64K هرگز چیزی صرفه‌جویی نمی‌شود."
+      en: "The compressed result is rounded up to the allocation unit and must save enough to be accepted. With 4K, a blob that compresses to 50 KiB takes 52 KiB and saves 12 KiB; with 64K nothing is ever saved."

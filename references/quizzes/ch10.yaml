@@ -1,0 +1,96 @@
+# End-of-chapter quiz, chapter 10 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 10
+questions:
+  - id: osd-bench-scope
+    ref: sec-10-4-1
+    q:
+      fa: "`ceph tell osd.N bench` چه چیزی را اندازه می‌گیرد؟"
+      en: "What does `ceph tell osd.N bench` measure?"
+    options:
+      - fa: "نوشتن در BlueStore همان OSD، بدون شبکه و تکثیر"
+        en: "That OSD's own BlueStore writes, without network or replication"
+        correct: true
+      - fa: "کل مسیر کلاینت از شبکه تا سه نسخه"
+        en: "The full client path through the network to three replicas"
+      - fa: "پهنای باند شبکه میان آن OSD و همتاهایش"
+        en: "The network bandwidth between that OSD and its peers"
+      - fa: "فقط سرعت خواندن RocksDB همان OSD"
+        en: "The read speed of the OSD's RocksDB only"
+    why:
+      fa: "این راه سریعی برای پیدا کردن یک OSD کند میان صدها OSD است. در مقابل `rados bench` کل مسیر کلاستر را می‌سنجد، پس این دو عدد قابل مقایسه نیستند."
+      en: "It is a quick way to find a slow OSD among hundreds. `rados bench` instead tests the whole cluster path, so the two numbers are not comparable."
+  - id: prefill
+    ref: sec-10-5-3
+    q:
+      fa: "پیش از سنجش نوشتن تصادفی روی یک image تازه‌ی RBD چه باید کرد و چرا؟"
+      en: "Before measuring random writes on a new RBD image, what should you do and why?"
+    options:
+      - fa: "journaling را روشن کنید تا نوشتن‌ها سریع‌تر تأیید شوند"
+        en: "Enable journaling, so that writes are acknowledged faster"
+      - fa: "image را کوچک کنید تا در cache مربوط به OSD جا شود"
+        en: "Shrink the image so that it fits in the OSD cache"
+      - fa: "یک بار آن را با نوشتن ترتیبی کامل پر کنید، وگرنه نتیجه ترکیبی از ساختن شیء و بازنویسی است"
+        en: "Fill it once with a full sequential write, otherwise the result mixes object creation with overwrites"
+        correct: true
+      - fa: "`rbd sparsify` را اجرا کنید تا اشیای بی‌استفاده حذف شوند"
+        en: "Run `rbd sparsify` so that unused objects are removed"
+    why:
+      fa: "نخستین نوشتن در هر بخش image تازه کندتر است، چون اشیای RADOS باید ساخته شوند. پیش‌گرم کردن باعث می‌شود آزمون حالت پایدار را بسنجد."
+      en: "The first write to each part of a new image is slower because the RADOS objects have to be created. Pre-warming makes the test measure the steady state."
+  - id: littles-law
+    ref: sec-10-11-1
+    q:
+      fa: "در `rados bench` که حلقه‌ی بسته دارد، قانون Little درباره‌ی IOPS، تأخیر و تعداد عملیات هم‌زمان (`-t`) چه می‌گوید؟"
+      en: "In a closed-loop `rados bench`, what does Little's law say about IOPS, latency and the number of concurrent operations (`-t`)?"
+    options:
+      - fa: "با بزرگ‌تر شدن `-t`، IOPS بی‌نهایت بالا می‌رود"
+        en: "IOPS rises without limit as `-t` grows"
+      - fa: "حاصل‌ضرب IOPS در میانگین تأخیر تقریباً برابر `-t` است، پس پس از اشباع، هم‌زمانی بیشتر فقط تأخیر را بالا می‌برد"
+        en: "IOPS × mean latency is about equal to `-t`, so past saturation more concurrency only adds latency"
+        correct: true
+      - fa: "تأخیر مستقل از `-t` است"
+        en: "Latency is independent of `-t`"
+      - fa: "IOPS تقسیم بر تأخیر برای هر اندازه‌ی شیء ثابت است"
+        en: "IOPS divided by latency is constant for any object size"
+    why:
+      fa: "طبق L = X · R، تعداد درخواست‌های در جریان برابر توان عملیاتی ضرب در تأخیر است. وقتی کلاستر اشباع شد، بالا بردن `-t` IOPS را ثابت نگه می‌دارد و تأخیر بیشتر می‌شود."
+      en: "With L = X · R, the number in flight equals throughput times latency. Once the cluster is saturated, raising `-t` leaves IOPS flat and latency grows."
+  - id: fio-raw-disk
+    ref: sec-10-3-1
+    q:
+      fa: "فصل پیش از آزمودن یک دیسک با fio چه احتیاطی را گوشزد می‌کند؟"
+      en: "Which precaution does the chapter give before testing a disk with fio?"
+    options:
+      - fa: "fio را فقط درون یک کانتینر اجرا کنید"
+        en: "Run fio only inside a container"
+      - fa: "cache نوشتن دیسک را خاموش کنید"
+        en: "Turn off the disk's write cache"
+      - fa: "دیسکی را بیازمایید که هنوز OSD نشده، چون نوشتن مستقیم روی دیسک خام داده‌اش را از بین می‌برد"
+        en: "Test a disk that is not yet an OSD, because writing to the raw disk destroys its data"
+        correct: true
+      - fa: "اول با `dd` دیسک را گرم کنید"
+        en: "Use `dd` first to warm up the disk"
+    why:
+      fa: "fio برخلاف `dd` الگو و عمق صف را کنترل می‌کند. آزمون نوشتن sync با بلوک ۴ کیلوبایتی و عمق صف ۱ نشان می‌دهد یک SSD با محافظت از قطع برق برای DB/WAL مناسب است یا نه."
+      en: "fio controls the pattern and queue depth, unlike `dd`. The 4 KB sync write test at queue depth 1 shows whether an SSD with power-loss protection is suitable for DB/WAL."
+  - id: report
+    ref: sec-10-8
+    multi: true
+    q:
+      fa: "طبق فصل، کدام موارد باید در گزارش یک بنچمارک بیایند؟ همه‌ی گزینه‌های درست را انتخاب کنید."
+      en: "Which of these belong in a benchmark report, according to the chapter? Select every correct option."
+    options:
+      - fa: "سخت‌افزار، از جمله مدل دیسک‌ها، شبکه و MTU"
+        en: "The hardware, including disk models, network and MTU"
+        correct: true
+      - fa: "نسخه‌ی دقیق Ceph، سیستم‌عامل، هسته و ابزار"
+        en: "The exact Ceph, OS, kernel and tool versions"
+        correct: true
+      - fa: "فقط بهترین عدد IOPS، تا گزارش کوتاه بماند"
+        en: "Only the best IOPS figure, so the report stays short"
+      - fa: "مدت آزمون و صدک‌های تأخیر"
+        en: "The duration and the latency percentiles"
+        correct: true
+    why:
+      fa: "عدد بدون زمینه بی‌ارزش است: دیگران باید بتوانند آزمون را تکرار و مقایسه کنند. یک عدد بهترین، تأخیر دنباله‌ای را که کاربران حس می‌کنند پنهان می‌کند."
+      en: "A number without context is worthless: others must be able to repeat the test and compare. A single best figure hides the tail latency that users feel."

@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 13 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 13
+questions:
+  - id: profile-fixed
+    ref: sec-13-4-1
+    q:
+      fa: "می‌خواهید یک pool با EC را از 4+2 به 8+3 ببرید. چطور؟"
+      en: "You want to change an EC pool from 4+2 to 8+3. How?"
+    options:
+      - fa: "profile را ویرایش کنید؛ OSDها اشیا را در پس‌زمینه دوباره کدگذاری می‌کنند"
+        en: "Edit the profile; the OSDs re-encode the objects in the background"
+      - fa: "`allow_ec_optimizations` را بگذارید و بعد k و m را عوض کنید"
+        en: "Set `allow_ec_optimizations` and then change k and m"
+      - fa: "یک pool تازه با profile تازه بسازید و داده را منتقل کنید، چون k، m، plugin و stripe_unit هنگام ساخت ثابت می‌شوند"
+        en: "Create a new pool with the new profile and move the data, because k, m, the plugin and stripe_unit are fixed at creation"
+        correct: true
+      - fa: "`size` مربوط به pool را بالا ببرید و balancer را اجرا کنید"
+        en: "Increase `size` on the pool and run the balancer"
+    why:
+      fa: "profile مربوط به EC یک pool پس از ساخت قابل تغییر نیست. پیش از ساختن، رشد آینده و تعداد failure domainها را در نظر بگیرید."
+      en: "A pool's EC profile cannot be changed after creation. Plan for growth and the number of failure domains before creating it."
+  - id: ec-min-size
+    ref: sec-13-8-2
+    q:
+      fa: "مقدار پیش‌فرض `min_size` برای یک pool تازه با EC از نوع 4+2 چند است؟"
+      en: "What is the default `min_size` of a new 4+2 EC pool?"
+    options:
+      - fa: "۴، کمترین تعداد shard که داده را بازسازی می‌کند"
+        en: "4, the smallest number of shards that can rebuild the data"
+      - fa: "۵، تا نوشتن فقط تا وقتی پذیرفته شود که یک shard اضافه باقی است"
+        en: "5, so that writes are accepted only while a spare shard remains"
+        correct: true
+      - fa: "۶، تا همه‌ی shardها باید حاضر باشند"
+        en: "6, so that every shard must be present"
+      - fa: "۲، مثل یک pool تکثیری"
+        en: "2, the same as a replicated pool"
+    why:
+      fa: "قاعده `min_size = k + min(1, m − 1)` است. پذیرفتن نوشتن با فقط k شارد هیچ حاشیه‌ای باقی نمی‌گذارد و یک خرابی دیگر داده‌ی تأییدشده را از بین می‌برد."
+      en: "The rule is `min_size = k + min(1, m − 1)`. Accepting writes with only k shards would leave no margin: one more failure would lose acknowledged data."
+  - id: ec-or-replica
+    ref: sec-13-5
+    q:
+      fa: "فصل می‌گوید کدام داده باید به‌جای EC روی pool تکثیری بماند؟"
+      en: "Which data does the chapter say should stay on a replicated pool rather than EC?"
+    options:
+      - fa: "اشیای بزرگ RGW مثل پشتیبان و رسانه"
+        en: "Large RGW objects such as backups and media"
+      - fa: "داده‌ی بایگانی سرد که به‌ندرت خوانده می‌شود"
+        en: "Cold archive data that is rarely read"
+      - fa: "pool مربوط به index در RGW، چون omap روی EC پشتیبانی نمی‌شود"
+        en: "The RGW bucket index pool, because omap is not supported on EC"
+        correct: true
+      - fa: "فایل‌های CephFS بزرگ‌تر از ۱ گیگابایت"
+        en: "CephFS files larger than 1 GB"
+    why:
+      fa: "EC برای اشیای بزرگ بهترین نسبت هزینه را دارد. indexها و فراداده به omap نیاز دارند و RBD حساس به تأخیر برای پایگاه داده هم تکثیری می‌ماند."
+      en: "EC gives the best cost ratio for large objects. Indexes and metadata need omap, and latency-sensitive RBD for databases also stays replicated."
+  - id: ec-overwrites
+    ref: sec-13-3-3
+    q:
+      fa: "پیش از آن‌که RBD یا CephFS بتواند در یک pool با EC داده بگذارد، چه چیزی باید روی آن فعال شود؟"
+      en: "What must be enabled on an EC pool before RBD or CephFS can store data in it?"
+    options:
+      - fa: "`fast_read`"
+        en: "`fast_read`"
+      - fa: "`allow_ec_overwrites`"
+        en: "`allow_ec_overwrites`"
+        correct: true
+      - fa: "`nodeep-scrub`"
+        en: "`nodeep-scrub`"
+      - fa: "`bulk`"
+        en: "`bulk`"
+    why:
+      fa: "EC در آغاز فقط افزودن به انتها را پشتیبانی می‌کرد. `allow_ec_overwrites` (از Luminous) بازنویسی را ممکن می‌کند؛ RBD همچنان فراداده‌اش را در یک pool تکثیری نگه می‌دارد."
+      en: "EC originally supported only appends. `allow_ec_overwrites` (since Luminous) allows overwrites; RBD still keeps its metadata in a replicated pool."
+  - id: fast-read
+    ref: sec-13-8-2
+    q:
+      fa: "`fast_read` در خواندن از یک pool با EC چه چیزی را تغییر می‌دهد؟"
+      en: "What does `fast_read` change for reads from an EC pool?"
+    options:
+      - fa: "فقط shardهای داده را می‌خواند و هرگز رمزگشایی نمی‌کند"
+        en: "It reads only the data shards and never decodes"
+      - fa: "همه‌ی shardها را موازی می‌خواند و با رسیدن اولین k پاسخ رمزگشایی می‌کند: تأخیر دنباله‌ای کمتر، ترافیک بیشتر"
+        en: "It reads all shards in parallel and decodes when the first k replies arrive: lower tail latency, more traffic"
+        correct: true
+      - fa: "خواندن را از cache مربوط به RocksDB روی OSD اصلی پاسخ می‌دهد"
+        en: "It serves reads from the RocksDB cache of the primary"
+      - fa: "تعداد shardهای خوانده‌شده را به m کم می‌کند"
+        en: "It reduces the number of shards read to m"
+    why:
+      fa: "بدون آن، OSD با minimum_to_decode فقط shardهای لازم را می‌خواند. با آن، یک OSD کند دیگر خواندن را معطل نمی‌کند."
+      en: "Without it the OSD uses minimum_to_decode and reads only the shards it needs. With it, one slow OSD no longer holds up the read."

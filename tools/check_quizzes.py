@@ -72,8 +72,9 @@ def lint(text, lang: str, where: str, errs: list[str]) -> None:
     if not isinstance(text, str) or not text.strip():
         errs.append(f'{where}: missing {lang} text')
         return
+    prose = re.sub(r'`[^`]*`', 'CODE', text)   # code spans are shown verbatim
     for rx, msg in RULES_ALL + (RULES_FA if lang == 'fa' else RULES_EN):
-        if rx.search(text):
+        if rx.search(prose):
             errs.append(f'{where} ({lang}): {msg}: {text!r}')
     if text.count('`') % 2:
         errs.append(f'{where} ({lang}): unbalanced backtick')

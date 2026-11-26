@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 9 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 9
+questions:
+  - id: rest-api
+    ref: sec-09-3
+    q:
+      fa: "این‌که داشبورد یک ماژول MGR است و رابط وبش از REST API خود آن استفاده می‌کند، چه نتیجه‌ای دارد؟"
+      en: "What follows from the Dashboard being an MGR module whose web UI uses its own REST API?"
+    options:
+      - fa: "هر کاری که در رابط وب می‌شود، از راه همان API هم خودکارشدنی است"
+        en: "Anything you can do in the web UI can also be automated through that API"
+        correct: true
+      - fa: "رابط کاربری حتی وقتی همه‌ی MGRها پایین‌اند کار می‌کند"
+        en: "The UI works even when every MGR is down"
+      - fa: "داشبورد نسخه‌ی خودش از نقشه‌های کلاستر را روی دیسک نگه می‌دارد"
+        en: "The Dashboard keeps its own copy of the cluster maps on disk"
+      - fa: "هر OSD بخشی از رابط کاربری را ارائه می‌دهد"
+        en: "Each OSD serves a part of the UI"
+    why:
+      fa: "این ماژول یک وب‌سرور CherryPy با REST API است و رابط Angular روی همان API ساخته شده. هر گام در داشبورد معادلی در CLI یا API دارد."
+      en: "The module is a CherryPy web server with a REST API and an Angular UI on top of it. Every step in the Dashboard has a CLI or API equivalent."
+  - id: standby-behaviour
+    ref: sec-09-4-2
+    q:
+      fa: "داشبورد را پشت یک load balancer گذاشته‌اید و چند MGR دارید. `standby_behaviour` چه چیزی را کنترل می‌کند؟"
+      en: "You put the Dashboard behind a load balancer and there are several MGRs. What does `standby_behaviour` control?"
+    options:
+      - fa: "این‌که پس از خرابی کدام MGR فعال شود"
+        en: "Which MGR becomes active after a failure"
+      - fa: "این‌که MGRهای standby درخواست را به MGR فعال هدایت کنند یا خطا برگردانند، که برای health check مناسب است"
+        en: "Whether standby MGRs redirect to the active MGR or return an error, which suits a health check"
+        correct: true
+      - fa: "این‌که هم‌زمان چند کاربر وارد شوند"
+        en: "How many users may be logged in at once"
+      - fa: "این‌که داشبورد از درگاه ۸۴۴۳ استفاده کند یا ۸۰۸۰"
+        en: "Whether the Dashboard uses port 8443 or 8080"
+    why:
+      fa: "فقط MGR فعال داشبورد را ارائه می‌دهد. اگر standbyها خطا برگردانند، health check مربوط به load balancer ترافیک را فقط به MGR فعال می‌فرستد."
+      en: "Only the active MGR serves the Dashboard. With an error response from standbys, the balancer's health check sends traffic only to the active one."
+  - id: lockout
+    ref: sec-09-11-3
+    q:
+      fa: "با مقدار پیش‌فرض `ACCOUNT_LOCKOUT_ATTEMPTS = 10`، کاربری ده بار رمز اشتباه وارد می‌کند. در تلاش یازدهم با رمز درست چه می‌شود؟"
+      en: "With the default `ACCOUNT_LOCKOUT_ATTEMPTS = 10`, a user enters a wrong password ten times. What happens on the eleventh attempt with the right password?"
+    options:
+      - fa: "ورود موفق است و شمارنده صفر می‌شود"
+        en: "The login succeeds and the counter is reset"
+      - fa: "ورود موفق است ولی هشداری ثبت می‌شود"
+        en: "The login succeeds but a warning is logged"
+      - fa: "حساب غیرفعال می‌شود، چون شمارنده پیش از رمز بررسی می‌شود؛ فقط مدیر می‌تواند دوباره فعالش کند"
+        en: "The account is disabled, because the counter is checked before the password; only an administrator can re-enable it"
+        correct: true
+      - fa: "کاربر باید ۱۵ دقیقه صبر کند و بعد دوباره امتحان کند"
+        en: "The user must wait 15 minutes and can then try again"
+    why:
+      fa: "ورود موفق پیش از آن نقطه شمارنده را صفر می‌کند، پس نُه شکست و سپس یک موفقیت بی‌خطر است."
+      en: "A successful login before that point resets the counter, so nine failures followed by a success are harmless."
+  - id: stats-period
+    ref: sec-09-12-1
+    q:
+      fa: "با مقدار پیش‌فرض `mgr_stats_period`، آمار I/O که داشبورد نشان می‌دهد چقدر تازه است؟"
+      en: "How fresh are the I/O statistics the Dashboard shows, with the default `mgr_stats_period`?"
+    options:
+      - fa: "لحظه‌ای؛ هر درخواست نمودار را به‌روز می‌کند"
+        en: "Real time; every request updates the chart"
+      - fa: "تا چند ثانیه قدیمی، چون OSDها به‌طور پیش‌فرض هر ۵ ثانیه گزارش می‌دهند"
+        en: "Up to a few seconds old, because OSDs report every 5 seconds by default"
+        correct: true
+      - fa: "حدود یک دقیقه قدیمی، چون Prometheus هر دقیقه یک بار داده می‌گیرد"
+        en: "About one minute old, because Prometheus scrapes once a minute"
+      - fa: "به قدمت آخرین deep scrub"
+        en: "As old as the last deep scrub"
+    why:
+      fa: "OSDها و MDSها آمارشان را هر `mgr_stats_period` (۵ ثانیه) به MGR می‌فرستند. در اندازه‌گیری فصل، تأخیر با مقدار پیش‌فرض ۱٫۴ تا ۶٫۵ ثانیه بود."
+      en: "OSDs and MDSs send their stats to the MGR every `mgr_stats_period` (5 s). In the chapter's measurement the delay at the default was 1.4 to 6.5 seconds."
+  - id: pg-dump-cost
+    ref: sec-09-12-2
+    q:
+      fa: "چرا یک اسکریپت پایش نباید روی کلاستر بزرگ هر چند ثانیه یک `pg dump` کامل بگیرد؟"
+      en: "Why should a monitoring script not call a full `pg dump` every few seconds on a large cluster?"
+    options:
+      - fa: "چون `pg dump` جلوی I/O کلاینت‌ها را روی همه‌ی OSDها می‌گیرد"
+        en: "Because `pg dump` blocks client I/O on every OSD"
+      - fa: "چون اندازه‌اش با تعداد PGها رشد می‌کند (حدود ۲٫۴ کیلوبایت برای هر PG) و MGR تک‌رشته‌ای را مشغول تولید JSON نگه می‌دارد"
+        en: "Because its size grows with the PG count (about 2.4 KiB per PG) and keeps the single-threaded MGR busy producing JSON"
+        correct: true
+      - fa: "چون deep scrub همه‌ی PGها را شروع می‌کند"
+        en: "Because it triggers a deep scrub of every PG"
+      - fa: "چون خروجی فقط ساعتی یک بار معتبر است"
+        en: "Because the output is only valid once per hour"
+    why:
+      fa: "پاسخ `status` با هر تعداد PG حدود ۱٫۷ کیلوبایت می‌ماند و `pgs_brief` حدود ۹۶ بایت برای هر PG است. ارزان‌ترین پرسشی را به کار ببرید که به سؤال‌تان جواب می‌دهد."
+      en: "`status` stays around 1.7 KB whatever the PG count, and `pgs_brief` is about 96 bytes per PG. Use the cheapest query that answers the question."
