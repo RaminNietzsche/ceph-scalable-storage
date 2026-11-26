@@ -59,7 +59,7 @@ SITE_SRC    := tools/build_site.py tools/render_cheatsheet.py tools/booklib/seo.
 WEBFIG_STAMP := build/webfig/.stamp
 
 .PHONY: help all pdf cheatsheet html epub docx book figures cover lint markdownlint spell check-commands check-cheatsheet \
-        check check-labs check-links check-links-online check-refs check-parity check-versions check-tldr check-publish check-sims check-paths \
+        check check-labs check-quizzes check-links check-links-online check-refs check-parity check-versions check-tldr check-publish check-sims check-paths \
         html-single site check-site shoot-site webfig fonts \
         sync-translations stats clean distclean dist
 
@@ -166,6 +166,9 @@ check-sims: ## simulator math (CRUSH, autoscaler, Striper, ...) against Ceph's o
 
 check-paths: ## references/reading-paths.yaml: every step resolves (fa + en), times, text rules
 	$(PYTHON) tools/check_paths.py
+
+check-quizzes: ## validate references/quizzes/chNN.yaml (fa/en parity, anchors, one correct answer, unique ids, prose lint)
+	$(PYTHON) tools/check_quizzes.py
 
 check-cheatsheet: ## validate references/cheatsheet.yaml (schema, anchors, prose lint, commands)
 	$(PYTHON) tools/check_cheatsheet.py
