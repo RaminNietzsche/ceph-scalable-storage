@@ -796,6 +796,117 @@ for p in pages:
                 else:
                     a['href'] = f'{slug}.html' + (f'#{nid}' if nid else '')
 
+# ---------------------------------------------------------------- command-line reference data
+# references/cli-reference.yaml -> cli-ref-data.js for the cli-reference page (tools/booklib/clirefs.py,
+# templates/site/cliref.js). Commands that are also in the cheat sheet get the book's note, the
+# cheat-sheet line as an example and a link to the section that explains them.
+from booklib import clirefs  # noqa: E402
+
+CLR = clirefs.load()
+
+
+def clr_ref(ref):
+    """(href, label) of a cheat-sheet ref (sec-NN-K-L or appX), resolved like the in-page links."""
+    if ref not in ids:
+        return '', ''
+    slug, nid = ids[ref]
+    href = f'{slug}.html' + (f'#{nid}' if nid else '')
+    m = re.match(r'sec-(\d+)-([\d-]+)$', ref)
+    if m:
+        num = f'{int(m.group(1))}.' + m.group(2).replace('-', '.')
+        label = (f'بخش {num.translate(FA)}' if LANG == 'fa' else f'§{num}')
+    else:
+        key = clirefs_app_key(ref)
+        label = f'{UI["appendix"]} {UI["app"][key][0]}' if key else ref
+    return href, label
+
+
+def clirefs_app_key(ref):
+    return dict(APPS).get(ref)
+
+
+def clr_write():
+    links = clirefs.cheatsheet_links(CLR)
+    tix = {t: i for i, t in enumerate(clirefs.TAGS)}
+
+    def tg(e):
+        return [tix[t] for t in e['tags']]
+
+    def opt(o):
+        x = {}
+        if o.get('alias'):
+            x['a'] = o['alias']
+        if o.get('type'):
+            x['y'] = o['type']
+        if o.get('optional'):
+            x['q'] = 1
+        if o.get('choices'):
+            x['c'] = o['choices']
+        if o.get('kind'):
+            x['k'] = o['kind']
+        return [o['name'], tg(o), o.get('help', '')] + ([x] if x else [])
+
+    def note(tool, key):
+        es = links.get((tool, key))
+        if not es:
+            return None
+        e = es[0]
+        href, label = clr_ref(e.get('ref', ''))
+        return {'d': e[LANG], 'x': e['cmd'], 'h': href, 'l': label}
+    tools = []
+    for t in CLR['tools']:
+        cmds = []
+        for c in t['commands']:
+            r = {'n': c['name'], 't': tg(c)}
+            for k, v in (('h', c.get('help')), ('a', c.get('alias')), ('f', c.get('flags')), ('s', c.get('src')),
+                         ('d', c.get('doc'))):
+                if v:
+                    r[k] = v
+            if c.get('options'):
+                r['o'] = [opt(o) for o in c['options']]
+            nt = note(t['id'], c['name'])
+            if nt:
+                r['note'] = nt
+            cmds.append(r)
+        go = [opt(o) for o in t.get('options', [])]
+        tools.append({'id': t['id'], 'cmds': cmds, 'go': go})
+    strings = {k[4:]: v for k, v in S.items() if k.startswith('clr_')}
+    strings.update({'tag_' + t: S['clr_tag_' + t.replace('-', '_')] for t in clirefs.TAGS})
+    data = {'lang': LANG, 'tag': CLR['meta']['ceph_tag'], 'sha': CLR['meta']['ceph_commit'],
+            'tags': list(clirefs.TAGS), 's': strings, 'tools': tools}
+    with open(os.path.join(LOUT, 'cli-ref-data.js'), 'w', encoding='utf-8') as f:
+        f.write('window.CLIREF=' + json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/') + ';\n')
+
+
+def clr_widget():
+    nc, no = clirefs.counts(CLR)
+    meta = CLR['meta']
+    opts = ''.join(f'<option value="{esc(t["id"])}">{esc(t["id"])}</option>' for t in CLR['tools'])
+    def ltr_help(txt):
+        return esc(txt).replace('--help', '<code dir="ltr">--help</code>')
+    legend = ''.join(f'<div><dt><span class="clr-tag t-{t}">{t}</span></dt><dd>{ltr_help(S["clr_tag_" + t.replace("-", "_")])}</dd></div>'
+                     for t in clirefs.TAGS)
+    built = esc(S['clr_built']).format(tag=f'<bdi dir="ltr">{esc(meta["ceph_tag"])}</bdi>',
+                                       sha=f'<bdi dir="ltr">{esc(meta["ceph_commit"][:12])}</bdi>',
+                                       c=str(nc).translate(FA), o=str(no).translate(FA))
+    return (f'<div class="clr" id="clr">'
+            f'<div class="cs-bar clr-bar">'
+            f'<input type="search" class="cs-search" id="clr-q" placeholder="{esc(S["clr_filter"])}" aria-label="{esc(S["clr_filter"])}">'
+            f'<label class="clr-sel"><span>{esc(S["clr_tool"])}</span> <select id="clr-tool"><option value="">{esc(S["clr_all_tools"])}</option>{opts}</select></label>'
+            f'<label class="cs-chk"><input type="checkbox" id="clr-notes"> <span>{esc(S["clr_notes_only"])}</span></label>'
+            f'<span class="cs-count" id="clr-count" aria-live="polite"></span></div>'
+            f'<div class="clr-tagrow"><span class="clr-tl">{esc(S["clr_tags"])}:</span><div class="clr-tags" id="clr-tags" role="group" aria-label="{esc(S["clr_tags"])}"></div></div>'
+            f'<details class="clr-legend" open><summary>{esc(S["clr_legend"])}</summary><dl>{legend}</dl></details>'
+            f'<p class="clr-built">{built}</p>'
+            f'<noscript><p class="cs-empty">{esc(S["clr_noscript"])}</p></noscript>'
+            f'<ol class="clr-list" id="clr-list"><li class="clr-loading">{esc(S["clr_loading"])}</li></ol>'
+            f'<p class="cs-empty" id="clr-empty" hidden>{esc(S["clr_empty"])}</p>'
+            f'<button type="button" class="btn clr-more" id="clr-more" hidden></button>'
+            f'</div>')
+
+
+clr_write()
+
 # ---------------------------------------------------------------- shared assets
 ASSETS = os.path.join(OUT, 'assets')
 os.makedirs(os.path.join(ASSETS, 'fonts'), exist_ok=True)
@@ -856,7 +967,7 @@ open(os.path.join(ASSETS, 'fonts', 'README.txt'), 'w', encoding='utf-8').write(
     'Vazirmatn (github.com/rastikerdar/vazirmatn), Inter (github.com/rsms/inter) and JetBrains Mono\n'
     '(github.com/JetBrains/JetBrainsMono) are subset copies licensed under the SIL Open Font License 1.1\n'
     '(openfontlicense.org). They are not covered by the book\'s CC BY-NC-SA 4.0 licence.\n')
-for f in ('site.css', 'site.js', 'game.js', 'ask.js', 'paths.js'):
+for f in ('site.css', 'site.js', 'game.js', 'ask.js', 'paths.js', 'cliref.js'):
     shutil.copy2(os.path.join(TPL, f), os.path.join(ASSETS, f))
 # KaTeX (MIT) styles + woff2 fonts for the formulas that build_book.py pre-renders; no runtime JS, no CDN
 _kx = os.path.join(ROOT, 'templates', 'vendor', 'katex')
@@ -1297,6 +1408,8 @@ def emit(cur, main_html, title_text, desc=None, ld=None, og_img=None):
         head_extra += '<link rel="stylesheet" href="../assets/katex/katex.min.css">'
     scripts_extra = '<script src="sim-data.js" defer></script>\n<script src="../assets/sims.js" defer></script>' if has_sims else ''
     scripts_extra += '\n<script src="paths-data.js" defer></script>\n<script src="../assets/paths.js" defer></script>'
+    if slug == 'cli-reference':
+        scripts_extra += '\n<script src="cli-ref-data.js" defer></script>\n<script src="../assets/cliref.js" defer></script>'
     for _n in dict.fromkeys(n for n in (getattr(cur, 'sims', None) or []) if n in SIM_LAZY):
         scripts_extra += f'\n<script src="sim-data-{_n}.js" defer></script>\n<script src="../assets/lab-{_n}.js" defer></script>'
     if cur is None:
@@ -1416,6 +1529,14 @@ for p in pages:
             for node in reversed(list(ctrl_frag.contents)):
                 p.body.insert(0, node)
         p.body.append(frag(f'<p class="cs-empty" id="cs-empty" hidden>{esc(S["cheatsheet_empty"])}</p>'))
+    if p.slug == 'cli-reference':
+        intro_p = p.body.find('p')
+        wf = frag(clr_widget())
+        for node in reversed(list(wf.contents)):
+            if intro_p:
+                intro_p.insert_after(node)
+            else:
+                p.body.insert(0, node)
     if p.kind == 'chapter':
         add_feedback(p)
     meta = ''
