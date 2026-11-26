@@ -1,0 +1,95 @@
+# End-of-chapter quiz, chapter 31 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 31
+questions:
+  - id: spdk-prefix
+    ref: sec-31-3-1
+    q:
+      fa: "BlueStore از کجا تصمیم می‌گیرد به‌جای `KernelDevice` از `NVMEDevice` (SPDK) استفاده کند؟"
+      en: "How does BlueStore decide to use `NVMEDevice` (SPDK) instead of `KernelDevice`?"
+    options:
+      - fa: "وقتی دستگاه در sysfs خود را NVMe معرفی کند"
+        en: "When the device reports NVMe in sysfs"
+      - fa: "وقتی نام فایل دستگاه با `spdk:` شروع شود"
+        en: "When the device file name starts with `spdk:`"
+        correct: true
+      - fa: "وقتی `bdev_ioring` روشن باشد"
+        en: "When `bdev_ioring` is true"
+      - fa: "همیشه، روی هر درایو NVMe"
+        en: "Always, on any NVMe drive"
+    why:
+      fa: "`NVMEDevice::open` خط شناسه‌ی transport را از فایل می‌خواند و با `spdk_nvme_transport_id_parse` تجزیه می‌کند. نوشتن‌ها در بافرهای DMA به تکه‌های ۱۲۸ کیلوبایتی شکسته می‌شوند."
+      en: "`NVMEDevice::open` reads the transport ID line from the file and parses it with `spdk_nvme_transport_id_parse`. Writes are split into 128 KiB pieces in DMA buffers."
+  - id: sq-lock
+    ref: sec-31-2-4
+    q:
+      fa: "در درایور NVMe لینوکس، کپی فرمان در SQ زیر یک spinlock انجام می‌شود. چرا این قفل تقریباً هرگز محل رقابت نیست؟"
+      en: "In the Linux NVMe driver, copying a command into the SQ happens under a spinlock. Why is that lock almost never contended?"
+    options:
+      - fa: "چون قفل فقط یک بار هنگام بوت گرفته می‌شود"
+        en: "Because the lock is only taken once at boot"
+      - fa: "چون هر CPU معمولاً جفت صف خودش را دارد و قفل مخصوص همان صف است"
+        en: "Because each CPU usually has its own queue pair, and the lock is specific to that queue"
+        correct: true
+      - fa: "چون کنترلر به‌جای CPU قفل را می‌گیرد"
+        en: "Because the controller takes the lock instead of the CPU"
+      - fa: "چون فرمان‌ها با DMA کپی می‌شوند، نه با CPU"
+        en: "Because commands are copied with DMA, not by the CPU"
+    why:
+      fa: "هسته برای هر CPU یک جفت صف می‌سازد، پس ارسال‌ها از CPUهای مختلف روی یک قفل به هم نمی‌خورند."
+      en: "The kernel creates one queue pair per CPU, so submissions from different CPUs do not meet on one lock."
+  - id: nvmeof-backend
+    ref: sec-31-4-1
+    q:
+      fa: "درون gateway مربوط به NVMe-oF، چه چیزی هر namespace صادرشده را سرویس می‌دهد؟"
+      en: "Inside the NVMe-oF gateway, what serves each exported namespace?"
+    options:
+      - fa: "یک دستگاه krbd هسته که روی gateway نگاشت شده است"
+        en: "A kernel krbd device mapped on the gateway"
+      - fa: "یک target از نوع iSCSI جلوی RBD"
+        en: "An iSCSI target in front of RBD"
+      - fa: "یک bdev از نوع rbd در SPDK که از فراخوانی‌های ناهمگام librbd استفاده می‌کند"
+        en: "An SPDK bdev of type rbd that uses asynchronous librbd calls"
+        correct: true
+      - fa: "یک فایل روی CephFS"
+        en: "A file on CephFS"
+    why:
+      fa: "target مربوط به SPDK یعنی `nvmf_tgt` فرمان‌های NVMe/TCP را از میزبان می‌گیرد و `rbd_aio_readv` و `rbd_aio_writev` را صدا می‌زند. gateway پیکربندی‌اش را در یک شیء omap نگه می‌دارد."
+      en: "The SPDK target `nvmf_tgt` receives NVMe/TCP commands from the host and calls `rbd_aio_readv` and `rbd_aio_writev`. The gateway keeps its configuration in an omap object."
+  - id: ana-optimized
+    ref: sec-31-4-3
+    q:
+      fa: "با ANA، در هر لحظه چند gateway برای یک گروه ANA در حالت «optimized» است؟"
+      en: "With ANA, how many gateways are \"optimized\" for one ANA group at a given moment?"
+    options:
+      - fa: "یکی؛ بقیه inaccessible گزارش می‌شوند و multipath میزبان I/O را فقط به مسیر optimized می‌فرستد"
+        en: "One; the others are reported as inaccessible, and host multipath sends I/O only to the optimized path"
+        correct: true
+      - fa: "همه‌ی gatewayهای گروه، با I/O چرخشی"
+        en: "All gateways in the group, with round-robin I/O"
+      - fa: "دو تا، یکی اصلی و یکی آماده‌به‌کار"
+        en: "Two, one primary and one hot standby"
+      - fa: "هیچ‌کدام تا وقتی میزبان یکی را انتخاب کند"
+        en: "None until the host chooses one"
+    why:
+      fa: "failover گروه را به gateway دیگری می‌برد که فقط پس از blocklist شدن gateway قبلی optimized می‌شود."
+      en: "Failover moves the group to another gateway, which becomes optimized only after the old one has been blocklisted."
+  - id: nvmegw-manual
+    ref: sec-31-5
+    multi: true
+    q:
+      fa: "پس از خرابی یک gateway روی کلاستری که cephadm مدیریتش می‌کند، I/O میزبان معلق مانده است. کدام کارها با توصیه‌ی فصل جور است؟ همه‌ی موارد درست را برگزینید."
+      en: "Host I/O stays suspended after a gateway failure on a cephadm-managed cluster. Which actions follow the chapter's advice? Select all that apply."
+    options:
+      - fa: "با `ceph nvme-gw show` ببینید گروه ANA در WAIT_BLOCKLIST_CMPL گیر کرده است یا نه"
+        en: "Check with `ceph nvme-gw show` whether the ANA group is stuck in WAIT_BLOCKLIST_CMPL"
+        correct: true
+      - fa: "در `ceph osd blocklist ls` دنبال نشانی gateway قبلی بگردید"
+        en: "Check `ceph osd blocklist ls` for the old gateway's address"
+        correct: true
+      - fa: "با دست `ceph nvme-gw delete` را اجرا کنید تا failover اجباری شود"
+        en: "Run `ceph nvme-gw delete` by hand to force a failover"
+      - fa: "همه‌ی gatewayهای گروه را disable و دوباره enable کنید"
+        en: "Disable all gateways of the group and enable them again"
+    why:
+      fa: "مستندات از اجرای دستی `nvme-gw create` و `delete` زیر cephadm برحذر می‌دارد: حذف، گروه‌های gateway را فوراً failover می‌کند و disable کردن همه‌ی gatewayهای یک گروه دسترسی به namespaceهایش را قطع می‌کند."
+      en: "The documentation warns against running `nvme-gw create` and `delete` by hand under cephadm: deleting fails over the gateway's groups at once, and disabling every gateway of a group cuts off access to its namespaces."

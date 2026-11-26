@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 32 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 32
+questions:
+  - id: scrub-reserve
+    ref: sec-32-2-2
+    q:
+      fa: "پیش از scrub، یک PG روی OSD خودش و روی هر نسخه یک جایگاه رزرو می‌کند. اگر یک نسخه رد کند چه می‌شود؟"
+      en: "Before a PG scrubs, it reserves a slot on its own OSD and on each replica. What happens if one replica refuses?"
+    options:
+      - fa: "scrub فقط روی OSD اصلی اجرا می‌شود"
+        en: "The scrub runs on the primary only"
+      - fa: "کل رزرو آزاد می‌شود و PG پس از `osd_scrub_retry_delay` (۳۰ ثانیه) دوباره در صف قرار می‌گیرد"
+        en: "The whole reservation is released and the PG is requeued after `osd_scrub_retry_delay` (30 s)"
+        correct: true
+      - fa: "آن نسخه down می‌شود"
+        en: "The replica is marked down"
+      - fa: "scrub با نگه داشتن بقیه‌ی رزروها منتظر می‌ماند"
+        en: "The scrub waits holding the other reservations"
+    why:
+      fa: "هر OSD هم‌زمان `osd_max_scrubs` (پیش‌فرض ۳) scrub را می‌پذیرد. آزاد کردن همه‌چیز از نگه داشتن جایگاه روی برخی OSDها هنگام انتظار برای بقیه جلوگیری می‌کند."
+      en: "Each OSD allows `osd_max_scrubs` (default 3) at once. Releasing everything avoids holding slots on some OSDs while waiting for others."
+  - id: backfill-wait
+    ref: sec-32-6
+    q:
+      fa: "یک PG مدت زیادی در `backfill_wait` مانده است. به گفته‌ی فصل، علت معمولاً چیست؟"
+      en: "A PG has been in `backfill_wait` for a long time. What is usually the cause, according to the chapter?"
+    options:
+      - fa: "OSD مقصد down است"
+        en: "The target OSD is down"
+      - fa: "pg log بیش از حد بلند است"
+        en: "The pg log is too long"
+      - fa: "PG دیگری تنها جایگاه `osd_max_backfills` را روی OSD اصلی یا مقصد گرفته است"
+        en: "Another PG has taken the single `osd_max_backfills` slot on the primary or the target"
+        correct: true
+      - fa: "scrub با noscrub غیرفعال شده است"
+        en: "Scrub is disabled with noscrub"
+    why:
+      fa: "`dump_recovery_reservations` را روی هر دو OSD و اولویت را در `ceph pg PGID query` ببینید؛ اگر فوری است، `ceph pg force-backfill PGID` اولویت را بالا می‌برد."
+      en: "Look at `dump_recovery_reservations` on both OSDs and the priority in `ceph pg PGID query`; if it is urgent, `ceph pg force-backfill PGID` raises the priority."
+  - id: backfill-time
+    ref: sec-32-4-5
+    q:
+      fa: "یک PG پنجاه گیگابایت داده در اشیای ۴ مگابایتی دارد، مقصد HDD حدود ۱۰۰ مگابایت بر ثانیه برای هر push می‌نویسد و `osd_max_backfills=1` است. backfill آن تقریباً چقدر طول می‌کشد؟"
+      en: "A PG holds 50 GiB in 4 MiB objects, the HDD target writes about 100 MB/s per push, and `osd_max_backfills=1`. Roughly how long does its backfill take?"
+    options:
+      - fa: "حدود ۹ ثانیه"
+        en: "About 9 seconds"
+      - fa: "حدود ۹ دقیقه (۱۲۸۰۰ شیء × ۴۲ میلی‌ثانیه ≈ ۵۳۷ ثانیه)"
+        en: "About 9 minutes (12800 objects × 42 ms ≈ 537 s)"
+        correct: true
+      - fa: "حدود ۹ ساعت"
+        en: "About 9 hours"
+      - fa: "بدون نقشه‌ی CRUSH قابل برآورد نیست"
+        en: "It cannot be estimated without the CRUSH map"
+    why:
+      fa: "OSD اصلی پیمایش‌های مرتب اشیای خودش و مقصد را ادغام می‌کند و کمبودها را push می‌کند. برای برآورد یک OSD کامل، در تعداد PGهایی که به نوبت منتظرند ضرب کنید."
+      en: "The primary merges sorted scans of its own and the target's objects and pushes what is missing. Multiply by the number of PGs waiting in turn to estimate a whole OSD."
+  - id: auto-repair
+    ref: sec-32-5
+    q:
+      fa: "با پیش‌فرض‌ها، آیا scrub دوره‌ای ناسازگاری‌هایی را که پیدا می‌کند تعمیر می‌کند؟"
+      en: "Does periodic scrub repair the inconsistencies it finds, with the defaults?"
+    options:
+      - fa: "بله، همیشه"
+        en: "Yes, always"
+      - fa: "بله، ولی فقط در poolهای EC"
+        en: "Yes, but only on EC pools"
+      - fa: "نه؛ `osd_scrub_auto_repair` برابر false است، پس فقط گزارش می‌کند و شما `ceph pg repair` را اجرا می‌کنید"
+        en: "No; `osd_scrub_auto_repair` is false, so it reports them and you run `ceph pg repair`"
+        correct: true
+      - fa: "نه؛ تعمیر فقط به‌صورت آفلاین با ceph-objectstore-tool ممکن است"
+        en: "No; repair is only possible offline with ceph-objectstore-tool"
+    why:
+      fa: "`ceph pg repair` فوریت target را must_repair می‌کند و یک deep scrub کامل اجرا می‌کند؛ shardهای خراب به فهرست missing افزوده و از shardهای سالم بازیابی می‌شوند."
+      en: "`ceph pg repair` sets the target's urgency to must_repair and runs a full deep scrub; damaged shards are added to the missing list and recovered from healthy ones."
+  - id: scrub-targets
+    ref: sec-32-2-1
+    q:
+      fa: "زمان‌بند کدام نوع از targetهای scrub را تصادفی می‌کند؟"
+      en: "Which kinds of scrub target does the scheduler randomise?"
+    options:
+      - fa: "همه‌ی targetها، از جمله درخواست‌های اپراتور"
+        en: "All targets, including operator requests"
+      - fa: "فقط targetهای دوره‌ای؛ targetهای درخواستی اپراتور و must_repair مقدم‌اند"
+        en: "Only periodic targets; operator-requested and must-repair targets come first"
+        correct: true
+      - fa: "فقط targetهای deep"
+        en: "Only deep targets"
+      - fa: "هیچ‌کدام؛ زمان scrub تا دقیقه ثابت است"
+        en: "None; scrub times are fixed to the minute"
+    why:
+      fa: "ScrubJob هر PG یک target سطحی و یک target عمیق دارد که هر کدام `scheduled_at`، `not_before` و یک فوریت دارند. تصادفی کردن targetهای دوره‌ای، scrubها را در زمان پخش می‌کند."
+      en: "Each PG's ScrubJob has a shallow and a deep target, each with `scheduled_at`, `not_before` and an urgency. Randomising periodic ones spreads scrubs over time."
