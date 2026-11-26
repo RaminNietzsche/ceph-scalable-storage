@@ -40,6 +40,9 @@ os.makedirs(B, exist_ok=True)
 out = a.out or os.path.join(B, f'ceph-scalable-storage-{a.lang}.{a.format}')
 IMG = re.compile(r'^(!\[.*\]\()(\S+?)(\)\{#[\w:.-]+\})\s*$')
 TLDR_IMG = re.compile(r'^(\[!\[.*\]\()(\S+?)(\)\]\(#[\w:.-]+\))\s*$')
+# appendix anchors of the print book whose Pandoc heading ids differ
+APP_IDS = {'appJ': 'app-upgrade', 'appK': 'app-security'}
+XREF_APP = re.compile(r'\]\(#(' + '|'.join(APP_IDS) + r')\)')
 
 
 def variant(p):
@@ -61,6 +64,7 @@ def body_of(path, shift=1, pending_title=None):
         if l.startswith('```'):
             inc = not inc
         if not inc:
+            l = XREF_APP.sub(lambda x: f'](#{APP_IDS[x.group(1)]})', l)
             m = IMG.match(l)
             tm = TLDR_IMG.match(l)
             if m:

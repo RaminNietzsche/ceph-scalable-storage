@@ -99,7 +99,8 @@ def render_math(doc):
 
 
 LATIN = re.compile(r"[A-Za-z][A-Za-z0-9_./:\-+#@&'=~*<>\[\]{}\"]*(?:(?: |\(|\) ?|, )[A-Za-z0-9\"'(][A-Za-z0-9_./:\-+#@&'=~*<>\[\]{}\"]*)*")
-TOK = re.compile(r'(\*\*[^*]+\*\*|`[^`]+`|' + MATH_RE + ')')
+XLINK = re.compile(r'\[([^\[\]]+)\]\(#([\w:.-]+)\)')   # [text](#anchor): a cross-reference inside the book
+TOK = re.compile(r'(\*\*[^*]+\*\*|`[^`]+`|\[[^\[\]]+\]\(#[\w:.-]+\)|' + MATH_RE + ')')
 
 
 def prose(t):
@@ -139,6 +140,9 @@ def inline(t):
             r.append('<strong>' + inline(p[2:-2]) + '</strong>')
         elif p.startswith('$') and p.endswith('$') and re.fullmatch(MATH_RE, p):
             r.append(RLM + math_ph(p[1:-1]) + RLM)
+        elif p.startswith('[') and XLINK.fullmatch(p):
+            m = XLINK.fullmatch(p)
+            r.append(f'<a class="xref" href="#{m.group(2)}">' + inline(m.group(1)) + '</a>')
         elif p.startswith('`') and p.endswith('`') and len(p) > 2:
             c = p[1:-1]
             cls = ' class="nw"' if len(c) <= 26 else ''
