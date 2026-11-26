@@ -1,0 +1,96 @@
+# End-of-chapter quiz, chapter 29 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 29
+questions:
+  - id: osdc-nomap
+    ref: sec-29-4
+    q:
+      fa: "در فایل `osdc` کلاینت هسته در debugfs، همه‌ی درخواست‌ها روی `osd-1` مانده‌اند. یعنی چه؟"
+      en: "In the kernel client's `osdc` file in debugfs, all requests sit on `osd-1`. What does that mean?"
+    options:
+      - fa: "osd.1 بیش از حد بار دارد"
+        en: "osd.1 is overloaded"
+      - fa: "درخواست‌ها مقصدی ندارند: کلاینت نقشه‌ی معتبری ندارد"
+        en: "The requests have no target: the client has no valid map"
+        correct: true
+      - fa: "درخواست‌ها به OSD اصلی PG شماره‌ی ۱ فرستاده شده‌اند"
+        en: "The requests were sent to the primary of PG 1"
+      - fa: "درخواست‌ها تمام شده‌اند و منتظر آزاد شدن‌اند"
+        en: "The requests are complete and waiting to be freed"
+    why:
+      fa: "اگر در عوض یک tid مدت زیادی روی یک OSD واقعی بماند، ادامه‌اش را روی همان OSD با `ceph daemon osd.N dump_ops_in_flight` دنبال کنید."
+      en: "If instead a tid stays on one real OSD for a long time, follow it on that OSD with `ceph daemon osd.N dump_ops_in_flight`."
+  - id: striper-shared
+    ref: sec-29-7-1
+    q:
+      fa: "krbd و ceph.ko چطور یک آفست در دستگاه یا فایل را به یک شیء و آفستی درون آن تبدیل می‌کنند؟"
+      en: "How do krbd and ceph.ko turn a device or file offset into an object and an offset inside it?"
+    options:
+      - fa: "هر کدام نام شیء را از MDS می‌پرسد"
+        en: "Each asks the MDS for the object name"
+      - fa: "هر دو از striper مشترک در `net/ceph/striper.c` استفاده می‌کنند که با stripe unit، stripe count و اندازه‌ی شیء در layout کار می‌کند"
+        en: "Both use the shared striper in `net/ceph/striper.c`, driven by the stripe unit, stripe count and object size of the layout"
+        correct: true
+      - fa: "آفست را در یک object map ذخیره‌شده در RocksDB جست‌وجو می‌کنند"
+        en: "They look the offset up in an object map stored in RocksDB"
+      - fa: "آفست را با CRUSH هش می‌کنند"
+        en: "They hash the offset with CRUSH"
+    why:
+      fa: "در مثال فصل، یک خواندن ۳ مگابایتی از آفست ۱۰٫۵ مگابایت با layout برابر 1MiB/4/4MiB به چهار تکه در چهار شیء مختلف شکسته می‌شود."
+      en: "In the chapter's example a 3 MiB read from offset 10.5 MiB with a 1 MiB/4/4 MiB layout breaks into four pieces in four different objects."
+  - id: debugfs-metrics
+    ref: sec-29-7-4
+    q:
+      fa: "عددهای تأخیر سمت کلاینت در پوشه‌ی `metrics/` در debugfs مربوط به ceph.ko کجای دیگر هم دیده می‌شوند؟"
+      en: "Where do the client-side latency numbers in ceph.ko's debugfs `metrics/` directory also show up?"
+    options:
+      - fa: "فقط در `dmesg`"
+        en: "Only in `dmesg`"
+      - fa: "در `ceph osd perf`"
+        en: "In `ceph osd perf`"
+      - fa: "در `ceph fs top`، چون کلاینت آن‌ها را در یک پیام metrics به MDS می‌فرستد"
+        en: "In `ceph fs top`, because the client sends them to the MDS in a metrics message"
+        correct: true
+      - fa: "هیچ‌جا؛ فقط محلی‌اند"
+        en: "Nowhere; they are local only"
+    why:
+      fa: "debugfs فقط برای root است و نام‌های داخلی را نشان می‌دهد، پس پیش از گذاشتن خروجی‌اش در تیکت، نام‌های حساس را پاک کنید."
+      en: "debugfs is root-only and shows internal names, so scrub its output before pasting it into tickets."
+  - id: kclient-keepalive
+    ref: sec-29-8-3
+    q:
+      fa: "یک درخواست کلاینت هسته به osd.7 بیش از پنج ثانیه است پاسخی نگرفته. دور timeout کلاینت چه می‌کند؟"
+      en: "A kernel client request to osd.7 has had no reply for more than five seconds. What does the client's timeout round do?"
+    options:
+      - fa: "osd.7 را کند به حساب می‌آورد و روی اتصالش KEEPALIVE می‌فرستد، تا اتصال مرده خطا بدهد و از نو برقرار شود"
+        en: "It counts osd.7 as slow and sends a KEEPALIVE on its connection, so a dead connection faults and is reset"
+        correct: true
+      - fa: "درخواست را لغو می‌کند و EIO به برنامه برمی‌گرداند"
+        en: "It cancels the request and returns EIO to the application"
+      - fa: "osd.7 را در OSDMap به حالت down می‌برد"
+        en: "It marks osd.7 down in the OSDMap"
+      - fa: "درخواست را به OSD نسخه‌ی دیگری می‌فرستد"
+        en: "It resends the request to a replica OSD"
+    why:
+      fa: "`handle_timeout` هر پنج ثانیه اجرا می‌شود. نقشه را تغییر نمی‌دهد؛ فقط اتصال‌های خودش را بررسی می‌کند و نشست‌های بیکار را پس از TTL می‌بندد."
+      en: "`handle_timeout` runs every five seconds. It does not change the map; it only checks its own connections and closes idle sessions after their TTL."
+  - id: kernel-vs-user
+    ref: sec-29-6
+    multi: true
+    q:
+      fa: "در مقایسه با librbd و ceph-fuse، کدام گزاره‌ها درباره‌ی krbd و ceph.ko درست‌اند؟ همه‌ی موارد درست را برگزینید."
+      en: "Compared with librbd and ceph-fuse, which statements about krbd and ceph.ko are true? Select all that apply."
+    options:
+      - fa: "روی libceph ساخته شده‌اند که پیاده‌سازی جداگانه‌ای به زبان C درون هسته است"
+        en: "They are built on libceph, a separate C implementation inside the kernel"
+        correct: true
+      - fa: "قابلیت‌هایشان به نسخه‌ی هسته محدود است"
+        en: "Their features are limited by the kernel version"
+        correct: true
+      - fa: "روی librados و Objecter ساخته شده‌اند"
+        en: "They are built on librados and the Objecter"
+      - fa: "از لایه‌ی اضافه‌ی nbd یا fuse پرهیز می‌کنند"
+        en: "They avoid the extra nbd or fuse layer"
+        correct: true
+    why:
+      fa: "کلاینت‌های فضای کاربر librados، Objecter و AsyncMessenger را با daemonها شریک‌اند و هر قابلیتی، مثل journaling و mirroring، را به‌محض این‌که Ceph داشته باشد می‌گیرند."
+      en: "The user-space clients share librados, Objecter and AsyncMessenger with the daemons and get every feature, such as journaling and mirroring, as soon as Ceph has it."

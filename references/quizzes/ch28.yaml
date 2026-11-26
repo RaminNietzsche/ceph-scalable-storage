@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 28 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 28
+questions:
+  - id: reweight-isout
+    ref: sec-28-6
+    q:
+      fa: "reweight یک OSD را روی ۰٫۵ می‌گذارید. CRUSH چطور آن را اعمال می‌کند؟"
+      en: "You set an OSD's reweight to 0.5. How does CRUSH apply it?"
+    options:
+      - fa: "وزن CRUSH آن OSD را در bucket نصف می‌کند"
+        en: "It halves the OSD's CRUSH weight in the bucket"
+      - fa: "برای هر x یک هش با reweight مقایسه می‌شود، پس تقریباً نیمی از PGهایی که برای این OSD انتخاب شده بود رد و جای دیگری دوباره امتحان می‌شوند"
+        en: "For each x, a hash is compared with the reweight, so roughly half of the PGs it chose for this OSD are rejected and retried elsewhere"
+        correct: true
+      - fa: "OSD را در نیمی از هر ساعت out می‌کند"
+        en: "It marks the OSD out for half of each hour"
+      - fa: "نیمی از بایت‌های هر شیء را به OSD دیگری می‌فرستد"
+        en: "It sends half of each object's bytes to another OSD"
+    why:
+      fa: "`is_out` مقدار `crush_hash32_2(x, osd) & 0xFFFF` را با وزن 16.16 مقایسه می‌کند. چون PGهای ردشده از بالاتر دوباره تلاش می‌کنند، reweight جابه‌جایی گسترده‌تری از weight-set یا upmap می‌سازد."
+      en: "`is_out` compares `crush_hash32_2(x, osd) & 0xFFFF` with the 16.16 weight. Because the rejected PGs retry from higher up, reweight causes wider movement than a weight-set or upmap."
+  - id: shadow-tree
+    ref: sec-28-7
+    q:
+      fa: "`step take default class ssd` درون CRUSH چطور کار می‌کند؟"
+      en: "How does `step take default class ssd` work inside CRUSH?"
+    options:
+      - fa: "CRUSH درخت عادی را می‌پیماید و OSDهای غیر SSD را مثل برخورد رد می‌کند"
+        en: "CRUSH walks the normal tree and skips non-SSD OSDs as collisions"
+      - fa: "یک `TAKE` روی bucket سایه‌ای مثل `default~ssd` است که فقط OSDهای آن کلاس را دارد و شناسه‌ی منفی پایداری دارد"
+        en: "It is a `TAKE` on a shadow bucket such as `default~ssd`, which contains only that class and has a stable negative id"
+        correct: true
+      - fa: "mgr پس از انتخاب CRUSH نتیجه را فیلتر می‌کند"
+        en: "The mgr filters the result after CRUSH has chosen"
+      - fa: "pool فهرست ثابتی از OSDهای SSD نگه می‌دارد"
+        en: "The pool keeps a fixed list of SSD OSDs"
+    why:
+      fa: "نگاشت کلاس به شناسه‌ی سایه در خود نقشه‌ی CRUSH ذخیره می‌شود. اگر شناسه‌های سایه عوض می‌شدند، x همه‌ی PGهای poolهای آن کلاس تغییر می‌کرد و داده جابه‌جا می‌شد."
+      en: "The class-to-shadow-id map is stored in the CRUSH map itself. If shadow ids changed, the x of every PG in pools using that class would change and data would move."
+  - id: bucket-types
+    ref: sec-28-8-4
+    q:
+      fa: "چرا straw2 نوع پیش‌فرض bucket است و نه uniform، list یا tree؟"
+      en: "Why is straw2 the default bucket type rather than uniform, list or tree?"
+    options:
+      - fa: "تنها نوعی است که هزینه‌ی انتخاب O(1) دارد"
+        en: "It is the only type with O(1) selection cost"
+      - fa: "با افزودن یک عضو هرگز داده را جابه‌جا نمی‌کند"
+        en: "It never moves data when an item is added"
+      - fa: "به وزن نیازی ندارد"
+        en: "It needs no weights"
+      - fa: "افزودن، حذف یا تغییر وزن یک عضو، داده را فقط به آن عضو یا از آن جابه‌جا می‌کند"
+        en: "Adding, removing or reweighting an item moves data only to or from that item"
+        correct: true
+    why:
+      fa: "هزینه‌اش O(n) است ولی جابه‌جایی‌اش بهینه است. در شبیه‌سازی فصل، افزودن عضو پنجم به یک bucket از نوع uniform حدود ۸۰ درصد مقصدها را تغییر داد، در حالی که کمینه ۲۰ درصد است."
+      en: "Its cost is O(n), but its movement is optimal. In the chapter's simulation, adding a fifth item to a uniform bucket changed about 80% of the destinations, against a minimum of 20%."
+  - id: msr-rule
+    ref: sec-28-10
+    q:
+      fa: "یک pool از نوع EC با ۴+۲ روی سه میزبان با `choose indep 3 type host` و سپس `chooseleaf indep 2 type osd` اجرا می‌شود. یک OSD خراب می‌شود و میزبانش OSD سالم دیگری ندارد. چه می‌شود و راه‌حل چیست؟"
+      en: "An EC 4+2 pool runs on three hosts with `choose indep 3 type host` then `chooseleaf indep 2 type osd`. An OSD fails and its host has no other healthy OSD. What happens, and what fixes it?"
+    options:
+      - fa: "shard بی‌جا می‌ماند، چون CRUSH کلاسیک نمی‌تواند یک گام به عقب برگردد؛ قاعده‌های MSR از Squid کل فرود را از ریشه دوباره امتحان می‌کنند"
+        en: "The shard stays unplaced, because classic CRUSH cannot go back a step; MSR rules from Squid retry the whole descent from the root"
+        correct: true
+      - fa: "CRUSH آن shard را خودکار به میزبان دیگری می‌برد"
+        en: "CRUSH moves the shard to another host automatically"
+      - fa: "pool تا بازگشت OSD به pool تکثیری تبدیل می‌شود"
+        en: "The pool turns into a replicated pool until the OSD returns"
+      - fa: "balancer یک upmap اضافه می‌کند تا shard را جا بدهد"
+        en: "The balancer adds an upmap to place the shard"
+    why:
+      fa: "قاعده‌های MSR از نوع‌های `msr_firstn`/`msr_indep` و گام `choosemsr` استفاده می‌کنند و میزبان‌های هر stride را از بقیه جدا نگه می‌دارند."
+      en: "MSR rules use the `msr_firstn`/`msr_indep` types and the `choosemsr` step, and keep each stride's hosts apart from the others."
+  - id: balancer-algo
+    ref: sec-28-9
+    q:
+      fa: "`calc_pg_upmaps` در balancer حالت upmap چطور کار می‌کند؟"
+      en: "How does the upmap balancer's `calc_pg_upmaps` work?"
+    options:
+      - fa: "وزن‌های CRUSH را تغییر می‌دهد تا تعداد PGها برابر شود"
+        en: "It changes CRUSH weights until PG counts are equal"
+      - fa: "روی یک کپی از OSDMap، از پرترین OSD شروع می‌کند و حریصانه حذف upmapهای قبلی و افزودن جفت‌های تازه‌ی `pg_upmap_items` را امتحان می‌کند و تغییرهایی را که امتیاز را بهتر می‌کنند نگه می‌دارد"
+        en: "On a copy of the OSDMap it greedily tries removing old and adding new `pg_upmap_items` pairs, starting from the fullest OSD, and keeps changes that improve the score"
+        correct: true
+      - fa: "با برنامه‌ریزی خطی یک تخصیص بهینه حساب می‌کند"
+        en: "It computes an optimal assignment with linear programming"
+      - fa: "اشیا را میان PGها جابه‌جا می‌کند"
+        en: "It moves objects between PGs"
+    why:
+      fa: "نتیجه به‌صورت یک Incremental برگردانده می‌شود. هر دور، مجموعه‌های پرتر و کم‌تر از حد را از انحراف هر OSD نسبت به هدف وزنی‌اش می‌سازد."
+      en: "The result is returned as an Incremental. Each round builds overfull and underfull sets from each OSD's deviation from its weight target."
