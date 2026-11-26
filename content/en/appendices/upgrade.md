@@ -18,7 +18,7 @@ ceph orch upgrade start --ceph-version 19.2.7
 
 :::
 
-This appendix is a runbook for taking a production cluster from Reef (18.2) through Squid (19.2) to Tentacle (20.2). Chapter 19 explains how a cephadm upgrade works; here the same mechanism is laid out as a procedure, with the checks to run before each step, the release changes that can break something on the way, and an honest account of what can be undone. The point releases named here (Squid 19.2.7 and Tentacle 20.2.5) are the latest ones at the time of writing; before you start, check docs.ceph.com/en/latest/releases and use the latest point release of the target series.
+This appendix is a runbook for taking a production cluster from Reef (18.2) through Squid (19.2) to Tentacle (20.2). Chapter 19 explains how a cephadm upgrade works; here the same mechanism is laid out as a procedure, with the checks to run before each step, the release changes that can break something on the way, and an honest account of what can be undone. The point releases named here (Squid 19.2.7 and Tentacle 20.2.5) are the latest ones at the time of writing; before you start, check docs.ceph.com/en/latest/releases and use the latest point release of the target series. Key upgrade and key-rotation commands are also summarized in [Appendix B: Command Cheat Sheet](#appB).
 
 ![The upgrade path in four stages: checks before the upgrade; Reef to the latest Squid point release in the cephadm order, ending with require-osd-release squid; moving the cephx keys to aes256k; and Squid to Tentacle 20.2.4 or later, ending with require-osd-release tentacle. The two require-osd-release steps are one-way](figures/app/f01_upgrade_path.png){#fig-app-upgrade-path}
 

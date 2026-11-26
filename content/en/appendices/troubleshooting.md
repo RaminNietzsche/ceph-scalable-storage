@@ -3,7 +3,7 @@ id: troubleshooting
 lang: en
 ---
 
-This appendix is a compact guide to handling the most common unhealthy states. Each row starts from a "symptom" and leads to the first diagnostic commands and the direction of the fix. The full explanation of each case is in the chapter listed.
+This appendix is a compact guide to handling the most common unhealthy states. Each row starts from a "symptom" and leads to the first diagnostic commands and the direction of the fix. The full explanation of each case is in the chapter listed. For quick syntax lookup across all subsystems, see [Appendix B: Command Cheat Sheet](#appB).
 
 # General principles
 

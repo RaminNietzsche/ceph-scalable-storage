@@ -2,7 +2,7 @@
 
 An original Persian book on Ceph, with a parallel English edition (*The Comprehensive Ceph Guide*). It goes from first cluster to source code and on-disk bytes, in 42 chapters with 375 figures and 188 algorithm boxes, and is built from Markdown sources with one `make` command.
 
-**Read it:** [book.ceph-s3.ir](https://book.ceph-s3.ir) · [Persian](https://book.ceph-s3.ir/fa/) · [English](https://book.ceph-s3.ir/en/) · [Releases](https://github.com/RaminNietzsche/ceph-scalable-storage/releases)
+**Read it:** [book.ceph-s3.ir](https://book.ceph-s3.ir) · [Persian](https://book.ceph-s3.ir/fa/) · [English](https://book.ceph-s3.ir/en/) · Cheat Sheet ([FA](https://book.ceph-s3.ir/fa/cheatsheet.html) / [EN](https://book.ceph-s3.ir/en/cheatsheet.html) · [PDF FA](https://book.ceph-s3.ir/fa/ceph-cheatsheet-fa.pdf) / [PDF EN](https://book.ceph-s3.ir/en/ceph-cheatsheet-en.pdf)) · [Releases](https://github.com/RaminNietzsche/ceph-scalable-storage/releases)
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24253822.svg)](https://doi.org/10.5281/zenodo.24253822)
 
@@ -39,6 +39,7 @@ make check                                   # lint, spell, refs, links, parity
 | Target | What it does |
 |---|---|
 | `pdf` | Print PDF (WeasyPrint, two-pass page-number index) for `LANG` |
+| `cheatsheet` | Standalone printable A4 command cheat-sheet PDF (`build/LANG/ceph-cheatsheet-LANG.pdf`) |
 | `html` | Multi-page web book for `LANG` in `build/site/LANG/` (see the notes above) |
 | `site` | `html` for both editions; open `build/site/index.html` |
 | `fonts` | Install Vazirmatn, Inter, JetBrains Mono and Source Serif with `tools/install_fonts.sh`, only if fontconfig cannot find them (Linux `~/.local/share/fonts`, macOS `~/Library/Fonts`, no root). `pdf`, `html` and `site` depend on it, so a fresh clone needs only `make html`; on macOS install fontconfig first (`brew install fontconfig`) |
@@ -70,7 +71,7 @@ content/<lang>/
   chapters/NN-slug.md         one file per chapter (YAML front matter + Pandoc Markdown)
   answers/NN.md               answers to each chapter's review questions
   appendices/                 troubleshooting guide, release table, upgrade guide
-  data/tools.yaml             command cheat sheet
+  data/tools.yaml             tool descriptions
 labs/                         hands-on labs with scripts (see labs/README.md)
 figures/
   chNN/                       committed PNGs + sources (.mmd Mermaid, .bf.json byte layouts)
@@ -82,6 +83,7 @@ figures/
 glossary/glossary.yaml        bilingual glossary (single source)
 references/references.json    CSL-JSON bibliography (curated official sources)
 references/ceph-release-changes.yaml  changes per Ceph release (appendix H) for the release labels
+references/cheatsheet.yaml           bilingual command cheat sheet (Appendix B, web page & A4 PDF)
 templates/                    html front matter, print CSS (RTL/LTR), cover, Pandoc filter/CSS,
                               site/ (web book page template, CSS, JS, UI strings)
 assets/                       rendered covers

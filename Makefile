@@ -36,7 +36,7 @@ DIST        := dist
 
 # ---- dependency sets -------------------------------------------------------
 TOOLS       := $(wildcard tools/*.py tools/booklib/*.py)
-CONTENT     := $(shell find content/$(L) -type f) glossary/glossary.yaml references/references.json templates/site/sims/strings-$(L).yaml references/ceph-release-changes.yaml
+CONTENT     := $(shell find content/$(L) -type f) glossary/glossary.yaml references/references.json templates/site/sims/strings-$(L).yaml references/ceph-release-changes.yaml references/cheatsheet.yaml
 TEMPLATES   := $(wildcard templates/html/*.$(L).html templates/css/book.$(L).css templates/cover/cover.$(L).yaml)
 PANDOC_TPL  := $(wildcard templates/pandoc/*)
 FIG_SRC     := $(wildcard figures/ch*/*.mmd figures/ch*/*.bf.json figures/app/*.mmd figures/app/*.bf.json) $(wildcard figures/i18n/*.yaml)
@@ -44,6 +44,7 @@ FIG_STAMP   := build/.figures.stamp
 COVER       := assets/cover.$(L).png assets/back.$(L).png
 
 PDF         := $(B)/$(NAME)-$(L).pdf
+CS_PDF      := $(B)/ceph-cheatsheet-$(L).pdf
 BOOK_HTML   := $(B)/book.html
 HTML        := $(B)/$(NAME)-$(L).html
 EPUB        := $(B)/$(NAME)-$(L).epub
@@ -54,10 +55,10 @@ SITE_URL    ?=
 # web-edition deployment options, read by tools/build_site.py from the environment
 # (see tools/booklib/siteconf.py); none of them is stored in the repository
 export REPO_URL REPO_BRANCH FEEDBACK_ENDPOINT FEEDBACK_ISSUES ASK_ENDPOINT NEWSLETTER_ACTION ANALYTICS CF_BEACON_TOKEN PLAUSIBLE_DOMAIN CNAME
-SITE_SRC    := tools/build_site.py tools/booklib/seo.py tools/booklib/siteconf.py CHANGELOG.md tools/sim_fallback.js $(wildcard templates/site/*) $(wildcard templates/site/sims/*)
+SITE_SRC    := tools/build_site.py tools/render_cheatsheet.py tools/booklib/seo.py tools/booklib/siteconf.py CHANGELOG.md tools/sim_fallback.js $(wildcard templates/site/*) $(wildcard templates/site/sims/*)
 WEBFIG_STAMP := build/webfig/.stamp
 
-.PHONY: help all pdf html epub docx book figures cover lint markdownlint spell check-commands \
+.PHONY: help all pdf cheatsheet html epub docx book figures cover lint markdownlint spell check-commands check-cheatsheet \
         check check-labs check-links check-links-online check-refs check-parity check-versions check-tldr check-publish check-sims \
         html-single site check-site shoot-site webfig fonts \
         sync-translations stats clean distclean dist
@@ -71,6 +72,7 @@ all: ## every format for both editions
 	@for l in $(EDITIONS); do $(MAKE) --no-print-directory LANG=$$l pdf html html-single epub docx; done
 
 pdf: fonts $(PDF) ## print PDF (WeasyPrint, two-pass index) for LANG
+cheatsheet: fonts $(CS_PDF) ## printable standalone A4 cheat-sheet PDF for LANG
 html: fonts $(SITE_STAMP) ## multi-page web book (offline search, zoom, themes) into build/site/LANG
 html-single: $(HTML) ## single-file HTML (Pandoc, embedded resources) for LANG
 site: fonts ## web book for both editions (build/site, with language switcher)
@@ -101,6 +103,9 @@ cover: ## regenerate the cover/back images for LANG into assets/
 # ---- print book (identical renderer to v1.4) ------------------------------
 $(BOOK_HTML): $(CONTENT) $(TEMPLATES) $(COVER) $(TOOLS) $(FIG_STAMP) | fonts
 	$(PYTHON) tools/build_book.py --lang $(L) --out $(B)
+
+$(CS_PDF): references/cheatsheet.yaml content/$(L)/ui.yaml content/$(L)/metadata.yaml tools/render_cheatsheet.py | fonts
+	$(PYTHON) tools/render_cheatsheet.py --lang $(L) --out $@
 
 $(PDF): $(BOOK_HTML) tools/render_pdf.py | fonts
 	$(PYTHON) tools/render_pdf.py --lang $(L) --build $(B) --out $@
@@ -159,7 +164,10 @@ check-sims: ## simulator math (CRUSH, autoscaler, Striper, ...) against Ceph's o
 	node tests/sims/test_core.js
 	node tests/sims/test_labs.js
 
-check: lint spell check-refs check-links check-parity check-versions check-tldr check-publish check-sims ## all offline checks
+check-cheatsheet: ## validate references/cheatsheet.yaml (schema, anchors, prose lint, commands)
+	$(PYTHON) tools/check_cheatsheet.py
+
+check: lint spell check-refs check-links check-parity check-versions check-tldr check-publish check-sims check-cheatsheet ## all offline checks
 
 check-publish: ## .zenodo.json and CITATION.cff are complete and match the book version
 	$(PYTHON) tools/check_publish.py
