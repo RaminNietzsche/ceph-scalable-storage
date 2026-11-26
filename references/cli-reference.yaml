@@ -12,8 +12,8 @@ meta:
     ceph:
       commands: 970
       options: 1870
-      command_tags: {both: 571, code-only: 391, docs-only: 8, usage-only: 0, no-usage: 0}
-      option_tags: {both: 519, code-only: 1349, docs-only: 2, usage-only: 0, no-usage: 0}
+      command_tags: {both: 579, code-only: 383, docs-only: 8, usage-only: 0, no-usage: 0}
+      option_tags: {both: 543, code-only: 1325, docs-only: 2, usage-only: 0, no-usage: 0}
     rados:
       commands: 57
       options: 75
@@ -81,25 +81,6 @@ tools:
     help: (re)send alerts immediately
     in: {code: true, docs: true}
     tags: [both]
-  - name: apply
-    src: src/pybind/mgr/smb/module.py:175
-    daemon: mgr
-    module: smb
-    perm: rw
-    options:
-    - name: password_filter
-      type: InputPasswordFilter
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: password_filter_out
-      type: Optional[PasswordFilter]
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    help: Create, update, or remove smb configuration resources based on YAML or JSON specs
-    in: {code: true, docs: false}
-    tags: [code-only]
   - name: auth add
     doc: doc/man/8/ceph.rst:89
     src: src/mon/MonCommands.h:39
@@ -846,104 +827,6 @@ tools:
       optional: true
       in: {code: true, docs: false}
       tags: [code-only]
-    in: {code: true, docs: false}
-    tags: [code-only]
-  - name: cluster create
-    src: src/pybind/mgr/smb/module.py:214
-    daemon: mgr
-    module: smb
-    perm: rw
-    options:
-    - name: cluster_id
-      type: str
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: auth_mode
-      type: AuthMode
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: domain_realm
-      type: str
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: domain_join_ref
-      type: Optional[List[str]]
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: domain_join_user_pass
-      type: Optional[List[str]]
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: user_group_ref
-      type: Optional[List[str]]
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: define_user_pass
-      type: Optional[List[str]]
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: custom_dns
-      type: Optional[List[str]]
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: placement
-      type: Optional[str]
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: clustering
-      type: Optional[SMBClustering]
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: public_addrs
-      type: Optional[List[str]]
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: password_filter
-      type: InputPasswordFilter
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: password_filter_out
-      type: Optional[PasswordFilter]
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    help: Create an smb cluster
-    in: {code: true, docs: false}
-    tags: [code-only]
-  - name: cluster ls
-    src: src/pybind/mgr/smb/module.py:209
-    daemon: mgr
-    module: smb
-    perm: r
-    help: List smb clusters by ID
-    in: {code: true, docs: false}
-    tags: [code-only]
-  - name: cluster rm
-    src: src/pybind/mgr/smb/module.py:347
-    daemon: mgr
-    module: smb
-    perm: rw
-    options:
-    - name: cluster_id
-      type: str
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: password_filter
-      type: PasswordFilter
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    help: Remove an smb cluster
     in: {code: true, docs: false}
     tags: [code-only]
   - name: compact
@@ -16491,100 +16374,6 @@ tools:
     help: list existing sessions
     in: {code: true, docs: false}
     tags: [code-only]
-  - name: share create
-    src: src/pybind/mgr/smb/module.py:368
-    daemon: mgr
-    module: smb
-    perm: rw
-    options:
-    - name: cluster_id
-      type: str
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: share_id
-      type: str
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: cephfs_volume
-      type: str
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: path
-      type: str
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: share_name
-      type: str
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: subvolume
-      type: str
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: --readonly
-      type: bool
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    help: Create an smb share
-    in: {code: true, docs: false}
-    tags: [code-only]
-  - name: share ls
-    src: src/pybind/mgr/smb/module.py:359
-    daemon: mgr
-    module: smb
-    perm: r
-    options:
-    - name: cluster_id
-      type: str
-      in: {code: true, docs: false}
-      tags: [code-only]
-    help: List smb shares in a cluster by ID
-    in: {code: true, docs: false}
-    tags: [code-only]
-  - name: share rm
-    src: src/pybind/mgr/smb/module.py:395
-    daemon: mgr
-    module: smb
-    perm: rw
-    options:
-    - name: cluster_id
-      type: str
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: share_id
-      type: str
-      in: {code: true, docs: false}
-      tags: [code-only]
-    help: Remove an smb share
-    in: {code: true, docs: false}
-    tags: [code-only]
-  - name: show
-    src: src/pybind/mgr/smb/module.py:403
-    daemon: mgr
-    module: smb
-    perm: r
-    options:
-    - name: resource_names
-      type: Optional[List[str]]
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: results
-      type: ShowResults
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    - name: password_filter
-      type: PasswordFilter
-      optional: true
-      in: {code: true, docs: false}
-      tags: [code-only]
-    help: Show resources fetched from the local config store based on resource type or resource type and id(s).
-    in: {code: true, docs: false}
-    tags: [code-only]
   - name: smart
     src: src/mon/MonCommands.h:1403
     daemon: mon
@@ -16599,6 +16388,225 @@ tools:
     help: Query health metrics for underlying device
     in: {code: true, docs: false}
     tags: [code-only]
+  - name: smb apply
+    doc: doc/mgr/smb.rst:23
+    src: src/pybind/mgr/smb/module.py:175
+    daemon: mgr
+    module: smb
+    perm: rw
+    options:
+    - name: password_filter
+      type: InputPasswordFilter
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: password_filter_out
+      type: Optional[PasswordFilter]
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    help: Create, update, or remove smb configuration resources based on YAML or JSON specs
+    in: {code: true, docs: true}
+    tags: [both]
+  - name: smb cluster create
+    doc: doc/mgr/smb.rst:20
+    src: src/pybind/mgr/smb/module.py:214
+    daemon: mgr
+    module: smb
+    perm: rw
+    options:
+    - name: cluster_id
+      type: str
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: auth_mode
+      type: AuthMode
+      in: {code: true, docs: false}
+      tags: [code-only]
+    - name: domain_realm
+      type: str
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: domain_join_ref
+      type: Optional[List[str]]
+      optional: true
+      in: {code: true, docs: false}
+      tags: [code-only]
+    - name: domain_join_user_pass
+      type: Optional[List[str]]
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: user_group_ref
+      type: Optional[List[str]]
+      optional: true
+      in: {code: true, docs: false}
+      tags: [code-only]
+    - name: define_user_pass
+      type: Optional[List[str]]
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: custom_dns
+      type: Optional[List[str]]
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: placement
+      type: Optional[str]
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: clustering
+      type: Optional[SMBClustering]
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: public_addrs
+      type: Optional[List[str]]
+      optional: true
+      in: {code: true, docs: false}
+      tags: [code-only]
+    - name: password_filter
+      type: InputPasswordFilter
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: password_filter_out
+      type: Optional[PasswordFilter]
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    help: Create an smb cluster
+    in: {code: true, docs: true}
+    tags: [both]
+  - name: smb cluster ls
+    doc: doc/mgr/smb.rst:143
+    src: src/pybind/mgr/smb/module.py:209
+    daemon: mgr
+    module: smb
+    perm: r
+    help: List smb clusters by ID
+    in: {code: true, docs: true}
+    tags: [both]
+  - name: smb cluster rm
+    doc: doc/mgr/smb.rst:122
+    src: src/pybind/mgr/smb/module.py:347
+    daemon: mgr
+    module: smb
+    perm: rw
+    options:
+    - name: cluster_id
+      type: str
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: password_filter
+      type: PasswordFilter
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    help: Remove an smb cluster
+    in: {code: true, docs: true}
+    tags: [both]
+  - name: smb share create
+    doc: doc/mgr/smb.rst:157
+    src: src/pybind/mgr/smb/module.py:368
+    daemon: mgr
+    module: smb
+    perm: rw
+    options:
+    - name: cluster_id
+      type: str
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: share_id
+      type: str
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: cephfs_volume
+      type: str
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: path
+      type: str
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: share_name
+      type: str
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: subvolume
+      type: str
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: --readonly
+      type: bool
+      optional: true
+      in: {code: true, docs: false}
+      tags: [code-only]
+    help: Create an smb share
+    in: {code: true, docs: true}
+    tags: [both]
+  - name: smb share ls
+    doc: doc/mgr/smb.rst:197
+    src: src/pybind/mgr/smb/module.py:359
+    daemon: mgr
+    module: smb
+    perm: r
+    options:
+    - name: cluster_id
+      type: str
+      in: {code: true, docs: true}
+      tags: [both]
+    help: List smb shares in a cluster by ID
+    in: {code: true, docs: true}
+    tags: [both]
+  - name: smb share rm
+    doc: doc/mgr/smb.rst:21
+    src: src/pybind/mgr/smb/module.py:395
+    daemon: mgr
+    module: smb
+    perm: rw
+    options:
+    - name: cluster_id
+      type: str
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: share_id
+      type: str
+      in: {code: true, docs: true}
+      tags: [both]
+    help: Remove an smb share
+    in: {code: true, docs: true}
+    tags: [both]
+  - name: smb show
+    doc: doc/mgr/smb.rst:246
+    src: src/pybind/mgr/smb/module.py:403
+    daemon: mgr
+    module: smb
+    perm: r
+    options:
+    - name: resource_names
+      type: Optional[List[str]]
+      optional: true
+      in: {code: true, docs: false}
+      tags: [code-only]
+    - name: results
+      type: ShowResults
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    - name: password_filter
+      type: PasswordFilter
+      optional: true
+      in: {code: true, docs: true}
+      tags: [both]
+    help: Show resources fetched from the local config store based on resource type or resource type and id(s).
+    in: {code: true, docs: true}
+    tags: [both]
   - name: status
     doc: doc/cephadm/install.rst:332
     src: src/mon/MonCommands.h:126

@@ -781,6 +781,25 @@ def _ann_type(a):
 def mgr_commands():
     base = os.path.join(S, 'src', 'pybind', 'mgr')
     out = []
+    # command classes that prepend a fixed word to every prefix, e.g. smb: super().__init__(f"smb {name}", perm)
+    pre = {}
+    for p in sorted(glob.glob(os.path.join(base, '*', 'cli.py'))):
+        tree = ast.parse(open(p, encoding='utf-8').read())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and any('CLICommandBase' in _ann_type(b) for b in node.bases):
+                for sub in ast.walk(node):
+                    if (isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute) and sub.func.attr == '__init__'
+                            and sub.args and isinstance(sub.args[0], ast.JoinedStr)
+                            and isinstance(sub.args[0].values[0], ast.Constant)):
+                        pre[node.name] = sub.args[0].values[0].value
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Attribute) and node.value.func.attr == 'make_registry_subtype'):
+                b = _ann_type(node.value.func.value)
+                if b in pre:
+                    for t in node.targets:
+                        if isinstance(t, ast.Name):
+                            pre[t.id] = pre[b]
     for p in sorted(glob.glob(os.path.join(base, '**', '*.py'), recursive=True)):
         r = rel(p)
         if '/tests/' in r or '/test_' in r or r.split('/')[-1].startswith('test_') or '/mgr/test_orchestrator/' in r:
@@ -824,6 +843,7 @@ def mgr_commands():
                             prefix = str_of(kw.value, consts)
                     if not prefix or '{' in prefix:
                         continue
+                    prefix = pre.get(fn.split('.')[0], '') + prefix
                     perm = 'r' if 'Read' in fn or 'read' in fn else ('rw' if 'Write' in fn or 'write' in fn else '')
                     for kw in dec.keywords:
                         if kw.arg == 'perm' and isinstance(kw.value, ast.Constant):
