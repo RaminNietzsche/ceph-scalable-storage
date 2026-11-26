@@ -959,6 +959,28 @@ def md_files():
     return out
 
 
+def cheatsheet_items():
+    import yaml
+    cs_path = os.path.join(ROOT, 'references', 'cheatsheet.yaml')
+    if not os.path.exists(cs_path):
+        return []
+    rel = os.path.relpath(cs_path, ROOT)
+    data = yaml.safe_load(open(cs_path, encoding='utf-8')) or {}
+    out = []
+    idx = 0
+    for cat in data.get('categories', []):
+        for entry in cat.get('commands', []):
+            idx += 1
+            cmd = entry.get('cmd', '')
+            since = entry.get('since') or cephver.BASELINE
+            argvs = simple_commands(cmd, 'bash')
+            if not argvs:
+                raise ValueError(f'{rel}: command #{idx} ({cmd!r}) produced no recognized Ceph invocation')
+            for argv in argvs:
+                out.append((f'{rel}:{cat.get("id", "?")}', idx, since, argv))
+    return out
+
+
 def check(v: Vocab, argv):
     try:
         return check_ceph(v, argv) if argv[0] == 'ceph' else check_simple(v, argv[0], argv)
@@ -989,6 +1011,7 @@ def main():
         for ln, line, lang, since in command_lines(path):
             for argv in simple_commands(line, lang):
                 items.append((rel, ln, since, argv))
+    items.extend(cheatsheet_items())
 
     order = [k for k, *_ in cephver.RELEASES]
     if a.releases == 'none':

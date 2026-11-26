@@ -1,0 +1,784 @@
+# Single source of truth for the bilingual Ceph Command Cheat Sheet
+# (Appendix B, fa/en cheatsheet.html, and standalone printable A4 PDFs).
+#
+# Every command is validated by tools/check_ceph_commands.py --strict and
+# tools/check_cheatsheet.py against Ceph sources, book anchors and prose lint.
+
+categories:
+  - id: status
+    fa: وضعیت و سلامت کلاستر
+    en: Cluster status & health
+    commands:
+      - cmd: ceph -s
+        fa: خلاصه‌ی وضعیت کلاستر، quorum، OSDها، PGها و ترافیک زنده
+        en: Cluster health, quorum, OSDs, PGs and live I/O summary
+        ref: sec-01-7-3
+      - cmd: ceph health detail
+        fa: فهرست کامل هشدارها و خطاهای سلامت کلاستر با جزئیات
+        en: Full breakdown of active health warnings and errors
+        ref: sec-17-2
+      - cmd: ceph -w
+        fa: دنبال‌کردن زنده‌ی رویدادها و لاگ وضعیت کلاستر
+        en: Stream live cluster status and log events
+        ref: sec-01-7-3
+      - cmd: ceph df
+        fa: نمای کلی فضای مصرفی، آزاد و میزان پرشدگی هر pool
+        en: Cluster raw capacity and per-pool space usage overview
+        ref: sec-01-9-2
+      - cmd: ceph df detail
+        fa: جزئیات دقیق فضای مصرفی و تعداد آبجکت‌های هر pool
+        en: Detailed capacity, stored bytes and object counts per pool
+        ref: sec-07-7
+      - cmd: ceph fsid
+        fa: نمایش شناسه‌ی یکتای کلاستر برای اطمینان از اتصال درست
+        en: Print cluster FSID to confirm target cluster identity
+        ref: sec-01-7-3
+      - cmd: ceph versions
+        fa: نمایش نسخه‌ی نصب‌شده‌ی تمام دیمن‌ها به تفکیک نوع
+        en: Show running Ceph versions grouped by daemon type
+        ref: sec-07-6
+      - cmd: ceph crash ls
+        fa: فهرست کرش‌های ثبت‌شده‌ی دیمن‌ها در کلاستر
+        en: List recorded daemon crash reports across the cluster
+        ref: sec-17-2
+      - cmd: ceph crash info <crash-id>
+        fa: نمایش جزئیات و backtrace یک گزارش کرش مشخص
+        en: Inspect details and backtrace of a specific crash report
+        ref: sec-17-2
+      - cmd: ceph crash archive-all
+        fa: بایگانی‌کردن همه‌ی گزارش‌های کرش برای رفع هشدار سلامت
+        en: Archive all new crash reports to clear health warnings
+        ref: sec-17-2
+
+  - id: mon_mgr
+    fa: مانیتور و مدیر (MON / MGR)
+    en: MON & MGR
+    commands:
+      - cmd: ceph quorum_status
+        fa: وضعیت کامل quorum، رهبر فعلی و نودهای عضو MON
+        en: Full MON quorum status, leader and connectivity scores
+        ref: sec-17-3
+      - cmd: ceph mon stat
+        fa: خلاصه‌ی نقشه‌ی مانیتورها، epoch و اعضای درون quorum
+        en: Summary of monitor map, epoch and quorum members
+        ref: sec-08-5
+      - cmd: ceph mon dump
+        fa: خروجی کامل نقشه‌ی مانیتورها با آدرس‌ها و قابلیت‌ها
+        en: Dump full monitor map including addresses and features
+        ref: sec-08-5
+      - cmd: ceph mon set election_strategy connectivity
+        fa: تغییر الگوریتم انتخاب رهبر MON به حالت اتصال‌محور
+        en: Set monitor election strategy to connectivity mode
+        ref: sec-18-6
+      - cmd: ceph mon rm <mon-id>
+        fa: حذف دائمی یک مانیتور از نقشه‌ی کلاستر
+        en: Permanently remove a monitor from the monmap
+        ref: sec-17-3
+        danger: true
+      - cmd: ceph mgr stat
+        fa: نمایش MGR فعال، standbyها و ماژول‌های در حال اجرا
+        en: Show active MGR, standbys and enabled modules
+        ref: sec-09-10
+      - cmd: ceph mgr module ls
+        fa: فهرست ماژول‌های MGR فعال و غیرفعال
+        en: List enabled and available MGR modules
+        ref: sec-09-4
+      - cmd: ceph mgr module enable <module>
+        fa: فعال‌سازی یک ماژول مدیریتی روی دیمن MGR
+        en: Enable a manager module on the active MGR
+        ref: sec-09-4
+      - cmd: ceph mgr module disable <module>
+        fa: غیرفعال‌سازی یک ماژول مدیریتی روی MGR
+        en: Disable a running manager module
+        ref: sec-09-4
+      - cmd: ceph mgr fail <mgr-id>
+        fa: جابه‌جایی اجباری MGR فعال به یکی از standbyها
+        en: Force failover from an active MGR to a standby
+        ref: sec-09-10
+      - cmd: ceph config dump
+        fa: نمایش تمام تنظیمات ذخیره‌شده در پایگاه‌داده‌ی MON
+        en: Dump all centralized config options stored on MONs
+        ref: sec-01-7-6
+      - cmd: ceph config get <who> <option>
+        fa: خواندن مقدار مؤثر یک تنظیم برای دیمن یا رده‌ی مشخص
+        en: Read effective configuration value for a daemon or type
+        ref: sec-19-9
+      - cmd: ceph config set <who> <option> <value>
+        fa: اعمال سراسری یک تنظیم جدید روی دیمن یا گروه دیمن‌ها
+        en: Set a centralized config option for a daemon or scope
+        ref: sec-19-9
+
+  - id: osd
+    fa: چرخه‌ی عمر OSD
+    en: OSD lifecycle
+    commands:
+      - cmd: ceph osd stat
+        fa: آمار کلی تعداد OSDهای بالا، در مدار و وضعیت نقشه
+        en: Summary of total, up and in OSDs and osdmap epoch
+        ref: sec-07-9
+      - cmd: ceph osd tree
+        fa: نمایش درخت سلسله‌مراتب CRUSH به‌همراه وزن و وضعیت OSDها
+        en: Display CRUSH hierarchy tree with OSD weights and states
+        ref: sec-01-7-5
+      - cmd: ceph osd df
+        fa: میزان مصرف فضا، ضریب پرشدگی و تعداد PG هر OSD
+        en: Per-OSD space usage, variance, utilization and PG count
+        ref: sec-07-7
+      - cmd: ceph osd ok-to-stop <osd-id>
+        fa: بررسی ایمن‌بودن توقف موقت یک OSD بدون از دست رفتن دسترسی
+        en: Check whether stopping an OSD keeps all PGs available
+        ref: sec-19-4
+      - cmd: ceph osd safe-to-destroy <osd-id>
+        fa: اطمینان از نداشتن داده‌ی منحصربه‌فرد پیش از حذف دائمی OSD
+        en: Verify an OSD holds no un-replicated data before removal
+        ref: sec-19-3
+      - cmd: ceph osd out <osd-id>
+        fa: خارج‌کردن OSD از مدار جای‌گذاری تا داده‌ها تخلیه شوند
+        en: Mark an OSD out so its PGs migrate elsewhere
+        ref: sec-07-5
+      - cmd: ceph osd in <osd-id>
+        fa: بازگرداندن OSD به مدار جای‌گذاری داده‌ها
+        en: Mark an OSD back in to receive PG placements
+        ref: sec-07-9
+      - cmd: ceph osd set noout
+        fa: جلوگیری از خروج خودکار OSDها هنگام نگهداری برنامه‌ریزی‌شده
+        en: Prevent automatic mark-out during planned maintenance
+        ref: sec-19-10
+      - cmd: ceph osd unset noout
+        fa: برداشتن پرچم noout پس از پایان نگهداری
+        en: Clear the noout flag after maintenance completes
+        ref: sec-19-10
+      - cmd: ceph osd down <osd-id>
+        fa: علامت‌گذاری فوری OSD به‌عنوان ازکارافتاده در نقشه
+        en: Manually mark an OSD down in the cluster osdmap
+        ref: sec-07-9
+        danger: true
+      - cmd: ceph osd purge <osd-id> --yes-i-really-mean-it
+        fa: پاک‌کردن کامل OSD از نقشه‌ی CRUSH، احراز هویت و osdmap
+        en: Purge all OSD state from CRUSH, cephx and osdmap
+        ref: sec-19-3
+        danger: true
+      - cmd: ceph orch osd rm --replace <osd-id>
+        fa: حذف ایمن OSD و نگهداری شناسه‌ی آن برای دیسک جایگزین
+        en: Drain and remove an OSD while preserving its ID for replacement
+        ref: sec-19-3
+        danger: true
+      - cmd: ceph orch osd rm status
+        fa: پیگیری پیشرفت تخلیه و حذف OSDهای در صف جایگزینی
+        en: Show progress of OSDs queued for drain and removal
+        ref: sec-19-3
+
+  - id: pools_crush
+    fa: Pool، PG و CRUSH
+    en: Pools, PG & CRUSH
+    commands:
+      - cmd: ceph osd pool ls detail
+        fa: فهرست همه‌ی poolها با replica، PG و قانون CRUSH آن‌ها
+        en: List all pools with size, PG count and CRUSH rules
+        ref: sec-01-9-1
+      - cmd: ceph osd pool create <pool> <pg_num>
+        fa: ساخت یک pool جدید با تعداد PG اولیه‌ی مشخص
+        en: Create a new replicated pool with initial PG count
+        ref: sec-01-9-1
+      - cmd: ceph osd pool application enable <pool> rbd
+        fa: مشخص‌کردن نوع کاربرد pool (مثلاً rbd، rgw یا cephfs)
+        en: Tag a pool with its client application type
+        ref: sec-02-4-1
+      - cmd: ceph osd pool set <pool> size 3
+        fa: تنظیم ضریب تکرار نسخه‌های داده روی یک pool
+        en: Set replication factor for a replicated pool
+        ref: sec-01-4-4
+      - cmd: ceph osd pool set <pool> pg_autoscale_mode on
+        fa: فعال‌کردن تنظیم خودکار تعداد PG برای یک pool
+        en: Enable automatic PG scaling on a pool
+        ref: sec-19-5
+      - cmd: ceph osd pool set <pool> allow_ec_optimizations true
+        fa: فعال‌سازی بهینه‌سازی‌های نوشتن و بازسازی FastEC روی pool
+        en: Enable Tentacle FastEC write and recovery optimizations
+        ref: sec-13-6
+        since: tentacle
+      - cmd: ceph osd pool autoscale-status
+        fa: نمایش وضعیت توصیه و مقیاس‌دهی خودکار PGها در همه‌ی poolها
+        en: Show PG autoscaler targets, ratios and recommendations
+        ref: sec-19-5
+      - cmd: ceph osd pool rm <pool> <pool> --yes-i-really-really-mean-it
+        fa: حذف دائمی یک pool و تمامی داده‌های درون آن
+        en: Permanently delete a pool and all its objects
+        ref: sec-01-9-4
+        danger: true
+      - cmd: ceph osd erasure-code-profile set <prof> k=4 m=2
+        fa: تعریف پروفایل erasure coding با تعداد تکه‌های داده و parity
+        en: Define an erasure-code profile with data and parity chunks
+        ref: sec-13-4
+      - cmd: ceph osd crush rule ls
+        fa: فهرست قانون‌های جای‌گذاری CRUSH تعریف‌شده در کلاستر
+        en: List all configured CRUSH placement rules
+        ref: sec-08-3
+      - cmd: ceph osd crush rule create-replicated <rule> default host ssd
+        fa: ساخت قانون CRUSH برای محدودکردن pool به کلاس دیسک مشخص
+        en: Create a replicated CRUSH rule scoped to a device class
+        ref: sec-08-10
+      - cmd: ceph osd crush reweight <name> <weight>
+        fa: تغییر دستی وزن CRUSH یک OSD یا باکت (باعث جابه‌جایی داده می‌شود)
+        en: Change CRUSH weight of a bucket or OSD (triggers backfill)
+        ref: sec-08-7
+        danger: true
+      - cmd: ceph pg stat
+        fa: خلاصه‌ی وضعیت کنونی همه‌ی PGها (active+clean و غیره)
+        en: Summary of PG counts by state across the cluster
+        ref: sec-17-5
+      - cmd: ceph pg dump pgs
+        fa: جدول کامل همه‌ی PGها با acting/up set و آخرین scrub
+        en: Dump per-PG acting sets, states and scrub timestamps
+        ref: sec-17-5
+      - cmd: ceph pg ls-by-pool <pool>
+        fa: فهرست PGهای متعلق به یک pool خاص و وضعیت آن‌ها
+        en: List PGs belonging to a specific pool with acting OSDs
+        ref: sec-17-5
+      - cmd: ceph pg <pgid> query
+        fa: دریافت وضعیت کامل peering، لاگ‌ها و علت گیرکردن یک PG
+        en: Inspect peering state, recovery status and blockers for a PG
+        ref: sec-17-5
+
+  - id: balancer
+    fa: ترازگر (Balancer) و upmap
+    en: Balancer & upmap
+    commands:
+      - cmd: ceph balancer status
+        fa: نمایش وضعیت فعلی، حالت و طرح‌های فعال ماژول balancer
+        en: Show balancer status, active mode and optimization plans
+        ref: sec-07-7
+      - cmd: ceph balancer mode upmap
+        fa: تنظیم روش کار ترازگر روی upmap برای توزیع دقیق PGها
+        en: Configure the balancer to use upmap overrides
+        ref: sec-19-6
+      - cmd: ceph balancer on
+        fa: روشن‌کردن اجرای خودکار ماژول ترازگر در پس‌زمینه
+        en: Enable automatic background balancing
+        ref: sec-07-7
+      - cmd: ceph balancer off
+        fa: متوقف‌کردن اجرای خودکار ترازگر پیش از تغییرات دستی
+        en: Disable automatic balancing before manual adjustments
+        ref: sec-19-6
+      - cmd: ceph balancer eval
+        fa: محاسبه‌ی امتیاز نامتوازن‌بودن توزیع کنونی PGها روی OSDها
+        en: Evaluate current PG distribution imbalance score
+        ref: sec-19-8
+      - cmd: ceph balancer eval-verbose
+        fa: گزارش جزئیات توزیع PG هر OSD در ارزیابی ترازگر
+        en: Print per-OSD PG distribution scores and variance
+        ref: sec-19-8
+      - cmd: ceph balancer optimize <plan>
+        fa: تولید یک طرح بهینه‌سازی آزمایشی بدون اعمال آن روی کلاستر
+        en: Generate a candidate balancing plan without applying it
+        ref: sec-19-8
+      - cmd: ceph balancer show <plan>
+        fa: نمایش دستورهای upmap داخل یک طرح پیشنهادی پیش از اجرا
+        en: Inspect upmap changes inside a generated balancing plan
+        ref: sec-19-8
+      - cmd: ceph balancer execute <plan>
+        fa: اجرای طرح بهینه‌سازی ذخیره‌شده و ثبت نگاشت‌های جدید
+        en: Execute a saved balancing plan on the live cluster
+        ref: sec-19-8
+      - cmd: ceph osd pg-upmap-items <pgid> <old-osd> <new-osd>
+        fa: نگاشت دستی یک OSD در PG مشخص به OSD جایگزین
+        en: Manually remap one OSD of a PG to balance capacity
+        ref: sec-19-8
+      - cmd: ceph osd rm-pg-upmap-items <pgid>
+        fa: حذف استثناهای دستی upmap از یک PG مشخص
+        en: Remove manual pg-upmap-items overrides from a PG
+        ref: sec-19-8
+      - cmd: ceph osd set-require-min-compat-client luminous
+        fa: تنظیم حداقل نسخه‌ی سازگار کلاینت برای اجازه به قابلیت upmap
+        en: Set minimum compatible client version required for upmap
+        ref: sec-19-6
+
+  - id: bluestore
+    fa: BlueStore و دیسک‌ها
+    en: BlueStore & devices
+    commands:
+      - cmd: ceph device ls
+        fa: فهرست تمام دیسک‌های فیزیکی شناسایی‌شده و دیمن‌های متصل
+        en: List all physical storage devices and mapped daemons
+        ref: sec-12-4
+      - cmd: ceph device info <devid>
+        fa: اطلاعات سخت‌افزاری، مدل، شماره سریال و دیمن میزبان دیسک
+        en: Display hardware metadata and daemon mapping for a device
+        ref: sec-12-4
+      - cmd: ceph device monitoring on
+        fa: فعال‌سازی جمع‌آوری خودکار داده‌های SMART و پیش‌بینی خرابی دیسک
+        en: Enable SMART scraping and device failure prediction
+        ref: sec-12-4
+      - cmd: ceph device get-health-metrics <devid>
+        fa: دریافت متریک‌های سلامت SMART ثبت‌شده برای یک دیسک
+        en: Fetch stored SMART health metrics for a physical device
+        ref: sec-12-4
+      - cmd: ceph-volume lvm list
+        fa: نمایش نگاشت دیسک‌ها، LVها و OSDهای ساخته‌شده روی میزبان
+        en: List LVM volumes and OSD metadata on the local host
+        ref: sec-12-4
+      - cmd: ceph-volume lvm create --data <vg/lv> --block.db <db-vg/lv>
+        fa: ساخت OSD با جداکردن پارتیشن block.db روی دیسک پرسرعت
+        en: Provision an OSD with separate fast-tier block.db volume
+        ref: sec-12-4
+      - cmd: ceph-volume lvm zap <device> --destroy
+        fa: پاک‌کردن کامل پارتیشن، امضا و داده‌های LVM یک دیسک
+        en: Wipe LVM metadata, signatures and partitions on a device
+        ref: sec-12-5
+        danger: true
+      - cmd: ceph-bluestore-tool show-label --dev <block-dev>
+        fa: خواندن برچسب سرآیند BlueStore روی دیسک خام (OSD متوقف)
+        en: Read BlueStore on-disk label headers (OSD stopped)
+        ref: sec-12-7
+      - cmd: ceph-bluestore-tool bluefs-bdev-sizes --path <osd-path>
+        fa: نمایش ظرفیت و فضای مصرفی block، DB و WAL در BlueFS
+        en: Report BlueFS block, DB and WAL device capacities
+        ref: sec-12-5
+      - cmd: ceph-bluestore-tool bluefs-bdev-expand --path <osd-path>
+        fa: گسترش فضای دیسک BlueStore پس از بزرگ‌شدن LV یا دیسک زیرین
+        en: Expand BlueStore device layout after underlying volume resize
+        ref: sec-12-5
+      - cmd: ceph-bluestore-tool fsck --path <osd-path>
+        fa: بررسی یکپارچگی ساختارهای داخلی BlueStore و RocksDB آفلاین
+        en: Run offline consistency check on a stopped BlueStore OSD
+        ref: sec-12-5
+      - cmd: ceph-bluestore-tool repair --path <osd-path>
+        fa: تلاش برای تعمیر ساختارهای آسیب‌دیده‌ی BlueStore در حالت آفلاین
+        en: Attempt offline repair on a damaged BlueStore OSD
+        ref: sec-12-5
+        danger: true
+
+  - id: rbd
+    fa: دستگاه بلوکی (RBD)
+    en: RBD
+    commands:
+      - cmd: rbd pool init <pool>
+        fa: آماده‌سازی اولیه‌ی یک pool برای نگهداری imageهای RBD
+        en: Initialize a RADOS pool for RBD image metadata
+        ref: sec-02-4-1
+      - cmd: rbd create <pool>/<image> --size 20G
+        fa: ساخت یک دیسک بلوکی thin-provisioned با ظرفیت مشخص
+        en: Create a thin-provisioned RBD block image
+        ref: sec-02-4-1
+      - cmd: rbd ls -l <pool>
+        fa: فهرست imageهای درون pool همراه با اندازه و فرمت
+        en: List RBD images in a pool with sizes and formats
+        ref: sec-02-4-1
+      - cmd: rbd info <pool>/<image>
+        fa: نمایش ویژگی‌ها، اندازه‌ی آبجکت و پیشوند داده‌ی یک image
+        en: Inspect image size, features, object prefix and parent
+        ref: sec-02-4-1
+      - cmd: rbd resize <pool>/<image> --size 40G
+        fa: افزایش (یا با allow-shrink کاهش) ظرفیت یک دیسک بلوکی
+        en: Resize an RBD image online or offline
+        ref: sec-02-4-3
+      - cmd: rbd device map <pool>/<image>
+        fa: نگاشت image روی کلاینت لینوکس به‌صورت دستگاه بلوکی krbd
+        en: Map an RBD image to a local kernel block device
+        ref: sec-02-4-2
+      - cmd: rbd device unmap /dev/rbd0
+        fa: آزادکردن و قطع اتصال دستگاه بلوکی krbd روی کلاینت
+        en: Unmap a mounted kernel RBD block device
+        ref: sec-02-4-2
+      - cmd: rbd du <pool>/<image>
+        fa: محاسبه‌ی فضای واقعی تخصیص‌یافته روی RADOS برای image
+        en: Show actual provisioned RADOS disk usage of an image
+        ref: sec-02-4-4
+      - cmd: rbd snap create <pool>/<image>@<snap>
+        fa: گرفتن اسنپ‌شات نقطه‌ای فقط‌خواندنی از وضعیت image
+        en: Create a point-in-time read-only snapshot of an image
+        ref: sec-02-5-1
+      - cmd: rbd snap protect <pool>/<image>@<snap>
+        fa: قفل‌کردن اسنپ‌شات پیش از ساخت clone برای جلوگیری از حذف
+        en: Protect a snapshot so clones can depend on it safely
+        ref: sec-02-5-3
+      - cmd: rbd clone <pool>/<image>@<snap> <pool>/<clone>
+        fa: ساخت دیسک قابل‌نوشتن copy-on-write از روی اسنپ‌شات
+        en: Create a thin copy-on-write clone from a snapshot
+        ref: sec-02-5-3
+      - cmd: rbd flatten <pool>/<clone>
+        fa: کپی‌کردن کامل داده‌های والد در clone برای استقلال از اسنپ‌شات
+        en: Copy parent blocks into a clone to remove dependency
+        ref: sec-02-5-4
+      - cmd: rbd trash mv <pool>/<image>
+        fa: انتقال ایمن image به سطل زباله با امکان بازیابی موقت
+        en: Move an image to the RBD trash bin instead of immediate purge
+        ref: sec-02-5-5
+      - cmd: rbd rm <pool>/<image>
+        fa: حذف فوری و کامل تمام آبجکت‌های یک image از RADOS
+        en: Permanently delete an RBD image and its data objects
+        ref: sec-02-5-5
+        danger: true
+      - cmd: rbd mirror pool status <pool> --verbose
+        fa: بررسی وضعیت همگام‌سازی و تاخیر تکرار بین سایت‌های rbd-mirror
+        en: Show detailed rbd-mirror replication health and lag per image
+        ref: sec-02-6-3
+      - cmd: ceph orch apply nvmeof --pool <pool> --group <grp> --placement "<hosts>"
+        fa: استقرار درگاه NVMe-oF روی cephadm برای ارایه‌ی دیسک‌های RBD
+        en: Deploy NVMe-oF gateway service backed by an RBD pool
+        ref: sec-02-10
+        since: tentacle
+
+  - id: cephfs
+    fa: فایل‌سیستم CephFS
+    en: CephFS
+    commands:
+      - cmd: ceph fs volume create <fs>
+        fa: ساخت خودکار poolهای داده و فراداده و راه‌اندازی فایل‌سیستم
+        en: Provision pools, MDS daemons and create a CephFS volume
+        ref: sec-06-2
+      - cmd: ceph fs ls
+        fa: فهرست فایل‌سیستم‌های CephFS موجود و poolهای متصل
+        en: List configured CephFS file systems and their pools
+        ref: sec-06-2
+      - cmd: ceph fs status <fs>
+        fa: وضعیت دیمن‌های MDS فعال، standby و میزان مصرف poolها
+        en: Show active/standby MDS ranks and pool usage for a FS
+        ref: sec-06-2
+      - cmd: ceph fs set <fs> max_mds 2
+        fa: تنظیم تعداد MDSهای هم‌زمان فعال برای توزیع بار فراداده
+        en: Set maximum active MDS ranks for metadata scaling
+        ref: sec-06-2
+      - cmd: ceph fs authorize <fs> client.<id> / rw
+        fa: ساخت کلید کلاینت با دسترسی خواندن/نوشتن به مسیر مشخص
+        en: Create client cephx credentials scoped to a CephFS path
+        ref: sec-06-3
+      - cmd: ceph fs subvolumegroup create <fs> <group>
+        fa: ساخت گروه subvolume (مثلاً برای جداسازی کلاستر کوبرنتیز)
+        en: Create a subvolume group for CSI or tenant isolation
+        ref: sec-06-7
+      - cmd: ceph fs subvolume create <fs> <subvol> --size 10737418240
+        fa: ساخت یک subvolume مجزا با سهمیه‌ی فضایی مشخص
+        en: Create a quota-bounded CephFS subvolume
+        ref: sec-06-7
+      - cmd: ceph fs subvolume getpath <fs> <subvol>
+        fa: دریافت مسیر داخلی subvolume برای mount کلاینت
+        en: Print the filesystem path of a subvolume for mounting
+        ref: sec-06-7
+      - cmd: ceph fs subvolume snapshot create <fs> <subvol> <snap>
+        fa: گرفتن اسنپ‌شات از یک subvolume مشخص در CephFS
+        en: Take a snapshot of a specific CephFS subvolume
+        ref: sec-06-7
+      - cmd: ceph fs fail <fs>
+        fa: ازکاراندازی فوری فایل‌سیستم و توقف دیمن‌های MDS آن
+        en: Take a CephFS file system offline and stop its MDS ranks
+        ref: sec-06-9
+        danger: true
+      - cmd: ceph smb cluster create <id> user --define-user-pass=<user>%<pass>
+        fa: راه‌اندازی درگاه اشتراک‌گذاری SMB مدیریت‌شده روی CephFS
+        en: Deploy a managed SMB cluster backed by CephFS
+        ref: sec-06-4
+        since: tentacle
+
+  - id: rgw
+    fa: RGW و multisite
+    en: RGW & multisite
+    commands:
+      - cmd: radosgw-admin user create --uid=<uid> --display-name="<name>"
+        fa: ساخت کاربر S3/Swift جدید همراه با کلیدهای دسترسی خودکار
+        en: Create an S3/Swift user and generate access/secret keys
+        ref: sec-04-4
+      - cmd: radosgw-admin user info --uid=<uid>
+        fa: نمایش کلیدها، سهمیه و مشخصات یک کاربر RGW
+        en: Inspect keys, caps and quotas of an RGW user
+        ref: sec-04-4
+      - cmd: radosgw-admin account create --account-name=<name> --email=<email>
+        fa: ساخت حساب کاربری IAM-سازگار در RGW برای جداسازی چندمستاجری
+        en: Create an IAM-style RGW account for multi-tenant isolation
+        ref: sec-04-13
+        since: squid
+      - cmd: radosgw-admin bucket list
+        fa: فهرست نام تمامی باکت‌های ثبت‌شده در کلاستر RGW
+        en: List all bucket names across the RGW zone
+        ref: sec-04-12
+      - cmd: radosgw-admin bucket stats --bucket=<bucket>
+        fa: آمار حجم، تعداد آبجکت، شاردهای ایندکس و مالک باکت
+        en: Show object count, size, index shards and owner of a bucket
+        ref: sec-04-12
+      - cmd: radosgw-admin bucket reshard --bucket=<bucket> --num-shards=16
+        fa: تغییر دستی تعداد شاردهای ایندکس یک باکت بزرگ
+        en: Manually reshard a bucket index to a target shard count
+        ref: sec-04-10
+      - cmd: radosgw-admin gc list --include-all
+        fa: نمایش آبجکت‌های حذف‌شده که در صف پاک‌سازی garbage collection هستند
+        en: List pending RGW objects queued for garbage collection
+        ref: sec-04-12
+      - cmd: radosgw-admin gc process --include-all
+        fa: اجرای فوری پاک‌سازی آبجکت‌های سررسیدشده در صف GC
+        en: Run garbage collection now to reclaim deleted object space
+        ref: sec-04-12
+      - cmd: radosgw-admin dedup estimate
+        fa: برآورد میزان صرفه‌جویی فضا پیش از فعال‌سازی dedup روی RGW
+        en: Estimate space savings from RGW block deduplication
+        ref: sec-16-8
+        since: umbrella
+      - cmd: radosgw-admin realm create --rgw-realm=<realm> --default
+        fa: ساخت فضای نام سراسری realm برای پیکربندی multisite
+        en: Create a top-level RGW multisite realm
+        ref: sec-05-4
+      - cmd: radosgw-admin zonegroup create --rgw-zonegroup=<zg> --endpoints=<url> --master --default
+        fa: تعریف zonegroup اصلی و نشانی endpointهای آن در multisite
+        en: Create the master zonegroup with endpoints for multisite
+        ref: sec-05-4
+      - cmd: radosgw-admin zone create --rgw-zonegroup=<zg> --rgw-zone=<zone> --endpoints=<url> --master --default
+        fa: تعریف zone اصلی درون zonegroup برای ذخیره‌سازی داده و فراداده
+        en: Create the master zone inside a zonegroup
+        ref: sec-05-4
+      - cmd: radosgw-admin period update --commit
+        fa: ثبت نهایی تغییرات ساختار realm/zonegroup و انتشار epoch جدید
+        en: Commit pending realm/zonegroup period changes across zones
+        ref: sec-05-4
+      - cmd: radosgw-admin sync status
+        fa: وضعیت کلی همگام‌سازی داده و فراداده با سایر zoneها
+        en: Check overall multisite metadata and data sync lag
+        ref: sec-05-6
+      - cmd: radosgw-admin bucket sync status --bucket=<bucket>
+        fa: بررسی پیشرفت همگام‌سازی شاردهای یک باکت خاص در multisite
+        en: Inspect per-shard multisite sync progress for one bucket
+        ref: sec-05-6
+      - cmd: radosgw-admin metadata sync status
+        fa: بررسی وضعیت همگام‌سازی فراداده (کاربران و باکت‌ها) از zone اصلی
+        en: Check metadata sync status from the master zone
+        ref: sec-05-6
+
+  - id: auth
+    fa: احراز هویت و cephx
+    en: Auth & cephx
+    commands:
+      - cmd: ceph auth ls
+        fa: فهرست تمام موجودیت‌های احراز هویت cephx و سطح دسترسی آن‌ها
+        en: List all cephx entities, keys and capabilities
+        ref: sec-02-3-1
+      - cmd: ceph auth get client.<id>
+        fa: دریافت کلید و دسترسی‌های یک کاربر خاص برای ساخت فایل keyring
+        en: Export keyring entry and caps for a specific client
+        ref: sec-08-8
+      - cmd: ceph auth get-or-create client.<id> mon 'allow r' osd 'allow rwx pool=<pool>'
+        fa: ساخت کلاینت جدید (یا خواندن کلید موجود) با دسترسی محدود به pool
+        en: Create or fetch a least-privilege client restricted to a pool
+        ref: sec-02-3-1
+      - cmd: ceph auth caps client.<id> mon 'allow r' osd 'allow rw pool=<pool>'
+        fa: تغییر سطح دسترسی یک کاربر موجود بدون تغییر کلید آن
+        en: Update cephx capabilities of an existing client identity
+        ref: sec-02-3-1
+      - cmd: ceph auth rotate --key-type=aes256k client.<id> -o client.<id>.keyring
+        fa: چرخش کلید کلاینت به الگوریتم رمزنگاری جدید و ذخیره در فایل
+        en: Rotate a client key to aes256k and write new keyring
+        ref: appJ
+        since: squid
+      - cmd: ceph mon set auth_allowed_ciphers aes256k
+        fa: محدودکردن رمزنگاری مجاز cephx در مانیتورها پس از مهاجرت کلیدها
+        en: Restrict allowed cephx ciphers on monitors after migration
+        ref: appJ
+        since: squid
+      - cmd: ceph auth rm client.<id>
+        fa: لغو و حذف دائمی کلید و هویت یک کلاینت از کلاستر
+        en: Permanently revoke and delete a cephx entity
+        ref: sec-08-8
+        danger: true
+      - cmd: ceph config set mon auth_allow_insecure_global_id_reclaim false
+        fa: بستن آسیب‌پذیری بازپس‌گیری ناامن global_id روی مانیتورها
+        en: Disable insecure global_id reclaim on monitors
+        ref: sec-08-8
+
+  - id: orch
+    fa: Orchestrator و cephadm
+    en: Orchestrator & cephadm
+    commands:
+      - cmd: cephadm bootstrap --mon-ip <ip>
+        fa: راه‌اندازی نخستین گره کلاستر (MON، MGR و Dashboard) با cephadm
+        en: Bootstrap the first cluster node with MON, MGR and Dashboard
+        ref: sec-01-7-2
+      - cmd: cephadm shell
+        fa: ورود به پوسته‌ی کانتینری با ابزارهای هم‌نسخه‌ی کلاستر و keyring
+        en: Enter a container shell with matching Ceph CLI and admin keyring
+        ref: sec-01-7-3
+      - cmd: ceph orch host ls
+        fa: فهرست میزبان‌های تحت مدیریت orchestrator و برچسب‌های آن‌ها
+        en: List managed cluster hosts, addresses and labels
+        ref: sec-01-7-4
+      - cmd: ceph orch host add <host> <ip>
+        fa: افزودن میزبان جدید به مدیریت cephadm پس از کپی کلید SSH
+        en: Register a new host under cephadm orchestration
+        ref: sec-01-7-4
+      - cmd: ceph orch host drain <host>
+        fa: تخلیه‌ی تدریجی دیمن‌ها و OSDهای یک میزبان پیش از حذف
+        en: Gracefully drain all daemons and OSDs from a host
+        ref: sec-19-4
+        danger: true
+      - cmd: ceph orch host rm <host>
+        fa: حذف میزبان تخلیه‌شده از فهرست مدیریت orchestrator
+        en: Remove a drained host from orchestrator management
+        ref: sec-19-4
+        danger: true
+      - cmd: ceph orch ls
+        fa: نمایش وضعیت سرویس‌های اعلامی (تعداد دیمن درخواستی و فعال)
+        en: List declarative services with running vs desired counts
+        ref: sec-07-2
+      - cmd: ceph orch ps
+        fa: فهرست تمام دیمن‌های در حال اجرا با نسخه‌ی کانتینر و میزبان
+        en: List all running Ceph daemons, hosts, versions and status
+        ref: sec-07-2
+      - cmd: ceph orch apply -i <spec.yaml>
+        fa: اعمال یک یا چند مشخصه‌ی سرویس به‌صورت اعلامی از فایل YAML
+        en: Apply declarative service specs from a YAML file
+        ref: sec-11-4
+      - cmd: ceph orch apply rgw <service-id> --placement="label:rgw"
+        fa: استقرار سرویس درگاه RGW روی گره‌های دارای برچسب مشخص
+        en: Deploy an RGW service on hosts matching a placement label
+        ref: sec-04-3
+      - cmd: ceph orch apply mgmt-gateway --placement="label:mgmt"
+        fa: استقرار پروکسی واحد mgmt-gateway برای داشبورد و پایش
+        en: Deploy unified mgmt-gateway reverse proxy service
+        ref: sec-09-6
+        since: tentacle
+      - cmd: ceph orch daemon restart <daemon>
+        fa: راه‌اندازی مجدد ایمن یک دیمن خاص از طریق orchestrator
+        en: Restart a specific daemon managed by cephadm
+        ref: sec-07-2
+      - cmd: ceph orch pause
+        fa: متوقف‌کردن موقت اجرای خودکار تغییرات توسط orchestrator
+        en: Pause background orchestrator reconciliation during maintenance
+        ref: sec-19-4
+
+  - id: upgrade
+    fa: ارتقا (Upgrade)
+    en: Upgrade
+    commands:
+      - cmd: ceph orch upgrade check --image <image>
+        fa: بررسی آمادگی کلاستر و دریافت فهرست دیمن‌های قابل ارتقا
+        en: Dry-run upgrade check showing target versions per daemon
+        ref: sec-19-2
+      - cmd: ceph orch upgrade start --image <image>
+        fa: شروع ارتقای گام‌به‌گام و بدون قطعی کلاستر به ایمیج جدید
+        en: Start rolling cluster upgrade to a target container image
+        ref: sec-19-2
+      - cmd: ceph orch upgrade start --image <image> --daemon-types osd --crush_bucket_type rack --crush_bucket_name <rack>
+        fa: ارتقای مرحله‌ای OSDها محدود به یک رک یا دامنه‌ی خرابی مشخص
+        en: Stage OSD upgrades scoped to one CRUSH failure domain
+        ref: sec-07-6
+        since: umbrella
+      - cmd: ceph orch upgrade status
+        fa: پیگیری پیشرفت لحظه‌ای فرآیند ارتقا و دیمن در حال به‌روزرسانی
+        en: Monitor live rolling upgrade progress and active daemon
+        ref: sec-19-2
+      - cmd: ceph orch upgrade pause
+        fa: مکث در فرآیند ارتقا برای بررسی رفتار کلاستر در نیمه‌ی راه
+        en: Pause an in-progress rolling upgrade cleanly
+        ref: sec-19-2
+      - cmd: ceph orch upgrade resume
+        fa: ادامه‌ی فرآیند ارتقای متوقف‌شده
+        en: Resume a paused rolling upgrade
+        ref: sec-19-2
+      - cmd: ceph orch upgrade stop
+        fa: لغو کامل ارتقای در حال اجرا
+        en: Abort and clear an active upgrade job
+        ref: sec-19-2
+      - cmd: ceph osd require-osd-release <release>
+        fa: قفل‌کردن یک‌طرفه‌ی پروتکل کلاستر پس از ارتقای همه‌ی OSDها
+        en: Finalize upgrade one-way once all OSDs run the new release
+        ref: appJ
+        danger: true
+      - cmd: ceph mon enable-msgr2
+        fa: فعال‌سازی پروتکل شبکه‌ی msgr2 (پورت ۳۳۰۰) روی تمام مانیتورها
+        en: Enable msgr2 protocol on port 3300 across all monitors
+        ref: appJ
+
+  - id: debug
+    fa: عیب‌یابی و دیباگ
+    en: Troubleshooting & debug
+    commands:
+      - cmd: ceph tell osd.<id> dump_ops_in_flight
+        fa: نمایش درخواست‌های در حال اجرا و معطل‌مانده درون یک OSD
+        en: Dump active in-flight operations inside a live OSD
+        ref: sec-17-9
+      - cmd: ceph tell osd.<id> dump_historic_ops
+        fa: بررسی زمان‌بندی کندترین عملیات‌های اخیر ثبت‌شده در OSD
+        en: Inspect latency breakdown of recent slow ops in an OSD
+        ref: sec-17-9
+      - cmd: ceph tell osd.<id> dump_scrubs
+        fa: نمایش صف scrub، زمان‌بندی و اولویت آن‌ها روی یک OSD
+        en: Dump scheduled scrub queue and urgency on an OSD
+        ref: sec-32-6
+        since: squid
+      - cmd: ceph daemon osd.<id> messenger dump
+        fa: نمایش نشست‌ها و وضعیت اتصال‌های لایه‌ی شبکه‌ی msgr2 روی OSD
+        en: Dump msgr2 messenger sessions and workers via admin socket
+        ref: sec-26-6
+        since: squid
+      - cmd: ceph daemon osd.<id> dump_blocked_ops
+        fa: مشاهده‌ی عملیات‌های قفل‌شده از طریق سوکت محلی روی میزبان OSD
+        en: Inspect blocked ops locally via the OSD admin socket
+        ref: sec-17-9
+      - cmd: ceph pg repair <pgid>
+        fa: دستور بازسازی و همگام‌سازی یک PG ناسازگار از روی نسخه‌ی سالم
+        en: Trigger repair of an inconsistent PG from the healthy shard
+        ref: sec-17-10
+      - cmd: ceph pg deep-scrub <pgid>
+        fa: اجرای فوری بررسی عمیق بایت‌به‌بایت روی یک PG مشخص
+        en: Force immediate deep-scrub checksum verification on a PG
+        ref: sec-17-10
+      - cmd: ceph pg <pgid> mark_unfound_lost delete
+        fa: حذف اجباری آبجکت‌های unfound برای آزادشدن PG (باعث از دست رفتن داده می‌شود)
+        en: Force PG recovery by deleting unfound objects (data loss)
+        ref: sec-17-11
+        danger: true
+      - cmd: ceph-objectstore-tool --data-path <osd-path> --pgid <pgid> --op export --file <file>
+        fa: استخراج آفلاین یک PG کامل از دیسک یک OSD خاموش
+        en: Export an intact PG offline from a stopped OSD store
+        ref: sec-18-9
+      - cmd: ceph-objectstore-tool --data-path <osd-path> --op import --file <file>
+        fa: واردکردن آفلاین PG استخراج‌شده به درون یک OSD دیگر
+        en: Import an exported PG offline into another stopped OSD
+        ref: sec-18-9
+        danger: true
+      - cmd: ceph-kvstore-tool bluestore-kv <osd-path> list p
+        fa: خواندن مستقیم کلیدهای فراداده‌ی PG از RocksDB درون BlueStore
+        en: Inspect raw BlueStore RocksDB metadata keys offline
+        ref: sec-17-11
+      - cmd: ceph log last 100 cluster
+        fa: چاپ آخرین صد خط از لاگ سراسری رویدادهای کلاستر
+        en: Print the last 100 lines of the cluster audit log
+        ref: sec-20-9
+
+  - id: perf
+    fa: کارایی و بنچمارک
+    en: Performance & benchmark
+    commands:
+      - cmd: ceph osd perf
+        fa: نمایش لحظه‌ای تاخیر commit و apply همه‌ی OSDها (میلی‌ثانیه)
+        en: Report live commit and apply latency per OSD in ms
+        ref: sec-10-6
+      - cmd: ceph tell osd.<id> bench
+        fa: سنجش فوری سرعت نوشتن متوالی یک OSD در سطح دیسک زیرین
+        en: Run built-in sequential write benchmark on a single OSD
+        ref: sec-10-4
+      - cmd: rados -p <pool> bench 60 write --no-cleanup
+        fa: آزمون سرعت نوشتن در سطح RADOS همراه با نگه‌داری آبجکت‌ها برای تست خواندن
+        en: Benchmark RADOS write throughput and retain objects for read tests
+        ref: sec-10-4
+      - cmd: rados -p <pool> bench 60 seq
+        fa: آزمون سرعت خواندن متوالی روی آبجکت‌های ساخته‌شده در RADOS
+        en: Benchmark sequential RADOS read throughput on existing objects
+        ref: sec-10-4
+      - cmd: rados -p <pool> cleanup
+        fa: پاک‌کردن آبجکت‌های آزمایشی به‌جامانده از بنچمارک rados bench
+        en: Remove leftover benchmark objects from a test pool
+        ref: sec-10-4
+      - cmd: rbd bench --io-type write <pool>/<image>
+        fa: سنجش IOPS و پهنای باند نوشتن روی یک دیسک بلوکی با librbd
+        en: Benchmark librbd write IOPS and bandwidth on an RBD image
+        ref: sec-10-5
+      - cmd: ceph daemon osd.<id> perf dump
+        fa: خروجی تمام شمارنده‌ها و هیستوگرام‌های کارایی داخلی یک دیمن
+        en: Dump all internal perf counters and latency histograms
+        ref: sec-20-3
+      - cmd: ceph config set osd osd_mclock_profile high_recovery_ops
+        fa: تغییر پروفایل زمان‌بندی mClock به اولویت بالای بازیابی یا کلاینت
+        en: Switch mClock QoS profile (balanced, high_client_ops, high_recovery_ops)
+        ref: sec-21-4
+      - cmd: ceph tell osd.<id> dump_metrics reactor_utilization
+        fa: نمایش درصد اشغال هسته‌های reactor در OSDهای Crimson
+        en: Query per-core Seastar reactor utilization on Crimson OSDs
+        ref: sec-30-8
+        since: main
