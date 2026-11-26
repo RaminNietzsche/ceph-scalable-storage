@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 39 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 39
+questions:
+  - id: journal-twice
+    ref: sec-39-2-3
+    q:
+      fa: "فعال کردن journaling برای هر نوشتن یک ایمیج RBD چه هزینه‌ای دارد؟"
+      en: "What does enabling journaling cost each write of an RBD image?"
+    options:
+      - fa: "هیچ؛ journal در پس‌زمینه نوشته می‌شود"
+        en: "Nothing; the journal is written in the background"
+      - fa: "نوشتن دو بار انجام می‌شود، در journal و سپس در داده، و تأخیر آن دو جمع می‌شود"
+        en: "The write is written twice, in the journal and then in the data, and the two latencies add up"
+        correct: true
+      - fa: "فقط حافظه‌ی اضافه روی کلاینت"
+        en: "Only extra memory on the client"
+      - fa: "اندازه‌ی ایمیج را نصف می‌کند"
+        en: "It halves the image size"
+    why:
+      fa: "رویداد اول به journal می‌رود و سپس داده نوشته می‌شود. اگر یک peer در دسترس نباشد، journal هم مدام بزرگ می‌شود."
+      en: "The event goes to the journal first, then the data is written. If a peer is unreachable, the journal also keeps growing."
+  - id: mirror-where
+    ref: sec-39-3
+    q:
+      fa: "در حالت journal، rbd-mirror کجا اجرا می‌شود و چه می‌کند؟"
+      en: "In journal mode, where does rbd-mirror run and what does it do?"
+    options:
+      - fa: "در کلاستر مقصد؛ به‌عنوان یک کلاینت در journal ایمیج مبدأ ثبت می‌شود و رویدادهایش را بازپخش می‌کند"
+        en: "In the destination cluster; it registers as a client of the source image's journal and replays its events"
+        correct: true
+      - fa: "در کلاستر مبدأ؛ هر نوشتن را به مقصد می‌فرستد"
+        en: "In the source cluster; it pushes each write to the destination"
+      - fa: "روی مانیتورهای هر دو کلاستر"
+        en: "On the monitors of both clusters"
+      - fa: "درون هر فرایند QEMU"
+        en: "Inside every QEMU process"
+    why:
+      fa: "ایمیج مقصد قابلیت `non-primary` دارد و فقط rbd-mirror حق نوشتن روی آن را دارد."
+      en: "The destination image has the `non-primary` feature and only rbd-mirror may write to it."
+  - id: snap-mode
+    ref: sec-39-4
+    q:
+      fa: "mirroring مبتنی بر snapshot از کجا تصمیم می‌گیرد چه چیزی را کپی کند؟"
+      en: "How does snapshot-based mirroring decide what to copy?"
+    options:
+      - fa: "journal ایمیج را می‌خواند"
+        en: "It reads the image's journal"
+      - fa: "هر ساعت کل ایمیج را کپی می‌کند"
+        en: "It copies the whole image every hour"
+      - fa: "snapshotهای mirror روی ایمیج اصلی ساخته می‌شوند، مثلاً با `rbd mirror snapshot schedule`، و rbd-mirror تفاوت دو snapshot پشت‌سرهم را کپی می‌کند"
+        en: "Mirror snapshots are created on the primary, for example by `rbd mirror snapshot schedule`, and rbd-mirror copies the difference between two consecutive ones"
+        correct: true
+      - fa: "کلاینت یک نسخه از هر نوشتن را به مقصد می‌فرستد"
+        en: "The client sends a copy of each write to the destination"
+    why:
+      fa: "در این حالت journal وجود ندارد، پس نوشتن کند نمی‌شود؛ فاصله‌ی میان snapshotها حد داده‌ای است که ممکن است از دست برود."
+      en: "There is no journal in this mode, so writes are not slowed down; the gap between snapshots bounds how much data you may lose."
+  - id: up-stopped
+    ref: sec-39-7
+    q:
+      fa: "`rbd mirror image status` روی مقصد `up+stopped` نشان می‌دهد. معمولاً یعنی چه و راه‌حل چیست؟"
+      en: "`rbd mirror image status` shows `up+stopped` on the destination. What does it usually mean, and what is the fix?"
+    options:
+      - fa: "daemon از کار افتاده است؛ rbd-mirror را دوباره راه بیندازید"
+        en: "The daemon has crashed; restart rbd-mirror"
+      - fa: "تکثیر تمام شده و ایمیج هم‌گام است"
+        en: "Replication is finished and the image is in sync"
+      - fa: "شبکه قطع است؛ منتظر بمانید"
+        en: "The network is down; wait for it"
+      - fa: "ایمیج روی مقصد اصلی است، شاید روی هر دو طرف (split-brain)؛ طرف نادرست را demote و سپس resync کنید"
+        en: "The image is primary on the destination, possibly on both sides (split-brain); demote the wrong side and resync it"
+        correct: true
+    why:
+      fa: "پیش از انتخاب طرفی که باید demote شود، پرچم `mirroring primary` را با `rbd info` روی هر دو طرف بررسی کنید."
+      en: "Check the `mirroring primary` flag with `rbd info` on both sides before choosing which side to demote."
+  - id: full-sync
+    ref: sec-39-7
+    q:
+      fa: "همگام‌سازی کامل تعداد زیادی ایمیج بیش از حد طول می‌کشد. فصل به کدام تنظیم اشاره می‌کند و احتیاطش چیست؟"
+      en: "A full sync of many images is taking too long. Which setting does the chapter point to, and what is the caution?"
+    options:
+      - fa: "`rbd_cache`؛ ممکن است داده از دست برود"
+        en: "`rbd_cache`; it may lose data"
+      - fa: "`rbd_mirror_concurrent_image_syncs` (پیش‌فرض ۵)؛ هر همگام‌سازی بار خواندن سنگینی روی مبدأ می‌گذارد"
+        en: "`rbd_mirror_concurrent_image_syncs` (default 5); each sync puts a heavy read load on the source"
+        correct: true
+      - fa: "`osd_max_backfills`؛ بازیابی را کند می‌کند"
+        en: "`osd_max_backfills`; it slows recovery"
+      - fa: "`rbd_journal_order`؛ اندازه‌ی اشیا را تغییر می‌دهد"
+        en: "`rbd_journal_order`; it changes object sizes"
+    why:
+      fa: "آن را با احتیاط بالا ببرید و تأخیر کلاینت روی کلاستر مبدأ را زیر نظر داشته باشید."
+      en: "Raise it carefully and watch client latency on the source cluster."

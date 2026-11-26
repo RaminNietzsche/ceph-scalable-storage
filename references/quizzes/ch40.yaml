@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 40 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 40
+questions:
+  - id: zone-namespaces
+    ref: sec-40-2
+    q:
+      fa: "بیشتر «pool»های یک zone، مثل کاربران و فراداده‌ی bucketها، چطور پیاده‌سازی شده‌اند؟"
+      en: "How are most of a zone's \"pools\", such as users and bucket metadata, implemented?"
+    options:
+      - fa: "هر کدام یک pool جداگانه‌ی RADOS"
+        en: "As a separate RADOS pool for each"
+      - fa: "به‌صورت namespace درون چند pool مشترک، مثل `default.rgw.meta:users.keys`"
+        en: "As namespaces inside a few shared pools, such as `default.rgw.meta:users.keys`"
+        correct: true
+      - fa: "به‌صورت جدول در پایگاه‌داده‌ی mgr"
+        en: "As tables in the mgr database"
+      - fa: "به‌صورت کلیدهای omap روی مانیتورها"
+        en: "As omap keys on the monitors"
+    why:
+      fa: "این کار تعداد poolها و در نتیجه PGها را کم نگه می‌دارد. برای نمونه entrypoint و instance یک bucket در `default.rgw.meta:root` هستند."
+      en: "This keeps the number of pools, and so of PGs, small. The bucket entrypoint and instance, for example, live in `default.rgw.meta:root`."
+  - id: index-objects
+    ref: sec-40-3-1
+    q:
+      fa: "شیء یک shard از index یک bucket یعنی `.dir.<marker>.<shard>` چه چیزی در خود دارد؟"
+      en: "What does a bucket index shard object `.dir.<marker>.<shard>` contain?"
+    options:
+      - fa: "داده‌ی اشیا"
+        en: "The objects' data"
+      - fa: "فقط omap: یک header با آمار shard و یک مدخل برای هر شیء (به‌علاوه‌ی کلیدهای ویژه مثل مدخل‌های bilog)"
+        en: "Only omap: a header with the shard's statistics, and an entry per object (plus special keys such as bilog entries)"
+        correct: true
+      - fa: "فهرستی از شناسه‌های PG"
+        en: "A list of PG ids"
+      - fa: "فقط ACLهای bucket"
+        en: "The ACLs of the bucket only"
+    why:
+      fa: "پس از reshard، نسل‌های تازه با نام `.dir.<marker>.<gen>.<shard>` ساخته می‌شوند."
+      en: "After a reshard, new generations are named `.dir.<marker>.<gen>.<shard>`."
+  - id: two-phase-why
+    ref: sec-40-3-3
+    q:
+      fa: "چرا RGW index یک bucket را در دو مرحله، prepare و complete، به‌روز می‌کند؟"
+      en: "Why does RGW update the bucket index in two phases, prepare and complete?"
+    options:
+      - fa: "تا فهرست‌گیری سریع‌تر شود"
+        en: "To make listing faster"
+      - fa: "چون نوشتن omap به یک کلید در هر فراخوانی محدود است"
+        en: "Because omap writes are limited to one key per call"
+      - fa: "فقط برای پشتیبانی از بارگذاری چندبخشی S3"
+        en: "To support S3 multipart uploads only"
+      - fa: "چون داده و index اشیای جدا هستند و RADOS تراکنش میان‌شیئی ندارد"
+        en: "Because the data and the index are separate objects and RADOS has no cross-object transactions"
+        correct: true
+    why:
+      fa: "prepare یک برچسب معلق ثبت می‌کند، داده نوشته می‌شود و complete مدخل، آمار و bilog را به‌روز می‌کند. complete جاافتاده بعداً از روی وضعیت head اصلاح می‌شود."
+      en: "prepare records a pending tag, the data is written, and complete updates the entry, the statistics and the bilog. A missed complete is fixed later from the head's state."
+  - id: large-omap
+    ref: sec-40-8
+    q:
+      fa: "کلاستر درباره‌ی یک شیء omap بزرگ در index pool هشدار می‌دهد. علت‌های محتمل چیست؟"
+      en: "The cluster warns about a large omap object in the index pool. What are the likely causes?"
+    options:
+      - fa: "یک shard بیش از `rgw_max_objs_per_shard` (۱۰۰۰۰۰) مدخل دارد، یا bilog پاک‌سازی (trim) نشده است"
+        en: "A shard has more than `rgw_max_objs_per_shard` (100000) entries, or the bilog has not been trimmed"
+        correct: true
+      - fa: "bucket تعداد زیادی ACL دارد"
+        en: "The bucket has too many ACLs"
+      - fa: "یک شیء بزرگ‌تر از ۵ گیگابایت است"
+        en: "An object is larger than 5 GiB"
+      - fa: "zone هیچ master ندارد"
+        en: "The zone has no master"
+    why:
+      fa: "`radosgw-admin bucket limit check` و `bilog list` را بررسی کنید. reshard مدخل‌ها را میان shardهای بیشتری پخش می‌کند."
+      en: "Check `radosgw-admin bucket limit check` and `bilog list`. Resharding spreads entries over more shards."
+  - id: bucket-check
+    ref: sec-40-8
+    q:
+      fa: "فهرست‌گیری یک bucket کند است و `bucket stats` نادرست به نظر می‌رسد. فصل علت را مدخل‌های معلق قدیمی زیاد در index می‌داند. چه اجرا می‌کنید؟"
+      en: "Listing a bucket is slow and `bucket stats` look wrong. The chapter traces this to many old pending index entries. What do you run?"
+    options:
+      - fa: "`radosgw-admin gc process --include-all`"
+        en: "`radosgw-admin gc process --include-all`"
+      - fa: "`ceph osd pool set <index pool> pg_num 2048`"
+        en: "`ceph osd pool set <index pool> pg_num 2048`"
+      - fa: "`radosgw-admin bucket check --check-objects --fix`، در زمانی خلوت"
+        en: "`radosgw-admin bucket check --check-objects --fix`, at a quiet time"
+        correct: true
+      - fa: "bucket را حذف و دوباره بسازید"
+        en: "Delete and recreate the bucket"
+    why:
+      fa: "مدخل‌های معلق وقتی می‌مانند که پس از prepare هرگز complete نیاید. این بررسی آن‌ها را با headها مقایسه می‌کند و مدخل‌ها و آمار را اصلاح می‌کند."
+      en: "Pending entries are left when a prepare is never followed by a complete. The check compares them with the heads and fixes the entries and statistics."
