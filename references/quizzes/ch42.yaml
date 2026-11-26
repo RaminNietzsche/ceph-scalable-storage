@@ -1,0 +1,96 @@
+# End-of-chapter quiz, chapter 42 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 42
+questions:
+  - id: staging
+    ref: sec-42-2
+    q:
+      fa: "با radosgw-admin یک endpoint به یک zone اضافه می‌کنید. zoneهای دیگر کی این تغییر را می‌بینند؟"
+      en: "You add an endpoint to a zone with radosgw-admin. When do other zones see the change?"
+    options:
+      - fa: "فوراً؛ هر تغییر بی‌درنگ فرستاده می‌شود"
+        en: "At once; every change is pushed immediately"
+      - fa: "پس از `radosgw-admin period update --commit`؛ تا آن موقع در period مرحله‌ی staging می‌ماند"
+        en: "After `radosgw-admin period update --commit`; until then it sits in the staging period"
+        correct: true
+      - fa: "پس از راه‌اندازی دوباره‌ی همه‌ی RGWها"
+        en: "After all RGWs are restarted"
+      - fa: "در پنجره‌ی بعدی lifecycle"
+        en: "At the next lifecycle window"
+    why:
+      fa: "تغییرها در period با شناسه‌ی `<realm-id>:staging` جمع می‌شوند. commit آن‌ها را در period ثبت می‌کند و به همه‌ی zoneها می‌رساند."
+      en: "Changes collect in the period with id `<realm-id>:staging`. Committing records them in the period and propagates it to all zones."
+  - id: mdlog-where
+    ref: sec-42-3
+    q:
+      fa: "مدخل‌های metadata log (mdlog) کجا ذخیره می‌شوند؟"
+      en: "Where are metadata log (mdlog) entries stored?"
+    options:
+      - fa: "در omap هر shard از index مربوط به bucket"
+        en: "In the omap of each bucket index shard"
+      - fa: "در اشیای `meta.log.<period>.<N>` در log pool"
+        en: "In `meta.log.<period>.<N>` objects in the log pool"
+        correct: true
+      - fa: "روی مانیتورها"
+        en: "On the monitors"
+      - fa: "در data pool کنار اشیا"
+        en: "In the data pool next to the objects"
+    why:
+      fa: "datalog در `data_log.<N>` در log pool است و bilog در shardهای index (حالت InIndex) یا در اشیای FIFO. چون period در نام است، period تازه یعنی mdlog تازه."
+      en: "The datalog is in `data_log.<N>` in the log pool, and the bilog in the index shards (InIndex mode) or in FIFO objects. Because the period is in the name, a new period means a new mdlog."
+  - id: log-growth
+    ref: sec-42-8
+    q:
+      fa: "datalog و bilog بی‌وقفه بزرگ می‌شوند. علت معمول چیست؟"
+      en: "The datalog and bilog keep growing without bound. What is the usual cause?"
+    options:
+      - fa: "تعداد زیادی شیء کوچک"
+        en: "Too many small objects"
+      - fa: "`rgw_run_sync_thread = false` روی همه‌ی RGWها"
+        en: "`rgw_run_sync_thread = false` on all RGWs"
+      - fa: "یک peer قدیمی یا حذف‌شده هنوز در zonegroup تعریف شده است، پس trim منتظر marker آن می‌ماند"
+        en: "An old or removed peer is still defined in the zonegroup, so trimming waits for its marker"
+        correct: true
+      - fa: "zone اصلی (master) از کار افتاده است"
+        en: "The master zone is down"
+    why:
+      fa: "zone مرده را از zonegroup حذف کنید و period را commit کنید. logها فقط پس از این‌که همه‌ی peerها خواندنشان trim می‌شوند."
+      en: "Remove the dead zone from the zonegroup and commit the period. Logs are trimmed only after every peer has read them."
+  - id: lagging-shard
+    ref: sec-42-8
+    q:
+      fa: "یک shard همگام‌سازی داده عقب مانده و جلو نمی‌رود. فصل اول چه پیشنهادی می‌دهد؟"
+      en: "One data sync shard is lagging and does not advance. What does the chapter suggest first?"
+    options:
+      - fa: "`sync error list` و `data sync status --shard-id N` را ببینید؛ اگر یک bucket مدام شکست می‌خورد، `bucket sync run` را برای همان bucket اجرا کنید"
+        en: "Look at `sync error list` and `data sync status --shard-id N`; if one bucket keeps failing, `bucket sync run` for that bucket"
+        correct: true
+      - fa: "فوراً همگام‌سازی کامل zone را از نو اجرا کنید"
+        en: "Run a full resync of the zone at once"
+      - fa: "شیء وضعیت آن shard را حذف کنید"
+        en: "Delete the shard's status object"
+      - fa: "مانیتورهای zone اصلی را دوباره راه بیندازید"
+        en: "Restart the master zone's monitors"
+    why:
+      fa: "اجرای sync برای همان یک bucket مشکل را جدا و خطایش را آشکار می‌کند."
+      en: "Running sync for the one bucket isolates the problem and makes its error visible."
+  - id: slow-small-buckets
+    ref: sec-42-8
+    multi: true
+    q:
+      fa: "همگام‌سازی multisite با تعداد زیادی bucket کوچک کند است. فصل کدام تغییرها را پیشنهاد می‌کند؟ همه‌ی موارد درست را برگزینید."
+      en: "Multisite sync is slow with many small buckets. Which changes does the chapter suggest? Select all that apply."
+    options:
+      - fa: "با احتیاط `rgw_data_sync_spawn_window` و `rgw_bucket_sync_spawn_window` (هر دو ۲۰) را بالا ببرید"
+        en: "Carefully raise `rgw_data_sync_spawn_window` and `rgw_bucket_sync_spawn_window` (both 20)"
+        correct: true
+      - fa: "RGWهای همگام‌ساز بیشتری اضافه کنید تا bidها پخش شوند"
+        en: "Add more syncing RGWs, so the bids spread out"
+        correct: true
+      - fa: "RGWهای کاربرمحور را با `rgw_run_sync_thread = false` از همگام‌سازی جدا کنید"
+        en: "Separate user-facing RGWs from sync with `rgw_run_sync_thread = false`"
+        correct: true
+      - fa: "zone اصلی را به zone کند منتقل کنید"
+        en: "Change the master zone to the slow zone"
+    why:
+      fa: "عوض کردن master یک period تازه و یک mdlog تازه می‌سازد؛ همگام‌سازی داده را سریع نمی‌کند."
+      en: "Changing the master creates a new period and a new mdlog; it does not speed up data sync."

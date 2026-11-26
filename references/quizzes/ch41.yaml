@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 41 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 41
+questions:
+  - id: beast-async
+    ref: sec-41-2
+    q:
+      fa: "با frontend پیش‌فرض Beast و روشن بودن `rgw_beast_enable_async`، وقتی یک درخواست منتظر RADOS است چه بر سر رشته می‌آید؟"
+      en: "With the default Beast frontend and `rgw_beast_enable_async` on, what happens to a thread while a request waits for RADOS?"
+    options:
+      - fa: "تا پاسخ RADOS مسدود می‌ماند"
+        en: "It blocks until RADOS answers"
+      - fa: "مسدود نمی‌شود؛ coroutine آن اتصال معلق می‌شود و رشته به اتصال‌های دیگر می‌رسد"
+        en: "It is not blocked; the connection's coroutine is suspended and the thread serves other connections"
+        correct: true
+      - fa: "کشته می‌شود و رشته‌ی تازه‌ای راه می‌افتد"
+        en: "It is killed and a new thread is started"
+      - fa: "درخواست را به RGW دیگری می‌فرستد"
+        en: "It forwards the request to another RGW"
+    why:
+      fa: "Beast هر اتصال را در یک coroutine روی مخزنی از `rgw_thread_pool_size` (۱۲۸) رشته اجرا می‌کند، پس یک رشته می‌تواند اتصال‌های زیادی را حمل کند."
+      en: "Beast runs each connection in a coroutine on a pool of `rgw_thread_pool_size` (128) threads, so one thread can carry many connections."
+  - id: slow-stage
+    ref: sec-41-2
+    q:
+      fa: "ساده‌ترین راهی که فصل برای یافتن مرحله‌ی کند یک درخواست در RGW می‌دهد چیست؟"
+      en: "What is the simplest way the chapter gives to find which stage of a request is slow in RGW?"
+    options:
+      - fa: "`perf top` را روی میزبان RGW اجرا کنید"
+        en: "Run `perf top` on the RGW host"
+      - fa: "`debug_rgw = 2` را بگذارید و زمان نسبی کنار هر مرحله را در لاگ بخوانید"
+        en: "Set `debug_rgw = 2` and read the relative time next to each stage in the log"
+        correct: true
+      - fa: "`ceph -s` را بخوانید"
+        en: "Read `ceph -s`"
+      - fa: "اشیای index pool را بشمارید"
+        en: "Count the objects in the index pool"
+    why:
+      fa: "خط‌هایی مثل `req 123 0.000s s3:put_obj verifying op permissions` هر گام را با زمانش نشان می‌دهند، پس جهش زمانی، مرحله‌ی کند را نشان می‌دهد."
+      en: "Lines such as `req 123 0.000s s3:put_obj verifying op permissions` show each step with its time, so the jump points to the slow stage."
+  - id: ratelimit-burst
+    ref: sec-41-6
+    q:
+      fa: "کاربری روی یک RGW محدودیت `max-read-ops = 600` در دقیقه دارد. پس از یک دقیقه سکوت، ۷۰۰ GET را یک‌جا می‌فرستد. چه می‌شود؟"
+      en: "A user has `max-read-ops = 600` per minute on one RGW. After a quiet minute, they send 700 GETs at once. What happens?"
+    options:
+      - fa: "هر ۷۰۰ پذیرفته می‌شوند، چون محدودیت دقیقه‌ای است"
+        en: "All 700 are accepted, because the limit is per minute"
+      - fa: "هر ۷۰۰ رد می‌شوند"
+        en: "All 700 are rejected"
+      - fa: "۶۰۰ تای اول پذیرفته می‌شوند و بقیه تا پر شدن دوباره‌ی سطل با ۱۰ توکن در ثانیه پاسخ 503 می‌گیرند"
+        en: "The first 600 are accepted and the rest get 503 until the bucket refills at 10 tokens per second"
+        correct: true
+      - fa: "در صف می‌مانند و ثانیه‌ای یکی سرویس می‌گیرند"
+        en: "They are queued and served one per second"
+    why:
+      fa: "هر RGW سطل توکن خودش را دارد که حداکثر ۶۰۰ توکن نگه می‌دارد. مقدار ۰ یعنی نامحدود."
+      en: "Each RGW keeps its own token bucket, which holds at most 600 tokens. A value of 0 means unlimited."
+  - id: lc-debug
+    ref: sec-41-8
+    q:
+      fa: "`rgw_lc_debug_interval` چه می‌کند و کجا باید به کار رود؟"
+      en: "What does `rgw_lc_debug_interval` do, and where should it be used?"
+    options:
+      - fa: "هر کنش lifecycle را لاگ می‌کند؛ در ممیزی‌های عملیاتی به کار ببرید"
+        en: "It logs every lifecycle action; use it in production audits"
+      - fa: "یک «روز» lifecycle را به چند ثانیه کوتاه می‌کند؛ فقط برای آزمایش، هرگز در محیط عملیاتی روشن نماند"
+        en: "It shortens a lifecycle \"day\" to a few seconds; only for testing, never left on in production"
+        correct: true
+      - fa: "پنجره‌ی lifecycle را به نیمه‌شب می‌برد"
+        en: "It moves the lifecycle window to midnight"
+      - fa: "lifecycle را برای اشکال‌زدایی غیرفعال می‌کند"
+        en: "It disables lifecycle for debugging"
+    why:
+      fa: "در حالت عادی انقضا روزمحور است و در پنجره‌ی کاری اجرا می‌شود، پس «Expiration: 1 day» یعنی نخستین پنجره پس از گذشت یک روز. پیش‌فرض -1 یعنی خاموش."
+      en: "Normally expiry is day-based and runs in the work window, so \"Expiration: 1 day\" means the first window after a day has passed. The default -1 is off."
+  - id: proxy-signature
+    ref: sec-41-10
+    q:
+      fa: "درخواست‌های S3 با `SignatureDoesNotMatch` شکست می‌خورند، ولی فقط از پشت یک reverse proxy. علت معمول چیست؟"
+      en: "S3 requests fail with `SignatureDoesNotMatch`, but only through a reverse proxy. What is the usual cause?"
+    options:
+      - fa: "secret key کاربر منقضی شده است"
+        en: "The user's secret key has expired"
+      - fa: "ساعت‌ها بیش از ۱۵ دقیقه اختلاف دارند"
+        en: "The clocks differ by more than 15 minutes"
+      - fa: "quota مربوط به bucket پر است"
+        en: "The bucket quota is full"
+      - fa: "proxy سرآیند Host یا مسیر را بازنویسی می‌کند که بخشی از امضا هستند"
+        en: "The proxy rewrites the Host header or the path, which are part of the signature"
+        correct: true
+    why:
+      fa: "Host اصلی را به RGW بفرستید و `rgw_dns_name` را بررسی کنید. اختلاف ساعت خطای دیگری می‌دهد: `RequestTimeTooSkewed`."
+      en: "Send the original Host to RGW and check `rgw_dns_name`. Clock skew gives a different error, `RequestTimeTooSkewed`."
