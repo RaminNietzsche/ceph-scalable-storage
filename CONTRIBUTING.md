@@ -107,6 +107,10 @@ is filled in.
 
 The suggested reading paths (a web page, a table in the preface and a hint on the pages of the path a reader follows) come from one file, `references/reading-paths.yaml`. Each path lists its steps in order: a chapter (`ch7`), a section (`sec-18-2`), an appendix (`appJ`) or a lab (`lab:crush`), with a reason in both languages. Reading times are computed from the text (170 words per minute in Persian, 220 in English, plus code and figures), so only labs and appendices without a Markdown source carry a `min` value, and steps with exercises a `hands_on` value. After you add, rename or move a chapter, section or lab, run `make check-paths`: it checks that every step resolves in both editions, that every text exists in fa and en (and the outcome lists match in length), that no path repeats a step, and that the text follows the book's rules. Chapters that no path uses are listed for information only.
 
+## Command-line reference
+
+`references/cli-reference.yaml` (Appendix L and `cli-reference.html`) is generated from the Ceph source tree by `tools/gen_cli_reference.py`; do not edit it by hand. To move it to a newer point release, run `make cli-reference CEPH_TAG=v20.2.N` (or `CEPH_SRC=/path/to/ceph`), then update the counts in `content/<lang>/appendices/cli-reference.md`; `make check-cli-reference` says which numbers it expects. See `docs/CLI-REFERENCE.md` for the data format, the tags and where each tool's commands come from.
+
 ## Tools
 
 The scripts in `tools/` and `figures/scripts/` follow these rules:

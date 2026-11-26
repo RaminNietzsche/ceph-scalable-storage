@@ -70,7 +70,7 @@ content/<lang>/
   front/preface.md
   chapters/NN-slug.md         one file per chapter (YAML front matter + Pandoc Markdown)
   answers/NN.md               answers to each chapter's review questions
-  appendices/                 troubleshooting guide, release table, upgrade guide, RGW security, multisite and DR
+  appendices/                 troubleshooting guide, release table, upgrade guide, RGW security, multisite and DR, CLI reference pointer
   data/tools.yaml             tool descriptions
 labs/                         hands-on labs with scripts (see labs/README.md)
 figures/
@@ -85,6 +85,7 @@ references/references.json    CSL-JSON bibliography (curated official sources)
 references/ceph-release-changes.yaml  changes per Ceph release (appendix H) for the release labels
 references/cheatsheet.yaml           bilingual command cheat sheet (Appendix B, web page & A4 PDF)
 references/reading-paths.yaml        suggested reading paths per reader (web page paths.html, preface table, on-page hint)
+references/cli-reference.yaml        every command and option of the main CLI tools, generated from the Ceph source (Appendix L, cli-reference.html; docs/CLI-REFERENCE.md)
 templates/                    html front matter, print CSS (RTL/LTR), cover, Pandoc filter/CSS,
                               site/ (web book page template, CSS, JS, UI strings)
 assets/                       rendered covers
