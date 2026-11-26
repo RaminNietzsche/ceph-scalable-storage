@@ -61,6 +61,14 @@ Every chapter comes with the same fixed elements: "Tip", "Warning", "Deeper" and
 
 SRE and operations engineers, infrastructure architects, and developers who run Ceph or build software on top of it. The book assumes familiarity with Linux, networking and basic storage concepts.
 
+## How to read this book {#sec-00-0-10}
+
+Nobody has to read every chapter in order. The table below proposes a path for each kind of reader: the chapters in the order that works best, and an estimated time. The time is the reading time of the text plus the hands-on time of the steps that have exercises, rounded to five minutes. Treat it as a floor, not a promise: it does not include the lab you build or the cluster you break.
+
+@READING_PATHS@
+
+The web edition has the full version of every path at `https://book.ceph-s3.ir/en/paths.html`: sections instead of whole chapters wherever a section is enough, the interactive labs, why each step is there, what to know first and what you can do afterwards. It also remembers the path you choose and shows the next step at the end of each page on that path.
+
 ::: {.signature}
 Ramin Najarbashi · November 2026
 :::

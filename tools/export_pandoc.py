@@ -25,7 +25,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 from booklib.mdlower import split_front_matter  # noqa: E402
 from booklib.structure import canonical_counts  # noqa: E402
-from booklib import cephver  # noqa: E402
+from booklib import cephver, readingpaths  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--lang', default='fa', choices=['fa', 'en'])
@@ -101,6 +101,7 @@ def num(n):
 
 parts = []
 fm, pre = body_of(os.path.join(C, 'front', 'preface.md'))
+pre = readingpaths.expand_placeholder(pre, ROOT, a.lang, 'pandoc', UI)
 parts += [f'# {UI["preface"]} {{#preface .unnumbered}}', ''] + [x.replace('@NALGO@', num(N_ALGO)).replace('@NFIG@', num(N_FIG)) for x in pre]
 for path in sorted(glob.glob(os.path.join(C, 'chapters', '[0-9][0-9]-*.md'))):
     fm, lines = body_of(path)

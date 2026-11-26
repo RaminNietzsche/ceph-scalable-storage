@@ -15,6 +15,7 @@ from html import unescape
 import yaml
 from bs4 import BeautifulSoup, NavigableString, Tag
 
+from booklib import readingpaths
 from booklib.mdlower import split_front_matter
 
 CONCEPT_DOI = '10.5281/zenodo.24253822'
@@ -296,7 +297,10 @@ def write_page_markdown(out_dir, slug, title, lang, u, root=None, source=None,
     fig_prefix = u.root('figures/') if u.base else '../figures/'
     body = ''
     if source and os.path.exists(source):
-        body = clean_source_markdown(open(source, encoding='utf-8').read(), fig_prefix=fig_prefix)
+        text = open(source, encoding='utf-8').read()
+        if root:
+            text = readingpaths.expand_text(text, root, lang, 'text')
+        body = clean_source_markdown(text, fig_prefix=fig_prefix)
     elif slug == 'answers' and root:
         body = answers_markdown(root, lang, fig_prefix=fig_prefix)
     elif html:
@@ -406,7 +410,8 @@ def write_llms_full(out, u, root, lang, version='1.6'):
     pref = os.path.join(root, 'content', lang, 'front', 'preface.md')
     if os.path.exists(pref):
         parts.append(f'# {ui["preface"]}\n')
-        parts.append(clean_source_markdown(open(pref, encoding='utf-8').read(), fig_prefix=fig_prefix))
+        parts.append(clean_source_markdown(readingpaths.expand_text(open(pref, encoding='utf-8').read(), root, lang, 'text'),
+                                           fig_prefix=fig_prefix))
     ch_word = 'Chapter' if lang == 'en' else 'فصل'
     for n, slug, path, title in chapter_files(root, lang):
         parts.append(f'# {ch_word} {loc(n, lang)}. {title}\n')

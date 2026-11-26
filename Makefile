@@ -36,7 +36,7 @@ DIST        := dist
 
 # ---- dependency sets -------------------------------------------------------
 TOOLS       := $(wildcard tools/*.py tools/booklib/*.py)
-CONTENT     := $(shell find content/$(L) -type f) glossary/glossary.yaml references/references.json templates/site/sims/strings-$(L).yaml references/ceph-release-changes.yaml references/cheatsheet.yaml
+CONTENT     := $(shell find content/$(L) -type f) glossary/glossary.yaml references/references.json templates/site/sims/strings-$(L).yaml references/ceph-release-changes.yaml references/cheatsheet.yaml references/reading-paths.yaml
 TEMPLATES   := $(wildcard templates/html/*.$(L).html templates/css/book.$(L).css templates/cover/cover.$(L).yaml)
 PANDOC_TPL  := $(wildcard templates/pandoc/*)
 FIG_SRC     := $(wildcard figures/ch*/*.mmd figures/ch*/*.bf.json figures/app/*.mmd figures/app/*.bf.json) $(wildcard figures/i18n/*.yaml)
@@ -59,7 +59,7 @@ SITE_SRC    := tools/build_site.py tools/render_cheatsheet.py tools/booklib/seo.
 WEBFIG_STAMP := build/webfig/.stamp
 
 .PHONY: help all pdf cheatsheet html epub docx book figures cover lint markdownlint spell check-commands check-cheatsheet \
-        check check-labs check-links check-links-online check-refs check-parity check-versions check-tldr check-publish check-sims \
+        check check-labs check-links check-links-online check-refs check-parity check-versions check-tldr check-publish check-sims check-paths \
         html-single site check-site shoot-site webfig fonts \
         sync-translations stats clean distclean dist
 
@@ -164,10 +164,13 @@ check-sims: ## simulator math (CRUSH, autoscaler, Striper, ...) against Ceph's o
 	node tests/sims/test_core.js
 	node tests/sims/test_labs.js
 
+check-paths: ## references/reading-paths.yaml: every step resolves (fa + en), times, text rules
+	$(PYTHON) tools/check_paths.py
+
 check-cheatsheet: ## validate references/cheatsheet.yaml (schema, anchors, prose lint, commands)
 	$(PYTHON) tools/check_cheatsheet.py
 
-check: lint spell check-refs check-links check-parity check-versions check-tldr check-publish check-sims check-cheatsheet ## all offline checks
+check: lint spell check-refs check-links check-parity check-versions check-tldr check-publish check-sims check-cheatsheet check-paths ## all offline checks
 
 check-publish: ## .zenodo.json and CITATION.cff are complete and match the book version
 	$(PYTHON) tools/check_publish.py

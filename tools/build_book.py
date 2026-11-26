@@ -496,9 +496,9 @@ def render(lines, chap=None, md=None):
     return '\n'.join(H)
 
 
-def load_md(path):
+def load_md(path, expand=None):
     fm, body = split_front_matter(open(path, encoding='utf-8').read())
-    return (yaml.safe_load(fm) or {}), lower(body)
+    return (yaml.safe_load(fm) or {}), lower(expand(body) if expand else body)
 
 
 def prep(rest, n):
@@ -753,7 +753,9 @@ for t in sorted(ix_hits, key=lambda x: x.lower()):
 
 # ---------- front matter ----------
 pref_md = []
-pfm, PREF = load_md(os.path.join(C, 'front', 'preface.md'))
+from booklib import readingpaths  # noqa: E402
+pfm, PREF = load_md(os.path.join(C, 'front', 'preface.md'),
+                    lambda b: readingpaths.expand_placeholder(b, ROOT, LANG, 'print', UI))
 if pfm.get('translation') == 'pending':
     PREF = ['!NOTE ' + UI['pending_note']]
 from booklib.structure import canonical_counts  # noqa: E402

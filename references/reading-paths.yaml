@@ -1,0 +1,592 @@
+# Suggested reading paths: the single data source.
+#
+# Rendered as the web page paths.html (with the on-page "next step" hint), as the table in the preface of the
+# print book, and checked by tools/check_paths.py (make check-paths): every ref exists in both editions, fa and
+# en have the same shape, the text follows the prose rules.
+#
+# A step names one thing to read or do by `ref`:
+#   chN         a whole chapter                   ch7
+#   sec-NN-K    a section (or sub-section)        sec-07-6
+#   appX        an appendix, by its print id      appJ   (A glossary, B cheat sheet, C troubleshooting, D release
+#                                                 table, F answers, G bibliography, H algorithms, I changes,
+#                                                 J upgrade guide, K RGW security)
+#   lab:NAME    an interactive lab of the site    lab:balancer
+# `optional: true` marks a step that can be skipped; `why` says what the reader gets from it; `hands_on` adds the
+# minutes a step needs for its exercises.
+# Reading time comes from the text itself; `min` is needed only for labs and for appendices that have no
+# Markdown source (A, B, E, F, G, H, I).
+
+version: 1
+preface_cols:
+  fa: ["خواننده", "ترتیب پیشنهادی", "زمان تقریبی"]
+  en: ["Reader", "Suggested order", "Estimated time"]
+
+# Texts of the web page and of the on-page hint (the other texts of the site are in templates/site/strings.yaml).
+ui:
+  fa:
+    paths_nav: "مسیرهای پیشنهادی مطالعه"
+    paths_title: "مسیرهای پیشنهادی مطالعه"
+    paths_intro: "لازم نیست کتاب را از اول تا آخر بخوانید. هر مسیر برای یک نوع خواننده است: کدام بخش‌ها، به چه ترتیبی، چرا، چقدر وقت می‌برد و پس از آن چه کاری از دستتان برمی‌آید."
+    paths_fig_alt: "نقشه‌ی مسیرها: تازه‌وارد و ارتقای فوری نقطه‌ی ورودند؛ از آن‌جا SRE و اپراتور، توسعه‌دهنده‌ی S3، Kubernetes و پلتفرم یا معمار ذخیره‌سازی؛ و برای رفتن به عمق، کدخوان و مشارکت‌کننده"
+    paths_fig_cap: "نقشه‌ی مسیرها. اگر Ceph برایتان تازه است از «تازه‌وارد» شروع کنید و بعد نقش خود را برگزینید. اگر کلاستری دارید که باید ارتقا بدهید، مستقیم به «ارتقای فوری» بروید."
+    paths_pick: "مسیر خود را انتخاب کنید"
+    paths_steps: "{n} گام"
+    paths_time: "زمان تقریبی"
+    paths_prereq: "پیش‌نیاز"
+    paths_after: "پس از این مسیر می‌توانید"
+    paths_optional: "اختیاری"
+    paths_lab: "آزمایشگاه"
+    paths_then: "پس از این مسیر:"
+    paths_follow: "این مسیر را دنبال می‌کنم"
+    paths_following: "در حال دنبال کردن"
+    paths_note: "زمان‌ها از خود متن شمرده شده‌اند (زمان خواندن، به‌اضافه‌ی زمان کار عملی در گام‌هایی که تمرین دارند) و به مضرب پنج دقیقه گرد شده‌اند؛ آن را کف زمان بدانید. اگر مسیری را دنبال کنید، مرورگرتان آن را به خاطر می‌سپارد و در پایان هر صفحه‌ی مسیر گام بعدی را نشان می‌دهد. چیزی از مرورگر شما بیرون نمی‌رود."
+    paths_hint_label: "مسیر مطالعه"
+    paths_hint_on: "مسیر شما: «{path}» · گام {i} از {n}"
+    paths_hint_next: "گام بعدی"
+    paths_hint_opt: "اختیاری"
+    paths_hint_min: "حدود {n} دقیقه"
+    paths_hint_done: "به پایان مسیر «{path}» رسیده‌اید."
+    paths_hint_all: "همه‌ی مسیرها"
+    paths_hint_stop: "رها کردن مسیر"
+    paths_hint_path: "صفحه‌ی مسیر"
+    paths_read_n: "{r} از {n} گام خوانده شده"
+    paths_home_t: "مسیرهای پیشنهادی مطالعه"
+    paths_home_d: "برای هر نوع خواننده یک مسیر، از تازه‌وارد و SRE تا توسعه‌دهنده‌ی S3، مهندس Kubernetes، معمار، ارتقای فوری و کدخوان؛ هر مسیر با بخش‌ها، آزمایشگاه‌ها، دلیل هر گام و زمان تقریبی."
+  en:
+    paths_nav: "Reading paths"
+    paths_title: "Suggested reading paths"
+    paths_intro: "You do not have to read the book from cover to cover. Each path is for one kind of reader: which parts, in what order, why, how long it takes and what you can do afterwards."
+    paths_fig_alt: "The map of the paths: Newcomer and Upgrade in a hurry are the places to start; from there SRE / operator, S3 developer, Kubernetes / platform or Storage architect; and, to go deeper, Code reader / contributor"
+    paths_fig_cap: "The map of the paths. If Ceph is new to you, start with Newcomer and then pick your role. If you have a cluster to upgrade, go straight to Upgrade in a hurry."
+    paths_pick: "Pick your path"
+    paths_steps: "{n} steps"
+    paths_time: "Estimated time"
+    paths_prereq: "Before you start"
+    paths_after: "After this path you can"
+    paths_optional: "optional"
+    paths_lab: "Lab"
+    paths_then: "After this path:"
+    paths_follow: "Follow this path"
+    paths_following: "Following this path"
+    paths_note: "The times are counted from the text itself (reading time, plus hands-on time for steps that have exercises) and rounded to five minutes; treat them as a floor. If you follow a path, your browser remembers it and shows the next step at the end of each page on the path. Nothing leaves your browser."
+    paths_hint_label: "Reading path"
+    paths_hint_on: "Your path: “{path}” · step {i} of {n}"
+    paths_hint_next: "Next step"
+    paths_hint_opt: "optional"
+    paths_hint_min: "about {n} min"
+    paths_hint_done: "You have reached the end of the path “{path}”."
+    paths_hint_all: "All paths"
+    paths_hint_stop: "Stop following"
+    paths_hint_path: "Path page"
+    paths_read_n: "{r} of {n} steps read"
+    paths_home_t: "Suggested reading paths"
+    paths_home_d: "A path for each kind of reader, from newcomer and SRE to S3 developer, Kubernetes engineer, architect, upgrade in a hurry and code reader; each with sections, labs, why every step is there and an estimated time."
+
+paths:
+  - id: newcomer
+    icon: cluster
+    short: {fa: "تازه‌وارد", en: "Newcomer"}
+    title: {fa: "تازه با Ceph آشنا شده‌ام", en: "I'm new to Ceph"}
+    who:
+      fa: "دانشجو یا مهندسی که Ceph را تازه شناخته و می‌خواهد بفهمد چیست، چرا ساخته شده و یک کلاستر کوچک چطور بالا می‌آید."
+      en: "A student or engineer meeting Ceph for the first time, who wants to know what it is, why it exists and how a small cluster comes up."
+    prereq:
+      fa: "آشنایی با لینوکس و شبکه، و این‌که RAID چیست. برای بخش عملی حدود چهار ماشین مجازی کوچک لازم است؛ طرح آن در بخش «ساخت آزمایشگاه مجازی» آمده است."
+      en: "Some Linux and networking, and what RAID is. The hands-on part needs about four small virtual machines; the layout is in the section on building a virtual lab."
+    outcomes:
+      fa:
+        - "توضیح می‌دهید RADOS، CRUSH، pool و PG هر کدام چه کاری می‌کنند."
+        - "با cephadm یک کلاستر کوچک آزمایشی بالا می‌آورید."
+        - "با یک image بلوکی، یک bucket شیء و یک فایل‌سیستم CephFS آشنا می‌شوید."
+        - "خروجی ceph -s و وضعیت PGها را می‌خوانید."
+      en:
+        - "You can explain what RADOS, CRUSH, pools and PGs each do."
+        - "You bring up a small test cluster with cephadm."
+        - "You meet a block image, an object bucket and a CephFS file system."
+        - "You can read the output of ceph -s and the PG states."
+    next: [sre, s3dev, k8s, architect]
+    stages:
+      - title: {fa: "چرا Ceph و چگونه ساخته شده", en: "Why Ceph, and how it is built"}
+        steps:
+          - ref: sec-01-2
+            why: {fa: "مسئله از اینجا شروع می‌شود: چرا ذخیره‌سازی نرم‌افزارمحور، و چرا یک بستر برای بلوک، شیء و فایل.", en: "The problem first: why software-defined storage, and why one platform for block, object and file."}
+          - ref: sec-01-3
+            optional: true
+            why: {fa: "اگر با RAID کار کرده‌اید ببینید چرا بازسازی و دیسک یدک دیگر جواب نمی‌دهد؛ اگر نه، از آن بگذرید.", en: "If you have run RAID, see why rebuilds and spare disks stop working at this scale; if not, skip it."}
+          - ref: sec-01-4
+            why: {fa: "نقشه‌ی ذهنی کل سامانه: RADOS، دیمن‌ها، CRUSH، pool و مسیر نوشتن یک شیء.", en: "The mental map of the whole system: RADOS, the daemons, CRUSH, pools and the path of a written object."}
+          - ref: lab:placement
+            min: 15
+            why: {fa: "نام یک شیء را بنویسید و ببینید چطور به PG و OSD می‌رسد. چیزی لازم نیست نصب کنید.", en: "Type an object name and watch it become a PG and then OSDs. Nothing to install."}
+      - title: {fa: "نخستین کلاستر", en: "Your first cluster"}
+        steps:
+          - ref: sec-01-6
+            hands_on: 30
+            why: {fa: "ماشین‌های آزمایشگاه را آماده کنید: چند گره، چند دیسک، چه شبکه‌ای.", en: "Prepare the lab machines: how many nodes, how many disks, which network."}
+          - ref: sec-01-7
+            hands_on: 30
+            why: {fa: "با cephadm کلاستر را bootstrap و میزبان‌ها و OSDها را اضافه کنید.", en: "Bootstrap the cluster with cephadm and add hosts and OSDs."}
+          - ref: sec-01-9
+            hands_on: 20
+            why: {fa: "روی کلاستر خودتان pool بسازید، شیء بنویسید، PGها را ببینید و یک دیسک بلوکی بسازید.", en: "On your own cluster: create a pool, write objects, look at PGs and make a block device."}
+      - title: {fa: "سه رابط کاربری", en: "The three interfaces"}
+        steps:
+          - ref: sec-02-4
+            hands_on: 15
+            why: {fa: "ساخت، map و تغییر اندازه‌ی یک image بلوکی RBD.", en: "Creating, mapping and resizing an RBD block image."}
+          - ref: sec-04-2
+            why: {fa: "شیء، bucket و API در Ceph: RGW چیست و روی RADOS چطور می‌نشیند.", en: "Objects, buckets and the API in Ceph: what RGW is and how it sits on RADOS."}
+          - ref: sec-06-2
+            hands_on: 15
+            why: {fa: "CephFS و MDS: معماری، ساخت یک فایل‌سیستم و دسترس‌پذیری.", en: "CephFS and the MDS: the architecture, creating a file system and availability."}
+      - title: {fa: "خواندن زبان کلاستر", en: "Reading the cluster's language"}
+        steps:
+          - ref: sec-08-3
+            why: {fa: "سلسله‌مراتب، وزن و قاعده‌های CRUSH؛ بدون این‌ها خروجی ceph osd tree مبهم می‌ماند.", en: "The hierarchy, weights and rules of CRUSH; without them the output of ceph osd tree stays opaque."}
+          - ref: lab:crush
+            min: 15
+            why: {fa: "یک درخت CRUSH بسازید، یک OSD را out کنید و ببینید کدام PGها جابه‌جا می‌شوند.", en: "Build a CRUSH tree, mark an OSD out and see which PGs move."}
+          - ref: sec-08-9
+            why: {fa: "مسیر نوشتن، وضعیت‌های PG و معنی size و min_size: همان چیزهایی که در ceph -s می‌بینید.", en: "The write path, the PG states and what size and min_size mean: the things you see in ceph -s."}
+          - ref: appB
+            optional: true
+            min: 20
+            why: {fa: "برگه‌ی دستورها را کنار دستتان نگه دارید.", en: "Keep the command cheat sheet at hand."}
+
+  - id: sre
+    icon: ops
+    short: {fa: "SRE و اپراتور", en: "SRE / operator"}
+    title: {fa: "کلاستر تولیدی را اداره می‌کنم", en: "I run Ceph in production"}
+    who:
+      fa: "مهندس SRE یا اپراتوری که مسئول سلامت، ظرفیت و ارتقای یک کلاستر در حال سرویس است و هنگام حادثه باید سریع تصمیم بگیرد."
+      en: "An SRE or operator responsible for the health, capacity and upgrades of a live cluster, who has to decide quickly during an incident."
+    prereq:
+      fa: "کار با لینوکس و دستورهای پایه‌ی ceph، و آشنایی با pool، PG و OSD (مسیر «تازه‌وارد» یا فصل ۱ کافی است). بهتر است به یک کلاستر آزمایشی دسترسی داشته باشید."
+      en: "Linux and the basic ceph commands, and a feel for pools, PGs and OSDs (the newcomer path or chapter 1 is enough). Access to a test cluster helps."
+    outcomes:
+      fa:
+        - "کلاستر را با یک روال ثابت کنترل می‌کنید: سلامت، ظرفیت و هشدارها."
+        - "دیسک و میزبان را با روش درست تعویض و نگهداری می‌کنید."
+        - "هنگام HEALTH_WARN یا PG گیرکرده روش‌مند عیب‌یابی می‌کنید و ابزارهای خطرناک را می‌شناسید."
+        - "می‌دانید در بدترین حالت، مثلاً از دست رفتن همه‌ی MONها، چه راهی هست."
+        - "ارتقا و تنظیم کارایی را با روال امن انجام می‌دهید."
+      en:
+        - "You check the cluster with a fixed routine: health, capacity and alerts."
+        - "You replace disks and take hosts out for maintenance the right way."
+        - "You troubleshoot HEALTH_WARN and stuck PGs with a method, and you know the dangerous tools."
+        - "You know what to do in the worst cases, such as losing every MON."
+        - "You upgrade and tune with a safe routine."
+    next: [upgrade, architect, contributor]
+    stages:
+      - title: {fa: "راهبری روزانه", en: "Day-to-day operation"}
+        steps:
+          - ref: ch7
+            hands_on: 20
+            why: {fa: "سرویس‌ها، پیکربندی، رشد و کوچک‌کردن کلاستر، تعویض دیسک و ظرفیت.", en: "Services, configuration, growing and shrinking the cluster, replacing disks and capacity."}
+          - ref: ch19
+            hands_on: 30
+            why: {fa: "تعویض دیسک، نگهداری میزبان، پرچم‌های نگهداری، autoscaler و balancer. در بار اول بخش‌های «از درون کد» را رد کنید.", en: "Disk replacement, host maintenance, maintenance flags, the autoscaler and the balancer. On a first pass skip the \"Inside the code\" sections."}
+          - ref: lab:capacity
+            min: 15
+            why: {fa: "ببینید MAX AVAIL را کدام OSD تعیین می‌کند و با از دست رفتن یک میزبان چه OSDهایی به nearfull و full می‌رسند.", en: "See which OSD sets MAX AVAIL and which OSDs reach nearfull and full when a host is lost."}
+      - title: {fa: "دیدن مشکل پیش از وقوع", en: "Seeing trouble coming"}
+        steps:
+          - ref: ch20
+            hands_on: 20
+            why: {fa: "Prometheus، سیگنال‌های کلیدی، طراحی هشدار و داشبورد. هشدار خوب نصف عیب‌یابی است.", en: "Prometheus, the key signals, alert design and dashboards. A good alert is half the troubleshooting."}
+      - title: {fa: "وقتی چیزی خراب می‌شود", en: "When something breaks"}
+        steps:
+          - ref: ch17
+            hands_on: 30
+            why: {fa: "روش عیب‌یابی، مشکل MON و OSD، وضعیت‌های PG، slow ops و ابزارهای خطرناک. بخش «از درون کد» را در بار اول رد کنید.", en: "The troubleshooting method, MON and OSD problems, PG states, slow ops and the dangerous tools. Skip the code-level sections on a first pass."}
+          - ref: appC
+            why: {fa: "جدول نشانه به اقدام: وقتی حادثه است از همین‌جا شروع کنید.", en: "The symptom-to-action table: start here during an incident."}
+          - ref: lab:quorum
+            min: 10
+            why: {fa: "شبکه را دو نیم کنید و ببینید کدام طرف quorum دارد.", en: "Split the network and see which side keeps quorum."}
+          - ref: sec-18-2
+            why: {fa: "لایه‌های دفاعی: از کپی در کلاستر تا نسخه‌ی پشتیبان مستقل.", en: "The layers of defence, from copies inside the cluster to an independent backup."}
+          - ref: sec-18-8
+            hands_on: 15
+            why: {fa: "اگر همه‌ی MONها از دست رفتند: پیشگیری و بازسازی از روی OSDها.", en: "If every MON is lost: prevention and rebuilding from the OSDs."}
+          - ref: sec-18-10
+            why: {fa: "پشتیبان مستقل از کلاستر، تا یک حادثه‌ی منطقی همه‌چیز را با هم نبرد.", en: "A backup independent of the cluster, so one logical accident cannot take everything."}
+      - title: {fa: "ارتقا و تنظیم", en: "Upgrading and tuning"}
+        steps:
+          - ref: appJ
+            hands_on: 30
+            why: {fa: "راهنمای گام‌به‌گام ارتقا از Reef به Squid و Tentacle، با چک‌لیست و گام‌های بی‌بازگشت.", en: "The step-by-step upgrade guide from Reef to Squid and Tentacle, with a checklist and the one-way steps."}
+          - ref: sec-21-2
+            why: {fa: "روش و لایه‌ها: پیش از دست بردن در تنظیمات، بسنجید و سپس عوض کنید.", en: "Method and layers: measure before you touch a setting, then change one thing at a time."}
+          - ref: lab:mclock
+            min: 15
+            why: {fa: "ببینید یک OSD ظرفیتش را بین کلاینت، recovery و کارهای پس‌زمینه چطور تقسیم می‌کند.", en: "See how one OSD splits its capacity between clients, recovery and background work."}
+          - ref: lab:scrub
+            optional: true
+            min: 10
+            why: {fa: "زمان‌بندی scrub و اثر پنجره‌ی شبانه.", en: "How scrubs are scheduled and what the night window does."}
+          - ref: appB
+            optional: true
+            min: 20
+            why: {fa: "برگه‌ی دستورها، برای یافتن سریع دستور و هشدارهای دستورهای خطرناک.", en: "The cheat sheet, to find a command fast and to see which ones are dangerous."}
+
+  - id: s3dev
+    icon: code
+    short: {fa: "توسعه‌دهنده‌ی S3", en: "S3 developer"}
+    title: {fa: "برنامه‌ای روی S3 و RGW می‌نویسم", en: "I build applications on S3 and RGW"}
+    who:
+      fa: "برنامه‌نویس یا مهندس پلتفرمی که سرویسی روی API سازگار با S3 می‌سازد و باید رفتار RGW را زیر بار، هنگام خطا و در چند سایت بداند."
+      en: "A developer or platform engineer building a service on the S3-compatible API who needs to know how RGW behaves under load, on failure and across sites."
+    prereq:
+      fa: "با S3 کار کرده‌اید (bucket، شیء، aws-cli یا یک SDK). دانش قبلی از Ceph لازم نیست؛ اگر خواستید، گام نخست را بخوانید."
+      en: "You have used S3 (buckets, objects, aws-cli or an SDK). No Ceph knowledge is needed; read the first step if you want the background."
+    outcomes:
+      fa:
+        - "کاربر، کلید و سهمیه‌ی RGW می‌سازید و با aws-cli یا یک SDK به آن وصل می‌شوید."
+        - "نسخه‌بندی، Object Lock، lifecycle و سیاست bucket را درست به کار می‌برید."
+        - "می‌دانید چرا یک bucket بزرگ لیست‌گیری کند می‌شود و کلیدها را چطور طراحی کنید."
+        - "امضای SigV4، رمزنگاری سمت سرور و STS را می‌فهمید و خطای احراز هویت را عیب‌یابی می‌کنید."
+        - "رفتار برنامه‌تان را هنگام failover بین سایت‌ها پیش‌بینی می‌کنید."
+      en:
+        - "You create RGW users, keys and quotas and connect with aws-cli or an SDK."
+        - "You use versioning, Object Lock, lifecycle and bucket policy correctly."
+        - "You know why a large bucket gets slow to list and how to design keys."
+        - "You understand SigV4, server-side encryption and STS, and can debug an authentication error."
+        - "You can predict how your application behaves when sites fail over."
+    next: [architect, sre]
+    stages:
+      - title: {fa: "آشنایی با RGW", en: "Meeting RGW"}
+        steps:
+          - ref: sec-01-4
+            optional: true
+            why: {fa: "اگر Ceph را نمی‌شناسید: نقشه‌ی ذهنی RADOS، pool و PG که RGW روی آن ساخته شده است.", en: "If Ceph is new to you: the mental map of RADOS, pools and PGs that RGW is built on."}
+          - ref: sec-04-2
+            why: {fa: "شیء، bucket و API؛ RGW روی RADOS؛ و این‌که یک شیء S3 در RADOS چه شکلی دارد.", en: "Objects, buckets and the API; RGW on RADOS; and what an S3 object looks like in RADOS."}
+          - ref: sec-04-4
+            hands_on: 10
+            why: {fa: "کاربر، کلید، tenant، سهمیه و محدودیت نرخ.", en: "Users, keys, tenants, quotas and rate limits."}
+          - ref: sec-04-5
+            hands_on: 20
+            why: {fa: "دسترسی با DNS و virtual-host، s3cmd، aws-cli و SDKها، و بارگذاری چندبخشی.", en: "DNS and virtual-host access, s3cmd, aws-cli and the SDKs, and multipart upload."}
+          - ref: sec-04-8
+            optional: true
+            why: {fa: "اگر Hadoop یا Spark دارید: اتصال با S3A.", en: "If you run Hadoop or Spark: connecting through S3A."}
+      - title: {fa: "ویژگی‌های S3 در عمق", en: "S3 features in depth"}
+        steps:
+          - ref: sec-04-11
+            why: {fa: "نسخه‌بندی و Object Lock، lifecycle و storage class، سیاست bucket و IAM، رمزنگاری سمت سرور، اعلان رویداد.", en: "Versioning and Object Lock, lifecycle and storage classes, bucket policy and IAM, server-side encryption, event notifications."}
+          - ref: appK
+            why: {fa: "امنیت RGW از مدل تهدید تا سخت‌سازی: SigV4، ترتیب ارزیابی سیاست‌ها، STS، SSE و Object Lock.", en: "RGW security from threat model to hardening: SigV4, policy evaluation order, STS, SSE and Object Lock."}
+          - ref: lab:sigv4
+            min: 15
+            why: {fa: "یک درخواست را بسازید، امضا را مرحله‌به‌مرحله ببینید و بعد درخواست را دستکاری کنید تا خطا بگیرید.", en: "Build a request, watch the signature form step by step, then tamper with it to see the error."}
+      - title: {fa: "رفتار درست در مقیاس بزرگ", en: "Behaving well at scale"}
+        steps:
+          - ref: sec-04-10
+            why: {fa: "انتخاب shard نمایه، reshard پویا و لیست مرتب‌شده؛ مبنای طراحی bucket و کلید.", en: "Index shard choice, dynamic reshard and ordered listing: the basis for designing buckets and keys."}
+          - ref: lab:reshard
+            min: 10
+            why: {fa: "یک bucket را به میلیون‌ها شیء برسانید و ببینید کی و به چند shard شکسته می‌شود.", en: "Grow a bucket to millions of objects and see when, and into how many shards, it splits."}
+          - ref: lab:rgwput
+            min: 10
+            why: {fa: "یک PUT را دنبال کنید تا نمایه‌ی bucket و pool داده، همراه با شیءهای RADOS که می‌سازد.", en: "Follow a PUT to the bucket index and the data pool, with the RADOS objects it creates."}
+          - ref: sec-41-6
+            why: {fa: "محدودیت نرخ برای کاربر و bucket: چگونه تنظیم و اعمال می‌شود.", en: "Rate limits for users and buckets: how they are set and enforced."}
+      - title: {fa: "چند سایت", en: "Across sites"}
+        steps:
+          - ref: sec-05-2
+            why: {fa: "سلسله‌مراتب realm، zonegroup و zone و این‌که چه چیزی و چگونه همگام می‌شود.", en: "The realm, zonegroup and zone hierarchy, and what is replicated and how."}
+          - ref: sec-05-10
+            why: {fa: "وقتی zone اصلی از دسترس خارج می‌شود: failover، بازگشت و یک runbook کوتاه.", en: "When the master zone is unavailable: failover, failback and a short runbook."}
+          - ref: lab:multisite
+            optional: true
+            min: 15
+            why: {fa: "ساختار multisite را بچینید و اثر period commit را ببینید.", en: "Lay out a multisite configuration and see what a period commit does."}
+          - ref: sec-04-12
+            optional: true
+            why: {fa: "دستورهای پرکاربرد، عیب‌یابی و Admin Ops API.", en: "Frequently used commands, troubleshooting and the Admin Ops API."}
+
+  - id: k8s
+    icon: deploy
+    short: {fa: "Kubernetes و پلتفرم", en: "Kubernetes / platform"}
+    title: {fa: "برای Kubernetes ذخیره‌ساز فراهم می‌کنم", en: "I provide storage for Kubernetes"}
+    who:
+      fa: "مهندس پلتفرمی که برای کلاستر Kubernetes ذخیره‌ساز پایدار (PVC) فراهم می‌کند، با Rook یا با یک کلاستر Ceph بیرونی."
+      en: "A platform engineer who provides persistent storage (PVCs) to Kubernetes, with Rook or with an external Ceph cluster."
+    prereq:
+      fa: "با Kubernetes (PVC، StorageClass، operator) آشنایید. اگر Ceph را از پایه نمی‌شناسید، گام نخست را رد نکنید."
+      en: "You know Kubernetes (PVCs, StorageClasses, operators). If Ceph is new to you, do not skip the first step."
+    outcomes:
+      fa:
+        - "بین Rook درون Kubernetes و Ceph بیرونی با cephadm آگاهانه انتخاب می‌کنید."
+        - "تفاوت PVC بلوکی (RBD) و PVC فایلی (CephFS) را می‌دانید."
+        - "برای کلاینت کاربر و capability کمینه می‌سازید."
+        - "snapshot و clone یک volume را می‌فهمید."
+        - "پایش و عیب‌یابی Ceph را کنار پایش Kubernetes می‌گذارید."
+      en:
+        - "You choose knowingly between Rook inside Kubernetes and an external Ceph cluster run by cephadm."
+        - "You know the difference between a block PVC (RBD) and a file PVC (CephFS)."
+        - "You create a user with minimal capabilities for a client."
+        - "You understand snapshots and clones of a volume."
+        - "You run Ceph monitoring and troubleshooting next to Kubernetes monitoring."
+    next: [sre, architect]
+    stages:
+      - title: {fa: "پایه‌ی Ceph", en: "Ceph basics"}
+        steps:
+          - ref: sec-01-4
+            why: {fa: "RADOS، دیمن‌ها، CRUSH و pool: واژگانی که Rook و ceph-csi فرض می‌گیرند.", en: "RADOS, the daemons, CRUSH and pools: the vocabulary that Rook and ceph-csi take for granted."}
+      - title: {fa: "انتخاب و استقرار", en: "Choosing and deploying"}
+        steps:
+          - ref: sec-11-9
+            hands_on: 30
+            why: {fa: "Rook: معماری، چه زمانی Rook، نصب پایه، و حالت cluster بیرونی.", en: "Rook: the architecture, when to choose it, a basic installation, and the external cluster mode."}
+          - ref: sec-11-4
+            why: {fa: "اگر Ceph را بیرون Kubernetes اجرا می‌کنید: استقرار اعلانی با cephadm.", en: "If you run Ceph outside Kubernetes: declarative deployment with cephadm."}
+          - ref: sec-11-6
+            why: {fa: "از آزمایشگاه تا تولید: چک‌لیست پیش از استقرار و کارهای پس از bootstrap.", en: "From lab to production: the pre-deployment checklist and the work after bootstrap."}
+          - ref: sec-11-10
+            optional: true
+            why: {fa: "مدیریت تغییر و GitOps برای ذخیره‌سازی.", en: "Change management and GitOps for storage."}
+      - title: {fa: "volume برای podها", en: "Volumes for pods"}
+        steps:
+          - ref: sec-02-2
+            why: {fa: "ساختار image، ویژگی‌های آن و مسیرهای دسترسی کلاینت؛ پایه‌ی PVC بلوکی.", en: "The image layout, its features and the client access paths: the basis of a block PVC."}
+          - ref: sec-02-3
+            hands_on: 10
+            why: {fa: "ساخت کاربر با کمترین دسترسی و انتقال پیکربندی به کلاینت.", en: "Creating a least-privilege user and moving the configuration to the client."}
+          - ref: sec-02-5
+            why: {fa: "snapshot و clone در RBD: همان سازوکاری که پشت snapshot و clone یک volume است.", en: "Snapshots and clones in RBD: the mechanism behind a volume snapshot and a volume clone."}
+          - ref: lab:rbdclone
+            min: 10
+            why: {fa: "ببینید clone کدام شیءها را از والد می‌خواند و چه زمانی flatten لازم می‌شود.", en: "See which objects a clone reads from its parent and when flatten becomes necessary."}
+          - ref: sec-06-3
+            why: {fa: "دسترسی کلاینت به CephFS: کاربر محدود، کلاینت هسته و ceph-fuse؛ پایه‌ی PVC فایلی.", en: "Client access to CephFS: a restricted user, the kernel client and ceph-fuse: the basis of a file PVC."}
+          - ref: sec-06-7
+            hands_on: 10
+            why: {fa: "subvolume، snapshot و quota در CephFS: واحد مدیریت یک share.", en: "Subvolumes, snapshots and quotas in CephFS: the unit that manages a share."}
+          - ref: sec-29-4
+            optional: true
+            why: {fa: "krbd در عمل: کلاینت هسته روی گره‌های Kubernetes.", en: "krbd in practice: the kernel client on your Kubernetes nodes."}
+      - title: {fa: "اداره‌ی کلاستر", en: "Running it"}
+        steps:
+          - ref: sec-20-2
+            why: {fa: "معماری پایش: Prometheus و رابط آن با کلاستر.", en: "The monitoring architecture: Prometheus and how it talks to the cluster."}
+          - ref: sec-20-5
+            why: {fa: "طراحی قاعده‌ی هشدار.", en: "Designing alert rules."}
+          - ref: sec-17-2
+            why: {fa: "روش عیب‌یابی و هشدارهای رایج.", en: "The troubleshooting method and the common warnings."}
+          - ref: appC
+            why: {fa: "جدول نشانه به اقدام برای شب‌هایی که pod منتظر volume مانده.", en: "The symptom-to-action table for the nights a pod is stuck waiting for a volume."}
+          - ref: sec-21-9
+            optional: true
+            why: {fa: "طراحی pool و کلاینت برای کارایی.", en: "Pool and client design for performance."}
+
+  - id: architect
+    icon: layers
+    short: {fa: "معمار ذخیره‌سازی", en: "Storage architect"}
+    title: {fa: "کلاستر را طراحی و ظرفیت‌سنجی می‌کنم", en: "I design and size clusters"}
+    who:
+      fa: "معمار یا مسئول برنامه‌ریزی ظرفیت که باید پیش از خرید و استقرار، سخت‌افزار، شبکه، سطح حفاظت از داده و رشد را تعیین کند."
+      en: "An architect or capacity planner who must settle hardware, network, the level of data protection and growth before buying and deploying."
+    prereq:
+      fa: "مفاهیم پایه‌ی Ceph (pool، PG، OSD، CRUSH) را می‌دانید؛ اگر نه، اول مسیر «تازه‌وارد». آشنایی با ذخیره‌سازی سازمانی کمک می‌کند."
+      en: "You know the basic Ceph concepts (pools, PGs, OSDs, CRUSH); if not, take the newcomer path first. Some enterprise storage background helps."
+    outcomes:
+      fa:
+        - "از نیازمندی تا سخت‌افزار، شبکه و تعداد گره را با عدد توجیه می‌کنید."
+        - "بین replication و erasure coding با ظرفیت مفید، هزینه‌ی بازسازی و ترافیک شبکه تصمیم می‌گیرید."
+        - "ظرفیت قابل استفاده و رفتار nearfull و full را پیش‌بینی می‌کنید."
+        - "عمر SSD و سربار فضای شیءهای کوچک را تخمین می‌زنید."
+        - "الگوی حفاظت در برابر خرابی سایت را انتخاب می‌کنید."
+      en:
+        - "You justify hardware, network and node count with numbers, starting from the requirements."
+        - "You choose between replication and erasure coding by usable capacity, rebuild cost and network traffic."
+        - "You predict usable capacity and the behaviour at nearfull and full."
+        - "You estimate SSD lifetime and the space overhead of small objects."
+        - "You choose a protection pattern against the loss of a site."
+    next: [sre, s3dev]
+    stages:
+      - title: {fa: "اندازه‌گیری نیاز", en: "Sizing it"}
+        steps:
+          - ref: sec-01-5
+            why: {fa: "از نیازمندی تا معماری: سخت‌افزار هر دیمن، شبکه، ظرفیت و نسبت‌های پُری، دامنه‌های خرابی و تعداد گره.", en: "From requirements to architecture: hardware per daemon, network, capacity and fill ratios, failure domains and node count."}
+          - ref: sec-01-11
+            why: {fa: "تعداد PG، احتمال از دست رفتن داده و زمان بازسازی با عدد؛ و مقایسه با RAID.", en: "PG count, the probability of data loss and rebuild time in numbers, and the comparison with RAID."}
+          - ref: lab:capacity
+            min: 15
+            why: {fa: "ظرفیت قابل استفاده و اثر از دست رفتن یک میزبان را پیش از خرید ببینید.", en: "See usable capacity and the effect of losing a host before you buy."}
+          - ref: lab:pgcalc
+            min: 10
+            why: {fa: "تعداد PG در روش کلاسیک و در pg_autoscaler.", en: "PG count by the classic method and by the pg_autoscaler."}
+      - title: {fa: "حفاظت از داده", en: "Protecting the data"}
+        steps:
+          - ref: ch13
+            hands_on: 10
+            why: {fa: "erasure coding: کجا EC و کجا replication، پلاگین‌ها و پروفایل‌ها، و FastEC.", en: "Erasure coding: where EC and where replication, plugins and profiles, and FastEC."}
+          - ref: lab:ecprofile
+            min: 10
+            why: {fa: "k، m و پلاگین را عوض کنید و ظرفیت مفید و هزینه‌ی ترمیم را مقایسه کنید.", en: "Change k, m and the plugin and compare usable capacity and repair cost."}
+          - ref: lab:netbw
+            min: 10
+            why: {fa: "ترافیک شبکه‌ی عمومی و کلاستر در replication و EC، و بازسازی یک گره.", en: "Public and cluster network traffic with replication and EC, and the rebuild of a node."}
+      - title: {fa: "رسانه و چیدمان", en: "Media and layout"}
+        steps:
+          - ref: sec-08-10
+            why: {fa: "یک pool روی OSDهای مشخص: الگو و دام آن.", en: "A pool on specific OSDs: the pattern and its pitfall."}
+          - ref: sec-12-4
+            why: {fa: "چیدمان دستگاه‌ها، اندازه‌ی block.db، min_alloc_size، فشرده‌سازی و checksum.", en: "Device layout, block.db size, min_alloc_size, compression and checksums."}
+          - ref: lab:bluespace
+            min: 10
+            why: {fa: "یک شیء کوچک واقعاً چقدر فضای خام می‌گیرد.", en: "How much raw disk a small object really takes."}
+          - ref: lab:ssdwear
+            min: 10
+            why: {fa: "به ازای هر بایت کلاینت چند بایت فلش نوشته می‌شود و SSD چند سال می‌ماند.", en: "How many flash bytes are written per client byte, and how long the SSD lasts."}
+          - ref: sec-16-7
+            optional: true
+            why: {fa: "جایگزین‌های امروزی tiering: device class، storage class و تکرارزدایی.", en: "Today's alternatives to tiering: device classes, storage classes and deduplication."}
+      - title: {fa: "خرابی و رشد", en: "Failure and growth"}
+        steps:
+          - ref: sec-18-2
+            why: {fa: "لایه‌های دفاعی: از کپی تا پشتیبان مستقل.", en: "The layers of defence, from copies to an independent backup."}
+          - ref: sec-05-2
+            why: {fa: "مفهوم‌های multisite: سلسله‌مراتب و آنچه همگام می‌شود.", en: "Multisite concepts: the hierarchy and what is replicated."}
+          - ref: sec-05-14
+            why: {fa: "کارایی و طراحی در چند سایت.", en: "Performance and design across sites."}
+          - ref: sec-18-7
+            why: {fa: "stretch mode: یک کلاستر روی دو سایت و رفتارش هنگام خرابی.", en: "Stretch mode: one cluster across two sites and its behaviour on failure."}
+          - ref: sec-10-3
+            why: {fa: "خط پایه‌ی سخت‌افزار: قبل از اعتماد به عددهای ادعاشده، دیسک و شبکه را بسنجید.", en: "The hardware baseline: measure disk and network before trusting the claimed numbers."}
+          - ref: sec-10-8
+            optional: true
+            why: {fa: "ساختار یک گزارش سنجش.", en: "How to structure a benchmark report."}
+          - ref: appD
+            why: {fa: "جدول انتشارها: کدام نسخه تا کی پشتیبانی می‌شود.", en: "The release table: which release is supported until when."}
+
+  - id: upgrade
+    icon: alert
+    short: {fa: "ارتقای فوری", en: "Upgrade in a hurry"}
+    title: {fa: "باید کلاستر را به‌زودی ارتقا بدهم", en: "I have to upgrade soon"}
+    who:
+      fa: "اپراتوری که باید کلاستر مدیریت‌شده با cephadm را از Reef به Squid و بعد Tentacle ببرد و فقط آنچه برای ارتقای امن لازم است می‌خواهد."
+      en: "An operator who must take a cephadm-managed cluster from Reef to Squid and then Tentacle and wants only what a safe upgrade needs."
+    prereq:
+      fa: "یک کلاستر مدیریت‌شده با cephadm، دسترسی ادمین و یک پنجره‌ی نگهداری. بهتر است نخست روی کلاستر آزمایشی تمرین کنید."
+      en: "A cluster managed by cephadm, admin access and a maintenance window. Rehearse on a test cluster first if you can."
+    outcomes:
+      fa:
+        - "مسیر پشتیبانی‌شده و نسخه‌ی مقصد درست را برمی‌گزینید."
+        - "چک‌لیست پیش از ارتقا را اجرا می‌کنید و از keyring، پیکربندی و نقشه‌ها پشتیبان می‌گیرید."
+        - "ارتقا را با cephadm پیش می‌برید و می‌دانید کدام گام‌ها بی‌بازگشت‌اند."
+        - "تغییرهایی را که ممکن است چیزی بشکنند، مثل نوع کلید cephx، از پیش می‌شناسید."
+      en:
+        - "You choose the supported path and the right target release."
+        - "You run the pre-upgrade checklist and back up keyrings, configuration and maps."
+        - "You drive the upgrade with cephadm and know which steps are one-way."
+        - "You know in advance the changes that can break something, such as the cephx key type."
+    next: [sre]
+    stages:
+      - title: {fa: "پیش از ارتقا", en: "Before the upgrade"}
+        steps:
+          - ref: appJ
+            hands_on: 30
+            why: {fa: "یک سند که باید کامل بخوانید: مسیرهای پشتیبانی‌شده، چک‌لیست، گام‌ها و آنچه برگشت‌پذیر نیست.", en: "The one document to read in full: supported paths, the checklist, the steps and what cannot be undone."}
+          - ref: appI
+            min: 10
+            why: {fa: "تغییرهای مهم Reef، Squid و Tentacle که روی کلاستر شما اثر می‌گذارند.", en: "The notable changes in Reef, Squid and Tentacle that affect your cluster."}
+          - ref: appD
+            why: {fa: "جدول انتشارها: نسخه‌ی مقصد و تاریخ پایان پشتیبانی.", en: "The release table: your target and its end-of-support date."}
+          - ref: sec-18-10
+            why: {fa: "پشتیبان مستقل: اگر ارتقا بد پیش رفت، به چه چیزی برمی‌گردید؟", en: "An independent backup: what do you go back to if the upgrade goes badly?"}
+      - title: {fa: "حین ارتقا", en: "During the upgrade"}
+        steps:
+          - ref: sec-19-2
+            hands_on: 15
+            why: {fa: "ارتقا با cephadm: ترتیب دیمن‌ها و ارتقای مرحله‌ای.", en: "Upgrading with cephadm: the order of the daemons and staggered upgrades."}
+          - ref: sec-19-10
+            why: {fa: "پرچم‌های نگهداری که بازسازی ناخواسته را متوقف می‌کنند.", en: "The maintenance flags that stop unwanted rebuilding."}
+          - ref: sec-07-6
+            optional: true
+            why: {fa: "همین موضوع در فصل راهبری: ارتقای مرحله‌ای و محدود.", en: "The same topic in the operations chapter: staged and limited upgrades."}
+      - title: {fa: "اگر چیزی عجیب بود", en: "If something looks wrong"}
+        steps:
+          - ref: sec-17-2
+            why: {fa: "روش عیب‌یابی و هشدارهای رایج.", en: "The troubleshooting method and the common warnings."}
+          - ref: sec-17-5
+            why: {fa: "معنی وضعیت‌های PG: کدام عادی است و کدام نه.", en: "What the PG states mean: which are normal and which are not."}
+          - ref: appC
+            why: {fa: "جدول نشانه به اقدام.", en: "The symptom-to-action table."}
+          - ref: appB
+            optional: true
+            min: 20
+            why: {fa: "دستورهای ارتقا در برگه‌ی دستورها.", en: "The upgrade commands in the cheat sheet."}
+
+  - id: contributor
+    icon: cpu
+    short: {fa: "کدخوان و مشارکت‌کننده", en: "Code reader / contributor"}
+    title: {fa: "می‌خواهم کد Ceph را بخوانم یا در آن مشارکت کنم", en: "I want to read or contribute to the Ceph code"}
+    who:
+      fa: "توسعه‌دهنده‌ی C++ که می‌خواهد مسیر یک درخواست را از librados تا دیسک دنبال کند، علت یک رفتار را در کد پیدا کند یا به Ceph وصله بفرستد."
+      en: "A C++ developer who wants to follow a request from librados to disk, find the cause of a behaviour in the code, or send a patch to Ceph."
+    prereq:
+      fa: "C++ و برنامه‌نویسی سیستمی لینوکس، و شناخت اپراتوری از Ceph (مسیر «تازه‌وارد»). یک کلاستر آزمایشی یا کلاستر vstart برای تمرین‌ها."
+      en: "C++ and Linux systems programming, and an operator's knowledge of Ceph (the newcomer path). A test cluster or a vstart cluster for the exercises."
+    outcomes:
+      fa:
+        - "نقشه‌ی مخزن، کلاس‌های اصلی و مدل threadها را می‌شناسید."
+        - "مسیر کامل نوشتن در RADOS را تابع‌به‌تابع دنبال می‌کنید."
+        - "peering، لاگ PG و recovery را در کد می‌خوانید."
+        - "قالب روی دیسک BlueStore و RocksDB را بایت‌به‌بایت می‌خوانید."
+        - "محاسبه‌ی CRUSH را تا سطح بیت دنبال می‌کنید."
+      en:
+        - "You know the repository map, the main classes and the thread model."
+        - "You follow a complete RADOS write, function by function."
+        - "You read peering, the PG log and recovery in the code."
+        - "You read the BlueStore and RocksDB on-disk formats byte by byte."
+        - "You follow the CRUSH computation down to the bit."
+    next: [sre]
+    stages:
+      - title: {fa: "جهت‌یابی", en: "Getting oriented"}
+        steps:
+          - ref: ch22
+            hands_on: 45
+            why: {fa: "نقشه‌ی مخزن، ساخت و محیط توسعه، کلاس‌های اصلی، مدل thread و مسیر کامل یک نوشتن.", en: "The repository map, build and development environment, the main classes, the thread model and a full write path."}
+          - ref: sec-08-6
+            why: {fa: "از درون کد: جایگذاری، احراز هویت و پیام‌رسانی.", en: "Inside the code: placement, authentication and messaging."}
+      - title: {fa: "هسته‌ی RADOS", en: "The RADOS core"}
+        steps:
+          - ref: ch34
+            hands_on: 15
+            why: {fa: "هویت شیء، فراداده‌ی هر شیء و مسیر op درون OSD.", en: "Object identity, per-object metadata and the op path inside the OSD."}
+          - ref: ch35
+            hands_on: 15
+            why: {fa: "لاگ PG، بازه‌ها، مجموعه‌های missing و این‌که recovery و backfill چطور کار می‌کنند.", en: "The PG log, intervals, missing sets and how recovery and backfill work."}
+          - ref: lab:peering
+            min: 15
+            why: {fa: "سه داستان از یک PG را گام‌به‌گام دنبال کنید و ماشین حالت peering را ببینید.", en: "Step through three stories of one PG and watch the peering state machine."}
+          - ref: ch36
+            optional: true
+            why: {fa: "snapshot و clone، watch/notify و کلاس‌های cls سمت OSD.", en: "Snapshots and clones, watch/notify and OSD-side cls."}
+      - title: {fa: "موتور ذخیره‌سازی", en: "The storage engine"}
+        steps:
+          - ref: sec-12-7
+            why: {fa: "از درون کد: BlueStore.", en: "Inside the code: BlueStore."}
+          - ref: ch24
+            why: {fa: "قالب روی دیسک BlueStore و BlueFS.", en: "The BlueStore and BlueFS on-disk format."}
+          - ref: ch25
+            why: {fa: "RocksDB درون BlueStore: WAL، memtable، SST و compaction.", en: "RocksDB inside BlueStore: the WAL, memtable, SSTs and compaction."}
+      - title: {fa: "جایگذاری و شبکه", en: "Placement and the network"}
+        steps:
+          - ref: ch28
+            why: {fa: "CRUSH در سطح بیت: از rjenkins تا upmap.", en: "CRUSH at the bit level, from rjenkins to upmap."}
+          - ref: lab:crush
+            min: 15
+            why: {fa: "همان قاعده‌ها را روی یک درخت بسازید و جابه‌جایی PGها را ببینید.", en: "Build the same rules on a tree and watch the PGs move."}
+          - ref: ch26
+            optional: true
+            why: {fa: "msgr2 در سطح بایت.", en: "msgr2 at the byte level."}
+          - ref: ch33
+            optional: true
+            why: {fa: "حافظه و CPU درون OSD.", en: "Memory and CPU inside the OSD."}
+          - ref: ch30
+            optional: true
+            why: {fa: "Crimson و Seastar: OSD نسل بعد.", en: "Crimson and Seastar: the next-generation OSD."}
