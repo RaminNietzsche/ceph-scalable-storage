@@ -1014,6 +1014,66 @@ if 'glossary' in PG_BY:
 CARDS_BY_CH = {}
 for _c in CARDS:
     CARDS_BY_CH[_c[1]] = CARDS_BY_CH.get(_c[1], 0) + 1
+# end-of-chapter quizzes: one bilingual file per chapter (references/quizzes/chNN.yaml, checked by tools/check_quizzes.py)
+QUIZ = {}
+for _qf in sorted(glob.glob(os.path.join(ROOT, 'references', 'quizzes', 'ch[0-9][0-9].yaml'))):
+    _qd = yaml.safe_load(open(_qf, encoding='utf-8')) or {}
+    if isinstance(_qd.get('chapter'), int) and _qd.get('questions'):
+        QUIZ[_qd['chapter']] = _qd['questions']
+CQ_XP = 30   # XP for the first full pass of a chapter quiz (templates/site/game.js reads it from game-data.js)
+
+
+def quiz_inline(t):
+    """Quiz text: HTML-escaped, with `code` (isolated left-to-right) and **bold** only."""
+    out = []
+    for i, part in enumerate(re.split(r'`([^`]+)`', t)):
+        if i % 2:
+            out.append(f'<code dir="ltr">{esc(part)}</code>')
+        else:
+            out.append(re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', esc(part)))
+    return ''.join(out)
+
+
+def quiz_html(page):
+    """The quiz section at the end of a chapter page. Without JavaScript it is a readable list with the answers
+    in <details>; templates/site/game.js turns it into the interactive quiz (check, feedback, score, XP)."""
+    qs = QUIZ.get(page.chap)
+    if not qs:
+        return ''
+    gs_ = GM['s']
+    letters = gs_['cq_letters'].split()
+    sec_title = {nid: text_of(frag(t)) for pg in pages for _l, nid, t in pg.sections}
+    n, items = len(qs), []
+    for i, q in enumerate(qs, 1):
+        qid = f'cq{page.chap}-{q["id"]}'
+        multi = bool(q.get('multi'))
+        kind = 'checkbox' if multi else 'radio'
+        opts, ok = [], []
+        for k, o in enumerate(q['options']):
+            good = o.get('correct') is True
+            if good:
+                ok.append(letters[k])
+            opts.append(f'<li><label class="cq-o"><input type="{kind}" name="{qid}" value="{k}"{" data-ok" if good else ""}>'
+                        f'<span class="cq-l" aria-hidden="true">{letters[k]}</span><span class="cq-t">{quiz_inline(o[LANG])}</span></label></li>')
+        slug, nid = ids.get(q['ref'], (page.slug, q['ref']))
+        href = (f'#{nid}' if slug == page.slug else f'{slug}.html#{nid}')
+        see = f'<a href="{href}">{esc(sec_title.get(nid, nid))}</a>'
+        hint = f'<p class="cq-hint">{esc(gs_["cq_multi"])}</p>' if multi else ''
+        items.append(
+            f'<li class="cq-q" id="{qid}" data-multi="{int(multi)}"><fieldset><legend><span class="cq-n">{esc(gs_["cq_qn"].format(i=loc(i), n=loc(n)))}</span>'
+            f'<span class="cq-qt">{quiz_inline(q["q"][LANG])}</span></legend>{hint}<ol class="cq-opts" role="list">{"".join(opts)}</ol></fieldset>'
+            f'<div class="cq-acts"><button type="button" class="btn primary cq-check" hidden>{esc(gs_["cq_check"])}</button>'
+            f'<p class="cq-fb" role="status" aria-live="polite"></p></div>'
+            f'<details class="cq-key"><summary>{esc(gs_["cq_show"])}</summary><p class="cq-ans"><b>{esc(gs_["cq_ans"].format(a=UI["list_sep"].join(ok)))}</b></p>'
+            f'<p class="cq-why">{quiz_inline(q["why"][LANG])}</p><p class="cq-see">{esc(gs_["cq_see"])} {see}</p></details></li>')
+    return (f'<section class="cq" id="chapter-quiz" data-ch="{page.chap}" data-n="{n}" aria-labelledby="cq-h">'
+            f'<h2 id="cq-h" class="qz-h cq-h"><span class="cq-ic" aria-hidden="true">{ICON["check"]}</span>{esc(gs_["cq_title"])}'
+            f'<span class="cq-badge game" hidden></span></h2>'
+            f'<p class="cq-intro">{esc(gs_["cq_intro"].format(n=loc(n)))} <span class="game">{esc(gs_["cq_xp"].format(x=loc(CQ_XP)))}</span></p>'
+            f'<ol class="cq-list" role="list">{"".join(items)}</ol>'
+            f'<div class="cq-sum" role="status" aria-live="polite" hidden></div></section>')
+
+
 PROG_KEYS = ('read_min', 'min_short', 'mark_read', 'is_read', 'unmark_read', 'marked_read_msg', 'unmarked_read_msg', 'progress_line',
              'progress_empty', 'continue', 'bookmarks', 'bookmark_add', 'bookmark_remove', 'bookmarked_msg', 'unbookmarked_msg',
              'reset_confirm', 'import_ok', 'import_bad', 'reset_ok', 'part_prog', 'in_progress')
@@ -1142,6 +1202,8 @@ def page_toc(cur):
     lis = []
     for lvl, nid, t in cur.sections:
         lis.append(f'<li class="l{lvl}"><a href="#{nid}" data-sec="{nid}">{t}</a></li>')
+    if getattr(cur, 'kind', '') == 'chapter' and QUIZ.get(cur.chap):
+        lis.append(f'<li class="l2 toc-cq"><a href="#chapter-quiz">{esc(GM["s"]["cq_title"])}</a></li>')
     ul = '<ul>' + ''.join(lis) + '</ul>'
     side = f'<aside class="toc" aria-label="{esc(S["on_this_page"])}"><div class="toc-title">{esc(S["on_this_page"])}</div>{ul}</aside>'
     inline = f'<details class="toc-inline"><summary>{esc(S["on_this_page"])}</summary>{ul}</details>'
@@ -1365,6 +1427,8 @@ for p in pages:
         lo, hi = PART_RANGE.get(p.slug, (23, 10 ** 6))
         lis = ''.join(f'<li><a href="{q.slug}.html">{q.nav_html}</a></li>' for q in pages if q.chap and lo <= q.chap < hi)
         extra = f'<ol class="part-list">{lis}</ol>'
+    if p.kind == 'chapter':
+        extra += quiz_html(p)
     if p.kind == 'chapter' and CARDS_BY_CH.get(p.chap):
         extra += (f'<aside class="quiz-cta" aria-labelledby="qz-{p.chap}"><span class="hc-ic">{ICON["cards"]}</span><div><h2 id="qz-{p.chap}" class="qz-h">{esc(GM["s"]["ch_quiz"])}</h2>'
                   f'<p>{esc(GM["s"]["ch_quiz_sub"].format(n=loc(CARDS_BY_CH[p.chap])))}</p></div>'
@@ -1625,6 +1689,7 @@ game_data = {
     'parts': {str(k): [CH[n].slug for n in r if n in CH] for k, r in PARTS_G.items()},
     'chs': {CH[n].slug: n for n in CH}, 'chTitle': {str(n): TRACK[CH[n].slug][0] for n in CH},
     'nAlgo': N_ALGO, 'nFig': N_FIG, 'gids': [g[0] for g in GLOSS], 'cardsByCh': {str(k): v for k, v in CARDS_BY_CH.items()},
+    'cq': {str(k): len(v) for k, v in QUIZ.items()}, 'cqXP': CQ_XP,
     'weekStart': 6 if LANG == 'fa' else 1, 'rest': [5] if LANG == 'fa' else [6, 0], 'wpm': WPM,
 }
 open(os.path.join(LOUT, 'game-data.js'), 'w', encoding='utf-8').write(

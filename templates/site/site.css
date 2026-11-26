@@ -593,6 +593,60 @@ html.no-game .g-offnote { display: block; padding: 10px 14px; border-radius: 12p
 .rp-game .sep { width: 4px; height: 4px; border-radius: 50%; background: var(--fg-mute); opacity: .5; margin: 0 4px; }
 .rp-game:hover { color: var(--accent); }
 /* chapter-end quiz card */
+/* end-of-chapter quiz (build_site.quiz_html, game.js initCQ); without JS the answers sit in <details> */
+.cq { margin: 3em 0 1em; padding: 18px 20px 8px; border-radius: 18px; border: 1px solid var(--card-line); background: var(--card); }
+.content .cq h2.cq-h { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 6px; padding: 0; border: 0; font-size: 1.2rem; }
+.cq-ic svg { width: 22px; height: 22px; fill: none; stroke: var(--accent); stroke-width: 2.4; }
+.cq-badge { font-size: .78rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--fg-mute); }
+.cq-badge.on { color: var(--accent-3); border-color: color-mix(in srgb, var(--accent-3) 55%, var(--line)); background: color-mix(in srgb, var(--accent-3) 10%, var(--card)); }
+.cq-badge svg, .cq-st svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; vertical-align: -2px; margin-inline-end: 4px; }
+.cq-intro { margin: 0 0 12px; font-size: .9rem; color: var(--fg-mute); }
+.content ol.cq-list, .content ol.cq-opts, .content ol.cq-index { list-style: none; margin: 0; padding: 0; }
+.cq-q { padding: 14px 0; border-top: 1px solid var(--line); }
+.cq-q fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.cq-q legend { padding: 0; margin-bottom: 8px; font-weight: 700; line-height: 1.9; }
+.cq-n { display: block; font-size: .76rem; font-weight: 600; color: var(--fg-mute); }
+.cq-hint { margin: -4px 0 8px; font-size: .8rem; color: var(--fg-mute); }
+.cq-opts { display: grid; gap: 8px; }
+.cq-o { display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; line-height: 1.8; font-size: .92rem; transition: border-color .15s, background .15s; }
+.cq-o:hover { border-color: var(--accent); }
+.cq-o:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cq-o:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--bg)); }
+.cq-o input { margin: .45em 0 0; flex: none; accent-color: var(--accent); }
+.cq-o input:disabled { cursor: default; }
+.cq-l { flex: none; min-width: 1.6em; font-weight: 700; color: var(--fg-mute); }
+.cq-t { flex: 1; min-width: 0; }
+.cq-o.right { border-color: var(--accent-3); background: color-mix(in srgb, var(--accent-3) 12%, var(--bg)); }
+.cq-o.wrong { border-color: #dc2626; background: color-mix(in srgb, #dc2626 9%, var(--bg)); }
+.cq-o.right .cq-l::after { content: " ✓"; color: var(--accent-3); }
+.cq-o.wrong .cq-l::after { content: " ✗"; color: #dc2626; }
+.cq code, .cq-index code { unicode-bidi: isolate; }
+.cq-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.cq-acts .btn[hidden] { display: none; }
+.cq-fb { margin: 0; font-weight: 700; min-height: 1.5em; }
+.cq-fb:focus { outline: none; }
+.cq-fb.ok { color: var(--accent-3); }
+.cq-fb.bad { color: #dc2626; }
+.cq-fb.warn { color: #b45309; }
+.cq-key { margin-top: 8px; font-size: .9rem; }
+.cq-key[hidden] { display: none; }
+.cq-key summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.cq-js .cq-key summary { display: none; }
+.cq-key p { margin: 6px 0; }
+.cq-key .cq-why { padding: 10px 14px; border-radius: 12px; background: var(--bg-soft); border-inline-start: 3px solid var(--accent); }
+.cq-see { font-size: .85rem; color: var(--fg-mute); }
+.cq-sum { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 6px 0 12px; padding: 14px 16px; border-radius: 14px; background: var(--bg-soft); }
+.cq-sum[hidden] { display: none; }
+.cq-sum > div { flex: 1; min-width: 12em; }
+.cq-sum.pass { background: color-mix(in srgb, var(--accent-3) 12%, var(--card)); }
+.cq-xp { font-weight: 700; color: var(--accent-3); }
+.cq-index { display: grid; gap: 6px; margin-top: 14px !important; }
+.cq-index a { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--line); color: var(--fg); text-decoration: none; }
+.cq-index a:hover, .cq-index a:focus-visible { border-color: var(--accent); }
+.cq-cn { flex: none; min-width: 2em; font-weight: 700; color: var(--fg-mute); }
+.cq-ct { flex: 1; min-width: 0; }
+.cq-st { flex: none; font-size: .8rem; color: var(--fg-mute); }
+.cq-st.on { color: var(--accent-3); font-weight: 600; }
 .quiz-cta { display: flex; align-items: center; gap: 16px; margin: 2.5em 0 1em; padding: 16px 18px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--card-line)); background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 7%, var(--card)), color-mix(in srgb, var(--accent-3) 6%, var(--card))); }
 .quiz-cta .hc-ic svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; }
 .quiz-cta div { flex: 1; }
@@ -851,7 +905,7 @@ input, select, textarea, .sim input[type=number], .sim input[type=text], .sim se
 
 @media print {
   :root, html[data-theme="dark"] { --bg: #fff; --fg: #000; --fg-soft: #222; --fg-mute: #444; --line: #bbb; --code-bg: #f6f6f6; --code-fg: #000; --link: #000; }
-  .topbar, .sidebar, .toc, .toc-inline, .pager, .crumbs, .copy, .hanchor, .backdrop, .search-dlg, .lb, .skip, .site-foot, .home .cta, .tb-cta, .term, .glow, .hbadge, .chips, .game, .g-chip, .g-toasts, .g-confetti, .quiz-cta, .rp-game, .g-settings, .cert-form, .rbar, .totop, .my-dlg, .rp, .hbm, .read-tog, .mk-btn, .sb-st { display: none !important; }
+  .topbar, .sidebar, .toc, .toc-inline, .pager, .crumbs, .copy, .hanchor, .backdrop, .search-dlg, .lb, .skip, .site-foot, .home .cta, .tb-cta, .term, .glow, .hbadge, .chips, .game, .g-chip, .g-toasts, .g-confetti, .quiz-cta, .cq, .rp-game, .g-settings, .cert-form, .rbar, .totop, .my-dlg, .rp, .hbm, .read-tog, .mk-btn, .sb-st { display: none !important; }
   .rv { opacity: 1 !important; transform: none !important; }
   html[data-slug="certificate"] .page-head, html[data-slug="certificate"] .crumbs { display: none !important; }
   .cert { background: none; padding: 0; border: 3px double #000; }
