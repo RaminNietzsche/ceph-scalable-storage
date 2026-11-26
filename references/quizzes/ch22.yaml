@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 22 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 22
+questions:
+  - id: read-code-cheap
+    ref: sec-22-2
+    q:
+      fa: "فقط می‌خواهید کد Ceph را بخوانید، نه این‌که بسازیدش. فصل چه پیشنهادی می‌دهد؟"
+      en: "You only want to read Ceph's code, not build it. What does the chapter suggest?"
+    options:
+      - fa: "ساخت کامل با `do_cmake.sh`، چون برای خواندن کد به فایل‌های تولیدشده نیاز است"
+        en: "A full build with `do_cmake.sh`, because the generated files are needed to read the code"
+      - fa: "clone با `--filter=blob:none` و sparse-checkout فقط پوشه‌هایی که لازم دارید"
+        en: "Clone with `--filter=blob:none` and sparse-checkout only the directories you need"
+        correct: true
+      - fa: "دانلود tarball بسته‌های یک نسخه"
+        en: "Download a release tarball of the packages"
+      - fa: "یک کلاستر vstart راه بیندازید و لاگ‌ها را بخوانید"
+        en: "Start a vstart cluster and read the logs"
+    why:
+      fa: "ساخت کامل ده‌ها گیگابایت فضا و حافظه‌ی زیاد لازم دارد. یک clone جزئی برای خواندن و جست‌وجوی کد کافی است."
+      en: "A full build needs tens of gigabytes of disk and a lot of memory. A partial clone is enough to read and search the code."
+  - id: encode-compat
+    ref: sec-22-5
+    q:
+      fa: "یک OSD تازه ساختاری را با فیلدهای اضافه در انتها encode می‌کند. یک OSD قدیمی چطور همچنان آن را می‌خواند؟"
+      en: "A new OSD encodes a structure with extra fields at the end. How does an old OSD still read it?"
+    options:
+      - fa: "نمی‌تواند؛ همه‌ی OSDها باید در یک لحظه ارتقا یابند"
+        en: "It cannot; all OSDs must be upgraded at the same moment"
+      - fa: "MON پیام را به قالب قدیمی ترجمه می‌کند"
+        en: "The MON translates the message into the old format"
+      - fa: "OSD تازه همتای قدیمی را تشخیص می‌دهد و فیلدهای تازه را حذف می‌کند"
+        en: "The new OSD detects the old peer and drops the new fields"
+      - fa: "ساختار یک شماره‌ی نسخه و یک شماره‌ی compat همراه با طول دارد، پس decoder قدیمی فیلدهای آشنا را می‌خواند و بقیه‌ی بلوک را رد می‌کند"
+        en: "The struct carries a version and a compat number with a length, so the old decoder reads the fields it knows and skips the rest of the block"
+        correct: true
+    why:
+      fa: "این پایه‌ی ارتقای غلتان (rolling) است. وقتی تغییری واقعاً ناسازگار باشد، `compat` بالا می‌رود و ارتقا به پرچم‌هایی مثل `require_osd_release` گره می‌خورد."
+      en: "This is the basis of rolling upgrades. When a change is truly incompatible, `compat` goes up and the upgrade is tied to flags such as `require_osd_release`."
+  - id: debug-levels
+    ref: sec-22-6
+    q:
+      fa: "دو عدد در `ceph config set osd.3 debug_osd 20/20` چه معنایی دارند؟"
+      en: "What do the two numbers in `ceph config set osd.3 debug_osd 20/20` mean?"
+    options:
+      - fa: "سطحی که در فایل لاگ نوشته می‌شود، و سطحی که در حافظه نگه داشته می‌شود تا هنگام crash بیرون ریخته شود"
+        en: "The level written to the log file, and the level kept in memory to dump on a crash"
+        correct: true
+      - fa: "کمترین و بیشترین سطح لاگ"
+        en: "The minimum and maximum log level"
+      - fa: "سطح لاگ برای OSD اصلی و برای نسخه‌ها"
+        en: "The log level for the primary and for the replicas"
+      - fa: "سطح لاگ و تعداد روزهای نگه‌داری لاگ"
+        en: "The log level and the number of days to keep logs"
+    why:
+      fa: "سطح بالای حافظه، جزئیات اطراف یک crash را بدون هزینه‌ی نوشتن همه‌چیز روی دیسک می‌دهد. یادتان باشد پس از اشکال‌زدایی دوباره پایینش بیاورید."
+      en: "A high in-memory level gives detail around a crash without the cost of writing everything to disk. Remember to lower it again after debugging."
+  - id: shard-order
+    ref: sec-22-4
+    q:
+      fa: "در OSD کلاسیک، صف شاردشده‌ی عملیات چه چیزی را تضمین می‌کند؟"
+      en: "In the classic OSD, what does the sharded op queue guarantee?"
+    options:
+      - fa: "این‌که هر op با همان رشته‌ی messenger که دریافتش کرده اجرا شود"
+        en: "That every op is executed by the messenger thread that received it"
+      - fa: "این‌که opهای PGهای مختلف هرگز موازی اجرا نشوند"
+        en: "That ops of different PGs never run in parallel"
+      - fa: "این‌که ترتیب opها درون هر PG حفظ شود"
+        en: "That the order of ops within each PG is preserved"
+        correct: true
+      - fa: "این‌که خواندن‌ها همیشه پیش از نوشتن‌ها اجرا شوند"
+        en: "That reads always run before writes"
+    why:
+      fa: "هر PG به یک `OSDShard` تعلق دارد که زمان‌بند و قفل را نگه می‌دارد. PGهای مختلف روی shardهای مختلف موازی اجرا می‌شوند و کار مسدودکننده هرگز نباید در رشته‌ی messenger یا زیر قفل PG اجرا شود."
+      en: "Each PG belongs to one `OSDShard`, which holds the scheduler and the lock. Different PGs run in parallel on different shards, and blocking work must never run in a messenger thread or under a PG lock."
+  - id: optracker-history
+    ref: sec-22-6
+    q:
+      fa: "در یک آزمایش شلوغ، `dump_historic_ops` تعداد کمی op قدیمی نشان می‌دهد. کدام تنظیم‌ها اندازه‌ی چیزی را که نگه می‌دارد محدود می‌کنند؟"
+      en: "`dump_historic_ops` shows few old ops in a busy test. Which settings bound what it keeps?"
+    options:
+      - fa: "`debug_osd` و `debug_ms`"
+        en: "`debug_osd` and `debug_ms`"
+      - fa: "`mgr_stats_period`"
+        en: "`mgr_stats_period`"
+      - fa: "`osd_max_backfills`"
+        en: "`osd_max_backfills`"
+      - fa: "`osd_op_history_size` (پیش‌فرض ۲۰) و `osd_op_history_duration` (پیش‌فرض ۶۰۰ ثانیه)"
+        en: "`osd_op_history_size` (default 20) and `osd_op_history_duration` (default 600 s)"
+        correct: true
+    why:
+      fa: "فصل برای مطالعه‌ی زمان‌بندی، `osd_op_history_size` را به ۱۰۰۰ رساند و رویدادهای زمان‌دار ۳۰۰ نوشتن را از هر سه OSD خواند."
+      en: "For its timing study the chapter raised `osd_op_history_size` to 1000 and read the timestamped events of 300 writes from all three OSDs."

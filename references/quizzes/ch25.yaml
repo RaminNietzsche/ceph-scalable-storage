@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 25 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 25
+questions:
+  - id: memtable-memory
+    ref: sec-25-4
+    q:
+      fa: "با `bluestore_rocksdb_options` پیش‌فرض Ceph، memtableهای یک OSD حداکثر چقدر حافظه می‌گیرند؟"
+      en: "With Ceph's default `bluestore_rocksdb_options`, how much memory can the memtables of one OSD take at most?"
+    options:
+      - fa: "۱۶ مگابایت، یک memtable"
+        en: "16 MB, one memtable"
+      - fa: "۹۶ مگابایت، شش memtable"
+        en: "96 MB, six memtables"
+      - fa: "حدود ۱ گیگابایت: تا ۶۴ memtable شانزده‌مگابایتی"
+        en: "About 1 GB: up to 64 memtables of 16 MB"
+        correct: true
+      - fa: "به اندازه‌ی `osd_memory_target`"
+        en: "As much as `osd_memory_target`"
+    why:
+      fa: "`write_buffer_size=16M` و `max_write_buffer_number=64`. memtableها skiplist هستند و به فایل‌های SST فلاش می‌شوند."
+      en: "`write_buffer_size=16M` and `max_write_buffer_number=64`. Memtables are skiplists, flushed to SST files."
+  - id: l0-trigger
+    ref: sec-25-6
+    q:
+      fa: "با پیش‌فرض‌های Ceph، compaction از L0 به L1 کی شروع می‌شود؟"
+      en: "When does an L0 → L1 compaction start with Ceph's defaults?"
+    options:
+      - fa: "پس از هر flush یک memtable"
+        en: "After every memtable flush"
+      - fa: "وقتی L0 به ۸ فایل برسد (`level0_file_num_compaction_trigger`)"
+        en: "When L0 reaches 8 files (`level0_file_num_compaction_trigger`)"
+        correct: true
+      - fa: "ساعتی یک بار"
+        en: "Once an hour"
+      - fa: "وقتی L1 بزرگ‌تر از 1G باشد"
+        en: "When L1 is larger than 1G"
+    why:
+      fa: "فایل‌های L0 ممکن است هم‌پوشانی داشته باشند، پس تعدادشان معیار شروع است. سطح‌های L1 به بعد هم‌پوشانی کلید ندارند و وقتی اندازه‌شان از هدف (L1 یک گیگابایت، هر سطح ۸ برابر قبلی) بگذرد compact می‌شوند."
+      en: "L0 files may overlap, so their number is the trigger. Levels from L1 on have no key overlap and are compacted when their size exceeds their target (L1 1G, each level 8 times the previous one)."
+  - id: tombstones
+    ref: sec-25-8
+    q:
+      fa: "یک OSD پس از حذف انبوه، مثلاً حذف یک snapshot، کند شده است. علت و درمان در سطح RocksDB چیست؟"
+      en: "An OSD is slow after a mass deletion, for example removing a snapshot. What is the RocksDB-level cause and remedy?"
+    options:
+      - fa: "WAL پر است؛ یک دستگاه WAL اضافه کنید"
+        en: "The WAL is full; add a WAL device"
+      - fa: "تعداد زیادی tombstone در SSTها؛ `rocksdb_cf_compact_on_deletion` (پیش‌فرض روشن) یا `ceph tell osd.N compact`"
+        en: "Many tombstones in the SSTs; `rocksdb_cf_compact_on_deletion` (default on) or `ceph tell osd.N compact`"
+        correct: true
+      - fa: "فیلتر Bloom خیلی کوچک است؛ `rocksdb_bloom_bits_per_key` را به ۶۴ برسانید"
+        en: "The Bloom filter is too small; raise `rocksdb_bloom_bits_per_key` to 64"
+      - fa: "memtableها از دست رفته‌اند؛ OSD را دوباره راه بیندازید تا بازسازی شوند"
+        en: "The memtables were lost; restart the OSD to rebuild them"
+    why:
+      fa: "کلیدهای حذف‌شده تا وقتی compaction آن‌ها را پاک کند به‌صورت tombstone می‌مانند و خواندن باید از رویشان بگذرد."
+      en: "Deleted keys stay as tombstones until compaction removes them, and reads have to skip over them."
+  - id: bloom-fp
+    ref: sec-25-11-5
+    q:
+      fa: "با `rocksdb_bloom_bits_per_key = 20`، فصل نرخ مثبت کاذب فیلترهای Bloom در Ceph را تقریباً چقدر برآورد می‌کند؟"
+      en: "With `rocksdb_bloom_bits_per_key = 20`, roughly what false-positive rate does the chapter estimate for Ceph's Bloom filters?"
+    options:
+      - fa: "حدود ۱ درصد"
+        en: "About 1%"
+      - fa: "حدود ۱۰ درصد"
+        en: "About 10%"
+      - fa: "حدود ۰٫۰۱۷ درصد"
+        en: "About 0.017%"
+        correct: true
+      - fa: "صفر؛ فیلتر Bloom هرگز مثبت کاذب نمی‌دهد"
+        en: "Zero; Bloom filters never give false positives"
+    why:
+      fa: "همه‌ی کاوش‌های یک کلید در یک cache line می‌افتند (FastLocalBloomImpl) که فیلتر را سریع می‌کند و کمی از دقت می‌کاهد. پاسخ منفی به خواندن اجازه می‌دهد یک فایل SST را کاملاً رد کند."
+      en: "All probes of a key fall within one cache line (FastLocalBloomImpl), which makes the filter fast, at a small cost in accuracy. A negative answer lets a read skip an SST file entirely."
+  - id: bluerocksenv
+    ref: sec-25-10
+    q:
+      fa: "`BlueRocksEnv` چیست؟"
+      en: "What is `BlueRocksEnv`?"
+    options:
+      - fa: "افزونه‌ای برای RocksDB که فایل‌های SST را با LZ4 فشرده می‌کند"
+        en: "A RocksDB plugin that compresses SST files with LZ4"
+      - fa: "یک `rocksdb::EnvWrapper` که فراخوانی‌های فایل RocksDB را به‌جای فایل‌سیستم هسته به BlueFS می‌فرستد"
+        en: "An `rocksdb::EnvWrapper` that sends RocksDB's file calls to BlueFS instead of a kernel file system"
+        correct: true
+      - fa: "یک daemon جداگانه که RocksDB را بیرون از OSD اجرا می‌کند"
+        en: "A separate daemon that runs RocksDB outside the OSD"
+      - fa: "متغیرهای محیطی که RocksDB را پیکربندی می‌کنند"
+        en: "The environment variables that configure RocksDB"
+    why:
+      fa: "برای نمونه `NewWritableFile` به `BlueFS::open_for_write` تبدیل می‌شود. پس RocksDB بدون XFS یا ext4 زیرش، روی دستگاه‌های خام اجرا می‌شود."
+      en: "For example `NewWritableFile` becomes `BlueFS::open_for_write`. So RocksDB runs on the raw devices without XFS or ext4 underneath."

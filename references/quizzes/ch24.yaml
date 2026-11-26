@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 24 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 24
+questions:
+  - id: shared-blob
+    ref: sec-24-6-4
+    q:
+      fa: "پس از این‌که `rbd snap` یک blob را میان دو onode به اشتراک می‌گذارد، BlueStore از کجا می‌فهمد کی می‌توان فضای فیزیکی را آزاد کرد؟"
+      en: "After `rbd snap` shares a blob between two onodes, how does BlueStore know when the physical space can be freed?"
+    options:
+      - fa: "هنگام deep scrub همه‌ی onodeها را پیمایش می‌کند"
+        en: "It scans every onode during deep scrub"
+      - fa: "blob پرچم `FLAG_SHARED` و یک sbid می‌گیرد و شمارش ارجاع extentهایش زیر کلید `X` + sbid نگه داشته می‌شود"
+        en: "The blob gets `FLAG_SHARED` and an sbid, and reference counts of its extents are kept under key `X` + sbid"
+        correct: true
+      - fa: "فضا تا ساختن دوباره‌ی OSD هرگز آزاد نمی‌شود"
+        en: "The space is never freed until the OSD is recreated"
+      - fa: "MON فهرستی از extentهای مشترک نگه می‌دارد"
+        en: "The MON keeps a list of shared extents"
+    why:
+      fa: "حذف یکی از onodeها فقط شمارش‌ها را کم می‌کند؛ هر extent وقتی شمارشش به صفر برسد آزاد می‌شود. همین clone و snapshot را ارزان می‌کند."
+      en: "Deleting one of the onodes only lowers the counts; an extent is released when its count reaches zero. This makes clones and snapshots cheap."
+  - id: frag-score
+    ref: sec-24-8-1
+    q:
+      fa: "یک OSD روی HDD امتیاز تکه‌تکه‌شدگی (fragmentation score) بالاتر از ۰٫۸ دارد. یعنی چه، و چه چیزی کمک می‌کند؟"
+      en: "An HDD OSD has a fragmentation score above 0.8. What does that mean, and what helps?"
+    options:
+      - fa: "دیسک در حال خرابی است؛ فوراً عوضش کنید"
+        en: "The disk is failing; replace it at once"
+      - fa: "فضای آزاد تکه‌تکه است و نوشتن ترتیبی تصادفی می‌شود؛ ظرفیت اضافه کنید یا پرشدگی را کم کنید، و در آخرین راه OSD را دوباره بسازید"
+        en: "Free space is in small pieces, so sequential writes become random; add capacity or reduce fullness, or as a last resort rebuild the OSD"
+        correct: true
+      - fa: "RocksDB به compaction نیاز دارد؛ `ceph tell osd.N compact` را اجرا کنید"
+        en: "RocksDB needs compaction; run `ceph tell osd.N compact`"
+      - fa: "ابزار defrag آنلاین BlueStore را اجرا کنید"
+        en: "Run BlueStore's online defrag tool"
+    why:
+      fa: "این امتیاز از ۰ (یک تکه‌ی پیوسته) تا ۱ (همه‌ی فضای آزاد در بلوک‌های تکی) است. BlueStore ابزار defrag ندارد."
+      en: "The score goes from 0 (one contiguous piece) to 1 (all free space in single blocks). There is no defrag tool for BlueStore."
+  - id: ncb-mode
+    ref: sec-24-8-2
+    q:
+      fa: "وقتی `bluestore_allocation_from_file` روشن باشد چه تغییری می‌کند؟"
+      en: "What changes when `bluestore_allocation_from_file` is true?"
+    options:
+      - fa: "به‌روزرسانی freelist از مسیر نوشتن بیرون می‌رود؛ در umount تمیز نقشه‌ی تخصیص‌دهنده در یک فایل نوشته می‌شود"
+        en: "The freelist update leaves the write path; on a clean umount the allocator map is written to a file"
+        correct: true
+      - fa: "تخصیص از فایلی روی MON خوانده می‌شود"
+        en: "Allocation is read from a file on the MON"
+      - fa: "BlueStore دیگر از RocksDB برای فراداده استفاده نمی‌کند"
+        en: "BlueStore stops using RocksDB for metadata"
+      - fa: "OSD فقط به‌صورت فقط‌خواندنی راه می‌افتد"
+        en: "The OSD can only be started read-only"
+    why:
+      fa: "این حالت بدون freelist از Quincy وجود دارد و روی main پیش‌فرض است. پس از خاموشی ناتمیز، وضعیت تخصیص باید دوباره ساخته شود، نه این‌که از فایل خوانده شود."
+      en: "This freelist-less mode exists since Quincy and is the default on main. After an unclean shutdown the allocation state has to be rebuilt instead of being read from the file."
+  - id: freelist-key
+    ref: sec-24-8-2
+    q:
+      fa: "با واحد تخصیص 4K، هر کلید `b` در BitmapFreelistManager چه مقدار از دیسک را پوشش می‌دهد؟"
+      en: "With a 4K allocation unit, how much disk does one `b` key of the BitmapFreelistManager cover?"
+    options:
+      - fa: "4K"
+        en: "4K"
+      - fa: "64K"
+        en: "64K"
+      - fa: "512K، چون هر کلید ۱۲۸ واحد را پوشش می‌دهد"
+        en: "512K, because each key covers 128 units"
+        correct: true
+      - fa: "4M"
+        en: "4M"
+    why:
+      fa: "`blocks_per_key = bluestore_freelist_blocks_per_key = 128` با مقدار ۱۶ بایتی. تخصیص و آزادسازی هر دو یک merge با XOR روی همین کلیدهاست."
+      en: "`blocks_per_key = bluestore_freelist_blocks_per_key = 128`, with a 16-byte value. Allocation and release are both an XOR merge on these keys."
+  - id: bluefs-bdev
+    ref: sec-24-4-1
+    q:
+      fa: "در یک extent از BlueFS، فیلد `bdev` چه می‌گوید؟"
+      en: "In a BlueFS extent, what does the `bdev` field say?"
+    options:
+      - fa: "شیئی که extent به آن تعلق دارد"
+        en: "The object the extent belongs to"
+      - fa: "این‌که extent روی کدام دستگاه است: WAL، DB یا SLOW (کدها NEWWAL و NEWDB را هم دارند)"
+        en: "Which device the extent is on: WAL, DB or SLOW (the codes also include NEWWAL and NEWDB)"
+        correct: true
+      - fa: "نوع checksum آن extent"
+        en: "The checksum type of the extent"
+      - fa: "سطحی از RocksDB که فایل به آن تعلق دارد"
+        en: "The RocksDB level the file belongs to"
+    why:
+      fa: "BlueFS فایل‌های RocksDB را میان دستگاه‌های سریع و کند پخش می‌کند، پس هر extent دستگاهش را کنار آفست و طولش ثبت می‌کند."
+      en: "BlueFS spreads RocksDB's files over the fast and slow devices, so every extent records its device next to its offset and length."

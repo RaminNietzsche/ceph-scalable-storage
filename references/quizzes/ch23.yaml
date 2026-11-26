@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 23 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 23
+questions:
+  - id: odirect-align
+    ref: sec-23-2-2
+    q:
+      fa: "BlueStore دستگاه بلوکی را با O_DIRECT باز می‌کند. در نتیجه چه چیزی باید هم‌تراز (aligned) باشد؟"
+      en: "BlueStore opens the block device with O_DIRECT. What must therefore be aligned?"
+    options:
+      - fa: "فقط طول هر نوشتن"
+        en: "Only the length of each write"
+      - fa: "آفست، طول و نشانی بافر، به اندازه‌ی بلوک منطقی دستگاه"
+        en: "The offset, the length and the buffer address, to the device's logical block size"
+        correct: true
+      - fa: "هیچ؛ page cache هسته داده را هم‌تراز می‌کند"
+        en: "Nothing; the kernel page cache aligns the data"
+      - fa: "فقط نام اشیا در RocksDB"
+        en: "Only the object names in RocksDB"
+    why:
+      fa: "با O_DIRECT هسته مستقیم از صفحه‌های فضای کاربر DMA می‌کند. Ceph از `bdev_block_size=4_K` استفاده می‌کند، پس دستگاهی با بلوک منطقی بزرگ‌تر از 4K در mkfs یا باز کردن شکست می‌خورد."
+      en: "With O_DIRECT the kernel DMAs straight from user pages. Ceph uses `bdev_block_size=4_K`, so a device with a logical block larger than 4K fails at mkfs or open."
+  - id: io-uring-default
+    ref: sec-23-2-3
+    q:
+      fa: "`KernelDevice` به‌طور پیش‌فرض از کدام رابط I/O استفاده می‌کند؟"
+      en: "Which I/O interface does `KernelDevice` use by default?"
+    options:
+      - fa: "libaio؛ io_uring فقط وقتی به کار می‌رود که `bdev_ioring` روشن باشد و هسته و liburing پشتیبانی کنند"
+        en: "libaio; io_uring is used only if `bdev_ioring` is turned on and the kernel and liburing support it"
+        correct: true
+      - fa: "io_uring، با libaio به‌عنوان جایگزین روی هسته‌های قدیمی"
+        en: "io_uring, with libaio as a fallback on old kernels"
+      - fa: "فراخوانی‌های هم‌زمان `pwrite` از یک thread pool"
+        en: "Synchronous `pwrite` calls from a thread pool"
+      - fa: "SPDK، مگر این‌که دستگاه HDD باشد"
+        en: "SPDK, unless the device is an HDD"
+    why:
+      fa: "مقدار پیش‌فرض `bdev_ioring` برابر false است و `bdev_aio_max_queue_depth` (۱۰۲۴) صف aio را محدود می‌کند. `NVMEDevice` در SPDK مسیری جداست که هسته را کاملاً دور می‌زند."
+      en: "`bdev_ioring` defaults to false, and `bdev_aio_max_queue_depth` (1024) bounds the aio queue. SPDK's `NVMEDevice` is a separate path that bypasses the kernel entirely."
+  - id: csum-overhead
+    ref: sec-23-5-2
+    q:
+      fa: "با `bluestore_csum_type=crc32c` پیش‌فرض و chunk چهار کیلوبایتی، یک OSD با ۱۰ ترابایت داده تقریباً چقدر داده‌ی checksum نگه می‌دارد؟"
+      en: "With the default `bluestore_csum_type=crc32c` and a 4K chunk, roughly how much checksum data does an OSD with 10 TiB of data keep?"
+    options:
+      - fa: "حدود ۱۰ مگابایت"
+        en: "About 10 MiB"
+      - fa: "حدود ۱۰ گیگابایت، چون هر ۴۰۹۶ بایت ۴ بایت checksum دارد (حدود ۰٫۱ درصد)"
+        en: "About 10 GiB, since every 4096 bytes have 4 bytes of checksum (about 0.1%)"
+        correct: true
+      - fa: "حدود ۱ ترابایت"
+        en: "About 1 TiB"
+      - fa: "هیچ؛ checksumها هنگام خواندن محاسبه می‌شوند و ذخیره نمی‌شوند"
+        en: "None; checksums are computed on read and never stored"
+    why:
+      fa: "checksumها در onodeها هستند و بخشی از آن‌ها در cache مربوط به onode می‌نشیند. chunk بزرگ‌تر در فراداده صرفه‌جویی می‌کند ولی برای تأیید یک خواندن کوچک باید داده‌ی بیشتری خواند."
+      en: "The checksums live in the onodes, and part of them sits in the onode cache. A larger chunk saves metadata but forces reading more data to verify a small read."
+  - id: append-growth
+    ref: sec-23-7
+    q:
+      fa: "وقتی تکه‌های کوچکی به مجموع ۱ مگابایت به یک `bufferlist` افزوده می‌شوند، بافرهای آن چطور رشد می‌کنند؟"
+      en: "When small pieces totalling 1 MiB are appended to a `bufferlist`, how do its buffers grow?"
+    options:
+      - fa: "برای هر ۴ کیلوبایت داده یک بافر تازه‌ی 4K"
+        en: "One new 4K buffer for every 4K of data"
+      - fa: "یک بافر که با هر افزودن دوباره تخصیص و کپی می‌شود"
+        en: "One buffer that is reallocated and copied on every append"
+      - fa: "دو برابر شدن از 4K تا سقف 256K، بعد بافرهای 256K بیشتر: روی هم ده بافر"
+        en: "Doubling from 4K up to a 256K cap, then more 256K buffers: ten buffers in all"
+        correct: true
+      - fa: "یک بافر یک‌مگابایتی که از آغاز تخصیص داده می‌شود"
+        en: "A single 1 MiB buffer allocated up front"
+    why:
+      fa: "`refill_append_space` افزودن‌های کوچک را بدون تخصیص‌های بزرگ در هزینه‌ی سرشکن O(1) نگه می‌دارد. یک فهرست تکه‌تکه ارزان است تا وقتی کسی `c_str()` را صدا بزند که همه‌چیز را در یک بافر کپی می‌کند."
+      en: "`refill_append_space` keeps small appends amortized O(1) without huge allocations. A fragmented list is cheap until someone calls `c_str()`, which copies everything into one buffer."
+  - id: mempool-what
+    ref: sec-23-4
+    q:
+      fa: "mempool در Ceph چه کاری انجام می‌دهد؟"
+      en: "What does a mempool do in Ceph?"
+    options:
+      - fa: "همه‌ی حافظه‌ای را که OSD ممکن است مصرف کند هنگام راه‌اندازی از پیش تخصیص می‌دهد"
+        en: "It preallocates all memory an OSD may use at start-up"
+      - fa: "بایت‌ها و تعداد اقلام را برای هر زیرسامانه، مثل بخش‌های cache در BlueStore، با شمارنده‌های شاردشده حساب می‌کند"
+        en: "It accounts bytes and items per subsystem, such as parts of the BlueStore cache, with sharded counters"
+        correct: true
+      - fa: "malloc را با یک تخصیص‌دهنده‌ی بدون قفل جایگزین می‌کند"
+        en: "It replaces malloc with a lock-free allocator"
+      - fa: "صفحه‌های سرد حافظه را به swap می‌برد"
+        en: "It moves cold memory pages to swap"
+    why:
+      fa: "ظرف‌هایی مثل `mempool::<pool>::vector` مصرف خود را در pool خودشان ثبت می‌کنند؛ شارد کردن از رقابت روی cache lineها جلوگیری می‌کند. تنظیم خودکار حافظه به همین اعداد تکیه دارد."
+      en: "Containers such as `mempool::<pool>::vector` record their usage in their pool; sharding avoids contention on cache lines. Memory autotuning relies on these numbers."
