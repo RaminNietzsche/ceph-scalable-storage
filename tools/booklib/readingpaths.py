@@ -27,11 +27,13 @@ import yaml
 DATA = os.path.join('references', 'reading-paths.yaml')
 WPM = {'fa': 170, 'en': 220}
 APPS = {'appA': 'glossary', 'appB': 'cheatsheet', 'appC': 'troubleshooting', 'appD': 'versions', 'appF': 'answers',
-        'appG': 'bibliography', 'appH': 'algorithms', 'appI': 'changes', 'appJ': 'upgrade', 'appK': 'security'}
+        'appG': 'bibliography', 'appH': 'algorithms', 'appI': 'changes', 'appJ': 'upgrade', 'appK': 'security',
+        'appL': 'multisite-dr'}
 APP_SRC = {'appC': 'appendices/troubleshooting.md', 'appD': 'appendices/versions.md',
-           'appJ': 'appendices/upgrade.md', 'appK': 'appendices/security.md'}
+           'appJ': 'appendices/upgrade.md', 'appK': 'appendices/security.md',
+           'appL': 'appendices/multisite-dr.md'}
 # Pandoc heading ids of the appendices that have one (the print book uses the keys)
-PANDOC_APP = {'appB': 'appB', 'appI': 'app-changes', 'appJ': 'app-upgrade', 'appK': 'app-security'}
+PANDOC_APP = {'appB': 'appB', 'appI': 'app-changes', 'appJ': 'app-upgrade', 'appK': 'app-security', 'appL': 'app-multisite-dr'}
 UI_KEYS = ('paths_nav', 'paths_title', 'paths_intro', 'paths_fig_alt', 'paths_fig_cap', 'paths_pick', 'paths_steps', 'paths_time',
            'paths_prereq', 'paths_after', 'paths_optional', 'paths_lab', 'paths_then', 'paths_follow', 'paths_following',
            'paths_note', 'paths_hint_label', 'paths_hint_on', 'paths_hint_next', 'paths_hint_opt', 'paths_hint_min',

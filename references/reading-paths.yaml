@@ -9,7 +9,7 @@
 #   sec-NN-K    a section (or sub-section)        sec-07-6
 #   appX        an appendix, by its print id      appJ   (A glossary, B cheat sheet, C troubleshooting, D release
 #                                                 table, F answers, G bibliography, H algorithms, I changes,
-#                                                 J upgrade guide, K RGW security)
+#                                                 J upgrade guide, K RGW security, L multisite and DR)
 #   lab:NAME    an interactive lab of the site    lab:balancer
 # `optional: true` marks a step that can be skipped; `why` says what the reader gets from it; `hands_on` adds the
 # minutes a step needs for its exercises.
@@ -211,6 +211,9 @@ paths:
             why: {fa: "اگر همه‌ی MONها از دست رفتند: پیشگیری و بازسازی از روی OSDها.", en: "If every MON is lost: prevention and rebuilding from the OSDs."}
           - ref: sec-18-10
             why: {fa: "پشتیبان مستقل از کلاستر، تا یک حادثه‌ی منطقی همه‌چیز را با هم نبرد.", en: "A backup independent of the cluster, so one logical accident cannot take everything."}
+          - ref: appL
+            hands_on: 30
+            why: {fa: "اگر یک سایت از دست رفت: پایش همگام‌سازی، switchover، failover و failback، و چک‌لیست تمرین DR.", en: "If a site is lost: monitoring sync, switchover, failover and failback, and a DR drill checklist."}
       - title: {fa: "ارتقا و تنظیم", en: "Upgrading and tuning"}
         steps:
           - ref: appJ
@@ -454,6 +457,8 @@ paths:
             why: {fa: "کارایی و طراحی در چند سایت.", en: "Performance and design across sites."}
           - ref: sec-18-7
             why: {fa: "stretch mode: یک کلاستر روی دو سایت و رفتارش هنگام خرابی.", en: "Stretch mode: one cluster across two sites and its behaviour on failure."}
+          - ref: appL
+            why: {fa: "انتخاب توپولوژی DR با RPO و RTO: stretch در برابر multisite، RBD mirroring و CephFS mirroring.", en: "Choosing a DR topology by RPO and RTO: stretch versus multisite, RBD mirroring and CephFS mirroring."}
           - ref: sec-10-3
             why: {fa: "خط پایه‌ی سخت‌افزار: قبل از اعتماد به عددهای ادعاشده، دیسک و شبکه را بسنجید.", en: "The hardware baseline: measure disk and network before trusting the claimed numbers."}
           - ref: sec-10-8

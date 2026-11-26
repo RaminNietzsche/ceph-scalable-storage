@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Reading paths: the SRE/operator and storage-architect paths include appendix K (multisite and disaster recovery).
 - Chapters 5, 18 and 42 and appendix J link to appendix K; README and CONTRIBUTING list it.
 - Appendix K: the sync-thread alert refers to a zone in which no RGW syncs.
 - Cheat sheet: nine multisite and DR commands (sync errors, data sync, zone promotion, period pull, RBD demote/force-promote/resync, cephfs-mirror status) linked to appendix K; 187 commands.
