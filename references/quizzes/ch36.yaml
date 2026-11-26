@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 36 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 36
+questions:
+  - id: snap-delete-queue
+    ref: sec-36-4-1
+    q:
+      fa: "حذف یک snapshot در آغاز چه کاری انجام می‌دهد؟"
+      en: "What does deleting a snapshot do at first?"
+    options:
+      - fa: "پیش از برگشتن فرمان، همه‌ی cloneها را هم‌زمان حذف می‌کند"
+        en: "It removes every clone synchronously before the command returns"
+      - fa: "مانیتور فقط شماره‌ی snap را به `removed_snaps_queue` در pool می‌افزاید؛ هر PG آن را به `snap_trimq` خود اضافه می‌کند و SnapTrimmer cloneها را در پس‌زمینه حذف می‌کند"
+        en: "The mon only adds the snap number to the pool's `removed_snaps_queue`; each PG adds it to its `snap_trimq` and the SnapTrimmer removes clones in the background"
+        correct: true
+      - fa: "pool را تا پایان trim فقط‌خواندنی می‌کند"
+        en: "It marks the pool read-only until trimming ends"
+      - fa: "همه‌ی اشیای pool را بازنویسی می‌کند"
+        en: "It rewrites every object of the pool"
+    why:
+      fa: "برای همین فضا به‌تدریج آزاد می‌شود. نمایه‌ی معکوس SnapMapper cloneهای یک snap را بدون پیمایش همه‌ی اشیا پیدا می‌کند."
+      en: "That is why space is freed gradually. The SnapMapper's reverse index finds the clones of a snap without scanning every object."
+  - id: snaptrim-slow
+    ref: sec-36-9
+    q:
+      fa: "پس از حذف snapshotها روی یک کلاستر HDD فضا آزاد نمی‌شود. فصل چه پیشنهادی می‌دهد؟"
+      en: "Space is not being freed after deleting snapshots on an HDD cluster. What does the chapter suggest?"
+    options:
+      - fa: "cloneها را با دست با `rados rm` حذف کنید"
+        en: "Delete the clones by hand with `rados rm`"
+      - fa: "`ceph pg ls snaptrim_wait` را ببینید و سپس با احتیاط `osd_snap_trim_sleep_hdd` را کم کنید یا مدتی از پروفایل `high_recovery_ops` در mClock استفاده کنید"
+        en: "Look at `ceph pg ls snaptrim_wait`, then carefully lower `osd_snap_trim_sleep_hdd` or use the `high_recovery_ops` mClock profile for a while"
+        correct: true
+      - fa: "همه‌ی OSDها را دوباره راه بیندازید"
+        en: "Restart all OSDs"
+      - fa: "snapshot را در pool غیرفعال کنید"
+        en: "Disable snapshots on the pool"
+    why:
+      fa: "trim کردن عمداً کند شده تا به I/O کلاینت آسیب نزند؛ کم کردن sleep سرعتش را بالا می‌برد، به بهای تأخیر کلاینت."
+      en: "Trimming is throttled so that it does not hurt client I/O; lowering the sleep speeds it up at the cost of client latency."
+  - id: first-write-clone
+    ref: sec-36-9
+    q:
+      fa: "نوشتن روی یک ایمیج RBD درست پس از هر snapshot کندتر است. چرا؟"
+      en: "Writes to an RBD image are slower right after each snapshot. Why?"
+    options:
+      - fa: "snapshot هنگام ساخته شدن کل ایمیج را کپی می‌کند"
+        en: "Snapshots copy the whole image at creation"
+      - fa: "نخستین نوشتن روی هر شیء پس از snapshot یک clone می‌سازد و فراداده‌ی بیشتری می‌نویسد"
+        en: "The first write to each object after a snapshot creates a clone and writes more metadata"
+        correct: true
+      - fa: "ایمیج تا flatten شدن snapshot قفل است"
+        en: "The image is locked until the snapshot is flattened"
+      - fa: "RBD تا وقتی snapshot وجود دارد cache خود را غیرفعال می‌کند"
+        en: "RBD disables its cache while a snapshot exists"
+    why:
+      fa: "در BlueStore این clone هیچ داده‌ای کپی نمی‌کند، ولی SnapSet و SnapMapper بزرگ می‌شوند. snapshotهای خیلی پرتکرار روی ایمیجی پرنوشتن یعنی cloneهای زیاد و SnapMapper بزرگ."
+      en: "In BlueStore the clone copies no data, but the SnapSet and SnapMapper grow. Very frequent snapshots on a write-heavy image mean many clones and a large SnapMapper."
+  - id: watch-survives
+    ref: sec-36-5
+    q:
+      fa: "OSD اصلی شیء header یک ایمیج RBD عوض می‌شود. چرا watchهای کلاینت‌ها باقی می‌مانند؟"
+      en: "The primary of an RBD header object changes. Why do the clients' watches survive?"
+    options:
+      - fa: "کلاینت‌ها فهرست watch را نگه می‌دارند و به OSD اصلی تازه می‌فرستند"
+        en: "The clients keep the watch list and send it to the new primary"
+      - fa: "مانیتور همه‌ی watchها را ذخیره می‌کند"
+        en: "The monitor stores all watches"
+      - fa: "باقی نمی‌مانند؛ هر کلاینت باید ایمیج را دوباره باز کند"
+        en: "They do not; every client must reopen the image"
+      - fa: "watch در `object_info_t.watchers` ثبت می‌شود، پس همراه شیء تکثیر می‌شود"
+        en: "A watch is recorded in `object_info_t.watchers`, so it is replicated with the object"
+        correct: true
+    why:
+      fa: "روی OSD اصلی هر watch یک شیء `Watch` درون حافظه هم با اتصال کلاینت و یک زمان‌سنج دارد؛ کلاینت با زیرعمل `RECONNECT` در op مربوط به watch دوباره به آن وصل می‌شود."
+      en: "On the primary each watch also has an in-memory `Watch` object with the client connection and a timer; the client attaches to it again with the `RECONNECT` sub-operation of the watch op."
+  - id: ls-enoent
+    ref: sec-36-9
+    q:
+      fa: "`rados ls` یک شیء را فهرست می‌کند ولی `rados stat` روی آن ENOENT برمی‌گرداند. توضیح محتمل چیست؟"
+      en: "`rados ls` lists an object, but `rados stat` on it returns ENOENT. What is the likely explanation?"
+    options:
+      - fa: "شیء خراب است و `ceph pg repair` لازم دارد"
+        en: "The object is corrupted and needs `ceph pg repair`"
+      - fa: "فهرست روی کلاینت cache شده است"
+        en: "The listing is cached on the client"
+      - fa: "head یک whiteout است و cloneهایش هنوز trim نشده‌اند"
+        en: "The head is a whiteout and its clones have not been trimmed yet"
+        correct: true
+      - fa: "شیء در namespace دیگری است"
+        en: "The object is in another namespace"
+    why:
+      fa: "head حذف شده در حالی که snapshotها هنوز به cloneهایش نیاز دارند، پس یک جانگه‌دار تا پایان trim باقی می‌ماند."
+      en: "The head was deleted while snapshots still need its clones, so a placeholder remains until trimming finishes."

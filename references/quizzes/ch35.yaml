@@ -1,0 +1,95 @@
+# End-of-chapter quiz, chapter 35 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 35
+questions:
+  - id: last-complete
+    ref: sec-35-2
+    q:
+      fa: "در `pg_info_t`، فیلد `last_complete` چه معنایی دارد؟"
+      en: "In `pg_info_t`, what does `last_complete` mean?"
+    options:
+      - fa: "آخرین نسخه در log این عضو"
+        en: "The last version in this member's log"
+      - fa: "تا این نسخه همه‌ی اشیا روی این عضو کامل‌اند؛ هیچ شیء گم‌شده‌ی قدیمی‌تری نیست"
+        en: "Up to this version every object is complete on this member; there is no older missing object"
+        correct: true
+      - fa: "epoch آخرین scrub تمام‌شده"
+        en: "The epoch of the last completed scrub"
+      - fa: "آخرین زمانی که PG در حالت active+clean بود"
+        en: "The last time the PG was active+clean"
+    why:
+      fa: "`last_update` تازه‌ترین نسخه در log است. عضوی که log را دارد ولی هنوز اشیا را بازیابی می‌کند، `last_complete` عقب‌تر از `last_update` دارد."
+      en: "`last_update` is the newest version in the log. A member that has the log but is still recovering objects has `last_complete` behind `last_update`."
+  - id: minsize-interval
+    ref: sec-35-3-2
+    q:
+      fa: "PG 3.1f (size 3، min_size 2) روی [12,4,27] بود. در epoch ۱۴۵۰، OSDهای ۴ و ۲۷ از کار افتادند و acting به [12] رسید. چرا بعداً می‌توان interval از ۱۴۵۰ تا ۱۴۶۰ را نادیده گرفت؟"
+      en: "PG 3.1f (size 3, min_size 2) was on [12,4,27]. At epoch 1450 OSDs 4 and 27 failed and acting became [12]. Why can the interval from 1450 to 1460 be ignored later?"
+    options:
+      - fa: "چون کمتر از یک دقیقه طول کشید"
+        en: "Because it was shorter than one minute"
+      - fa: "چون یک عضو کمتر از min_size است، پس هیچ نوشتنی نمی‌توانسته رخ دهد (`maybe_went_rw=false`)"
+        en: "Because one member is below min_size, so no writes could have happened (`maybe_went_rw=false`)"
+        correct: true
+      - fa: "چون osd.12 اصلی است و همیشه همه‌ی نوشتن‌ها را دارد"
+        en: "Because osd.12 is the primary and always has every write"
+      - fa: "چون مانیتور آن interval را از OSDMap حذف کرد"
+        en: "Because the monitor deleted the interval from the OSDMap"
+    why:
+      fa: "فقط intervalهایی که ممکن است نوشتن پذیرفته باشند در بررسی‌های prior set می‌آیند. بعداً که ۱۲ down است ولی ۴ و ۲۷ برگشته‌اند، PG در حالت down نیست، چون ۴ و ۲۷ interval قبلی را که نوشتن داشت در اختیار دارند."
+      en: "Only intervals that may have taken writes go into the prior set's checks. Later, with 12 down but 4 and 27 back, the PG is not down, because 4 and 27 hold the earlier interval that had writes."
+  - id: missing-have-need
+    ref: sec-35-4
+    q:
+      fa: "هنگام ادغام logها، مدخل تازه‌ای برای شیئی که گم نبود به مجموعه‌ی missing افزوده می‌شود. `have` و `need` چه می‌شوند؟"
+      en: "While merging logs, a new entry for an object that was not missing is added to the missing set. What are `have` and `need`?"
+    options:
+      - fa: "`have` صفر و `need` همان last_update در PG"
+        en: "`have` is 0 and `need` is the PG's last_update"
+      - fa: "`have` همان `prior_version` مدخل و `need` نسخه‌ی مدخل است"
+        en: "`have` is the entry's `prior_version` and `need` is the entry's version"
+        correct: true
+      - fa: "هر دو نسخه‌ی مدخل‌اند"
+        en: "Both are the entry's version"
+      - fa: "`have` نسخه‌ی OSD اصلی و `need` نسخه‌ی نسخه‌ی دیگر است"
+        en: "`have` is the primary's version and `need` the replica's"
+    why:
+      fa: "اگر شیء از پیش گم بود، فقط `need` جلو می‌رود. برای مدخل `DELETE`، پرچم `FLAG_DELETE` به بازیابی می‌گوید به‌جای کپی، حذف کند."
+      en: "If the object was already missing, only `need` moves forward. For a `DELETE` entry, `FLAG_DELETE` tells recovery to delete instead of copy."
+  - id: push-chunk
+    ref: sec-35-6-2
+    q:
+      fa: "هنگام بازیابی مبتنی بر log، OSD اصلی یک شیء بزرگ را چطور به یک نسخه می‌فرستد؟"
+      en: "During log-based recovery, how does the primary send a large object to a replica?"
+    options:
+      - fa: "در یک پیام، هر قدر هم بزرگ"
+        en: "In one message, however large"
+      - fa: "نسخه آن را مستقیم از کلاینت می‌کشد"
+        en: "The replica pulls it directly from the client"
+      - fa: "با pushهایی حداکثر به اندازه‌ی `osd_recovery_max_chunk` (پیش‌فرض ۸ مگابایت)، پس اشیای بزرگ‌تر در چند تکه می‌روند"
+        en: "By pushes of at most `osd_recovery_max_chunk` (default 8 MiB), so larger objects go in several pieces"
+        correct: true
+      - fa: "فقط از راه backfill"
+        en: "Through backfill only"
+    why:
+      fa: "`recover_primary` اشیای گم‌شده را از عضوی در `missing_loc` به OSD اصلی می‌کشد (pull)؛ `recover_replicas` از OSD اصلی به نسخه‌ها push می‌کند."
+      en: "`recover_primary` pulls missing objects to the primary from a member in `missing_loc`; `recover_replicas` pushes from the primary to replicas."
+  - id: short-log
+    ref: sec-35-7-1
+    multi: true
+    q:
+      fa: "پس از چند دقیقه توقف برنامه‌ریزی‌شده، یک OSD برگشت و PGهایش به‌جای بازیابی مبتنی بر log به backfill رفتند. کدام پاسخ‌ها با فصل جور است؟ همه‌ی موارد درست را برگزینید."
+      en: "After a few minutes of planned downtime, an OSD came back and its PGs went to backfill instead of log-based recovery. Which responses fit the chapter? Select all that apply."
+    options:
+      - fa: "تعداد PG روی هر OSD را بررسی کنید، چون بودجه‌ی log را تقسیم می‌کند"
+        en: "Check the number of PGs per OSD, because it divides the log budget"
+        correct: true
+      - fa: "توقف‌ها را در نگه‌داری برنامه‌ریزی‌شده کوتاه‌تر کنید"
+        en: "Keep downtime shorter during planned maintenance"
+        correct: true
+      - fa: "`ceph osd lost` را روی آن OSD اجرا کنید"
+        en: "Run `ceph osd lost` on the OSD"
+      - fa: "`osd_find_best_info_ignore_history_les` را روشن کنید"
+        en: "Set `osd_find_best_info_ignore_history_les`"
+    why:
+      fa: "log برای پوشش این فاصله کوتاه بود. `ceph osd lost` و نادیده گرفتن تاریخچه آخرین راه برای PGهای مسدود یا incomplete است، نه برای یک backfill عادی."
+      en: "The log was too short to cover the gap. `ceph osd lost` and ignoring history are last resorts for blocked or incomplete PGs, not for a normal backfill."
