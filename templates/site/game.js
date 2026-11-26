@@ -50,6 +50,7 @@
     globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z',
     snow: 'M12 2v20M4 6.5l16 11M4 17.5l16-11M9 4l3 2 3-2M9 20l3-2 3 2',
     q: 'M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1.2-1.5 2.4M12 18h.01',
+    cq: 'M9 3h6v3H9zM7 4.5H5V21h14V4.5h-2M8.5 13.5l2.5 2.5 4.5-5',
     flask: 'M9 3h6M10 3v6l-5.6 9.6A1.6 1.6 0 0 0 5.8 21h12.4a1.6 1.6 0 0 0 1.4-2.4L14 9V3M7.2 15h9.6',
     l_crush: 'M3 5h6v4H3zM15 15h6v4h-6zM9 7h3a3 3 0 0 1 3 3v5',
     l_placement: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM17 14v6M14 17h6',
@@ -97,7 +98,7 @@
   function defaults() {
     return { v: GV, on: true, sound: false, goal: { t: 'min', n: 10 }, restDays: true, xp: 0, days: {}, fz: 0, fzEarned: 0, frozen: {},
              settled: null, best: 0, badges: {}, secs: {}, chXP: {}, zoom: {}, algo: {}, sims: {}, srs: {}, glossOn: false,
-             quiz: { ok: 0, n: 0, run: 0, best: 0 }, wk: null, name: '', flags: {}, lv: 1, seen: null };
+             quiz: { ok: 0, n: 0, run: 0, best: 0 }, cq: {}, cqa: {}, wk: null, name: '', flags: {}, lv: 1, seen: null };
   }
   function gs() {
     var P = B.get();
@@ -311,6 +312,7 @@
     st.sims = Object.keys(g.sims).length;
     st.marks = P.marks.length;
     st.qok = g.quiz.ok; st.qn = g.quiz.n; st.qbest = g.quiz.best;
+    st.cq = Object.keys(g.cq).filter(function (k) { return g.cq[k].p && G.cq && G.cq[k]; }).length;
     st.gloss = Object.keys(g.srs).filter(function (k) { return k.charAt(0) === 'g' && g.srs[k].b >= 4; }).length;
     st.xp = g.xp;
     st.best = Math.max(g.best, streak().cur);
@@ -330,6 +332,7 @@
     ['lab', 'flask', [1, 8, 20], function (s) { return s.sims; }],
     ['cards', 'cards', [20, 200, 1000], function (s) { return s.cards; }],
     ['quiz', 'target', [10, 50, 200], function (s) { return s.qok; }],
+    ['cqm', 'cq', [5, 20, Math.max(21, Object.keys(G.cq || {}).length)], function (s) { return s.cq; }],
     ['gloss', 'lang', [10, 50, Math.max(51, G.gids.length)], function (s) { return s.gloss; }],
     ['marks', 'mark', [1, 10, 30], function (s) { return s.marks; }],
     ['xp', 'star', [500, 2500, 6500], function (s) { return s.xp; }],
@@ -632,7 +635,7 @@
     html += '<section class="g-sec"><h2>' + esc(S.stats_title) + '</h2><div class="g-stats">' +
       [[fmtTime(sts.sec), S.st_time], [L(sts.chapters) + ' / ' + L(Object.keys(G.chs).length), S.st_chapters], [L(sts.sections), S.st_sections],
        [L(sts.cards), S.st_cards], [sts.qn ? pct(Math.round(sts.qok / sts.qn * 100)) : '—', S.st_acc], [L(sts.algo) + ' / ' + L(G.nAlgo), S.st_algo],
-       [L(sts.figs), S.st_figs], [L(sts.sims), S.st_sims], [L(sts.marks), S.st_marks]].map(function (x) { return '<div><b>' + esc(x[0]) + '</b><span>' + esc(x[1]) + '</span></div>'; }).join('') + '</div></section>';
+       [L(sts.cq) + ' / ' + L(Object.keys(G.cq || {}).length), S.st_cq], [L(sts.figs), S.st_figs], [L(sts.sims), S.st_sims], [L(sts.marks), S.st_marks]].map(function (x) { return '<div><b>' + esc(x[0]) + '</b><span>' + esc(x[1]) + '</span></div>'; }).join('') + '</div></section>';
     html += '<section class="g-sec game" id="gm-quests"><h2>' + esc(S.quests_title) + '</h2><p class="g-sub">' + esc(T('quests_sub', { n: L(QXP) })) + '</p><ul class="quests">' +
       w.q.map(function (q) {
         var c = Math.min(q[1], Math.floor(w.c[q[0]] || 0)), done = !!w.done[q[0]], name = T('q_' + q[0], { n: L(q[1]) });
@@ -681,9 +684,9 @@
       data.cards.forEach(function (c) { cards[c[0]] = { id: c[0], ch: c[1], q: c[2], a: c[3] }; (byCh[c[1]] = byCh[c[1]] || []).push(c[0]); });
       data.gloss.forEach(function (x) { cards[x[0]] = { id: x[0], g: 1, q: x[1], a: x[2] }; });
       var qs = new URLSearchParams(location.search);
-      if (!RV.mode) { RV.mode = qs.get('ch') ? 'ch' : qs.get('mode') === 'quiz' ? 'quiz' : 'today'; RV.ch = +qs.get('ch') || null; }
+      if (!RV.mode) { RV.mode = qs.get('ch') ? 'ch' : qs.get('mode') === 'quiz' ? 'quiz' : qs.get('mode') === 'cq' ? 'cq' : 'today'; RV.ch = +qs.get('ch') || null; }
       var due = todayCount();
-      var tabs = [['today', T('rv_tab_today') + (due ? ' (' + L(due) + ')' : '')], ['ch', S.rv_tab_ch], ['quiz', S.rv_tab_quiz]];
+      var tabs = [['today', T('rv_tab_today') + (due ? ' (' + L(due) + ')' : '')], ['ch', S.rv_tab_ch], ['quiz', S.rv_tab_quiz], ['cq', S.rv_tab_cq]];
       el.innerHTML = '<div class="rv-tabs" role="tablist">' + tabs.map(function (t) {
         return '<button type="button" role="tab" id="tab-' + t[0] + '" aria-controls="rv-panel" aria-selected="' + (RV.mode === t[0]) + '" tabindex="' + (RV.mode === t[0] ? 0 : -1) + '">' + esc(t[1]) + '</button>';
       }).join('') + '</div><div id="rv-panel" role="tabpanel" aria-labelledby="tab-' + RV.mode + '"></div>';
@@ -697,6 +700,7 @@
       });
       var panel = $('#rv-panel', el);
       if (RV.mode === 'quiz') return quiz(panel, data.gloss);
+      if (RV.mode === 'cq') { RV.key = null; return cqList(panel); }
       if (RV.mode === 'ch') {
         var chs = Object.keys(byCh).map(Number).sort(function (a, b) { return a - b; });
         if (!RV.ch || !byCh[RV.ch]) RV.ch = chs[0] || null;
@@ -817,6 +821,113 @@
       else if (Q.answered && e.key === 'Enter' && d.activeElement !== $('#qz-next', panel)) { e.preventDefault(); $('#qz-next', panel).click(); }
     };
   }
+
+  /* ---- end-of-chapter quizzes (tools/build_site.py renders them from references/quizzes/chNN.yaml) ----
+     Each question is checked on its own; the explanation and a link to its section follow. A run is
+     passed when every answer is right; the first pass of a chapter earns G.cqXP once. The first answer
+     to each question also counts toward the quiz statistics (and the Quiz master badge), retries do not. */
+  var LET = (S.cq_letters || 'A B C D E').split(' ');
+  function cqRec(ch) { var g = gs(); return g.cq[ch] || (g.cq[ch] = { p: 0, b: 0, a: 0 }); }
+  function cqHead(sec, ch, n) {
+    var bd = $('.cq-badge', sec), r = gs().cq[ch];
+    if (!bd) return;
+    if (r && r.p) { bd.hidden = false; bd.className = 'cq-badge game on'; bd.innerHTML = svg('check') + esc(S.cq_passed); }
+    else if (r && r.a) { bd.hidden = false; bd.className = 'cq-badge game'; bd.textContent = T('cq_best', { a: L(r.b), n: L(n) }); }
+    else bd.hidden = true;
+  }
+  function initCQ() {
+    var sec = $('#chapter-quiz');
+    if (!sec) return;
+    var ch = sec.dataset.ch, items = $$('.cq-q', sec), n = items.length, sum = $('.cq-sum', sec), run = { done: 0, ok: 0 };
+    sec.classList.add('cq-js');
+    function mark(lab, cls, txt) { lab.classList.add(cls); lab.appendChild(h('span', { class: 'sr-only cq-mk' }, esc(' ' + txt))); }
+    function check(li) {
+      if (li.dataset.done) return;
+      var ins = $$('input', li), fb = $('.cq-fb', li);
+      if (!ins.some(function (x) { return x.checked; })) { fb.textContent = S.cq_pick; fb.className = 'cq-fb warn'; return; }
+      var ok = ins.every(function (x) { return x.checked === x.hasAttribute('data-ok'); });
+      var right = ins.filter(function (x) { return x.hasAttribute('data-ok'); }).map(function (x) { return LET[+x.value]; });
+      li.dataset.done = ok ? 'ok' : 'bad';
+      li.classList.add(ok ? 'is-ok' : 'is-bad');
+      ins.forEach(function (x) {
+        x.disabled = true;
+        var lab = x.closest('.cq-o');
+        if (x.hasAttribute('data-ok')) mark(lab, 'right', S.cq_mark_ok);
+        else if (x.checked) mark(lab, 'wrong', S.cq_mark_you);
+      });
+      fb.className = 'cq-fb ' + (ok ? 'ok' : 'bad');
+      fb.textContent = ok ? S.cq_right : S.cq_wrong + ' ' + T('cq_ans', { a: right.map(L).join(LANG === 'fa' ? '، ' : ', ') });
+      var key = $('.cq-key', li); key.hidden = false; key.open = true;
+      $('.cq-check', li).hidden = true;
+      fb.setAttribute('tabindex', '-1'); fb.focus({ preventScroll: true });
+      var g = gs();
+      if (!g.cqa[li.id]) {   // only the first answer ever to a question counts
+        g.cqa[li.id] = ok ? 1 : 2; g.quiz.n++;
+        if (ok) { g.quiz.ok++; g.quiz.run++; g.quiz.best = Math.max(g.quiz.best, g.quiz.run); var dd = day(); dd.m = (dd.m || 0) + 1; } else g.quiz.run = 0;
+        save();
+        award(ok ? 3 : 1, 'mc');
+        if (ok) bump('mc', 1);
+        checkBadges();
+      }
+      run.done++; if (ok) run.ok++;
+      if (run.done === n) finish();
+    }
+    function finish() {
+      var r = cqRec(ch), pass = run.ok === n, first = pass && !r.p;
+      r.a++; r.b = Math.max(r.b, run.ok);
+      if (first) r.p = Date.now();
+      save();
+      sum.hidden = false;
+      sum.className = 'cq-sum ' + (pass ? 'pass' : 'fail');
+      sum.innerHTML = '<span class="g-medal ' + (pass ? 't3' : 't0') + '">' + svg(pass ? 'cq' : 'q') + '</span><div><b>' + esc(T('cq_score', { a: L(run.ok), n: L(n) })) + '</b> ' +
+        esc(pass ? S.cq_pass : S.cq_fail) + (first && on() ? ' <span class="game cq-xp">' + esc(T('xp_plus', { n: L(G.cqXP) })) + '</span>' : '') +
+        '</div><button type="button" class="btn cq-retry">' + esc(S.cq_retry) + '</button>';
+      $('.cq-retry', sum).addEventListener('click', reset);
+      if (first) {
+        award(G.cqXP, 'cq', true);
+        toast('<span class="g-medal t3">' + svg('cq') + '</span><div><b>' + esc(T('cq_toast', { n: L(ch) })) + '</b><span>' + esc(T('xp_plus', { n: L(G.cqXP) })) + '</span></div>', 'badge', 4200);
+        checkBadges();
+      }
+      cqHead(sec, ch, n);
+    }
+    function reset() {
+      run = { done: 0, ok: 0 };
+      items.forEach(function (li) {
+        delete li.dataset.done; li.classList.remove('is-ok', 'is-bad');
+        $$('input', li).forEach(function (x) { x.disabled = false; x.checked = false; });
+        $$('.cq-o', li).forEach(function (l) { l.classList.remove('right', 'wrong'); });
+        $$('.cq-mk', li).forEach(function (x) { x.remove(); });
+        var fb = $('.cq-fb', li); fb.textContent = ''; fb.className = 'cq-fb'; fb.removeAttribute('tabindex');
+        var key = $('.cq-key', li); key.open = false; key.hidden = true;
+        $('.cq-check', li).hidden = false;
+      });
+      sum.hidden = true; sum.innerHTML = '';
+      var f = $('input', items[0]); if (f) f.focus();
+    }
+    items.forEach(function (li) {
+      $('.cq-key', li).hidden = true;
+      var b = $('.cq-check', li); b.hidden = false;
+      b.addEventListener('click', function () { check(li); });
+      $$('input', li).forEach(function (x) {
+        x.addEventListener('change', function () { var fb = $('.cq-fb', li); if (fb.classList.contains('warn')) { fb.textContent = ''; fb.className = 'cq-fb'; } });
+        x.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); check(li); } });
+      });
+    });
+    cqHead(sec, ch, n);
+  }
+  // review page: every chapter quiz with its state, linked to the chapter page
+  function cqList(panel) {
+    var g = gs(), slugOf = {};
+    Object.keys(G.chs).forEach(function (s) { slugOf[G.chs[s]] = s; });
+    var chs = Object.keys(G.cq || {}).map(Number).sort(function (a, b) { return a - b; });
+    var got = chs.filter(function (c) { return g.cq[c] && g.cq[c].p; }).length;
+    panel.innerHTML = '<p class="g-sub">' + esc(T('cq_list_sub', { a: L(got), b: L(chs.length) })) + '</p>' + bar(chs.length ? got / chs.length : 0, T('cq_list_sub', { a: L(got), b: L(chs.length) })) +
+      '<ol class="cq-index" role="list">' + chs.map(function (c) {
+        var r = g.cq[c], n = G.cq[c], st = r && r.p ? '<span class="cq-st on">' + svg('check') + esc(S.cq_passed) + '</span>' :
+          r && r.a ? '<span class="cq-st">' + esc(T('cq_best', { a: L(r.b), n: L(n) })) + '</span>' : '<span class="cq-st off">' + esc(S.cq_none) + '</span>';
+        return '<li><a href="' + slugOf[c] + '.html#chapter-quiz"><span class="cq-cn">' + L(c) + '</span><span class="cq-ct">' + esc(G.chTitle[c] || '') + '</span>' + st + '</a></li>';
+      }).join('') + '</ol>';
+  }
   d.addEventListener('keydown', function (e) {
     if (KIND !== 'app' || SLUG !== 'review' || !RV.key || e.altKey || e.ctrlKey || e.metaKey) return;
     var dlg = $('#my-dlg'), sd = $('#search-dlg');
@@ -876,5 +987,6 @@
   checkBadges();
   paintChrome();
   renderApp();
+  initCQ();
   window.Game = { award: award, state: gs, level: levelOf, streak: streak, todayCount: todayCount };   // for tests and the curious
 })();
