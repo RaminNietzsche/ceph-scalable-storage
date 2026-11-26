@@ -419,6 +419,20 @@ categories:
         ref: sec-02-10
         since: tentacle
 
+      - cmd: rbd mirror image demote <pool>/<image>
+        fa: تنزل image روی site فعلی پیش از جابه‌جایی برنامه‌ریزی‌شده یا failback
+        en: Demote an image on the current site before a switchover or failback
+        ref: appL
+      - cmd: rbd mirror image promote --force <pool>/<image>
+        fa: ارتقای اجباری image در site ثانویه وقتی site اصلی از دست رفته است
+        en: Force-promote an image on the secondary site when the primary is lost
+        ref: appL
+        danger: true
+      - cmd: rbd mirror image resync <pool>/<image>
+        fa: کنار گذاشتن نسخه‌ی محلی و کپی دوباره‌ی image از primary
+        en: Discard the local copy and copy the image again from the primary
+        ref: appL
+        danger: true
   - id: cephfs
     fa: فایل‌سیستم CephFS
     en: CephFS
@@ -470,6 +484,10 @@ categories:
         ref: sec-06-4
         since: tentacle
 
+      - cmd: ceph fs snapshot mirror daemon status
+        fa: وضعیت daemonهای cephfs-mirror، peerها و دایرکتوری‌های شکست‌خورده
+        en: Status of the cephfs-mirror daemons, peers and failed directories
+        ref: appL
   - id: rgw
     fa: RGW و multisite
     en: RGW & multisite
@@ -572,6 +590,28 @@ categories:
         en: Show the bucket logging configuration of a bucket
         ref: appK
         since: tentacle
+      - cmd: radosgw-admin sync error list
+        fa: فهرست شیءهایی که sync آن‌ها شکست خورده، همراه با کد خطا
+        en: List objects that failed to sync, with the error code
+        ref: appL
+      - cmd: radosgw-admin data sync status --source-zone=<zone>
+        fa: وضعیت sync داده از یک zone مبدأ و شاردهای عقب‌مانده
+        en: Data sync state from one source zone and the shards behind
+        ref: appL
+      - cmd: radosgw-admin zone modify --rgw-zone=<zone> --master --default
+        fa: ارتقای zone ثانویه به master در failover؛ پس از آن period را commit کنید
+        en: Promote a secondary zone to master in a failover; then commit the period
+        ref: appL
+        danger: true
+      - cmd: radosgw-admin period pull --url=<master-url> --access-key=<key> --secret=<secret>
+        fa: گرفتن period تازه در site بازگشته پیش از هر نوشتن
+        en: Pull the current period on a returning site before any write
+        ref: appL
+      - cmd: radosgw-admin data sync init --source-zone=<zone>
+        fa: شروع sync کامل داده از یک zone مبدأ؛ کل داده دوباره خوانده می‌شود
+        en: Restart a full data sync from a source zone (reads all data again)
+        ref: appL
+        danger: true
   - id: auth
     fa: احراز هویت و cephx
     en: Auth & cephx
