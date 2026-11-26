@@ -596,7 +596,7 @@ def _cs_ref_label(ref):
         ch, sub = m.group(1), m.group(2).replace('-', '.')
         return f'بخش {fa(ch)}.{fa(sub)}' if LANG == 'fa' else f'§{ch}.{sub}'
     amap = {'appA': 'glossary', 'appB': 'cheatsheet', 'appC': 'troubleshooting', 'appD': 'versions',
-            'appF': 'answers', 'appG': 'bibliography', 'appH': 'algorithms', 'appI': 'changes', 'appJ': 'upgrade', 'appK': 'security'}
+            'appF': 'answers', 'appG': 'bibliography', 'appH': 'algorithms', 'appI': 'changes', 'appJ': 'upgrade', 'appK': 'security', 'appL': 'multisite-dr'}
     k = amap.get(ref)
     if k and k in A:
         return f'{UI["appendix"]} {A[k][0]}'
@@ -743,6 +743,8 @@ letter_sec('appI', 'changes', ''.join(chh))
 source_appendix('appJ', 'upgrade', 'upgrade.md')
 # ---------- appendix: RGW security (content/<lang>/appendices/security.md) ----------
 source_appendix('appK', 'security', 'security.md')
+# ---------- appendix: multisite and disaster recovery (content/<lang>/appendices/multisite-dr.md) ----------
+source_appendix('appL', 'multisite-dr', 'multisite-dr.md')
 json.dump({t: [(ch, a) for ch, a in v] for t, v in ix_hits.items()}, open(os.path.join(OUT, 'ix_hits.json'), 'w'))
 app.append(f'<section class="appendix index" id="index"><h1 class="ap-title" data-t="{UI["index"]}"><span class="apn">&nbsp;</span>{UI["index"]}</h1><p class="ixnote">{UI["index_note"]}</p><div class="ixcols"><!--INDEX--></div></section>')
 MDA.append(f'\n\n# {UI["index"]}\n\n{UI["index_md_note"]}\n')
@@ -766,7 +768,7 @@ for lvl, hid, num, txt, ch in toc:
         toc_html.append(f'<tr class="t1"><td class="tn">{CH} {num}</td><td class="tt"><a href="#{hid}">{inline(txt)}</a></td><td class="pg"><a class="pgn" href="#{hid}"></a></td></tr>')
     else:
         toc_html.append(f'<tr class="t2"><td class="tn">{num}</td><td class="tt"><a href="#{hid}">{inline(txt)}</a></td><td class="pg"><a class="pgn" href="#{hid}"></a></td></tr>')
-for aid, key in [('appA', 'glossary'), ('appB', 'cheatsheet'), ('appC', 'troubleshooting'), ('appD', 'versions'), ('appF', 'answers'), ('appG', 'bibliography'), ('appH', 'algorithms'), ('appI', 'changes'), ('appJ', 'upgrade'), ('appK', 'security'), ('index', None)]:
+for aid, key in [('appA', 'glossary'), ('appB', 'cheatsheet'), ('appC', 'troubleshooting'), ('appD', 'versions'), ('appF', 'answers'), ('appG', 'bibliography'), ('appH', 'algorithms'), ('appI', 'changes'), ('appJ', 'upgrade'), ('appK', 'security'), ('appL', 'multisite-dr'), ('index', None)]:
     t = UI['toc_app'][key] if key else UI['index']
     toc_html.append(f'<tr class="t1"><td class="tt" colspan="2"><a href="#{aid}">{inline(t)}</a></td><td class="pg"><a class="pgn" href="#{aid}"></a></td></tr>')
 

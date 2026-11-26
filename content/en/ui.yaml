@@ -46,6 +46,7 @@ app:
   changes: ["H", "Changes in Reef, Squid and Tentacle", "Release Changes"]
   upgrade: ["I", "Upgrade Guide: From Reef to Squid and Tentacle", "Upgrade Guide"]
   security: ["J", "RGW Security: From Threat Model to Hardening", "RGW Security"]
+  multisite-dr: ["K", "Multisite and Disaster Recovery: A Practical Guide", "Multisite and DR"]
 toc_app:
   glossary: "Appendix A: English Glossary"
   cheatsheet: "Appendix B: Command Cheat Sheet"
@@ -57,6 +58,7 @@ toc_app:
   changes: "Appendix H: Changes in Reef, Squid and Tentacle"
   upgrade: "Appendix I: Upgrade Guide: From Reef to Squid and Tentacle"
   security: "Appendix J: RGW Security: From Threat Model to Hardening"
+  multisite-dr: "Appendix K: Multisite and Disaster Recovery: A Practical Guide"
 index: "Index"
 glossary_intro: "Key terms used in the book, in English alphabetical order, each with a short definition. Use the index at the end of the book to find where each term is used."
 glossary_cols: ["Term", "Definition"]

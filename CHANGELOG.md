@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Appendix K "Multisite and Disaster Recovery: A Practical Guide" / «راهنمای عملی multisite و بازیابی از فاجعه» (both editions, `multisite-dr.html`): topology choices, RPO/RTO with asynchronous replication, monitoring sync (sync status, bucket sync status, sync error list, sync perf counters and `sync_delta` from Tentacle), planned switchover, unplanned failover, failback and resync, split brain, metadata versus data sync, sync policy and the archive zone, RBD mirroring (journal vs snapshot, promote/demote, force-promote, resync), CephFS snapshot mirroring, stretch mode versus multisite, and a DR drill runbook and checklist; TL;DR box, two figures, release badges and the embedded multisite lab.
 - Figures app/f04_multisite_failover and app/f05_dr_options (fa/en): the multisite switchover/failover/failback flow and the DR options with their RPO.
 - Cross-references written as [text](#anchor) in prose now render as links in the print book, on the site and in the Pandoc exports (they were printed as raw Markdown).
 - Chapters 4 and 41 link to appendix J; README and CONTRIBUTING list it.
