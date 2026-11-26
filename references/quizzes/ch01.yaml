@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 1 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 1
+questions:
+  - id: write-path
+    ref: sec-01-4-5
+    q:
+      fa: "کلاینت یک شیء را در یک pool تکثیری با `size=3` می‌نویسد. داده اول به کجا می‌رود؟"
+      en: "A client writes an object to a replicated pool with `size=3`. Where does the data go first?"
+    options:
+      - fa: "به یک MON، که جای شیء را در جدولش پیدا می‌کند و داده را می‌فرستد"
+        en: "To a MON, which looks up the object's location in its table and forwards it"
+      - fa: "مستقیم به OSD اصلی PG، که خود کلاینت با hash و CRUSH آن را حساب می‌کند"
+        en: "Straight to the PG's primary OSD, which the client computes itself with the hash and CRUSH"
+        correct: true
+      - fa: "به MGR، که نوشتن‌ها را به‌طور یکنواخت میان OSDها پخش می‌کند"
+        en: "To the MGR, which spreads the writes evenly across the OSDs"
+      - fa: "هم‌زمان به هر سه OSD، و کلاینت منتظر سریع‌ترین آن‌ها می‌ماند"
+        en: "To all three OSDs at once, and the client waits for the fastest one"
+    why:
+      fa: "کلاینت فقط نقشه‌ی OSD را از MON می‌گیرد و داده هرگز از MON رد نمی‌شود. OSD اصلی نوشتن را محلی انجام می‌دهد، آن را به OSDهای ثانویه می‌فرستد و وقتی همه‌ی نسخه‌های acting set ماندگار شدند به کلاینت ack می‌دهد."
+      en: "The client only fetches the OSD map from a MON; the data never passes through the MON. The primary OSD writes locally, sends the write to the secondaries, and acknowledges once every copy in the acting set is durable."
+  - id: fill-ratios
+    ref: sec-01-5-4
+    q:
+      fa: "با نسبت‌های پیش‌فرض، وقتی پرترین OSD به ۹۵ درصد برسد چه می‌شود؟"
+      en: "With the default ratios, what happens when the fullest OSD reaches 95%?"
+    options:
+      - fa: "فقط هشدار `nearfull` ظاهر می‌شود"
+        en: "Only a `nearfull` warning appears"
+      - fa: "backfill به آن OSD متوقف می‌شود، ولی کلاینت‌ها همچنان می‌نویسند"
+        en: "Backfill to that OSD stops, but clients can still write"
+      - fa: "کلاستر `full` می‌شود و همه‌ی نوشتن‌ها متوقف می‌شوند"
+        en: "The cluster is `full` and all writes stop"
+        correct: true
+      - fa: "balancer داده را خودکار از آن جابه‌جا می‌کند و چیز دیگری عوض نمی‌شود"
+        en: "The balancer moves data off it automatically and nothing else changes"
+    why:
+      fa: "پیش‌فرض‌ها ۸۵ درصد برای هشدار `nearfull`، ۹۰ درصد برای `backfillfull` (توقف backfill) و ۹۵ درصد برای `full` (توقف نوشتن) است. معیار، پرترین OSD است؛ پس ظرفیت را با حاشیه برنامه‌ریزی کنید."
+      en: "The defaults are 85% for the `nearfull` warning, 90% for `backfillfull` (backfill stops) and 95% for `full` (writes stop). The fullest OSD is what counts, so plan capacity with headroom."
+  - id: four-hosts
+    ref: sec-01-5-5
+    q:
+      fa: "چرا برای تکثیر سه‌تایی با failure domain از نوع host چهار میزبان توصیه می‌شود، در حالی که سه میزبان برای شروع کافی است؟"
+      en: "Why are four hosts recommended for three-way replication with a host failure domain, when three are enough to start?"
+    options:
+      - fa: "چون CRUSH نمی‌تواند سه نسخه را دقیقاً روی سه میزبان بچیند"
+        en: "Because CRUSH cannot place three copies on exactly three hosts"
+      - fa: "چون MONها برای quorum به تعداد زوجی میزبان نیاز دارند"
+        en: "Because MONs need an even number of hosts for quorum"
+      - fa: "تا پس از خرابی یک میزبان، Ceph بتواند نسخه‌ی سوم را روی میزبان دیگری بازسازی کند"
+        en: "So that after one host fails, Ceph can rebuild the third copy on another host"
+        correct: true
+      - fa: "چون cephadm کلاستر سه‌میزبانی را bootstrap نمی‌کند"
+        en: "Because cephadm refuses to bootstrap a cluster with three hosts"
+    why:
+      fa: "با سه میزبان، پس از خرابی یکی جایی برای نسخه‌ی گم‌شده نمی‌ماند و PGها تا برگشتن آن degraded می‌مانند. میزبان چهارم اجازه می‌دهد recovery افزونگی کامل را برگرداند."
+      en: "With only three hosts, a failed host leaves nowhere to put the missing copy, so the PGs stay degraded until it returns. A fourth host lets recovery restore full redundancy."
+  - id: all-available-devices
+    ref: sec-01-7-5
+    q:
+      fa: "نگه داشتن `ceph orch apply osd --all-available-devices` در محیط عملیاتی چه خطری دارد؟"
+      en: "What is the risk of leaving `ceph orch apply osd --all-available-devices` active in production?"
+    options:
+      - fa: "هر بار که میزبانی راه‌اندازی مجدد شود، OSDهای موجود را پاک می‌کند"
+        en: "It wipes existing OSDs whenever a host reboots"
+      - fa: "هر دیسک آزادی که بعداً به هر میزبانی اضافه شود هم OSD می‌شود، حتی دیسکی که برای کار دیگری وصل شده"
+        en: "Any free disk added to any host later also becomes an OSD, even one attached for something else"
+        correct: true
+      - fa: "OSDها را بدون BlueStore و روی یک فایل‌سیستم معمولی می‌سازد"
+        en: "It creates OSDs without BlueStore, on a plain file system"
+      - fa: "تا وقتی سرویس حذف نشود balancer را خاموش می‌کند"
+        en: "It disables the balancer until the service is removed"
+    why:
+      fa: "این گزینه یک سرویس ماندگار می‌سازد. پس از استقرار اولیه آن را با `--unmanaged=true` متوقف کنید یا دیسک‌ها را صریح در یک OSD service specification تعریف کنید."
+      en: "The flag creates a persistent service. After the initial deployment, stop it with `--unmanaged=true` or describe the disks explicitly in an OSD service specification."
+  - id: not-for-ceph
+    ref: sec-01-12-4
+    q:
+      fa: "فصل می‌گوید Ceph معمولاً برای کدام حالت انتخاب درستی نیست؟"
+      en: "For which case does the chapter say Ceph is usually not the right choice?"
+    options:
+      - fa: "ابری خصوصی که ذخیره‌سازی بلوکی، شیء و فایل را از یک سامانه می‌خواهد"
+        en: "A private cloud that needs block, object and file storage from one system"
+      - fa: "ذخیره‌سازی‌ای که باید بدون تعویض یکجای سخت‌افزار تا پتابایت رشد کند"
+        en: "Storage that must grow to petabytes without a forklift upgrade"
+      - fa: "کلاستری با ده‌دوازده میزبان در چند رک"
+        en: "A cluster of a dozen hosts spread over several racks"
+      - fa: "یک پایگاه داده‌ی تنها که به تأخیر نوشتن کمتر از ۱۰۰ میکروثانیه نیاز دارد"
+        en: "A single database that needs write latency below 100 microseconds"
+        correct: true
+    why:
+      fa: "هر نوشتن در Ceph دست‌کم یک رفت‌وبرگشت شبکه تا OSD اصلی و یکی تا OSDهای ثانویه لازم دارد. برای چنین تأخیری NVMe محلی با تکثیر در خود برنامه بهتر است؛ کلاسترهای خیلی کوچک هم گزینه‌ی مناسبی نیستند."
+      en: "Every Ceph write needs at least a network round trip to the primary OSD and one to the secondaries. For such latency, local NVMe with replication in the application is better; very small clusters are another poor fit."

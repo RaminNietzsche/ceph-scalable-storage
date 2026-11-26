@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 2 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 2
+questions:
+  - id: rbd-client-caps
+    ref: sec-02-3-1
+    q:
+      fa: "به یک hypervisor که دیسک ماشین‌های مجازی را از pool `rbd` می‌خواند و می‌نویسد، چه دسترسی‌ای باید داد؟"
+      en: "What access should a hypervisor get if it reads and writes virtual-machine disks in the pool `rbd`?"
+    options:
+      - fa: "کلید `client.admin`، چون همه‌ی دسترسی‌ها را دارد و پیکربندی را ساده می‌کند"
+        en: "The `client.admin` key, because it has every permission and keeps the setup simple"
+      - fa: "یک کاربر جدا با `profile rbd` روی همان pool"
+        en: "A user of its own with `profile rbd` on that pool"
+        correct: true
+      - fa: "یک کاربر با `profile rbd-read-only`، چون نوشتن را خود librbd انجام می‌دهد"
+        en: "A user with `profile rbd-read-only`, because librbd does the writing itself"
+      - fa: "دسترسی `allow *` روی mon و osd، تا ویژگی‌های تازه‌ی image هم کار کنند"
+        en: "`allow *` on mon and osd, so that new image features work too"
+    why:
+      fa: "هرگز نباید از `client.admin` برای کلاینت استفاده کرد. پروفایل‌های آماده‌ی `profile rbd` دقیقاً همان دسترسی لازم را می‌دهند و `rbd-read-only` فقط برای کلاینتی است که فقط می‌خواند، مثل سرور پشتیبان."
+      en: "Never use `client.admin` for a client. The ready-made `profile rbd` grants exactly the permissions needed; `rbd-read-only` is only for a client that only reads, such as a backup server."
+  - id: rbd-netdev
+    ref: sec-02-4-2
+    q:
+      fa: "در `/etc/fstab` برای فایل‌سیستمی روی یک image که با krbd نگاشت شده، نبودِ گزینه‌ی `_netdev` چه مشکلی می‌سازد؟"
+      en: "In `/etc/fstab`, what goes wrong if a file system on a krbd-mapped image lacks the `_netdev` option?"
+    options:
+      - fa: "discard به Ceph نمی‌رسد و فضای حذف‌شده آزاد نمی‌شود"
+        en: "Discards never reach Ceph, so deleted space is not freed"
+      - fa: "image پس از هر راه‌اندازی فقط‌خواندنی نگاشت می‌شود"
+        en: "The image is mapped read-only after every reboot"
+      - fa: "سیستم ممکن است پیش از بالا آمدن شبکه بخواهد فایل‌سیستم را mount کند و راه‌اندازی گیر کند"
+        en: "The system may try to mount the file system before the network is up, and the boot hangs"
+        correct: true
+      - fa: "exclusive-lock گرفته نمی‌شود و دو میزبان هم‌زمان می‌نویسند"
+        en: "The exclusive lock is not taken, so two hosts write at the same time"
+    why:
+      fa: "`_netdev` به سیستم می‌گوید این فایل‌سیستم به شبکه نیاز دارد. ترتیب خاموش‌شدن هم مهم است: اول umount، بعد unmap و در آخر قطع شبکه."
+      en: "`_netdev` tells the system that the file system needs the network. The shutdown order matters too: umount first, then unmap, then take the network down."
+  - id: rbd-shrink
+    ref: sec-02-4-3
+    q:
+      fa: "کدام جمله درباره‌ی تغییر اندازه‌ی یک image درست است؟"
+      en: "Which statement about resizing an image is true?"
+    options:
+      - fa: "بزرگ کردن image چند دقیقه طول می‌کشد، چون Ceph باید همه‌ی شیءهای تازه را بسازد"
+        en: "Growing an image takes minutes, because Ceph has to create all the new objects"
+      - fa: "بزرگ کردن image فوری است، ولی فایل‌سیستم روی آن را هم باید جدا بزرگ کرد"
+        en: "Growing an image is instant, but the file system on it has to be grown separately"
+        correct: true
+      - fa: "کوچک کردن image بی‌خطر است، چون Ceph فایل‌سیستم را هم خودکار کوچک می‌کند"
+        en: "Shrinking an image is safe, because Ceph shrinks the file system automatically"
+      - fa: "Ceph اجازه‌ی کوچک کردن image را به هیچ شکلی نمی‌دهد"
+        en: "Ceph does not allow shrinking an image in any way"
+    why:
+      fa: "بزرگ کردن فقط فراداده را عوض می‌کند و فوری است، اما بعد باید فایل‌سیستم را هم بزرگ کرد. کوچک کردن خطرناک است و فقط با پرچم صریح `--allow-shrink` انجام می‌شود؛ اول باید فایل‌سیستم را کوچک کرد."
+      en: "Growing changes only the metadata and is instant, but the file system has to be grown afterwards. Shrinking is dangerous and needs the explicit `--allow-shrink` flag; shrink the file system first."
+  - id: rbd-discard
+    ref: sec-02-4-4
+    q:
+      fa: "درون یک ماشین مجازی QEMU فایل‌های بزرگی حذف شده، اما `rbd du` هنوز همان مصرف قبلی را نشان می‌دهد. محتمل‌ترین علت چیست؟"
+      en: "Large files were deleted inside a QEMU virtual machine, but `rbd du` still shows the same usage. What is the most likely cause?"
+    options:
+      - fa: "discard به Ceph نمی‌رسد؛ مثلاً دیسک بدون `discard=unmap` تعریف شده است"
+        en: "Discards do not reach Ceph, for example the disk is defined without `discard=unmap`"
+        correct: true
+      - fa: "`rbd du` همیشه اندازه‌ی کل image را نشان می‌دهد، نه فضای واقعی را"
+        en: "`rbd du` always shows the full image size, not the real usage"
+      - fa: "object-map روی image فعال است و جلوی آزاد شدن فضا را می‌گیرد"
+        en: "object-map is enabled on the image and prevents space from being freed"
+      - fa: "image با فرمت ۲ ساخته شده و فرمت ۲ فضا را پس نمی‌دهد"
+        en: "The image is format 2, and format 2 never gives space back"
+    why:
+      fa: "RBD thin است و فضا فقط وقتی به Ceph برمی‌گردد که فایل‌سیستم فرمان discard بفرستد. در QEMU دیسک باید با `discard=unmap` و کنترلر virtio-scsi (یا virtio-blk در نسخه‌های تازه) تعریف شود."
+      en: "RBD is thin, and space returns to Ceph only when the file system sends a discard. In QEMU the disk must be defined with `discard=unmap` and a virtio-scsi controller (or virtio-blk in recent versions)."
+  - id: rbd-flatten
+    ref: sec-02-5-4
+    q:
+      fa: "`rbd flatten` روی یک clone دقیقاً چه می‌کند؟"
+      en: "What exactly does `rbd flatten` do to a clone?"
+    options:
+      - fa: "همه‌ی snapshotهای clone را حذف می‌کند تا فضا آزاد شود"
+        en: "It deletes all of the clone's snapshots to free space"
+      - fa: "clone را به یک snapshot فقط‌خواندنی از والدش تبدیل می‌کند"
+        en: "It turns the clone into a read-only snapshot of its parent"
+      - fa: "شیءهای نوشته‌نشده‌ی clone را از pool حذف می‌کند"
+        en: "It removes the clone's unwritten objects from the pool"
+      - fa: "هر شیئی را که clone هنوز از والد می‌خواند در خود clone کپی می‌کند تا به والد وابسته نماند"
+        en: "It copies every object the clone still reads from its parent into the clone, so it no longer depends on the parent"
+        correct: true
+    why:
+      fa: "clone تا وقتی والد هست به آن وابسته است. برای حذف golden image یا بردن clone به pool دیگر باید آن را flatten کرد. زنجیره‌ی clone‌های عمیق هم خواندن را کند می‌کند و flatten آن را کوتاه می‌کند."
+      en: "A clone depends on its parent for as long as the parent exists. To delete the golden image or move the clone to another pool you flatten it. Deep clone chains also slow reads, and flattening shortens them."

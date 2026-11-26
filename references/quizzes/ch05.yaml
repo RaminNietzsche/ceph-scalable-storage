@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 5 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 5
+questions:
+  - id: master-down
+    ref: sec-05-10-1
+    q:
+      fa: "zone اصلی (master) یک zonegroup از دسترس خارج می‌شود. در zoneهای دیگر چه چیزی هنوز کار می‌کند؟"
+      en: "The master zone of a zonegroup becomes unavailable. What still works in the other zones?"
+    options:
+      - fa: "هیچ؛ همه‌ی درخواست‌های S3 تا برگشتن master شکست می‌خورند"
+        en: "Nothing; every S3 request fails until the master returns"
+      - fa: "خواندن و نوشتن اشیا در bucketهای موجود؛ ساختن کاربر یا bucket شکست می‌خورد"
+        en: "Reading and writing objects in existing buckets; creating users or buckets fails"
+        correct: true
+      - fa: "ساختن bucket، ولی نه نوشتن شیء"
+        en: "Creating buckets, but not writing objects"
+      - fa: "فقط خواندن؛ نوشتن برای جلوگیری از تعارض بسته می‌شود"
+        en: "Only reads; writes are blocked to avoid conflicts"
+    why:
+      fa: "داده به‌صورت active-active تکثیر می‌شود، پس عملیات داده ادامه دارد. تغییرات فراداده از master می‌گذرند. اگر قطعی طولانی باشد، zone دیگری را master کنید و period را commit کنید، اما نه برای یک قطعی کوتاه شبکه."
+      en: "Data is replicated active-active, so data operations continue. Metadata changes go through the master. If the outage is long, promote another zone to master and commit the period, but not during a short network blip."
+  - id: system-user
+    ref: sec-05-3-2
+    q:
+      fa: "با کلید کاربر سیستمی (system user) در multisite چطور باید رفتار کرد؟"
+      en: "How should the key of the multisite system user be treated?"
+    options:
+      - fa: "مثل یک کلید S3 معمولی، چون فقط می‌تواند لاگ‌های همگام‌سازی را بخواند"
+        en: "Like an ordinary S3 key, since it can only read sync logs"
+      - fa: "در اسکریپت‌ها بگذارید تا هر سایت خودش zone بسازد"
+        en: "Put it in scripts so that every site can create zones on its own"
+      - fa: "مثل کلید مدیر کلاستر: به همه‌ی داده و فراداده‌ی realm دسترسی کامل دارد"
+        en: "Like the cluster administrator's key: it has full access to all data and metadata of the realm"
+        correct: true
+      - fa: "هر ساعت عوضش کنید، چون اگر بیش از یک روز عمر کند همگام‌سازی می‌ایستد"
+        en: "Rotate it every hour, because sync stops when it is older than a day"
+    why:
+      fa: "zoneها با این کاربر لاگ‌ها و اشیای یکدیگر را می‌خوانند. کلیدش را از اسکریپت‌ها و مخزن‌ها دور نگه دارید، endpointهای همگام‌سازی را فقط روی شبکه‌ی خصوصی یا VPN میان سایت‌ها باز کنید و از TLS استفاده کنید."
+      en: "Zones use the system user to read each other's logs and objects. Keep its key out of scripts and repositories, open sync endpoints only on the private network or VPN between sites, and use TLS."
+  - id: ntp
+    ref: sec-05-3-1
+    q:
+      fa: "چرا همه‌ی گره‌های یک استقرار multisite باید با NTP همگام باشند؟"
+      en: "Why must every node of a multisite deployment be synchronised with NTP?"
+    options:
+      - fa: "چون period در همه‌ی zoneها در یک ثانیه commit می‌شود"
+        en: "Because the period is committed at the same second in every zone"
+      - fa: "چون حل تعارض و امضای درخواست‌ها به زمان وابسته است"
+        en: "Because conflict resolution and request signing depend on time"
+        correct: true
+      - fa: "چون full sync فقط نیمه‌شب اجرا می‌شود"
+        en: "Because full sync only runs at midnight"
+      - fa: "چون در غیر این صورت قواعد lifecycle دو بار اجرا می‌شوند"
+        en: "Because lifecycle rules would otherwise run twice"
+    why:
+      fa: "در نوشتن active-active تغییر تازه‌تر برنده است و درخواست‌های امضاشده میان zoneها با ناهماهنگی ساعت رد می‌شوند."
+      en: "With active-active writes, the newer change wins, and signed requests between zones are rejected when clocks drift."
+  - id: datalog-trim
+    ref: sec-05-9-4
+    q:
+      fa: "RGW یک شارد datalog را تا کجا trim می‌کند؟"
+      en: "Up to which point does RGW trim a datalog shard?"
+    options:
+      - fa: "تا تازه‌ترین ورودی، هر ۲۰ دقیقه"
+        en: "Up to the newest entry, every 20 minutes"
+      - fa: "تا marker سریع‌ترین همتا"
+        en: "Up to the marker of the fastest peer"
+      - fa: "تا کمترین marker پایدار میان همه‌ی همتاها، و در دوری که همتایی پاسخ ندهد اصلاً trim نمی‌کند"
+        en: "Up to the lowest stable marker across all peers, and not at all in a round where a peer does not respond"
+        correct: true
+      - fa: "فقط وقتی مدیر `radosgw-admin datalog trim` را اجرا کند"
+        en: "Only when an administrator runs `radosgw-admin datalog trim`"
+    why:
+      fa: "ورودی را فقط وقتی می‌توان حذف کرد که همه‌ی همتاها آن را مصرف کرده باشند. همتایی که هنوز در full sync است trim را در next_step_marker خودش نگه می‌دارد."
+      en: "An entry can be removed only after every peer has consumed it. A peer still in full sync holds the trim back at its next_step_marker."
+  - id: sync-policy-allowed
+    ref: sec-05-11
+    q:
+      fa: "یک sync policy در سطح zonegroup روی `allowed` است. این برای یک bucket چه معنایی دارد؟"
+      en: "A sync policy is `allowed` at the zonegroup level. What does that mean for a bucket?"
+    options:
+      - fa: "همه‌ی bucketها به همه‌ی zoneها تکثیر می‌شوند"
+        en: "Every bucket is replicated to every zone"
+      - fa: "هیچ bucketی هرگز تکثیر نمی‌شود"
+        en: "No bucket can ever be replicated"
+      - fa: "یک bucket فقط وقتی تکثیر می‌شود که policy سطح bucket آن را enabled کند"
+        en: "A bucket is replicated only if a bucket-level policy enables it"
+        correct: true
+      - fa: "bucket فقط به archive zone کپی می‌شود"
+        en: "The bucket is copied to the archive zone only"
+    why:
+      fa: "`allowed` همگام‌سازی را مجاز می‌کند ولی تصمیم را به سطح پایین‌تر می‌سپارد، در حالی که `forbidden` را نمی‌توان لغو کرد. الگوی رایج `allowed` برای zonegroup و `enabled` فقط برای bucketهای مهم است تا پهنای باند میان سایت‌ها هدر نرود."
+      en: "`allowed` permits sync but leaves the decision to the lower level, while `forbidden` cannot be overridden. The common pattern is `allowed` for the zonegroup and `enabled` only for important buckets, which saves inter-site bandwidth."

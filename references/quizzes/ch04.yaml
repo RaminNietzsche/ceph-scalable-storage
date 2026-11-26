@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 4 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 4
+questions:
+  - id: x-forwarded-for
+    ref: sec-04-3-2
+    q:
+      fa: "TLS در HAProxy جلوی RGW خاتمه می‌یابد. به RGW چه باید گفت تا سیاست‌های مبتنی بر IP و لاگ‌ها نشانی واقعی کلاینت را ببینند؟"
+      en: "TLS is terminated in HAProxy in front of RGW. What must RGW be told so that IP-based policies and logs see the real client?"
+    options:
+      - fa: "هیچ؛ HAProxy نشانی مبدأ همه‌ی بسته‌ها را بازنویسی می‌کند"
+        en: "Nothing; HAProxy rewrites the source address of every packet"
+      - fa: "فقط `rgw_trust_forwarded_https` را روشن کند"
+        en: "To enable `rgw_trust_forwarded_https` and nothing else"
+      - fa: "نشانی را از سرآیند `X-Forwarded-For` بخواند، با `rgw_remote_addr_param = http_x_forwarded_for`"
+        en: "To read the address from the `X-Forwarded-For` header, with `rgw_remote_addr_param = http_x_forwarded_for`"
+        correct: true
+      - fa: "مستقیم روی IP مجازی keepalived گوش دهد"
+        en: "To listen on the virtual IP of keepalived directly"
+    why:
+      fa: "پشت load balancer، RGW نشانی خود load balancer را به‌جای کلاینت می‌بیند. تنظیم `rgw_remote_addr_param` روی سرآیند forwarded نشانی واقعی را برای سیاست‌ها و لاگ‌ها برمی‌گرداند."
+      en: "Behind a load balancer RGW sees the balancer's address as the client. Setting `rgw_remote_addr_param` to the forwarded header restores the real address for policies and logs."
+  - id: multipart-lifecycle
+    ref: sec-04-5-4
+    q:
+      fa: "چرا فصل یک قاعده‌ی lifecycle با `AbortIncompleteMultipartUpload` را توصیه می‌کند؟"
+      en: "Why does the chapter recommend a lifecycle rule with `AbortIncompleteMultipartUpload`?"
+    options:
+      - fa: "بدون آن، آپلودهای multipart بزرگ‌تر از ۱۰۰ مگابایت رد می‌شوند"
+        en: "Without it, multipart uploads larger than 100 MB are rejected"
+      - fa: "آپلودهای ناتمام فضا می‌گیرند و در فهرست اشیا دیده نمی‌شوند"
+        en: "Incomplete uploads take up space and do not show up in the object listing"
+        correct: true
+      - fa: "باعث می‌شود aws-cli خودکار به آپلود multipart برود"
+        en: "It makes aws-cli switch to multipart upload automatically"
+      - fa: "آپلودهای تمام‌شده را به storage class ارزان‌تر می‌برد"
+        en: "It moves finished uploads to a cheaper storage class"
+    why:
+      fa: "قطعه‌های یک آپلود رهاشده در کلاستر می‌مانند و در فهرست معمولی دیده نمی‌شوند. یک قاعده‌ی lifecycle آن‌ها را پاک می‌کند؛ با `radosgw-admin bucket list` هم می‌توان سراغشان رفت."
+      en: "The parts of an abandoned upload stay in the cluster, invisible to a normal listing. A lifecycle rule cleans them up; you can also check for them with `radosgw-admin bucket list`."
+  - id: sse-https
+    ref: sec-04-11-4
+    q:
+      fa: "RGW درخواست‌های SSE-C و SSE-KMS را با چه شرطی می‌پذیرد؟"
+      en: "Under what condition does RGW accept SSE-C and SSE-KMS requests?"
+    options:
+      - fa: "فقط وقتی object lock روی bucket فعال باشد"
+        en: "Only when the bucket has object lock enabled"
+      - fa: "فقط وقتی کلید در bucket policy ذخیره شده باشد"
+        en: "Only when the key is stored in the bucket policy"
+      - fa: "فقط برای اشیای کوچک‌تر از یک قطعه‌ی multipart"
+        en: "Only for objects smaller than one multipart part"
+      - fa: "فقط روی HTTPS؛ پشت load balancerی که TLS را خاتمه می‌دهد، `rgw_trust_forwarded_https = true` به RGW می‌گوید درخواست امن رسیده است"
+        en: "Only over HTTPS; behind a TLS-terminating balancer, `rgw_trust_forwarded_https = true` tells RGW the request arrived securely"
+        correct: true
+    why:
+      fa: "کلیدهای رمزنگاری هرگز نباید بی‌رمز جابه‌جا شوند. `rgw_trust_forwarded_https` را فقط وقتی روشن کنید که مطمئن باشید load balancer همیشه آن سرآیند را خودش می‌گذارد یا حذف می‌کند."
+      en: "Encryption keys must never travel in clear text. Turn on `rgw_trust_forwarded_https` only when you are sure the balancer always sets or strips that header itself."
+  - id: signature-mismatch
+    ref: sec-04-12-2
+    q:
+      fa: "کلاینتی با کلیدهای درست از RGW خطای `SignatureDoesNotMatch` می‌گیرد. فصل کدام علت را برمی‌شمارد؟"
+      en: "A client gets `SignatureDoesNotMatch` from RGW although its keys are correct. Which cause does the chapter list?"
+    options:
+      - fa: "اختلاف ساعت بیش از ۱۵ دقیقه، یا load balancerی که سرآیند Host را تغییر می‌دهد"
+        en: "A clock difference of more than 15 minutes, or a load balancer that changes the Host header"
+        correct: true
+      - fa: "index مربوط به bucket روی HDD است"
+        en: "The bucket index is on HDD"
+      - fa: "bucket شارد index کافی ندارد"
+        en: "The bucket has too few index shards"
+      - fa: "garbage collection هنوز اجرا نشده است"
+        en: "Garbage collection has not yet run"
+    why:
+      fa: "امضا زمان و سرآیند Host را هم در بر می‌گیرد؛ پس ساعت ناهماهنگ، Host بازنویسی‌شده یا اشتباه میان آدرس‌دهی path-style و virtual-host همه آن را می‌شکنند."
+      en: "The signature covers the time and the Host header, so skewed clocks, a rewritten Host, or confusion between path-style and virtual-host addressing all break it."
+  - id: index-shard
+    ref: sec-04-10-1
+    q:
+      fa: "RGW چطور تصمیم می‌گیرد ورودی یک شیء در کدام شارد index باشد؟"
+      en: "How does RGW decide which bucket index shard holds an object's entry?"
+    options:
+      - fa: "نوبتی، تا هر شیء تازه به شارد بعدی برود"
+        en: "Round robin, so that each new object goes to the next shard"
+      - fa: "بر اساس اندازه‌ی شیء، تا اشیای بزرگ شارد جدا داشته باشند"
+        en: "By the object's size, so that large objects get their own shard"
+      - fa: "از hash کلید شیء، تا کلیدهای پشت‌سرهم به‌طور یکنواخت میان شاردها پخش شوند"
+        en: "From a hash of the object key, so consecutive keys spread evenly over the shards"
+        correct: true
+      - fa: "بر اساس زمان آپلود، تا هر شارد یک بازه‌ی زمانی را پوشش دهد"
+        en: "By upload time, so that each shard covers one time range"
+    why:
+      fa: "RGW کلید را با ceph_str_hash_linux هش می‌کند و باقی‌مانده‌اش بر تعداد شاردها (پیش‌فرض ۱۱ برای bucket تازه) را می‌گیرد. در آزمایش فصل، ۱۰۰۰۰۰ کلید پشت‌سرهم در هر شارد حدود یک درصد با میانگین فاصله دارند."
+      en: "RGW hashes the key with ceph_str_hash_linux and takes it modulo the shard count (11 by default for a new bucket). In the chapter's test, 100000 consecutive keys stay within about one percent of the mean per shard."

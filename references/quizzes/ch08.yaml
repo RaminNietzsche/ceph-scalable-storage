@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 8 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 8
+questions:
+  - id: crush-weight
+    ref: sec-08-3-2
+    q:
+      fa: "وزن CRUSH یک OSD به‌طور پیش‌فرض چه چیزی را نشان می‌دهد؟"
+      en: "What does an OSD's CRUSH weight represent by default?"
+    options:
+      - fa: "عددی میان ۰ و ۱ که سلامت دیسک را نشان می‌دهد"
+        en: "A number between 0 and 1 that marks how healthy the disk is"
+      - fa: "ظرفیت آن به ترابایت؛ وزن هر bucket مجموع وزن فرزندانش است"
+        en: "Its capacity in terabytes; a bucket's weight is the sum of its children"
+        correct: true
+      - fa: "تعداد PGهایی که الان در اختیار دارد"
+        en: "The number of PGs it currently holds"
+      - fa: "سرعت نوشتن اندازه‌گیری‌شده‌ی آن به MB/s"
+        en: "Its measured write speed in MB/s"
+    why:
+      fa: "CRUSH داده را به نسبت وزن پخش می‌کند. `reweight` جداگانه (۰ تا ۱) برای اصلاح موقت به کار می‌رفت؛ امروز balancer با upmap این کار را می‌کند."
+      en: "CRUSH spreads data in proportion to weight. The separate `reweight` (0 to 1) was used for temporary corrections; today the balancer with upmap does that job."
+  - id: device-class
+    ref: sec-08-3-5
+    q:
+      fa: "یک قاعده‌ی CRUSH با device class مثل `ssd` چطور داده را فقط روی OSDهای SSD می‌گذارد؟"
+      en: "How does a CRUSH rule with a device class, such as `ssd`, place data only on SSD OSDs?"
+    options:
+      - fa: "به root جداگانه‌ای نیاز دارد که برای میزبان‌های SSD دستی می‌سازید"
+        en: "It needs a separate root that you build by hand for the SSD hosts"
+      - fa: "CRUSH برای هر class یک درخت سایه مثل `default~ssd` نگه می‌دارد و قاعده روی همان درخت اجرا می‌شود"
+        en: "CRUSH keeps a shadow tree per class, such as `default~ssd`, and the rule runs on that tree"
+        correct: true
+      - fa: "OSD اصلی پس از دریافت، نوشتن‌ها را به SSDها می‌فرستد"
+        en: "The primary OSD forwards the writes to SSDs after they arrive"
+      - fa: "primary affinity همه‌ی OSDهای HDD را صفر می‌کند"
+        en: "It lowers the primary affinity of all HDD OSDs to 0"
+    why:
+      fa: "device classها، از Luminous، جای ترفند قدیمی دو root جداگانه را گرفته‌اند. هر درخت سایه فقط OSDهای همان class را دارد."
+      en: "Device classes, since Luminous, replace the old trick of two separate roots. A shadow tree contains only the OSDs of its class."
+  - id: add-host-move
+    ref: sec-08-7-1
+    q:
+      fa: "میزبان یازدهم را به کلاستری ده‌میزبانه با straw2 اضافه می‌کنید. تقریباً چه سهمی از جایگذاری نسخه‌ها جابه‌جا می‌شود؟"
+      en: "You add an eleventh host to a ten-host cluster that uses straw2. Roughly what share of replica placements moves?"
+    options:
+      - fa: "حدود نصف، چون همه‌ی PGها دوباره حساب می‌شوند"
+        en: "About half, because every PG is recomputed"
+      - fa: "حدود سهم عادلانه‌ی میزبان تازه (نزدیک ۹ درصد) به‌علاوه‌ی کمی جابه‌جایی میان OSDهای قدیمی"
+        en: "About the new host's fair share (around 9%) plus a little movement between old OSDs"
+        correct: true
+      - fa: "هیچ، تا وقتی balancer را اجرا کنید"
+        en: "None until you run the balancer"
+      - fa: "دقیقاً ۹٫۰۹ درصد، بدون هیچ جابه‌جایی میان OSDهای قدیمی"
+        en: "Exactly 9.09%, with no movement at all between old OSDs"
+    why:
+      fa: "در اندازه‌گیری فصل ۸٫۸۹ درصد به میزبان تازه رفت (مقدار آرمانی ۹٫۰۹ درصد) و ۱٫۳۳ درصد دیگر به دلیل تغییر جایگاه نسخه در chooseleaf میان OSDهای قدیمی جابه‌جا شد."
+      en: "In the measurement 8.89% went to the new host (ideal 9.09%), and another 1.33% moved between old OSDs because the replica position changed in chooseleaf."
+  - id: ssd-primary-writes
+    ref: sec-08-10-1
+    q:
+      fa: "یک pool نسخه‌ی اصلی را روی SSD و نسخه‌های دیگر را روی HDD نگه می‌دارد. چه چیزی سریع‌تر می‌شود؟"
+      en: "A pool keeps its primary copy on SSD and the replicas on HDD. What gets faster?"
+    options:
+      - fa: "فقط خواندن، که OSD اصلی پاسخ می‌دهد؛ نوشتن همچنان منتظر کندترین نسخه‌ی HDD می‌ماند"
+        en: "Only reads, which the primary serves; writes still wait for the slowest HDD replica"
+        correct: true
+      - fa: "هم خواندن و هم نوشتن، چون OSD اصلی فوری ack می‌دهد"
+        en: "Both reads and writes, because the primary acknowledges immediately"
+      - fa: "فقط نوشتن، چون SSD اول آن را جذب می‌کند"
+        en: "Only writes, because the SSD absorbs them first"
+      - fa: "هیچ‌کدام؛ CRUSH برای OSD اصلی device class را نادیده می‌گیرد"
+        en: "Neither; CRUSH ignores device classes for primaries"
+    why:
+      fa: "OSD اصلی نوشتن را فقط پس از ثبت در همه‌ی نسخه‌ها تأیید می‌کند، پس تأخیر نوشتن تابع کندترین نسخه است."
+      en: "The primary acknowledges a write only after every replica has committed it, so write latency follows the slowest replica."
+  - id: osdmap-content
+    ref: sec-08-5-1
+    q:
+      fa: "کدام نقشه poolها، وضعیت up/in هر OSD، upmapها و نقشه‌ی CRUSH را نگه می‌دارد؟"
+      en: "Which map holds the pools, the up/in state of OSDs, the upmaps and the CRUSH map?"
+    options:
+      - fa: "MonMap"
+        en: "The MonMap"
+      - fa: "OSDMap"
+        en: "The OSDMap"
+        correct: true
+      - fa: "MgrMap"
+        en: "The MgrMap"
+      - fa: "FSMap"
+        en: "The FSMap"
+    why:
+      fa: "هر نقشه با یک epoch افزایشی نسخه‌گذاری می‌شود. `ceph osd dump` نقشه‌ی OSDMap را نشان می‌دهد؛ MonMap فهرست MONها و MgrMap نقشه‌ی MGR فعال و آماده‌به‌کار است."
+      en: "Every map is versioned by an increasing epoch. `ceph osd dump` shows the OSDMap; the MonMap lists the MONs and the MgrMap the active and standby MGRs."

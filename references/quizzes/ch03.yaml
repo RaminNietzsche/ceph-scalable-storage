@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 3 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 3
+questions:
+  - id: glance-raw
+    ref: sec-03-5-2
+    q:
+      fa: "imageها با فرمت qcow2 در Glance بارگذاری شده‌اند. وقتی Cinder از آن‌ها volume می‌سازد چه اتفاقی می‌افتد؟"
+      en: "Images are uploaded to Glance in qcow2 format. What happens when Cinder creates volumes from them?"
+    options:
+      - fa: "Ceph یک بار آن‌ها را به raw تبدیل می‌کند و نتیجه را در pool نگه می‌دارد"
+        en: "Ceph converts them to raw once and caches the result in the pool"
+      - fa: "copy-on-write از دست می‌رود: image برای هر volume دانلود و تبدیل می‌شود"
+        en: "Copy-on-write is lost: the image is downloaded and converted for every volume"
+        correct: true
+      - fa: "volume به‌صورت clone ساخته می‌شود، اما خواندن کندتر است"
+        en: "The volume is created as a clone, but reads are slower"
+      - fa: "Cinder از ساختن volume خودداری می‌کند و خطا ثبت می‌کند"
+        en: "Cinder refuses to create the volume and logs an error"
+    why:
+      fa: "copy-on-write میان Glance و Cinder یا Nova فقط برای imageهای raw کار می‌کند. پیش از بارگذاری با `qemu-img convert -f qcow2 -O raw` تبدیل کنید."
+      en: "Copy-on-write between Glance and Cinder or Nova only works for raw images. Convert with `qemu-img convert -f qcow2 -O raw` before uploading."
+  - id: glance-cache
+    ref: sec-03-5-3
+    q:
+      fa: "چرا وقتی Glance imageها را در Ceph نگه می‌دارد باید cache مدیریتی Glance را خاموش کرد؟"
+      en: "Why should Glance's management cache be turned off when Glance stores images in Ceph?"
+    options:
+      - fa: "snapshotهای RBD آن imageها را خراب می‌کند"
+        en: "It corrupts RBD snapshots of the images"
+      - fa: "همه‌ی imageها را به فرمت qcow2 تبدیل می‌کند"
+        en: "It forces every image into qcow2 format"
+      - fa: "imageها را روی دیسک محلی گره‌ی Glance هم کپی می‌کند که با Ceph بی‌فایده است"
+        en: "It copies images onto the Glance node's local disk, which is pointless with Ceph"
+        correct: true
+      - fa: "مانع بوت شدن Nova از روی RBD می‌شود"
+        en: "It stops Nova from booting from RBD"
+    why:
+      fa: "با Ceph imageها خودشان در کلاستر هستند و کپی محلی فقط دیسک را هدر می‌دهد. در پیکربندی pipeline، flavor را از `keystone+cachemanagement` به `keystone` برگردانید."
+      en: "With Ceph the images already live in the cluster, so a local copy only wastes disk. In the pipeline configuration, change the flavor from `keystone+cachemanagement` back to `keystone`."
+  - id: copyup
+    ref: sec-03-9-2
+    q:
+      fa: "یک ماشین مجازی برای اولین بار در شیئی از یک image کلون‌شده می‌نویسد که هنوز در clone وجود ندارد. librbd چه می‌کند؟"
+      en: "A VM writes for the first time to an object of a cloned image that does not exist in the clone yet. What does librbd do?"
+    options:
+      - fa: "فقط بایت‌های تازه را می‌نویسد و بقیه‌ی شیء را خالی می‌گذارد"
+        en: "It writes only the new bytes and leaves the rest of the object empty"
+      - fa: "محدوده‌ی آن شیء را از snapshot والد می‌خواند و همراه داده‌ی تازه در یک عملیات اتمی copyup در فرزند می‌نویسد"
+        en: "It reads the object's range from the parent snapshot, then writes it to the child with the new data in one atomic copyup operation"
+        correct: true
+      - fa: "پیش از اجازه‌ی نوشتن، کل clone را flatten می‌کند"
+        en: "It flattens the whole clone before allowing the write"
+      - fa: "در image والد می‌نویسد و تغییر را در object map ثبت می‌کند"
+        en: "It writes into the parent image and records the change in the object map"
+    why:
+      fa: "`CopyupRequest` مراحل read_from_parent، به‌روزرسانی object map و سپس ارسال یک copyup به OSD را اجرا می‌کند. نوشتن‌های هم‌زمان روی یک شیء به همان یک copyup می‌پیوندند تا والد فقط یک بار خوانده شود."
+      en: "`CopyupRequest` runs read_from_parent, updates the object map, then sends one copyup to the OSD. Concurrent writes to the same object join one shared copyup, so the parent is read only once."
+  - id: secret-mismatch
+    ref: sec-03-11-3
+    q:
+      fa: "یک ماشین مجازی بوت نمی‌شود و در لاگ libvirt خطای `error connecting: Permission denied` دیده می‌شود. محتمل‌ترین علت چیست؟"
+      en: "A VM fails to boot and the libvirt log shows `error connecting: Permission denied`. What is the most likely cause?"
+    options:
+      - fa: "image با فرمت qcow2 بارگذاری شده است"
+        en: "The image was uploaded in qcow2 format"
+      - fa: "UUID مربوط به secret در libvirt با `rbd_secret_uuid` یکی نیست، یا کلید درون secret قدیمی است"
+        en: "The libvirt secret UUID does not match `rbd_secret_uuid`, or the key in the secret is old"
+        correct: true
+      - fa: "`show_image_direct_url` روی `True` تنظیم شده است"
+        en: "`show_image_direct_url` is set to `True`"
+      - fa: "فضای دیسک محلی گره‌ی compute تمام شده است"
+        en: "The compute node has no local disk space left"
+    why:
+      fa: "QEMU کلید Ceph را از secret در libvirt می‌گیرد. اگر UUID با `rbd_secret_uuid` فرق کند یا کلید ذخیره‌شده کهنه باشد، احراز هویت شکست می‌خورد. نبودن secret روی گره‌ی مقصد هم به همین شکل live migration را خراب می‌کند."
+      en: "QEMU gets the Ceph key from the libvirt secret. If the UUID differs from `rbd_secret_uuid` or the stored key is stale, authentication fails. A secret missing on the destination node breaks live migration in the same way."
+  - id: frontend-qos
+    ref: sec-03-13-1
+    q:
+      fa: "برای یک ابر چندمستأجری، فصل کدام روش محدود کردن IOPS یک volume را ترجیح می‌دهد؟"
+      en: "For a multi-tenant cloud, which way of limiting a volume's IOPS does the chapter prefer?"
+    options:
+      - fa: "کم کردن `osd_max_backfills` روی همه‌ی OSDها"
+        en: "Lowering `osd_max_backfills` on every OSD"
+      - fa: "گذاشتن volumeهای هر مستأجر در pool جداگانه با PG کمتر"
+        en: "Putting each tenant's volumes in a separate pool with fewer PGs"
+      - fa: "QoS سمت front-end در Cinder که در QEMU اعمال می‌شود، مثلاً `total_iops_sec=3000`"
+        en: "Cinder front-end QoS, applied in QEMU, for example `total_iops_sec=3000`"
+        correct: true
+      - fa: "خاموش کردن cache کتابخانه‌ی librbd روی گره‌های compute"
+        en: "Turning off the librbd cache on the compute nodes"
+    why:
+      fa: "QoS سمت front-end (`--consumer front-end`) با هر backendی کار می‌کند و کنترل آن برای هر مستأجر از QoS خود librbd ساده‌تر است."
+      en: "Front-end QoS (`--consumer front-end`) works with any backend and is easier to control per tenant than librbd's own QoS."

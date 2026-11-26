@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 6 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 6
+questions:
+  - id: mds-data-path
+    ref: sec-06-2-1
+    q:
+      fa: "یک کلاینت CephFS فایل بزرگی را می‌خواند. داده‌ی فایل از چه مسیری می‌آید؟"
+      en: "A CephFS client reads a large file. Which path does the file's data take?"
+    options:
+      - fa: "از OSDها و از راه MDS فعال، که آن را cache می‌کند"
+        en: "From the OSDs through the active MDS, which caches it"
+      - fa: "مستقیم از OSDها، پس از آن‌که MDS دسترسی به فایل را داده است"
+        en: "Directly from the OSDs, after the MDS has granted access to the file"
+        correct: true
+      - fa: "از metadata pool، که فایل‌های کوچک و بزرگ را با هم نگه می‌دارد"
+        en: "From the metadata pool, where small and large files are kept together"
+      - fa: "از MGR، که شیءهای ۴ مگابایتی را به یک جریان تبدیل می‌کند"
+        en: "From the MGR, which assembles the 4 MB objects into a stream"
+    why:
+      fa: "MDS کارهایی مثل `open`، `stat`، `rename` و قفل‌ها را انجام می‌دهد؛ خود داده مستقیم میان کلاینت و OSDها جابه‌جا می‌شود و MDS هرگز گلوگاه پهنای باند نمی‌شود."
+      en: "The MDS handles `open`, `stat`, `rename` and locks; the data itself goes straight between client and OSDs, so the MDS never becomes a bandwidth bottleneck."
+  - id: fs-authorize-flags
+    ref: sec-06-3-1
+    q:
+      fa: "با `ceph fs authorize` کلاینتی با دسترسی `rw` روی یک مسیر می‌سازید. چه کاری از آن برنمی‌آید؟"
+      en: "You create a client with `ceph fs authorize` and `rw` on a path. What can it not do?"
+    options:
+      - fa: "خواندن فایل‌های زیر آن مسیر"
+        en: "Read files under that path"
+      - fa: "ساختن پوشه زیر آن مسیر"
+        en: "Create directories under that path"
+      - fa: "تغییر layout یا quota یا گرفتن snapshot، چون این‌ها به پرچم‌های `p` و `s` نیاز دارند که باید صریح داده شوند"
+        en: "Change layouts or quotas, or take snapshots, because those need the `p` and `s` flags given explicitly"
+        correct: true
+      - fa: "نوشتن در فایلی که کلاینت دیگری باز کرده است"
+        en: "Write to files that another client has open"
+    why:
+      fa: "`ceph fs authorize` دسترسی‌های MON، MDS و OSD را برای یک فایل‌سیستم و مسیر می‌سازد. پرچم‌های `p` (layout و quota) و `s` (snapshot) فقط وقتی فعال‌اند که صریح داده شوند، مثلاً `rwps`."
+      en: "`ceph fs authorize` sets the MON, MDS and OSD caps for one file system and path. The `p` (layout and quota) and `s` (snapshot) flags are active only when given, for example `rwps`."
+  - id: layout-existing
+    ref: sec-06-7-5
+    q:
+      fa: "layout یک پوشه را برای بایگانی روی یک pool با EC می‌گذارید. فایل‌هایی که از قبل در آن هستند چه می‌شوند؟"
+      en: "You set a directory's layout to an EC pool for archives. What happens to the files already in it?"
+    options:
+      - fa: "در پس‌زمینه به pool با EC منتقل می‌شوند"
+        en: "They are moved to the EC pool in the background"
+      - fa: "وقتی با `mv` به یک زیرپوشه ببریدشان منتقل می‌شوند"
+        en: "They move when you `mv` them into a subdirectory"
+      - fa: "در pool قبلی می‌مانند؛ فقط فایل‌های تازه از layout پیروی می‌کنند و برای جابه‌جایی فایل‌های قدیمی باید کپی کرد"
+        en: "They stay in the old pool; only new files use the layout, and moving old ones takes a copy"
+        correct: true
+      - fa: "تا scrub بعدی فقط‌خواندنی می‌شوند"
+        en: "They become read-only until the next scrub"
+    why:
+      fa: "layout فقط روی فایل‌هایی اثر دارد که پس از تنظیمش ساخته شوند. rename درون یک فایل‌سیستم داده را جابه‌جا نمی‌کند، پس برای جابه‌جایی باید کپی کرد."
+      en: "A layout applies only to files created after it is set. A rename inside one file system does not move data, so copy files to move them."
+  - id: frozen-mount
+    ref: sec-06-9-2
+    q:
+      fa: "هر `ls` روی یک mount از CephFS با کلاینت هسته گیر می‌کند. فصل اول چه پیشنهادی می‌دهد؟"
+      en: "Every `ls` on a kernel CephFS mount hangs. What does the chapter suggest first?"
+    options:
+      - fa: "همه‌ی MDSهای کلاستر را دوباره راه‌اندازی کنید"
+        en: "Restart every MDS in the cluster"
+      - fa: "`dmesg` را ببینید: معمولاً کلاینت evict شده است؛ علت را رفع کنید، بعد با `-f` یا `-l` unmount و دوباره mount کنید"
+        en: "Check `dmesg`: the client has usually been evicted; fix the cause, then unmount with `-f` or `-l` and mount again"
+        correct: true
+      - fa: "با `cephfs-journal-tool` journal را reset کنید"
+        en: "Run `cephfs-journal-tool` to reset the journal"
+      - fa: "quota پوشه را بیشتر کنید"
+        en: "Increase the quota of the directory"
+    why:
+      fa: "mount گیرکرده معمولاً نشانه‌ی evict شدن کلاینت است. گزینه‌ی `recover_session=clean` می‌تواند خودکار دوباره وصل شود، ولی داده‌ی cacheشده‌ی نانوشته ممکن است از دست برود."
+      en: "A hung mount is usually an evicted client. The `recover_session=clean` option can reconnect automatically, but dirty cached data may be lost."
+  - id: dirfrag-split
+    ref: sec-06-6-3
+    q:
+      fa: "۱۰۰۰۰۰ فایل پشت‌سرهم در یک پوشه ساخته می‌شود. MDS با آن پوشه چه می‌کند؟"
+      en: "100000 files are created one after another in a single directory. What does the MDS do with the directory?"
+    options:
+      - fa: "وقتی از حدود ۱۰۰۰۰ ورودی گذشت، آن را به تکه‌هایی (dirfrag) تقسیم می‌کند، بار اول به ۸ تکه"
+        en: "It splits it into fragments (dirfrags) once it passes about 10000 entries, first into 8"
+        correct: true
+      - fa: "پوشه را در یک شیء نگه می‌دارد و پس از ۱۰۰۰۰ ورودی تازه را نمی‌پذیرد"
+        en: "It keeps the directory in one object and refuses new entries after 10000"
+      - fa: "پوشه را خودکار به یک MDS فعال دوم می‌برد"
+        en: "It moves the directory to a second active MDS automatically"
+      - fa: "ورودی‌ها را به‌جای metadata pool در data pool نگه می‌دارد"
+        en: "It stores the entries in the data pool instead of the metadata pool"
+    why:
+      fa: "آستانه‌ی تقسیم ۱۰۰۰۰ ورودی است و تقسیم سریع در ۱۵۰۰۰. پس از اولین تقسیم هر frag حدود ۱۲۵۰ ورودی دارد و همه با هم رشد می‌کنند."
+      en: "The split threshold is 10000 entries, with a fast split at 15000. After the first split each frag holds about 1250 entries and they grow together."

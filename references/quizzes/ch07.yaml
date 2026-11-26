@@ -1,0 +1,95 @@
+# End-of-chapter quiz, chapter 7 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 7
+questions:
+  - id: config-db
+    ref: sec-07-3-1
+    q:
+      fa: "در یک کلاستر cephadm پیکربندی کلاستر کجا نگه داشته می‌شود؟"
+      en: "In a cephadm cluster, where does the cluster configuration live?"
+    options:
+      - fa: "در بخش‌های `[osd.N]` فایل `ceph.conf` روی هر میزبان"
+        en: "In `[osd.N]` sections of `ceph.conf` on every host"
+      - fa: "در پایگاه پیکربندی MONها؛ `ceph.conf` فقط اطلاعات لازم برای پیدا کردن MONها را دارد"
+        en: "In the MON configuration database; `ceph.conf` holds only what is needed to find the MONs"
+        correct: true
+      - fa: "در تنظیمات داشبورد MGR، که هنگام راه‌اندازی به هر OSD کپی می‌شود"
+        en: "In the MGR's dashboard settings, copied to each OSD at start-up"
+      - fa: "در متغیرهای محیطی کانتینر هر daemon"
+        en: "In environment variables of each daemon's container"
+    why:
+      fa: "از Mimic به بعد تنظیمات به‌طور متمرکز در MONها نگه داشته می‌شود. `ceph config log` و `ceph config reset` تغییرات را برمی‌گردانند و ذخیره‌ی `ceph config dump` در Git مقایسه‌ی بعدی را ممکن می‌کند."
+      en: "Since Mimic, settings are kept centrally in the MONs. `ceph config log` and `ceph config reset` roll changes back, and saving `ceph config dump` in Git lets you compare later."
+  - id: max-avail-fullest
+    ref: sec-07-7-2
+    q:
+      fa: "بیشتر OSDها ۶۰ درصد پرند ولی یکی ۸۰ درصد پر است. این روی `MAX AVAIL` در `ceph df` چه اثری دارد؟"
+      en: "Most OSDs are 60% full but one is 80% full. How does that affect `MAX AVAIL` in `ceph df`?"
+    options:
+      - fa: "هیچ؛ `MAX AVAIL` از میانگین پرشدگی OSDها استفاده می‌کند"
+        en: "None; `MAX AVAIL` uses the average fill of the OSDs"
+      - fa: "به‌شدت کم می‌شود، چون از روی OSDی حساب می‌شود که زودتر از همه full می‌شود"
+        en: "It drops sharply, because it is computed from the OSD that would reach full first"
+        correct: true
+      - fa: "بیشتر می‌شود، چون recovery آن OSD پرتر را خالی می‌کند"
+        en: "It rises, because the fuller OSD will be drained by recovery"
+      - fa: "فضای آزاد خام را نشان می‌دهد و تکثیر را در نظر نمی‌گیرد"
+        en: "It shows the raw free space and ignores replication"
+    why:
+      fa: "`MAX AVAIL` کمینه‌ی مقداری را می‌گیرد که می‌توان پیش از رسیدن هر OSD به `full_ratio` نوشت و آن را بر `size` یا `(k+m)/k` تقسیم می‌کند. پس ناترازی ظرفیت قابل‌استفاده را کم می‌کند."
+      en: "`MAX AVAIL` takes the minimum over the OSDs of what can be written before each reaches `full_ratio`, then divides by `size` or `(k+m)/k`. Imbalance therefore costs usable capacity."
+  - id: rack-no-out
+    ref: sec-07-9-3
+    q:
+      fa: "برق یک رک کامل با ۳۶ OSD قطع می‌شود. آیا OSDهای آن پس از ۱۰ دقیقه out می‌شوند؟"
+      en: "A whole rack with 36 OSDs loses power. Are its OSDs marked out after 10 minutes?"
+    options:
+      - fa: "بله، مثل هر OSDی که به اندازه‌ی `mon_osd_down_out_interval` پایین بوده"
+        en: "Yes, like any OSD that is down for `mon_osd_down_out_interval`"
+      - fa: "نه؛ وقتی یک زیردرخت کامل مثل یک رک پایین است، MON قطعی را گذرا فرض می‌کند و آن‌ها را خودکار out نمی‌کند"
+        en: "No; when a whole subtree such as a rack is down, the MON assumes a transient outage and does not mark them out automatically"
+        correct: true
+      - fa: "فقط نیمی از آن‌ها، تا ترافیک recovery محدود بماند"
+        en: "Only half of them, to limit recovery traffic"
+      - fa: "بله، ولی فقط اگر پرچم `noout` گذاشته شده باشد"
+        en: "Yes, but only if the `noout` flag is set"
+    why:
+      fa: "این سیاست محافظه‌کارانه جلوی recovery عظیم و بی‌مورد را در قطعی برق یا سوئیچ یک رک می‌گیرد. یک OSD تنها بدون سابقه دقیقاً پس از ۶۰۰ ثانیه out می‌شود."
+      en: "The conservative policy avoids a huge, needless recovery when power or a switch fails for a whole rack. A single failed OSD with no history is marked out after exactly 600 seconds."
+  - id: maintenance-mode
+    ref: sec-07-10-1
+    multi: true
+    q:
+      fa: "`ceph orch host maintenance enter` با یک میزبان چه می‌کند؟ همه‌ی جمله‌های درست را انتخاب کنید."
+      en: "What does `ceph orch host maintenance enter` do to a host? Select every correct statement."
+    options:
+      - fa: "همه‌ی daemonهای Ceph روی آن میزبان را متوقف می‌کند"
+        en: "It stops all Ceph daemons on that host"
+        correct: true
+      - fa: "پرچم `noout` را فقط برای همان میزبان می‌گذارد تا recovery بی‌مورد شروع نشود"
+        en: "It sets `noout` for that host only, so no needless recovery starts"
+        correct: true
+      - fa: "پرچم `noout` را تا خروج از حالت نگه‌داری برای کل کلاستر می‌گذارد"
+        en: "It sets `noout` for the whole cluster until you exit maintenance"
+      - fa: "پیش از توقف، PGهای میزبان را به میزبان‌های دیگر می‌برد"
+        en: "It moves the host's PGs to other hosts before stopping it"
+    why:
+      fa: "حالت نگه‌داری برای کار برنامه‌ریزی‌شده مثل به‌روزرسانی هسته است. از `--force` پرهیز کنید: اگر میزبان آخرین MON سالم یا آخرین نسخه‌ی برخی PGها را داشته باشد، اجبار یعنی قطعی سرویس."
+      en: "Maintenance mode is for planned work such as kernel updates. Avoid `--force`: if the host holds the last healthy MON or the last copy of some PGs, forcing it means an outage."
+  - id: device-health
+    ref: sec-07-5
+    q:
+      fa: "مدیریت سلامت `ceph device` وقتی `mgr/devicehealth/self_heal` روشن باشد چه می‌کند؟"
+      en: "What can the `ceph device` health management do when `mgr/devicehealth/self_heal` is on?"
+    options:
+      - fa: "دیسک خراب را خودکار با یک دیسک یدک عوض می‌کند"
+        en: "Replace a failed disk with a spare automatically"
+      - fa: "سکتورهای خراب را با فرمان‌های SMART تعمیر می‌کند"
+        en: "Repair bad sectors through SMART commands"
+      - fa: "OSDهای دیسک‌هایی را که احتمال خرابی‌شان زیاد پیش‌بینی شده، از پیش out می‌کند"
+        en: "Mark out, ahead of time, the OSDs of disks with a high predicted chance of failure"
+        correct: true
+      - fa: "وزن CRUSH دیسک‌های سالم را بالا می‌برد"
+        en: "Raise the CRUSH weight of healthy disks"
+    why:
+      fa: "MGR داده‌ی SMART را جمع می‌کند (`ceph device monitoring on` و `ceph device get-health-metrics`) و می‌تواند خرابی را پیش‌بینی کند و دیسکی را که در آستانه‌ی خرابی است پیش از مرگش خالی کند."
+      en: "The MGR collects SMART data (`ceph device monitoring on`, `ceph device get-health-metrics`) and can predict failures, draining a doomed disk before it dies."
