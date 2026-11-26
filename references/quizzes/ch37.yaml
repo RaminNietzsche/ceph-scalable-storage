@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 37 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 37
+questions:
+  - id: header-order
+    ref: sec-37-2-1
+    q:
+      fa: "header یک ایمیج مقدار `order` = 22 دارد. این چه می‌گوید؟"
+      en: "The header of an image has `order` = 22. What does that say?"
+    options:
+      - fa: "ایمیج ۲۲ snapshot دارد"
+        en: "The image has 22 snapshots"
+      - fa: "اندازه‌ی اشیا 2²² بایت، یعنی ۴ مگابایت است"
+        en: "Objects are 2²² bytes, that is 4 MiB"
+        correct: true
+      - fa: "ایمیج بیست‌ودومین ایمیج pool است"
+        en: "The image is the 22nd in its pool"
+      - fa: "ایمیج از قالب ۲۲ استفاده می‌کند"
+        en: "The image uses format 22"
+    why:
+      fa: "`order` لگاریتم دودویی اندازه‌ی شیء است. همه‌ی فراداده‌ی header در omap شیء `rbd_header.<id>` است و فقط از راه کلاس `rbd` تغییر می‌کند."
+      en: "`order` is the binary logarithm of the object size. All header metadata lives in the omap of `rbd_header.<id>` and changes only through the `rbd` class."
+  - id: custom-striping
+    ref: sec-37-3
+    q:
+      fa: "چرا ممکن است برای یک ایمیج striping سفارشی بگذارید، مثلاً `stripe_unit` برابر 64 KiB و `stripe_count` برابر ۴؟"
+      en: "Why would you give an image custom striping, such as `stripe_unit` 64 KiB and `stripe_count` 4?"
+    options:
+      - fa: "تا اشیا کوچک‌تر از ۴ مگابایت شوند"
+        en: "To make objects smaller than 4 MiB"
+      - fa: "تا object map فعال شود"
+        en: "To enable the object map"
+      - fa: "تا نوشتن‌های کوچک ترتیبی به‌صورت چرخشی میان چند شیء پخش شوند و هم‌زمان به چند OSD برسند"
+        en: "So that small sequential writes are spread round-robin over several objects and reach several OSDs at once"
+        correct: true
+      - fa: "تا ایمیج در یک pool از نوع EC ذخیره شود"
+        en: "To store the image in an EC pool"
+    why:
+      fa: "به‌طور پیش‌فرض `stripe_unit` با اندازه‌ی شیء برابر و `stripe_count` برابر ۱ است، پس ایمیج فقط تکه‌های پشت‌سرهم ۴ مگابایتی است."
+      en: "By default `stripe_unit` equals the object size and `stripe_count` is 1, so the image is just consecutive 4 MiB pieces."
+  - id: fastdiff-saving
+    ref: sec-37-4-3
+    q:
+      fa: "یک ایمیج ۱۰ گیگابایتی ۲۵۶۰ شیء دارد؛ پس از snap1 بیست‌وسه شیء تغییر کرده است. با fast-diff، `rbd export-diff --from-snap snap1` برای یافتنشان به چه نیاز دارد؟"
+      en: "A 10 GiB image has 2560 objects; after snap1, 23 objects changed. With fast-diff, what does `rbd export-diff --from-snap snap1` need to find them?"
+    options:
+      - fa: "فقط دو object map کوچک، بدون پرس‌وجو برای هر شیء"
+        en: "Only two small object maps, with no per-object queries"
+        correct: true
+      - fa: "۲۵۶۰ فراخوانی `list_snaps`"
+        en: "2560 `list_snaps` calls"
+      - fa: "یک خواندن کامل از ایمیج"
+        en: "A full read of the image"
+      - fa: "journal ایمیج"
+        en: "The image's journal"
+    why:
+      fa: "اشیایی که از from_snap به بعد EXISTS_CLEAN ماندند نوشتنی نداشته‌اند و کنار گذاشته می‌شوند. بدون fast-diff باید از تک‌تک اشیا پرسید."
+      en: "Objects that stayed EXISTS_CLEAN since from_snap had no writes and are left out. Without fast-diff, every object has to be asked."
+  - id: objmap-invalid
+    ref: sec-37-6
+    q:
+      fa: "`rbd du` کند است و `rbd info` نشان می‌دهد `flags: object map invalid, fast diff invalid`. چه می‌کنید؟"
+      en: "`rbd du` is slow and `rbd info` shows `flags: object map invalid, fast diff invalid`. What do you do?"
+    options:
+      - fa: "exclusive-lock را غیرفعال کنید"
+        en: "Disable exclusive-lock"
+      - fa: "ایمیج را flatten کنید"
+        en: "Flatten the image"
+      - fa: "ایمیج را از نسخه‌ی پشتیبان دوباره بسازید"
+        en: "Recreate the image from a backup"
+      - fa: "`rbd object-map rebuild` را اجرا کنید، روی snapshotها هم"
+        en: "Run `rbd object-map rebuild`, on the snapshots too"
+        correct: true
+    why:
+      fa: "تا وقتی نقشه نامعتبر است، librbd به پرسیدن اشیا یکی‌یکی برمی‌گردد. نقشه‌ی هر snapshot را جداگانه بازسازی کنید."
+      en: "While the map is invalid, librbd falls back to asking objects one by one. Rebuild each snapshot's map separately."
+  - id: ec-datapool
+    ref: sec-37-6
+    q:
+      fa: "ساختن ایمیجی با `--data-pool` روی یک pool از نوع EC شکست می‌خورد. چه چیزی را باید بررسی کنید؟"
+      en: "Creating an image with `--data-pool` on an EC pool fails. What should you check?"
+    options:
+      - fa: "این‌که pool از نوع EC، object map دارد"
+        en: "That the EC pool has an object map"
+      - fa: "`allow_ec_overwrites` روی pool از نوع EC، و این‌که `rbd pool init` روی هر دو pool اجرا شده باشد"
+        en: "`allow_ec_overwrites` on the EC pool, and that `rbd pool init` was run on both pools"
+        correct: true
+      - fa: "این‌که نام ایمیج کوتاه‌تر از ۲۲ نویسه باشد"
+        en: "That the image name is shorter than 22 characters"
+      - fa: "این‌که pool از نوع EC اندازه‌ی ۳ داشته باشد"
+        en: "That the EC pool has size 3"
+    why:
+      fa: "با data pool، header در pool تکثیری می‌ماند و فقط اشیای داده به pool از نوع EC می‌روند که باید بازنویسی جزئی را بپذیرد."
+      en: "With a data pool, the header stays in the replicated pool and only data objects go to the EC pool, which must accept partial overwrites."

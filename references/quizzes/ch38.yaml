@@ -1,0 +1,95 @@
+# End-of-chapter quiz, chapter 38 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 38
+questions:
+  - id: writearound
+    ref: sec-38-5-1
+    q:
+      fa: "cache پیش‌فرض librbd یعنی `rbd_cache_policy = writearound` در عمل چه می‌کند؟"
+      en: "What does the default librbd cache, `rbd_cache_policy = writearound`, actually do?"
+    options:
+      - fa: "داده‌ی نوشته‌شده را در RAM نگه می‌دارد و خواندن‌ها را از آن پاسخ می‌دهد"
+        en: "It keeps written data in RAM and serves reads from it"
+      - fa: "هیچ داده‌ای نگه نمی‌دارد؛ فقط نوشتن را پیش از رسیدن به OSD تأیید می‌کند تا تأخیر کم شود"
+        en: "It keeps no data; it only acknowledges a write before it reaches the OSD, to lower latency"
+        correct: true
+      - fa: "داده را اول روی یک SSD محلی می‌نویسد"
+        en: "It writes data to a local SSD first"
+      - fa: "هر نوشتن را به نوشتن هم‌زمان تبدیل می‌کند"
+        en: "It turns every write into a synchronous write"
+    why:
+      fa: "حالت‌هایی که داده نگه می‌دارند writeback و writethrough (با ObjectCacher) و cache ماندگار روی SSD یا PMEM هستند که به‌طور پیش‌فرض خاموش است."
+      en: "The data-keeping modes are writeback and writethrough (ObjectCacher) and the persistent cache on SSD or PMEM, which is disabled by default."
+  - id: overlap
+    ref: sec-38-3
+    q:
+      fa: "clone یک والد ۱۰ گیگابایتی به ۵ گیگابایت کوچک و سپس دوباره به ۱۰ گیگابایت بزرگ می‌شود. هنوز چه بخشی را می‌تواند از والد بخواند؟"
+      en: "A clone of a 10 GiB parent is shrunk to 5 GiB and then grown back to 10 GiB. What can it still read from the parent?"
+    options:
+      - fa: "دوباره همه‌ی ۱۰ گیگابایت"
+        en: "All 10 GiB again"
+      - fa: "فقط ۵ گیگابایت اول، چون overlap با کوچک شدن clone کوچک می‌شود و دیگر بزرگ نمی‌شود"
+        en: "Only the first 5 GiB, because the overlap shrinks with the clone and never grows again"
+        correct: true
+      - fa: "هیچ؛ کوچک کردن clone را flatten می‌کند"
+        en: "Nothing; shrinking flattens the clone"
+      - fa: "فقط اشیایی که قبلاً copyup شده‌اند"
+        en: "Only the objects already copied up"
+    why:
+      fa: "overlap بخشی از فضای نشانی است که هنوز از والد خوانده می‌شود. درون آن، شیئی که در clone نیست از snapshot والد خوانده می‌شود."
+      en: "The overlap is the part of the address space that can still be read from the parent. Inside it, an object missing from the clone is read from the parent's snapshot."
+  - id: lock-pingpong
+    ref: sec-38-8
+    q:
+      fa: "یک ایمیج وقتی دو کلاینت بازش کرده‌اند بسیار کند است؛ `rbd status` دو watcher نشان می‌دهد و لاگ librbd پر از پیام‌های درخواست قفل است. چه خبر است؟"
+      en: "An image is very slow while two clients have it open; `rbd status` shows two watchers and the librbd log is full of request lock messages. What is going on?"
+    options:
+      - fa: "OSDها زیر بار دو کلاینت مانده‌اند"
+        en: "The OSDs are overloaded by the two clients"
+      - fa: "قفل انحصاری مدام میان آن دو جابه‌جا می‌شود؛ یکی از کلاینت‌ها نباید ایمیج را باز داشته باشد"
+        en: "The exclusive lock keeps moving between them; one client should not have the image open"
+        correct: true
+      - fa: "object map نامعتبر است"
+        en: "The object map is invalid"
+      - fa: "محدودیت‌های QoS میان کلاینت‌ها مشترک است"
+        en: "QoS limits are shared between the clients"
+    why:
+      fa: "exclusive-lock همکارانه است: کلاینتی که می‌خواهد بنویسد از مالک می‌خواهد قفل را رها کند، پس دو نویسنده با هر نوشتن قفل را به هم پاس می‌دهند."
+      en: "exclusive-lock is cooperative: a client that wants to write asks the owner to release it, so two writers hand it back and forth on every write."
+  - id: failover-ro
+    ref: sec-38-8
+    q:
+      fa: "پس از failover یک میزبان، دیسک یک VM روی میزبان قبلی «فقط‌خواندنی» می‌شود. پاسخ درست چیست؟"
+      en: "After a host failover, a VM's disk becomes \"read-only\" on the old host. What is the right response?"
+    options:
+      - fa: "فوراً `ceph osd blocklist rm` را اجرا کنید تا نوشتن برگردد"
+        en: "Run `ceph osd blocklist rm` at once to restore writes"
+      - fa: "قفل ایمیج را با دست بشکنید"
+        en: "Break the image lock by hand"
+      - fa: "آن را درست بدانید: میزبان قبلی blocklist شده است؛ فرایند QEMU قبلی را متوقف کنید و فقط پس از آن ورودی blocklist را بردارید"
+        en: "Accept it as correct: the old host was blocklisted; stop the old QEMU process and only then remove the blocklist entry"
+        correct: true
+      - fa: "ایمیج را flatten کنید"
+        en: "Flatten the image"
+    why:
+      fa: "blocklist نمی‌گذارد دو میزبان روی یک ایمیج بنویسند. برداشتنش وقتی فرایند قبلی ممکن است هنوز اجرا شود، خطر خرابی دارد."
+      en: "The blocklist stops two hosts from writing the same image. Removing it while the old process may still run risks corruption."
+  - id: slow-clone
+    ref: sec-38-8
+    multi: true
+    q:
+      fa: "یک clone تازه به خاطر copyup کند است. فصل کدام گام‌ها را پیشنهاد می‌کند؟ همه‌ی موارد درست را برگزینید."
+      en: "A new clone is slow because of copyup. Which steps does the chapter suggest? Select all that apply."
+    options:
+      - fa: "`rbd flatten` را در زمانی خلوت اجرا کنید"
+        en: "Run `rbd flatten` at a quiet time"
+        correct: true
+      - fa: "برای خواندن، cache والد را با ceph-immutable-object-cache روشن کنید"
+        en: "For reads, turn on the parent cache with ceph-immutable-object-cache"
+        correct: true
+      - fa: "exclusive-lock را روی clone غیرفعال کنید"
+        en: "Disable exclusive-lock on the clone"
+      - fa: "snapshot والد را حذف کنید"
+        en: "Delete the parent snapshot"
+    why:
+      fa: "نخستین نوشتن روی هر شیء باید بقیه‌ی شیء را از والد بیاورد. flatten این هزینه را یک بار می‌پردازد؛ cache والد خواندن داده‌ی مشترک را سریع می‌کند."
+      en: "The first write to each object must bring the rest of the object from the parent. Flattening pays that cost once; the parent cache speeds reads of shared data."
