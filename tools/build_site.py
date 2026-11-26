@@ -691,6 +691,13 @@ for aid, key in APPS:
         shutil.copy2(cs_pdf_build, os.path.join(LOUT, cs_pdf_name))
 
 
+# cheat-sheet size for the home page, counted from references/cheatsheet.yaml
+with open(os.path.join(ROOT, 'references', 'cheatsheet.yaml'), encoding='utf-8') as _f:
+    _cs = yaml.safe_load(_f)
+CS_C = len(_cs['categories'])
+CS_N = sum(len(_c['commands']) for _c in _cs['categories'])
+
+
 # list of figures ------------------------------------------------------------
 lof = soup.select_one('section#lof')
 lb = body_of(lof, ['h1'])
@@ -1615,7 +1622,7 @@ home = f'''<article class="content home" id="top">
 {learn}
 <section class="hsec" id="get-started" aria-labelledby="gs-h"><div class="hsec-head"><h2 id="gs-h">{esc(S["gs_title"])}</h2><p>{esc(S["gs_sub"])}</p></div><div class="hgrid roles">{"".join(gs_cards)}</div><p class="gs-more"><a class="btn" href="paths.html">{ICON["route"]}{esc(PS["paths_home_t"])} {ICON["arrow"]}</a> <span class="gs-more-d">{esc(PS["paths_home_d"])}</span></p></section>
 <section class="hsec" id="lab" aria-labelledby="lab-h"><div class="hsec-head"><h2 id="lab-h">{esc(SIMY["lab_title"])}</h2><p>{esc(SIMY["lab_intro"])}</p></div><div class="lab-grid">{LAB_CARDS}</div><p><a class="btn" href="lab.html">{ICON["flask"]}{esc(SIMY["lab_all"].replace("{n}", str(loc(len(SIM_NAMES)))))} {ICON["arrow"]}</a></p></section>
-<section class="hsec" id="cheatsheet" aria-labelledby="cs-h"><div class="hsec-head"><h2 id="cs-h">{esc(S["cheatsheet_home_t"])}</h2><p>{esc(S["cheatsheet_home_d"])}</p></div><p class="cs-acts"><a class="btn primary" href="cheatsheet.html">{ICON["terminal"]}{esc(S["cheatsheet_nav"])} {ICON["arrow"]}</a> <a class="btn" href="ceph-cheatsheet-{LANG}.pdf" download>{ICON["download"]}{esc(S["cheatsheet_pdf"])}</a></p></section>
+<section class="hsec" id="cheatsheet" aria-labelledby="cs-h"><div class="hsec-head"><h2 id="cs-h">{esc(S["cheatsheet_home_t"])}</h2><p>{esc(S["cheatsheet_home_d"].format(n=str(CS_N).translate(FA), c=str(CS_C).translate(FA)))}</p></div><p class="cs-acts"><a class="btn primary" href="cheatsheet.html">{ICON["terminal"]}{esc(S["cheatsheet_nav"])} {ICON["arrow"]}</a> <a class="btn" href="ceph-cheatsheet-{LANG}.pdf" download>{ICON["download"]}{esc(S["cheatsheet_pdf"])}</a></p></section>
 <section class="hsec" id="parts" aria-labelledby="parts-h"><div class="hsec-head"><h2 id="parts-h">{esc(S["parts_title"])}</h2><p>{esc(S["parts_sub"])}</p></div><div class="hgrid parts">{"".join(part_cards)}</div></section>
 <section class="hsec" id="contents" aria-labelledby="contents-h"><div class="hsec-head"><h2 id="contents-h">{esc(S["contents"])}</h2><p>{esc(S["contents_home"])}</p></div><p><a class="btn primary" href="contents.html">{ICON["list"]}{esc(S["contents_cta"])} {ICON["arrow"]}</a></p></section>
 {cite}
