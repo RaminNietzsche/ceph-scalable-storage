@@ -658,11 +658,36 @@ for aid, key in APPS:
     figs, algos = source_ids(APPSRC[aid]) if aid in APPSRC else ([], [])
     if key == 'answers':
         for h in body.find_all('h2'):
-            m = re.search(r'(\d+)', text_of(h).translate(EN))
+            m = re.search(r'(\d+)', text_of(frag(heading_inner(h))).translate(EN))
             if m:
                 h['id'] = 'answers-%02d' % int(m.group(1))
+    if key == 'cheatsheet':
+        for sp in body.select('span.since'):
+            sk = next((c[2:] for c in (sp.get('class') or []) if c.startswith('s-')), '')
+            if sk:
+                a_tag = soup.new_tag('a', attrs={
+                    'class': sp.get('class'),
+                    'href': f'changes.html#rel-{sk}' if sk != 'main' else 'changes.html#rel-labels',
+                    'title': sp.get('title', ''),
+                    'dir': 'ltr',
+                })
+                a_tag.string = sp.get_text()
+                sp.replace_with(a_tag)
     map_ids(body, pg, figs, algos)
     decorate(body, pg)
+    if key == 'cheatsheet':
+        import render_cheatsheet  # noqa: E402
+        cs_pdf_name = f'ceph-cheatsheet-{LANG}.pdf'
+        cs_pdf_build = os.path.join(BOOKDIR, cs_pdf_name)
+        cs_yaml = os.path.join(ROOT, 'references', 'cheatsheet.yaml')
+        if (not os.path.exists(cs_pdf_build) or
+                os.path.getmtime(cs_yaml) > os.path.getmtime(cs_pdf_build) or
+                os.path.getmtime(os.path.join(ROOT, 'tools', 'render_cheatsheet.py')) > os.path.getmtime(cs_pdf_build)):
+            rc = render_cheatsheet.render(LANG, cs_pdf_build)
+            if rc != 0:
+                raise SystemExit(rc)
+        shutil.copy2(cs_pdf_build, os.path.join(LOUT, cs_pdf_name))
+
 
 # list of figures ------------------------------------------------------------
 lof = soup.select_one('section#lof')
@@ -903,6 +928,7 @@ ICON = {
 }
 ICON['list'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>'
 ICON['flask'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6l-5.6 9.6A1.6 1.6 0 0 0 5.8 21h12.4a1.6 1.6 0 0 0 1.4-2.4L14 9V3M7.2 15h9.6"/></svg>'
+ICON['terminal'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M12 15h5"/></svg>'
 GROUPS = [('front', S['front']), ('chapters', S['chapters']), ('appendices', S['appendices']), ('lists', S['lists'])]
 order = [None] + pages  # None = home
 
@@ -1030,7 +1056,8 @@ def sidebar(cur):
                f'<li><a class="sb-link app" href="contents.html"{acur("contents")}>{ICON["list"]}<span>{esc(S["contents"])}</span></a></li>'
                f'<li><a class="sb-link app" href="progress.html"{acur("progress")}>{ICON["trophy"]}<span>{esc(GM["s"]["my_progress"])}</span></a></li>'
                f'<li><a class="sb-link app" href="review.html"{acur("review")}>{ICON["cards"]}<span>{esc(GM["s"]["review_today"])}</span><span class="sb-due" data-due hidden></span></a></li>'
-               f'<li><a class="sb-link app" href="lab.html"{acur("lab")}>{ICON["flask"]}<span>{esc(SIMY["lab_title"])}</span></a></li></ul>')
+               f'<li><a class="sb-link app" href="lab.html"{acur("lab")}>{ICON["flask"]}<span>{esc(SIMY["lab_title"])}</span></a></li>'
+               f'<li><a class="sb-link app" href="cheatsheet.html"{acur("cheatsheet")}>{ICON["terminal"]}<span>{esc(S["cheatsheet_nav"])}</span></a></li></ul>')
     for g, label in GROUPS:
         out.append(f'<div class="sb-group">{esc(label)}</div><ul class="sb-list">')
         for p in pages:
@@ -1289,6 +1316,27 @@ def index_docs(p):
 for p in pages:
     if p.kind not in ('list',):
         index_docs(p)
+    if p.slug == 'cheatsheet':
+        cs_pdf_name = f'ceph-cheatsheet-{LANG}.pdf'
+        jump_links = ''.join(f'<a href="#{esc(h["id"])}">{esc(text_of(frag(heading_inner(h))))}</a>' for h in p.body.find_all('h2') if h.get('id'))
+        cs_ui = (
+            f'<div class="cs-bar">'
+            f'<a class="btn primary" href="{esc(cs_pdf_name)}" download>{ICON["download"]}{esc(S["cheatsheet_pdf"])}</a>'
+            f'<input type="search" class="cs-search" id="cs-filter" placeholder="{esc(S["cheatsheet_filter"])}" aria-label="{esc(S["cheatsheet_filter"])}">'
+            f'<label class="cs-chk"><input type="checkbox" id="cs-danger-only"> <span>{esc(S["cheatsheet_danger_only"])}</span></label>'
+            f'<span class="cs-count" id="cs-count" data-tpl="{esc(S["cheatsheet_shown"])}"></span>'
+            f'</div>'
+            f'<nav class="cs-jump" aria-label="{esc(S["cheatsheet_all_cats"])}">{jump_links}</nav>'
+        )
+        intro_p = p.body.find('p')
+        ctrl_frag = frag(cs_ui)
+        if intro_p:
+            for node in reversed(list(ctrl_frag.contents)):
+                intro_p.insert_after(node)
+        else:
+            for node in reversed(list(ctrl_frag.contents)):
+                p.body.insert(0, node)
+        p.body.append(frag(f'<p class="cs-empty" id="cs-empty" hidden>{esc(S["cheatsheet_empty"])}</p>'))
     if p.kind == 'chapter':
         add_feedback(p)
     meta = ''
@@ -1482,6 +1530,8 @@ home = f'''<article class="content home" id="top">
 </p>
 <p class="cta-more"><a href="#get-started">{esc(S["get_started"])}</a>
 <span aria-hidden="true">·</span>
+<a href="cheatsheet.html">{esc(S["cheatsheet_nav"])}</a>
+<span aria-hidden="true">·</span>
 <a href="../{OTHER}/index.html" hreflang="{OTHER}" lang="{OTHER}">{esc(S["read_in_other"])}</a></p>
 {stats}{versions}
 {rp}
@@ -1490,6 +1540,7 @@ home = f'''<article class="content home" id="top">
 {learn}
 <section class="hsec" id="get-started" aria-labelledby="gs-h"><div class="hsec-head"><h2 id="gs-h">{esc(S["gs_title"])}</h2><p>{esc(S["gs_sub"])}</p></div><div class="hgrid roles">{"".join(gs_cards)}</div></section>
 <section class="hsec" id="lab" aria-labelledby="lab-h"><div class="hsec-head"><h2 id="lab-h">{esc(SIMY["lab_title"])}</h2><p>{esc(SIMY["lab_intro"])}</p></div><div class="lab-grid">{LAB_CARDS}</div><p><a class="btn" href="lab.html">{ICON["flask"]}{esc(SIMY["lab_all"].replace("{n}", str(loc(len(SIM_NAMES)))))} {ICON["arrow"]}</a></p></section>
+<section class="hsec" id="cheatsheet" aria-labelledby="cs-h"><div class="hsec-head"><h2 id="cs-h">{esc(S["cheatsheet_home_t"])}</h2><p>{esc(S["cheatsheet_home_d"])}</p></div><p class="cs-acts"><a class="btn primary" href="cheatsheet.html">{ICON["terminal"]}{esc(S["cheatsheet_nav"])} {ICON["arrow"]}</a> <a class="btn" href="ceph-cheatsheet-{LANG}.pdf" download>{ICON["download"]}{esc(S["cheatsheet_pdf"])}</a></p></section>
 <section class="hsec" id="parts" aria-labelledby="parts-h"><div class="hsec-head"><h2 id="parts-h">{esc(S["parts_title"])}</h2><p>{esc(S["parts_sub"])}</p></div><div class="hgrid parts">{"".join(part_cards)}</div></section>
 <section class="hsec" id="contents" aria-labelledby="contents-h"><div class="hsec-head"><h2 id="contents-h">{esc(S["contents"])}</h2><p>{esc(S["contents_home"])}</p></div><p><a class="btn primary" href="contents.html">{ICON["list"]}{esc(S["contents_cta"])} {ICON["arrow"]}</a></p></section>
 {cite}

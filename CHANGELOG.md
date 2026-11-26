@@ -9,6 +9,7 @@ restructures the book.
 
 ### Added
 
+- Web cheat sheet (fa/en cheatsheet.html): live search and dangerous-command filter, category jump bar, release-badge links, downloadable A4 PDF (ceph-cheatsheet-{fa,en}.pdf) and links from the sidebar navigation and home page.
 - Standalone printable A4 multi-column cheat-sheet PDFs (tools/render_cheatsheet.py -> ceph-cheatsheet-{fa,en}.pdf, 3 pages each with RTL/LTR bidi isolation) and categorized Appendix B in the print PDF and Pandoc exports (tools/build_book.py, tools/export_pandoc.py).
 - Bilingual command cheat sheet data (references/cheatsheet.yaml): 170 verified Ceph commands across 14 categories with Persian/English one-line descriptions, book section references, danger flags and release badges; tools/check_cheatsheet.py and tools/check_ceph_commands.py --strict validate every entry against Ceph sources, anchors and prose rules.
 - Lab medals for the three new labs: «ترازبان» / Balance Keeper, «تحلیل‌گر دوام SSD» / Endurance Analyst and «معمار Zone» / Zone Architect (50 badges, 23 lab medals); lab index, docs and site checks count 23 labs.
