@@ -193,6 +193,7 @@ fa:
   cheatsheet_all_cats: "دسته‌بندی‌ها"
   cheatsheet_shown: "{n} دستور"
   cheatsheet_empty: "هیچ دستوری با این فیلتر پیدا نشد."
+  cheatsheet_full_ref: "مرجع کامل خط فرمان"
 
   clr_filter: "جست‌وجوی دستور، گزینه یا متن راهنما…"
   clr_tool: "ابزار"
@@ -415,6 +416,7 @@ en:
   cheatsheet_all_cats: "Categories"
   cheatsheet_shown: "{n} commands"
   cheatsheet_empty: "No commands match this filter."
+  cheatsheet_full_ref: "Full CLI reference"
 
   clr_filter: "Search a command, option or help text…"
   clr_tool: "Tool"

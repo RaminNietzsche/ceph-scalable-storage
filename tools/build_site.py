@@ -1517,6 +1517,7 @@ for p in pages:
             f'<input type="search" class="cs-search" id="cs-filter" placeholder="{esc(S["cheatsheet_filter"])}" aria-label="{esc(S["cheatsheet_filter"])}">'
             f'<label class="cs-chk"><input type="checkbox" id="cs-danger-only"> <span>{esc(S["cheatsheet_danger_only"])}</span></label>'
             f'<span class="cs-count" id="cs-count" data-tpl="{esc(S["cheatsheet_shown"])}"></span>'
+            f'<a class="btn" href="cli-reference.html">{ICON["terminal"]}{esc(S["cheatsheet_full_ref"])}</a>'
             f'</div>'
             f'<nav class="cs-jump" aria-label="{esc(S["cheatsheet_all_cats"])}">{jump_links}</nav>'
         )
