@@ -102,6 +102,17 @@ for path in sorted(glob.glob(os.path.join(C, 'chapters', '[0-9][0-9]-*.md'))):
     fm, lines = body_of(path)
     n = int(fm['chapter'])
     parts += ['', f'# {UI["chapter_word"]} {n}: {fm["title"]} {{#ch{n:02d} .unnumbered}}', ''] + lines
+CS = yaml.safe_load(open(os.path.join(ROOT, 'references', 'cheatsheet.yaml'), encoding='utf-8')) or {}
+letter, title, _ = UI['app']['cheatsheet']
+parts += ['', f'# {UI["appendix"]} {letter}: {title} {{#appB .unnumbered}}', '', UI['cheatsheet_intro'], '']
+for cat in CS.get('categories', []):
+    parts += [f'## {cat[a.lang]} {{.unnumbered}}', '', '| ' + ' | '.join(UI['cheatsheet_cols']) + ' |', '|---|---|---|']
+    for entry in cat.get('commands', []):
+        since = entry.get('since')
+        bdg = f' ({cephver.label(since, a.lang)})' if since and since != cephver.BASELINE else ''
+        dbdg = f' [{UI["cheatsheet_danger"]}]' if entry.get('danger') else ''
+        parts.append(f'| `{entry["cmd"].replace("|", "/")}`{bdg}{dbdg} | {entry[a.lang].replace("|", "/")} | [{entry["ref"]}](#{entry["ref"]}) |')
+    parts.append('')
 for key, fn in (('troubleshooting', 'troubleshooting.md'), ('versions', 'versions.md')):
     fm, lines = body_of(os.path.join(C, 'appendices', fn))
     letter, title, _ = UI['app'][key]

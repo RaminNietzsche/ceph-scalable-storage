@@ -586,30 +586,49 @@ letter, gtitle, gshort = A['glossary']
 rows = ''.join(f'<tr><td class="ltr">{esc(e)}</td><td>{inline(p)}</td></tr>' for e, p in sorted(GLOSS, key=lambda x: x[0].lower()))
 app.append(f'<section class="appendix" id="appA"><h1 class="ap-title" data-t="{UI["appendix"]} {letter} · {gshort}"><span class="apn">{UI["appendix"]} {letter}</span>{gtitle}</h1><p>{UI["glossary_intro"]}</p><table class="gloss"><thead><tr><th>{UI["glossary_cols"][0]}</th><th>{UI["glossary_cols"][1]}</th></tr></thead><tbody>{rows}</tbody></table></section>')
 MDA.append(f'\n\n# {UI["appendix"]} {letter}: {gtitle}\n\n| {UI["glossary_cols"][0]} | {UI["glossary_cols"][1]} |\n|---|---|\n' + '\n'.join(f'| {e} | {p} |' for e, p in sorted(GLOSS, key=lambda x: x[0].lower())))
-by = collections.OrderedDict()
+def _cs_ref_label(ref):
+    m = re.match(r'^sec-0?(\d+)-(.+)$', ref)
+    if m:
+        ch, sub = m.group(1), m.group(2).replace('-', '.')
+        return f'بخش {fa(ch)}.{fa(sub)}' if LANG == 'fa' else f'§{ch}.{sub}'
+    amap = {'appA': 'glossary', 'appB': 'cheatsheet', 'appC': 'troubleshooting', 'appD': 'versions',
+            'appF': 'answers', 'appG': 'bibliography', 'appH': 'algorithms', 'appI': 'changes', 'appJ': 'upgrade'}
+    k = amap.get(ref)
+    if k and k in A:
+        return f'{UI["appendix"]} {A[k][0]}'
+    return ref
+
+
+CS = yaml.safe_load(open(os.path.join(ROOT, 'references', 'cheatsheet.yaml'), encoding='utf-8')) or {}
 seen = set()
-order = ['ceph', 'rados', 'rbd', 'radosgw-admin', 'cephadm', 'ceph-volume', 'ceph-bluestore-tool', 'ceph-objectstore-tool', 'ceph-kvstore-tool', 'osdmaptool', 'crushtool', 'monmaptool', 'ceph-dencoder', 'cephfs-journal-tool', 'kubectl']
-for tool, sub, line, ch, since in cmds:
-    key = re.sub(r'\s+', ' ', line)
-    if key in seen or len(key) > 110:
-        continue
-    seen.add(key)
-    by.setdefault(tool, collections.OrderedDict()).setdefault(sub, []).append((key, ch, since))
 letter, ctitle, cshort = A['cheatsheet']
 bh = [f'<section class="appendix" id="appB"><h1 class="ap-title" data-t="{UI["appendix"]} {letter} · {cshort}"><span class="apn">{UI["appendix"]} {letter}</span>{ctitle}</h1><p>{UI["cheatsheet_intro"]}</p>']
 MDA.append(f'\n\n# {UI["appendix"]} {letter}: {ctitle}\n')
-for tool in sorted(by, key=lambda t: order.index(t) if t in order else 99):
-    bh.append(f'<h2 class="cmdtool"><span class="en">{tool}</span> · {TOOL_DESC.get(tool, "")}</h2><table class="cmds"><tbody>')
-    MDA.append(f'\n## {tool} — {TOOL_DESC.get(tool, "")}\n')
-    subs = by[tool]
-    for sub in sorted(subs, key=lambda s: -len(subs[s])):
-        bh.append(f'<tr class="subh"><td colspan="2"><span class="en">{esc(tool)} {esc(sub)}</span></td></tr>')
-        MDA.append(f'\n**{tool} {sub}**\n')
-        for line, ch, since in subs[sub]:
-            newer = since and since != cephver.BASELINE
-            bdg = ' ' + since_badge(since) if newer else ''
-            bh.append(f'<tr><td class="cmd"><code>{esc(line)}</code>{bdg}</td><td class="chref">{UI["chapter_ref"].format(n=fa(ch))}</td></tr>')
-            MDA.append(f'- `{line}` ({UI["chapter_ref"].format(n=ch)}' + (f'; {cephver.label(since, LANG)}' if newer else '') + ')')
+cols = UI['cheatsheet_cols']
+for cat in CS.get('categories', []):
+    cid, cname = cat['id'], cat[LANG]
+    bh.append(f'<h2 class="cmdtool" id="cs-{esc(cid)}">{esc(cname)}</h2>'
+              f'<table class="cmds cs-table"><thead><tr><th>{esc(cols[0])}</th><th>{esc(cols[1])}</th><th>{esc(cols[2])}</th></tr></thead><tbody>')
+    MDA.append(f'\n## {cname}\n')
+    for entry in cat.get('commands', []):
+        cmd = entry['cmd']
+        seen.add(cmd)
+        since = entry.get('since')
+        newer = since and since != cephver.BASELINE
+        bdg = ' ' + since_badge(since) if newer else ''
+        danger = bool(entry.get('danger'))
+        dbdg = f' <span class="cs-danger-tag">{esc(UI["cheatsheet_danger"])}</span>' if danger else ''
+        ref = entry['ref']
+        ref_lbl = _cs_ref_label(ref)
+        tr_cls = ' class="cs-danger"' if danger else ''
+        bh.append(
+            f'<tr{tr_cls}><td class="cmd"><code dir="ltr">{esc(cmd)}</code>{bdg}{dbdg}</td>'
+            f'<td class="cs-desc">{esc(entry[LANG])}</td>'
+            f'<td class="chref"><a href="#{esc(ref)}" aria-label="{esc(ref_lbl if LANG == "fa" else ("Section " + ref_lbl[1:] if ref_lbl.startswith("§") else ref_lbl))}">{esc(ref_lbl)}</a></td></tr>'
+        )
+        MDA.append(f'- `{cmd}` — {entry[LANG]} ({ref_lbl}'
+                   + (f'; {cephver.label(since, LANG)}' if newer else '')
+                   + (f'; {UI["cheatsheet_danger"]}' if danger else '') + ')')
     bh.append('</tbody></table>')
 bh.append('</section>')
 app.append('\n'.join(bh))

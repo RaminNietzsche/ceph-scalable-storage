@@ -192,3 +192,10 @@ h1, h2, h3, h4, .ch-title, .fm-title, .ap-title, .tp-title, .ht, .lab, th { font
 .tldr-fig img { width: 42mm; max-width: 42mm; max-height: 24mm; object-fit: contain; background: #fff; border: .3pt solid #d9d9d9; border-radius: .8mm; flex-shrink: 0; }
 .tldr-cap { font-size: 8.2pt; line-height: 1.55; color: #374151; }
 .tldr-cap b { color: #7A5600; }
+
+table.cs-table th { background: #1F3864; color: #fff; font-size: 7.8pt; padding: 1mm 1.5mm; text-align: start; }
+table.cs-table tr.cs-danger td { background: #fef2f2 !important; }
+table.cs-table td.cs-desc { font-size: 7.8pt; color: #1e2430; }
+table.cs-table td.chref { width: auto; }
+table.cs-table td.chref a { color: #1F3864; text-decoration: none; font-weight: 600; }
+.cs-danger-tag { display: inline-block; background: #b42318; color: #fff; font-size: 5.8pt; font-weight: 700; padding: .15mm 1.1mm; border-radius: .7mm; margin: 0 .8mm; white-space: nowrap; }
