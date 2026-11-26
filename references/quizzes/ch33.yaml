@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 33 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 33
+questions:
+  - id: rss-vs-mempool
+    ref: sec-33-4
+    q:
+      fa: "`dump_mempools` حافظه‌ای بسیار کمتر از RSS فرایند ceph-osd نشان می‌دهد. محتمل‌ترین دلیلی که فصل می‌آورد چیست؟"
+      en: "`dump_mempools` shows far less memory than the RSS of ceph-osd. What is the most likely reason the chapter gives?"
+    options:
+      - fa: "نشت حافظه در BlueStore"
+        en: "A memory leak in BlueStore"
+      - fa: "tcmalloc حافظه‌ی آزادشده را در cacheها و page heap خود نگه می‌دارد، پس فوراً به سیستم‌عامل برنمی‌گردد"
+        en: "tcmalloc keeps freed memory in its caches and page heap, so it does not go back to the operating system at once"
+        correct: true
+      - fa: "mempoolها فقط block cache مربوط به RocksDB را می‌شمارند"
+        en: "mempools count only the RocksDB block cache"
+      - fa: "هسته page cache را در RSS می‌شمارد"
+        en: "The kernel counts page cache in RSS"
+    why:
+      fa: "tcmalloc cache هر رشته، فهرست‌های آزاد مرکزی و یک page heap دارد. حافظه‌ی آزاد page heap با madvise برگردانده می‌شود. به همین دلیل `osd_memory_target` بر پایه‌ی عدد «mapped» در heap تنظیم می‌شود."
+      en: "tcmalloc has per-thread caches, central free lists and a page heap. Free page-heap memory is returned with madvise. That is why `osd_memory_target` is tuned against the heap's \"mapped\" number."
+  - id: thread-names
+    ref: sec-33-2
+    q:
+      fa: "در `top -H` روی میزبان یک OSD، رشته‌ای به نام `bstore_kv_sync` روی ۱۰۰ درصد است. کارش چیست؟"
+      en: "In `top -H` on an OSD host, one thread named `bstore_kv_sync` is at 100%. What does it do?"
+    options:
+      - fa: "پیام‌های شبکه را می‌خواند و decode می‌کند"
+        en: "It reads and decodes network messages"
+      - fa: "opهای کلاینت را از صف شاردشده اجرا می‌کند"
+        en: "It runs client ops from the sharded queue"
+      - fa: "تراکنش‌های BlueStore را در RocksDB commit می‌کند"
+        en: "It commits BlueStore transactions to RocksDB"
+        correct: true
+      - fa: "تکمیل I/O را از هسته دریافت می‌کند"
+        en: "It receives I/O completions from the kernel"
+    why:
+      fa: "پیام‌ها را `msgr-worker-N`، opها را `tp_osd_tp` و تکمیل‌های هسته را `bstore_aio` رسیدگی می‌کنند. نام رشته‌ی داغ می‌گوید کدام لایه گلوگاه است."
+      en: "Messages are handled by `msgr-worker-N`, ops by `tp_osd_tp`, and kernel completions by `bstore_aio`. Naming the hot thread tells you which layer is the bottleneck."
+  - id: tcmalloc-cache
+    ref: sec-33-4
+    q:
+      fa: "بسته‌ها `TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES` را روی ۱۲۸ مگابایت می‌گذارند. اگر خیلی کمترش کنید چه می‌شود؟"
+      en: "The packages set `TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES` to 128 MiB. What happens if it is set much lower?"
+    options:
+      - fa: "رشته‌های op بیشتر سراغ فهرست آزاد مرکزی قفل‌دار می‌روند که هزینه‌ی CPU دارد"
+        en: "Op threads go to the locked central free list more often, which costs CPU"
+        correct: true
+      - fa: "OSD راه نمی‌افتد"
+        en: "The OSD refuses to start"
+      - fa: "cache مربوط به BlueStore غیرفعال می‌شود"
+        en: "BlueStore's cache is disabled"
+      - fa: "مصرف حافظه بالا می‌رود، چون cacheها بی‌حد بزرگ می‌شوند"
+        en: "Memory use rises, because the caches grow without a limit"
+    why:
+      fa: "این حد همه‌ی cacheهای رشته در فرایند را پوشش می‌دهد. مقدار بیشتر یعنی قفل کمتر ولی حافظه‌ی بیشتر در cacheها."
+      en: "The limit covers all thread caches in the process. Higher means fewer locks but more memory held in caches."
+  - id: pglog-budget
+    ref: sec-33-8-1
+    q:
+      fa: "در آزمایش فصل، `osd_target_pg_log_entries_per_osd` برابر ۳۰۰۰۰ بود و یک OSD سی‌وسه PG داشت. طول log هر PG تقریباً روی چه عددی ثابت شد؟"
+      en: "In the chapter's experiment `osd_target_pg_log_entries_per_osd` was 30000 and one OSD had 33 PGs. Roughly how long did each PG's log level off at?"
+    options:
+      - fa: "۳۰۰۰۰ مدخل"
+        en: "30000 entries"
+      - fa: "۳۰۰۰ مدخل"
+        en: "3000 entries"
+      - fa: "حدود ۹۰۰ مدخل، یعنی بودجه‌ی هر OSD تقسیم بر تعداد PGها"
+        en: "About 900 entries, the per-OSD budget divided by the number of PGs"
+        correct: true
+      - fa: "۱۰۰ مدخل، کمینه‌ی trim"
+        en: "100 entries, the trim minimum"
+    why:
+      fa: "بودجه‌ها برای OSDهای با ۳۳، ۳۸ و ۲۵ PG برابر ۹۰۹، ۷۸۹ و ۱۲۰۰ بود. PG بیشتر روی هر OSD یعنی log کوتاه‌تر و backfill بیشتر پس از یک قطعی."
+      en: "The budgets were 909, 789 and 1200 for OSDs with 33, 38 and 25 PGs. More PGs per OSD means shorter logs and more backfill after an outage."
+  - id: profiling-tools
+    ref: sec-33-7
+    q:
+      fa: "یک OSD گیر کرده به نظر می‌رسد و پاسخ نمی‌دهد. کدام ابزار از فهرست فصل پشته‌ی همه‌ی رشته‌هایش را نشان می‌دهد؟"
+      en: "An OSD seems stuck and does not respond. Which tool from the chapter's list shows the stacks of all its threads?"
+    options:
+      - fa: "`dump_mempools`"
+        en: "`dump_mempools`"
+      - fa: "`perf dump`"
+        en: "`perf dump`"
+      - fa: "یک flame graph از `perf record`"
+        en: "A flame graph from `perf record`"
+      - fa: "`gdb` یا `eu-stack`"
+        en: "`gdb` or `eu-stack`"
+        correct: true
+    why:
+      fa: "نمونه‌برداری با perf و flame graph نشان می‌دهد CPU کجا مصرف می‌شود؛ bpftrace زمان بیرون از CPU را نشان می‌دهد؛ فرایند گیرکرده به عکسی از پشته‌ی همه‌ی رشته‌ها نیاز دارد."
+      en: "Sampling with perf and flame graphs shows where CPU goes; bpftrace shows off-CPU time; a stuck process needs a snapshot of every thread's stack."

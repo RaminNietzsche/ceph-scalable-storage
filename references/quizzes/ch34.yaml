@@ -1,0 +1,93 @@
+# End-of-chapter quiz, chapter 34 (web edition). Schema and rules: docs/QUIZZES.md
+chapter: 34
+questions:
+  - id: three-parts
+    ref: sec-34-3-1
+    q:
+      fa: "BlueStore xattrها و omap یک شیء را کجا نگه می‌دارد؟"
+      en: "Where does BlueStore keep an object's xattrs and its omap?"
+    options:
+      - fa: "هر دو در بلوک‌های داده‌ی شیء"
+        en: "Both in the object's data blocks"
+      - fa: "xattrها درون onode؛ omap در کلیدهای جداگانه‌ی RocksDB"
+        en: "xattrs inside the onode; omap in separate RocksDB keys"
+        correct: true
+      - fa: "xattrها در یک فایل‌سیستم؛ omap در pg log"
+        en: "xattrs in a file system; omap in the pg log"
+      - fa: "هر دو روی مانیتور"
+        en: "Both on the monitor"
+    why:
+      fa: "xattrها کوچک‌اند و با onode جابه‌جا می‌شوند؛ omap نقشه‌ای مرتب است که ممکن است میلیون‌ها کلید داشته باشد، پس در RocksDB زیر پیشوندهای خودش می‌ماند."
+      en: "xattrs are small and travel with the onode; omap is a sorted map that can have millions of keys, so it lives in RocksDB under its own prefixes."
+  - id: user-xattr
+    ref: sec-34-3-1
+    q:
+      fa: "کاربری روی یک شیء xattr به نام `owner` می‌گذارد. OSD آن را با چه نامی ذخیره می‌کند؟"
+      en: "A user sets an xattr called `owner` on an object. Under which name does the OSD store it?"
+    options:
+      - fa: "`owner`"
+        en: "`owner`"
+      - fa: "`_owner`، تا با xattrهای داخلی برخورد نکند"
+        en: "`_owner`, so that it cannot clash with internal xattrs"
+        correct: true
+      - fa: "`user.owner`"
+        en: "`user.owner`"
+      - fa: "`snapset.owner`"
+        en: "`snapset.owner`"
+    why:
+      fa: "xattrهای داخلی مثل `_` (همان object_info_t) و `snapset` در همین فضا هستند، پس نام‌های کاربر پیشوند می‌گیرند."
+      en: "Internal xattrs such as `_` (object_info_t) and `snapset` share the space, so user names get a prefix."
+  - id: rwstate
+    ref: sec-34-5-1
+    q:
+      fa: "در `RWState` یک شیء، کدام ترکیب می‌تواند هم‌زمان قفل را داشته باشد؟"
+      en: "In an object's `RWState`, which combination can hold the lock at the same time?"
+    options:
+      - fa: "فقط یک op از هر نوعی"
+        en: "Only one op of any kind"
+      - fa: "یک خواننده و یک نویسنده"
+        en: "One reader and one writer"
+      - fa: "چند خواننده، یا چند نویسنده، ولی نه خواننده و نویسنده با هم"
+        en: "Several readers, or several writers, but not readers and writers together"
+        correct: true
+      - fa: "هر تعداد خواننده و نویسنده"
+        en: "Any number of readers and writers"
+    why:
+      fa: "چند نویسنده مجازند، چون pg log خودش ترتیبشان را تعیین می‌کند. `excl` برای عملیاتی است که شیء را تنها لازم دارند."
+      en: "Several writers are allowed because the pg log already fixes their order. `excl` is for operations that need the object alone."
+  - id: sub-ops
+    ref: sec-34-8-2
+    q:
+      fa: "بیشتر opهای کند روی یک OSD اصلی `waiting for sub ops` نشان می‌دهند. کجا را باید بگردید؟"
+      en: "Most slow ops on a primary show `waiting for sub ops`. Where should you look?"
+    options:
+      - fa: "کارت شبکه‌ی کلاینت"
+        en: "The client's network card"
+      - fa: "RocksDB مربوط به OSD اصلی"
+        en: "The primary's RocksDB"
+      - fa: "یکی از نسخه‌ها کند است: `ceph osd perf` و `dump_historic_ops` را روی همان نسخه به کار ببرید"
+        en: "One of the replicas is slow: use `ceph osd perf` and `dump_historic_ops` on that replica"
+        correct: true
+      - fa: "لاگ انتخابات مانیتور"
+        en: "The monitor's election log"
+    why:
+      fa: "OSD اصلی سهم خود را انجام داده و منتظر commit نسخه‌هاست. گلوگاه روی OSD دیگری است."
+      en: "The primary has done its part and waits for replica commits. The bottleneck is on another OSD."
+  - id: hot-pg-object
+    ref: sec-34-8-2
+    q:
+      fa: "`dump_historic_ops` نشان می‌دهد بیشتر opهای کند به یک PG می‌خورند، به خاطر یک شیء داغ مثل یک shard از index در RGW. چه چیزی کمک می‌کند؟"
+      en: "`dump_historic_ops` shows that most slow ops hit one PG, because of one hot object such as an RGW index shard. What helps?"
+    options:
+      - fa: "افزودن shard یا رشته‌ی بیشتر برای op به OSD"
+        en: "Adding more op shards or threads to the OSD"
+      - fa: "بالا بردن `osd_max_backfills`"
+        en: "Raising `osd_max_backfills`"
+      - fa: "راه‌اندازی دوباره‌ی OSD اصلی"
+        en: "Restarting the primary OSD"
+      - fa: "پخش کردن شیء داغ، مثلاً shardهای بیشتر برای index یا pg_num بزرگ‌تر"
+        en: "Spreading the hot object out, for example more index shards or a larger pg_num"
+        correct: true
+    why:
+      fa: "همه‌ی opهای یک PG به ترتیب از یک shard می‌گذرند، پس رشته‌های اضافه نمی‌توانند موازی اجرایشان کنند. خود بار باید تقسیم شود."
+      en: "All ops of a PG go through one shard in order, so extra threads cannot run them in parallel. The load itself has to be split."
