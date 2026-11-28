@@ -8,8 +8,8 @@ authors:
   - family-names: Najarbashi
     given-names: Ramin
     orcid: "https://orcid.org/0009-0000-7622-8130"
-version: "1.7"
-date-released: "2026-11-22"
+version: "1.8"
+date-released: "2026-11-28"
 license: CC-BY-NC-SA-4.0
 url: "https://book.ceph-s3.ir"
 repository-code: "https://github.com/RaminNietzsche/ceph-scalable-storage"
@@ -44,7 +44,7 @@ preferred-citation:
       given-names: Ramin
       orcid: "https://orcid.org/0009-0000-7622-8130"
   year: 2026
-  edition: "1.7"
+  edition: "1.8"
   doi: "10.5281/zenodo.24253822"
   url: "https://book.ceph-s3.ir"
   license: CC-BY-NC-SA-4.0
