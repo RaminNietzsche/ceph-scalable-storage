@@ -7,6 +7,8 @@ restructures the book.
 
 ## [Unreleased]
 
+## [1.8] - 2026-11-28
+
 ### Added
 
 - Appendix L "Command-Line Reference: Every Command and Option" / «مرجع خط فرمان: همه‌ی دستورها و گزینه‌ها» (web page `cli-reference.html`, both editions): every command and option of `ceph`, `rados`, `radosgw-admin`, `rbd`, `ceph-volume` and `cephfs-journal-tool` in Ceph 20.2.5 (1438 commands, 2952 options), read from the source tree at the release tag and compared with its documentation. Each entry carries a tag: both, code-only (undocumented), docs-only (stale or removed), usage-only (in the tool's own help but not parsed) or no-usage (parsed but missing from that help), plus aliases, flags, the tool's help string and links to the source and documentation lines. The page has search, tool and tag filters, a tag legend and a cheat-sheet-only switch; commands from the cheat sheet show the book's note, an example and a link to their section. The print and Pandoc editions carry a short pointer with the notable findings. Appendix B, cheatsheet.html and the contributor reading path link to it.
@@ -57,6 +59,11 @@ restructures the book.
 - Chapter 10, benchmark reporting now cites the Pilot framework (MASCOTS 2016) on accuracy, precision, comparability, repeatability and overhead control (both editions).
 - Chapter 6 now traces the MDS balancer to the SC 2004 paper on dynamic subtree partitioning, and chapters 1 and 6 cite Sage Weil's 2007 dissertation in their sources (both editions).
 - Chapter 16, new §16.7.5 "Deduplication: manifest objects in RADOS and full-object dedup in RGW" (both editions): the base-pool and chunk-pool design with double hashing from the developer documentation, the TiDedup design (USENIX ATC 2023), `ceph-dedup-tool --op estimate` as the safe first step, why RBD and CephFS favour background dedup, and the Umbrella technical preview `radosgw-admin dedup` with its data-loss warning and skipped objects; both marked experimental.
+
+### Changed
+
+- Web edition: every page and the language chooser carry the Google Search Console URL-prefix verification meta tag for https://book.ceph-s3.ir/ (a public token, not a secret); `tools/check_seo.py` checks that it is present.
+- Totals in this release: 23 interactive labs and lab medals, 52 badges, 210 chapter quiz questions, 187 cheat-sheet commands, 7 reading paths and appendices I (upgrade), J (RGW security), K (multisite and disaster recovery) and L (command-line reference), in both editions.
 
 ## [1.7] - 2026-11-22
 
