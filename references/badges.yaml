@@ -1,0 +1,260 @@
+# Badge art of the web edition's game layer: categories, frame shapes, tier metals and one
+# hand-drawn glyph per badge. tools/render_badges.py turns this file into assets/badges.js
+# (SVG defs + a small renderer used by templates/site/game.js); tools/check_badges.py
+# validates it against game.js and game.yaml (make check-badges, part of make check).
+# Badge ids, XP and unlock rules live in templates/site/game.js; names in templates/site/game.yaml.
+# Design notes: docs/GAMIFICATION.md, section "Badge art".
+version: 1
+count: 52
+
+# Glyph mini-language, on a 24 x 24 grid (stroke glyphs are drawn with round caps and joins):
+#   p:<path d>   stroked path          f:<path d>   filled path
+#   c:cx,cy,r    stroked circle        d:cx,cy,r    filled circle
+#   r:x,y,w,h,rx stroked rectangle     b:x,y,w,h,rx filled rectangle
+
+# Field colours per category (light stop, dark stop). Every category shares one frame shape.
+categories:
+  reading: {shape: hex, field: ["#60a5fa", "#1e3a8a"], accent: "#2563eb"}
+  explore: {shape: hex, field: ["#2dd4bf", "#115e59"], accent: "#0d9488"}
+  recall:  {shape: hex, field: ["#a78bfa", "#4c1d95"], accent: "#7c3aed"}
+  habit:   {shape: hex, field: ["#fdba74", "#9a3412"], accent: "#ea580c"}
+  secret:  {shape: gem, field: ["#f472b6", "#701a75"], accent: "#db2777"}
+  labs:    {shape: medal, field: ["#4ade80", "#14532d"], accent: "#16a34a"}
+
+# Rim metals: tier 1 bronze, 2 silver, 3 gold (three stops, light to dark); holo is the rim of an earned secret badge.
+metals:
+  1: ["#ffd9b0", "#c47a3d", "#6b3410"]
+  2: ["#ffffff", "#aeb9c8", "#4f5b6d"]
+  3: ["#fff4b8", "#f5b90a", "#8a5a06"]
+  holo: ["#f9a8d4", "#c4b5fd", "#67e8f9", "#fde68a"]
+
+# Shared glyphs: the lock on a locked badge and the face of a hidden badge.
+glyphs:
+  lock: ["r:6,11,12,9,2", "p:M8.5 11V8a3.5 3.5 0 0 1 7 0v3", "d:12,15.5,1.4"]
+  secret: ["p:M9 9a3 3 0 1 1 4.5 2.6c-.9.5-1.5 1.2-1.5 2.4", "d:12,18,1.3", "f:M19 3l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z", "d:5,6,.9"]
+
+# The 52 badges in gallery order. tier: "tiered" (bronze, silver, gold by thresholds in game.js)
+# or the single metal (1, 2, 3). hidden: shown as a secret until earned.
+badges:
+  # reading: chapters, sections, parts and paths
+  - id: reader
+    cat: reading
+    tier: tiered
+    glyph: ["p:M12 7c-2.5-1.6-5.5-2-8.5-1.5v12.5c3-.5 6-.1 8.5 1.5c2.5-1.6 5.5-2 8.5-1.5V5.5c-3-.5-6-.1-8.5 1.5zM12 7v12.5", "p:M6 10h3.5M6 13h3.5", "p:M15.5 6.2V11l1.3-1.1 1.3 1.1V5.6"]
+  - id: sections
+    cat: reading
+    tier: tiered
+    glyph: ["p:M7.5 3.5h10a2 2 0 0 1 2 2V17", "r:3.5,6.5,13,14.5,2", "p:M6.5 11h7M6.5 14h7M6.5 17h4"]
+  - id: part1
+    cat: reading
+    tier: 2
+    glyph: ["r:4,3.5,16,5,1.2", "r:4,9.5,16,5,1.2", "r:4,15.5,16,5,1.2", "d:7,6,1", "d:7,12,1", "d:7,18,1", "p:M11 6h6M11 12h6M11 18h6"]
+  - id: part2
+    cat: reading
+    tier: 2
+    glyph: ["p:M7.5 6.5 3 12l4.5 5.5M16.5 6.5 21 12l-4.5 5.5", "c:12,12,2.2", "p:M12 7.6v1.5M12 14.9v1.5M7.6 12h1.5M14.9 12h1.5M8.9 8.9l1 1M14.1 14.1l1 1M15.1 8.9l-1 1M9.9 14.1l-1 1"]
+  - id: part3
+    cat: reading
+    tier: 3
+    glyph: ["p:M3 6.5c1.5-1.3 3-1.3 4.5 0s3 1.3 4.5 0 3-1.3 4.5 0 3 1.3 4.5 0", "p:M12 10v10.5M8.5 17 12 20.5l3.5-3.5", "c:18,12.5,1.2", "c:16.6,16,.8", "c:6,13,.9"]
+  - id: part4
+    cat: reading
+    tier: 3
+    glyph: ["p:M8.5 4c0-.9 1.6-1.5 3.5-1.5s3.5.6 3.5 1.5v4c0 .9-1.6 1.5-3.5 1.5S8.5 8.9 8.5 8zM8.5 4c0 .9 1.6 1.5 3.5 1.5s3.5-.6 3.5-1.5", "p:M6.5 12.5l4 2v4.5l-4 2-4-2v-4.5zM2.5 14.5l4 2 4-2M6.5 16.5V21", "p:M14 14h7l-1 7h-5zM14 14c0-.8 1.6-1.3 3.5-1.3S21 13.2 21 14"]
+  - id: path1
+    cat: reading
+    tier: 2
+    glyph: ["p:M4.5 20c3 0 4-2.5 6.5-2.5s3.5 1.5 5.5-.5-1-4.5.5-6.5", "d:4.5,20,1.4", "p:M17 10.5v-7M17 4h4l-1.2 1.6L21 7.2h-4"]
+  - id: pathall
+    cat: reading
+    tier: 3
+    glyph: ["p:M6.5 11.5a5.5 5.5 0 0 1 11 0v2H6.5z", "d:10,10.7,.95", "d:14,10.7,.95", "p:M7 13.5c-.5 2.5-2 3.5-3.5 3.5M9.3 13.5c0 3-1 5.5-2.8 6.5M11.2 13.5c0 3.5-.4 6-1.2 7.5M12.8 13.5c0 3.5.4 6 1.2 7.5M14.7 13.5c0 3 1 5.5 2.8 6.5M17 13.5c.5 2.5 2 3.5 3.5 3.5", "f:M8.6 5.4 8.2 2l2.2 1.5L12 1.3l1.6 2.2L15.8 2l-.4 3.4z"]
+  # explore: algorithm boxes, figures, bookmarks, the lab
+  - id: algo
+    cat: explore
+    tier: tiered
+    glyph: ["p:M16 7.5H8.5l4 4.5-4 4.5H16", "p:M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"]
+  - id: figs
+    cat: explore
+    tier: tiered
+    glyph: ["r:3,4,14,11,1.6", "p:M4 14l4-4 3 3 2-2 3.5 3.5", "d:13,7.6,1.2", "c:17,17,3.2", "p:M19.3 19.3 21.5 21.5"]
+  - id: marks
+    cat: explore
+    tier: tiered
+    glyph: ["p:M6.5 3h11v18l-5.5-4-5.5 4z", "f:M12 6.5l1.1 2.2 2.4.35-1.75 1.7.4 2.4L12 12l-2.15 1.15.4-2.4L8.5 9.05l2.4-.35z"]
+  - id: lab
+    cat: explore
+    tier: tiered
+    glyph: ["p:M9 3h6M10 3v6l-5.6 9.6A1.6 1.6 0 0 0 5.8 21h12.4a1.6 1.6 0 0 0 1.4-2.4L14 9V3", "f:M7.1 15.4h9.8l2 3.4a.8.8 0 0 1-.7 1.2H5.8a.8.8 0 0 1-.7-1.2z", "c:11,12,.8", "c:13.4,9.8,.6"]
+  # recall: flashcards and quizzes
+  - id: cards
+    cat: recall
+    tier: tiered
+    glyph: ["r:9,6,10.5,14.5,1.6", "p:M8.8 4.6 4 5.9l3.4 12.7 1.3-.35", "p:M12.4 10.9a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3", "d:14.1,16.6,.85"]
+  - id: quiz
+    cat: recall
+    tier: tiered
+    glyph: ["c:11,13,7.5", "c:11,13,4", "d:11,13,1.4", "p:M11 13 18.5 5.5M15.5 5.5h3v3"]
+  - id: cqm
+    cat: recall
+    tier: tiered
+    glyph: ["p:M8 3.5h8v5.5a4 4 0 0 1-8 0z", "p:M8 5.5H5.5a2.5 2.5 0 0 0 2.6 3.6M16 5.5h2.5a2.5 2.5 0 0 1-2.6 3.6", "p:M12 13v3.5M8.5 21h7M9.5 16.5h5V21h-5z", "p:M10.2 7.6l1.3 1.3 2.4-2.4"]
+  - id: gloss
+    cat: recall
+    tier: tiered
+    glyph: ["p:M19.5 4.5C13 4.5 9 9 8.5 15.5c6.5-.5 11-4.5 11-11z", "p:M19.5 4.5 5 19", "p:M4 21.2h9"]
+  - id: reviewclear
+    cat: recall
+    tier: 2
+    glyph: ["p:M3 13.5 5.5 7h13l2.5 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19zM3 13.5h5l1 2.5h6l1-2.5h5", "p:M9.5 9.8l1.8 1.8 3.2-3.4"]
+  # habit: time, streak, XP, goal days
+  - id: hours
+    cat: habit
+    tier: tiered
+    glyph: ["p:M6.5 3h11M6.5 21h11M7.5 3c0 4.5 4.5 6 4.5 9s-4.5 4.5-4.5 9M16.5 3c0 4.5-4.5 6-4.5 9s4.5 4.5 4.5 9", "f:M9.3 19.8c.6-1.8 2.7-2.6 2.7-3.8 0 1.2 2.1 2 2.7 3.8z", "f:M9.8 6.5h4.4c-.5 1.2-1.6 2-2.2 2.6-.6-.6-1.7-1.4-2.2-2.6z"]
+  - id: streak
+    cat: habit
+    tier: tiered
+    glyph: ["p:M12 2.8c1 3.6 5.5 5.6 5.5 10.7a5.5 5.5 0 0 1-11 0c0-2.4 1.1-4 2.4-5.3.2 1.8 1.1 2.9 2.2 3.3 0-3.3.3-6 .9-8.7z", "f:M12 13c.8 1.4 2.5 2.1 2.5 4a2.5 2.5 0 0 1-5 0c0-1 .5-1.7 1.1-2.2.2.6.6 1 1 1.1 0-1.2.1-2 .4-2.9z"]
+  - id: xp
+    cat: habit
+    tier: tiered
+    glyph: ["f:M11 3c.6 4 2 5.4 6 6-4 .6-5.4 2-6 6-.6-4-2-5.4-6-6 4-.6 5.4-2 6-6z", "f:M18 14c.3 2 1 2.7 3 3-2 .3-2.7 1-3 3-.3-2-1-2.7-3-3 2-.3 2.7-1 3-3z", "d:5.5,18.5,1.1"]
+  - id: goals
+    cat: habit
+    tier: tiered
+    glyph: ["r:3.5,5,17,15.5,2", "p:M3.5 9.5h17M8 3v4M16 3v4", "p:M8.5 14.5l2.4 2.4 4.6-4.6"]
+  # secret: hidden until earned
+  - id: night
+    cat: secret
+    tier: 1
+    hidden: true
+    glyph: ["p:M18.5 14.5A7.5 7.5 0 1 1 9 5a6 6 0 0 0 9.5 9.5z", "f:M17 3.2l.55 1.45 1.45.55-1.45.55L17 7.2l-.55-1.45L15 5.2l1.45-.55z", "d:20.5,9,.9"]
+  - id: early
+    cat: secret
+    tier: 1
+    hidden: true
+    glyph: ["p:M3 18h18M6 21h12", "p:M7 18a5 5 0 0 1 10 0", "p:M12 2.5V9M10 4.5l2-2 2 2M5.6 11.6l1.6 1.6M18.4 11.6l-1.6 1.6M2.5 15H4M20 15h1.5"]
+  - id: weekend
+    cat: secret
+    tier: 1
+    hidden: true
+    glyph: ["p:M4.5 10h11v6a4 4 0 0 1-4 4h-3a4 4 0 0 1-4-4zM15.5 11.5H17a2.5 2.5 0 0 1 0 5h-1.5", "p:M8 3.5c-1 1.2 1 2.2 0 3.6M11.5 3.5c-1 1.2 1 2.2 0 3.6"]
+  - id: comeback
+    cat: secret
+    tier: 1
+    hidden: true
+    glyph: ["p:M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3", "f:M19.5 2.5l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4-1.4-.5 1.4-.5z"]
+  - id: deep
+    cat: secret
+    tier: 2
+    hidden: true
+    glyph: ["p:M4 15v-3a8 8 0 0 1 16 0v3", "r:3,14,4,6.5,1.5", "r:17,14,4,6.5,1.5", "p:M10 16.5c.7-.8 1.3-.8 2 0s1.3.8 2 0"]
+  - id: perfect
+    cat: secret
+    tier: 2
+    hidden: true
+    glyph: ["f:M13.5 2 5 13.5h6l-1.5 8.5L19 10h-6z"]
+  - id: polyglot
+    cat: secret
+    tier: 1
+    hidden: true
+    glyph: ["c:10,13,7", "p:M3 13h14M10 6c2 2 3 4.3 3 7s-1 5-3 7c-2-2-3-4.3-3-7s1-5 3-7z", "p:M16 2.5h5.5V7h-2l-1.5 1.5V7h-2z"]
+  - id: freeze
+    cat: secret
+    tier: 1
+    hidden: true
+    glyph: ["p:M12 2.5v19M3.8 7.25l16.4 9.5M3.8 16.75l16.4-9.5", "p:M9.5 3.8 12 6l2.5-2.2M9.5 20.2 12 18l2.5 2.2M4.1 10.6l3.2-.9-.8-3.2M19.9 13.4l-3.2.9.8 3.2M4.1 13.4l3.2.9-.8 3.2M19.9 10.6l-3.2-.9.8-3.2"]
+  # labs: one medal per interactive lab
+  - id: lab_crush
+    cat: labs
+    tier: 2
+    glyph: ["c:12,4,2", "p:M12 6v2.5M6.5 8.5h11M6.5 8.5V11M17.5 8.5V11", "c:6.5,12.8,1.8", "c:17.5,12.8,1.8", "p:M6.5 14.6V16M3.5 16h6M3.5 16v1.5M9.5 16v1.5M17.5 14.6V16M14.5 16h6M14.5 16v1.5M20.5 16v1.5", "b:2.2,17.6,2.6,3.6,.6", "b:8.2,17.6,2.6,3.6,.6", "b:13.2,17.6,2.6,3.6,.6", "b:19.2,17.6,2.6,3.6,.6"]
+  - id: lab_placement
+    cat: labs
+    tier: 2
+    glyph: ["d:5,4.5,1.6", "d:12,4.5,1.6", "d:19,4.5,1.6", "p:M5 6.5l2 7M12 6.5l-4.5 7M12 6.5l4.5 7M19 6.5l-2.5 7", "r:3.5,13.5,8,6.5,1.5", "r:12.5,13.5,8,6.5,1.5"]
+  - id: lab_pgcalc
+    cat: labs
+    tier: 2
+    glyph: ["r:5,2.5,14,19,2", "r:7.5,5,9,4,.8", "d:8.8,12.5,.95", "d:12,12.5,.95", "d:15.2,12.5,.95", "d:8.8,15.7,.95", "d:12,15.7,.95", "d:8.8,18.9,.95", "d:12,18.9,.95", "b:14.3,14.8,1.8,5,.6"]
+  - id: lab_ecprofile
+    cat: labs
+    tier: 2
+    glyph: ["r:2.5,4.5,4,6,.8", "r:7.5,4.5,4,6,.8", "r:12.5,4.5,4,6,.8", "r:17.5,4.5,4,6,.8", "b:12,14,4.5,6.5,.9", "b:17,14,4.5,6.5,.9", "p:M5 17.2h4M7 15.2v4"]
+  - id: lab_peering
+    cat: labs
+    tier: 2
+    glyph: ["p:M2 7c0-.9 1.3-1.5 3-1.5S8 6.1 8 7v10c0 .9-1.3 1.5-3 1.5S2 17.9 2 17zM2 7c0 .9 1.3 1.5 3 1.5S8 7.9 8 7", "p:M16 7c0-.9 1.3-1.5 3-1.5s3 .6 3 1.5v10c0 .9-1.3 1.5-3 1.5s-3-.6-3-1.5zM16 7c0 .9 1.3 1.5 3 1.5s3-.6 3-1.5", "p:M9.8 10h4.4M12.4 8.2l1.8 1.8-1.8 1.8M14.2 14.5H9.8M11.6 12.7l-1.8 1.8 1.8 1.8"]
+  - id: lab_bluestore
+    cat: labs
+    tier: 2
+    glyph: ["r:3.5,4,17,16,2.5", "c:11,11.5,4.5", "d:11,11.5,1.2", "p:M14.2 14.7l3.3 3.3", "d:17.2,6.8,.8"]
+  - id: lab_rgwput
+    cat: labs
+    tier: 2
+    glyph: ["p:M4.5 10h15l-1.6 10.1a1.5 1.5 0 0 1-1.5 1.3H7.6a1.5 1.5 0 0 1-1.5-1.3z", "p:M4.5 10c0-1.2 3.4-2 7.5-2s7.5.8 7.5 2", "p:M12 2.5v9.5M9 9l3 3 3-3"]
+  - id: lab_striping
+    cat: labs
+    tier: 2
+    glyph: ["r:3,3.5,18,17,1.8", "p:M9 3.5v17M15 3.5v17", "b:4.2,5,3.6,2.6,.5", "b:10.2,8.2,3.6,2.6,.5", "b:16.2,11.4,3.6,2.6,.5", "b:4.2,14.6,3.6,2.6,.5"]
+  - id: lab_capacity
+    cat: labs
+    tier: 2
+    glyph: ["p:M3.5 16a8.5 8.5 0 0 1 17 0", "p:M12 16l4.5-5", "d:12,16,1.5", "p:M5.6 10.4l1.2 1M12 7.5v1.6M18.4 10.4l-1.2 1M3 20h18"]
+  - id: lab_reshard
+    cat: labs
+    tier: 2
+    glyph: ["p:M3 9h7.5l-.9 11.5H4.2z", "p:M13.5 9H21l-1.2 11.5h-5.4z", "p:M10 4.5H4M6 2.5 4 4.5l2 2M14 4.5h6M18 2.5l2 2-2 2", "p:M12 9v1.6M12 13.7v1.6M12 18.4V20"]
+  - id: lab_mdspin
+    cat: labs
+    tier: 2
+    glyph: ["p:M3 7v11a1.5 1.5 0 0 0 1.5 1.5h15A1.5 1.5 0 0 0 21 18V9.5A1.5 1.5 0 0 0 19.5 8H12l-2-2.5H4.5A1.5 1.5 0 0 0 3 7z", "p:M9.2 13.5a2.8 2.8 0 0 1 5-1.6M14.8 14a2.8 2.8 0 0 1-5 1.6M14.4 10.3v1.8h-1.8M9.6 17.2v-1.8h1.8"]
+  - id: lab_ecdecode
+    cat: labs
+    tier: 2
+    glyph: ["c:12,12,8.5", "c:12,12,4.2", "p:M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6 18 18M18 6l-1.4 1.4M7.4 16.6 6 18", "f:M12 9.5l2.5 2.5-2.5 2.5-2.5-2.5z"]
+  - id: lab_mclock
+    cat: labs
+    tier: 2
+    glyph: ["c:12,13.5,7.5", "p:M12 13.5v-4M12 13.5l2.8 1.6M10 2.5h4M12 2.5V6M18.2 6.8l1.5-1.5"]
+  - id: lab_scrub
+    cat: labs
+    tier: 2
+    glyph: ["c:10,10,6", "p:M14.5 14.5l6 6", "p:M7.5 10l1.8 1.8 3.2-3.4", "f:M19 2.5l.55 1.45 1.45.55-1.45.55L19 6.5l-.55-1.45L17 4.5l1.45-.55z"]
+  - id: lab_quorum
+    cat: labs
+    tier: 2
+    glyph: ["c:12,5,2.5", "c:5,17.5,2.5", "c:19,17.5,2.5", "p:M10.7 7.2 6.3 15.3M13.3 7.2l4.4 8.1M7.5 17.5h9", "d:12,12.8,1.4"]
+  - id: lab_sigv4
+    cat: labs
+    tier: 2
+    glyph: ["p:M15 3l6 6-4.5 4.5-5.8 1.3 1.3-5.8z", "c:15.2,8.8,1.3", "p:M10.7 14.8l3.6-5.1", "p:M3 19.5c2-3 3.5-3 4 0s2 2.5 4 0M3 22h9"]
+  - id: lab_bluespace
+    cat: labs
+    tier: 2
+    glyph: ["p:M10.5 4.5a8 8 0 1 0 8 8h-8z", "f:M13.5 2a8 8 0 0 1 8 8h-8z"]
+  - id: lab_rbdclone
+    cat: labs
+    tier: 2
+    glyph: ["p:M7.5 3l4 2v4.5l-4 2-4-2V5zM3.5 5l4 2 4-2M7.5 7v4.5", "p:M16.5 11.5l4 2V18l-4 2-4-2v-4.5zM12.5 13.5l4 2 4-2M16.5 15.5V20", "p:M7.5 14v1.5a3 3 0 0 0 3 3h.5M9.6 16.8l1.6 1.7-1.6 1.7"]
+  - id: lab_cephx
+    cat: labs
+    tier: 2
+    glyph: ["p:M3 7.5h18v3a1.5 1.5 0 0 0 0 3v3H3v-3a1.5 1.5 0 0 0 0-3z", "p:M15.5 7.5V9M15.5 11v2M15.5 15v1.5", "c:7.8,12,1.8", "p:M9.6 12h2.8M11.6 12v1.5"]
+  - id: lab_netbw
+    cat: labs
+    tier: 2
+    glyph: ["r:2.5,6,4,12,1", "r:17.5,6,4,12,1", "p:M7.5 9.5h9M14.5 7.5l2 2-2 2", "p:M16.5 14.5h-9M9.5 12.5l-2 2 2 2"]
+  - id: lab_balancer
+    cat: labs
+    tier: 2
+    glyph: ["p:M12 4.5v15M8 20h8M4.5 7h15", "d:12,4,1.3", "p:M4.5 7 2.2 13M4.5 7l2.3 6M19.5 7l-2.3 6M19.5 7l2.3 6", "p:M2 13a2.5 1.7 0 0 0 5 0zM17 13a2.5 1.7 0 0 0 5 0z"]
+  - id: lab_ssdwear
+    cat: labs
+    tier: 2
+    glyph: ["r:3,5,18,13,2", "p:M5.5 11.5h3l1.5-3 2.5 6 1.5-3h4.5", "p:M7 18v2.5M12 18v2.5M17 18v2.5"]
+  - id: lab_multisite
+    cat: labs
+    tier: 2
+    glyph: ["r:2.5,10,6,10.5,1", "r:15.5,10,6,10.5,1", "p:M4.5 13h2M4.5 16h2M17.5 13h2M17.5 16h2", "p:M6.5 7a6.5 6.5 0 0 1 11 0M15.4 4.6l2.1 2.4-3 .6", "p:M10 15.5h4M12.8 14.2l1.2 1.3-1.2 1.3"]
