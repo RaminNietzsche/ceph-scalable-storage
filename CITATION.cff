@@ -24,6 +24,9 @@ identifiers:
   - type: doi
     value: "10.5281/zenodo.24434974"
     description: "DOI of version 1.7."
+  - type: doi
+    value: "10.5281/zenodo.24627869"
+    description: "DOI of version 1.8."
 abstract: >-
   An open, bilingual (Persian and English) book on Ceph: architecture, RBD, RGW and
   CephFS, operations, CRUSH, BlueStore, erasure coding, monitoring, troubleshooting,

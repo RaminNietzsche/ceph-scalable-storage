@@ -107,7 +107,9 @@ export default {
    version DOI for v1.6 is [10.5281/zenodo.24253823](https://doi.org/10.5281/zenodo.24253823)
    ([record](https://zenodo.org/records/24253823)); v1.7 is
    [10.5281/zenodo.24434974](https://doi.org/10.5281/zenodo.24434974)
-   ([record](https://zenodo.org/records/24434974)). They are recorded in
+   ([record](https://zenodo.org/records/24434974)); v1.8 is
+   [10.5281/zenodo.24627869](https://doi.org/10.5281/zenodo.24627869)
+   ([record](https://zenodo.org/records/24627869)). They are recorded in
    `CITATION.cff` (`doi:` and `preferred-citation.doi` are the concept DOI;
    `identifiers` lists the concept DOI and each version DOI) and the README has a DOI badge that links to the
    concept DOI. Later GitHub Releases get a new version DOI; the concept DOI
