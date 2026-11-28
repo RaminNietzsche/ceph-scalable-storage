@@ -556,6 +556,57 @@ with sync_playwright() as pw:
         page.wait_for_timeout(400)
         if page.locator('#lab-medal.off').count() != 1:
             problems.append('[game] lab page does not show its locked medal')
+        if page.locator('#lab-medal .bdg.locked').count() != 1:
+            problems.append('[game] locked lab medal is not drawn with the badge art')
+        # badge gallery page: all 52 emblems by category, filters, a toast with the unlock animation
+        page.goto(url('fa', 'badges'))
+        page.wait_for_selector('.bg-card')
+        n_bg, n_art, n_on = page.locator('.bg-card').count(), page.locator('.bg-card svg.bdg').count(), page.locator('.bg-card:not(.t0)').count()
+        if n_bg != 52 or n_art != 52:
+            problems.append(f'[badges] gallery shows {n_bg} cards and {n_art} emblems (expected 52)')
+        if n_on < 8:
+            problems.append(f'[badges] only {n_on} unlocked badges in the gallery')
+        if page.locator('#bdg-defs').count() != 1:
+            problems.append('[badges] badge SVG defs missing or duplicated')
+        if page.locator('.bg-card.hid').count() < 1 or 'نشان پنهان' not in page.inner_text('.bg-cat.c-secret'):
+            problems.append('[badges] hidden badges are not kept secret')
+        gsnap('desktop-badges-gallery', full=True)
+        page.locator('.bg-f input[value="labs"]').check(force=True)
+        page.wait_for_timeout(150)
+        if page.locator('.bg-card:visible').count() != 23 or not page.url.endswith('#labs'):
+            problems.append(f'[badges] the labs filter shows {page.locator(".bg-card:visible").count()} cards (expected 23)')
+        page.locator('.bg-f input[value="all"][name="bg-c"]').check(force=True)
+        page.locator('.bg-f input[value="locked"]').check(force=True)
+        page.wait_for_timeout(150)
+        if page.locator('.bg-card:visible:not(.t0)').count() or not page.locator('.bg-card:visible').count():
+            problems.append('[badges] the locked filter shows unlocked badges or nothing')
+        page.locator('.bg-f input[value="all"][name="bg-s"]').check(force=True)
+        page.set_viewport_size({'width': 390, 'height': 844})
+        page.reload()
+        page.wait_for_selector('.bg-card')
+        gsnap('mobile-badges-gallery', full=True)
+        page.set_viewport_size({'width': 1440, 'height': 900})
+        page.evaluate("(() => { const P = JSON.parse(localStorage.getItem('book-progress:fa')); P.g.flags.night = 1; delete P.g.badges.night; localStorage.setItem('book-progress:fa', JSON.stringify(P)); })()")
+        page.reload()
+        try:
+            page.wait_for_selector('.g-toast.award .bdg.pop', timeout=3000)
+            page.wait_for_timeout(1500)
+            p_toast = os.path.join(OUT, 'fa-badge-toast.png')
+            page.locator('.g-toast.award').first.screenshot(path=p_toast)
+            shots.append(p_toast)
+        except Exception:  # noqa: BLE001
+            problems.append('[badges] unlocking a badge showed no toast with its emblem')
+        # the English gallery (its own progress record)
+        page.goto(url('en', 'index'))
+        page.evaluate(SEED, ['en', 'Sample reader'])
+        page.goto(url('en', 'badges'))
+        page.wait_for_selector('.bg-card')
+        if page.locator('.bg-card').count() != 52 or 'Chapter Quiz Champion' not in page.inner_text('.bg-cat.c-recall'):
+            problems.append('[badges] the English gallery is incomplete')
+        p_en = os.path.join(OUT, 'en-desktop-badges-gallery.png')
+        page.screenshot(path=p_en, full_page=True)
+        shots.append(p_en)
+        page.evaluate("localStorage.removeItem('book-progress:en')")   # or the next fa page would award the bilingual badge early
         page.evaluate("(() => { const P = JSON.parse(localStorage.getItem('book-progress:fa')); P.g.xp = 2698; localStorage.setItem('book-progress:fa', JSON.stringify(P)); })()")
         page.goto(url('fa', 'progress'))
         page.wait_for_timeout(300)
