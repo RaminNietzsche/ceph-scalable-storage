@@ -61,7 +61,7 @@ WEBFIG_STAMP := build/webfig/.stamp
 .PHONY: help all pdf cheatsheet html epub docx book figures cover lint markdownlint spell check-commands check-cheatsheet \
         check check-labs check-quizzes check-links check-links-online check-refs check-parity check-versions check-tldr check-publish check-sims check-paths \
         html-single site check-site shoot-site webfig fonts \
-        check-cli-reference cli-reference sync-translations stats clean distclean dist
+        check-cli-reference check-badges cli-reference sync-translations stats clean distclean dist
 
 help: ## show this help
 	@grep -hE '^[a-z][a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | \
@@ -173,6 +173,9 @@ check-quizzes: ## validate references/quizzes/chNN.yaml (fa/en parity, anchors, 
 check-cheatsheet: ## validate references/cheatsheet.yaml (schema, anchors, prose lint, commands)
 	$(PYTHON) tools/check_cheatsheet.py
 
+check-badges: ## validate references/badges.yaml (52 badges, art for every game.js badge, tiers, fa/en names)
+	$(PYTHON) tools/check_badges.py
+
 check-cli-reference: ## validate references/cli-reference.yaml (schema, tags vs sources, summary counts, cheat-sheet links)
 	$(PYTHON) tools/check_cli_reference.py
 
@@ -188,7 +191,7 @@ cli-reference: ## regenerate references/cli-reference.yaml from the Ceph source 
 	 $(PYTHON) tools/gen_cli_reference.py --ceph-src "$$src" --tag $(CEPH_TAG)
 	$(PYTHON) tools/check_cli_reference.py
 
-check: lint spell check-refs check-links check-parity check-versions check-tldr check-publish check-sims check-cheatsheet check-paths check-quizzes check-cli-reference ## all offline checks
+check: lint spell check-refs check-links check-parity check-versions check-tldr check-publish check-sims check-cheatsheet check-paths check-quizzes check-cli-reference check-badges ## all offline checks
 
 check-publish: ## .zenodo.json and CITATION.cff are complete and match the book version
 	$(PYTHON) tools/check_publish.py
