@@ -66,6 +66,10 @@ TPL = os.path.join(ROOT, 'templates', 'site')
 C = os.path.join(ROOT, 'content', LANG)
 UI = yaml.safe_load(open(os.path.join(C, 'ui.yaml'), encoding='utf-8'))
 META = yaml.safe_load(open(os.path.join(C, 'metadata.yaml'), encoding='utf-8'))
+CITE = seo.load_citation(ROOT)
+CONCEPT_DOI, VERSION_DOI = CITE['concept_doi'], CITE['version_doi']
+if not CONCEPT_DOI or not VERSION_DOI:
+    raise SystemExit('CITATION.cff is missing the concept or version DOI')
 STR = yaml.safe_load(open(os.path.join(TPL, 'strings.yaml'), encoding='utf-8'))
 S = STR[LANG]
 SO = STR[OTHER]
@@ -1428,8 +1432,18 @@ def emit(cur, main_html, title_text, desc=None, ld=None, og_img=None):
         og_alt = f'{title_text} — {BOOK}'
     else:
         og_alt = OG_ALT
+    citation = None
+    if cur is None:
+        citation = {
+            'title': CITE['title'],
+            'author': 'Najarbashi, Ramin',
+            'date': CITE['date_released'] or str(META.get('date') or ''),
+            'doi': CONCEPT_DOI,
+            'language': LANG,
+            'publisher': 'Zenodo',
+        }
     seo_head = seo.head(U, LANG, OTHER, slug, title_text, desc, og_type, og_alt, BOOK, ld or page_ld(cur, title_text),
-                        font_href='../assets/fonts/' + seo.PRELOAD_FONT[LANG], og_img=og_img)
+                        font_href='../assets/fonts/' + seo.PRELOAD_FONT[LANG], og_img=og_img, citation=citation)
     doc = PAGE_TPL.substitute(head_extra=head_extra, scripts_extra=scripts_extra, seo=seo_head,
         lang=LANG, dir=DIR, other=OTHER, slug=slug, title=esc(title_text), book=esc(BOOK),
         links='\n'.join(links), site_data=SITE_DATA.replace('</', '<\\/'),
@@ -1651,7 +1665,6 @@ for i, (icon, word, title, rng, desc, lo, hi, href, new_) in enumerate(PARTS_HOM
                       f'<span class="pc-prog" data-lo="{lo}" data-hi="{hi}" hidden>{ring()}<span class="pc-pt"></span></span></div>'
                       f'<h3><a href="{href}">{esc(title)}</a></h3><p>{esc(desc)}</p>'
                       f'<p class="pc-time">{ICON["clock"]}{esc(fmt_min(sum(CH[n].minutes for n in range(lo, hi + 1) if n in CH), True))}</p><div class="chips">{chips}</div></div>')
-CONCEPT_DOI, VERSION_DOI = '10.5281/zenodo.24253822', '10.5281/zenodo.24253823'
 nparts = len(PARTS_HOME)
 stats = ('<div class="stats" role="list">' + ''.join(
     f'<div role="listitem"><b data-n="{n}">{loc(n)}</b><span>{esc(S[k])}</span></div>'

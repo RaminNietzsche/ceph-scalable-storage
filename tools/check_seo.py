@@ -202,11 +202,18 @@ for lang, f in pages:
     types = ld_types(objs)
     check(bool(objs) and all(o.get('@context') == 'https://schema.org' for o in objs), 'jsonld', rel, 'no JSON-LD with @context https://schema.org')
     if edition_home:
+        hw = ('citation_title', 'citation_author', 'citation_publication_date', 'citation_doi')
+        miss_hw = [k for k in hw if not (d.meta.get(k) or [''])[0]]
+        check(not miss_hw, 'highwire', rel, f'missing Highwire tags {miss_hw}')
         b = (types.get('Book') or [{}])[0]
         ok = (b.get('author', {}).get('name') == 'Ramin Najarbashi' and 'by-nc-sa/4.0' in b.get('license', '')
               and b.get('inLanguage') == lang and len(b.get('hasPart', [])) >= 40
               and all(p.get('@type') == 'Chapter' and p.get('name') and p.get('url') for p in b.get('hasPart', [])))
         check(ok, 'jsonld-book', rel, 'Book JSON-LD lacks author/licence/inLanguage/hasPart chapters')
+        author = b.get('author') or {}
+        check(author.get('sameAs') == 'https://orcid.org/0009-0000-7622-8130' or
+              author.get('identifier') == 'https://orcid.org/0009-0000-7622-8130',
+              'jsonld-orcid', rel, 'Book JSON-LD author lacks ORCID')
         w = (types.get('WebSite') or [{}])[0]
         pa = w.get('potentialAction', {})
         check(pa.get('@type') == 'SearchAction' and '{search_term_string}' in json.dumps(pa), 'jsonld-search', rel, 'WebSite SearchAction missing')

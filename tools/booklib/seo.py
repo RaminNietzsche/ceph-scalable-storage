@@ -18,6 +18,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 LICENSE_URL = 'https://creativecommons.org/licenses/by-nc-sa/4.0/'
 AUTHOR = 'Ramin Najarbashi'
+ORCID = 'https://orcid.org/0009-0000-7622-8130'
 THEME = '#0e7490'
 BG = '#0b1120'
 OG_W, OG_H = 1200, 630
@@ -28,6 +29,76 @@ GSC_VERIFICATION = '7UxUjcyaTpcjuxAHbfvsIWmIxNHIeQHkkvUZGSHLiLQ'
 GSC_META = f'<meta name="google-site-verification" content="{GSC_VERIFICATION}" />'
 
 esc = lambda s: html.escape(str(s), quote=True)  # noqa: E731
+
+
+def load_citation(root):
+    """Concept DOI, current version DOI, title and release date from CITATION.cff."""
+    import yaml
+    cff = yaml.safe_load(open(os.path.join(root, 'CITATION.cff'), encoding='utf-8'))
+    concept = cff['doi']
+    version = str(cff.get('version') or '').lstrip('v')
+    version_doi = None
+    for ident in cff.get('identifiers') or []:
+        if ident.get('type') != 'doi':
+            continue
+        val, desc = ident.get('value') or '', ident.get('description') or ''
+        if val == concept:
+            continue
+        if version and f'version {version}' in desc.lower():
+            version_doi = val
+    if not version_doi:
+        others = [i.get('value') for i in (cff.get('identifiers') or [])
+                  if i.get('type') == 'doi' and i.get('value') and i.get('value') != concept]
+        version_doi = others[-1] if others else None
+    return {
+        'title': cff['title'],
+        'concept_doi': concept,
+        'version_doi': version_doi,
+        'version': version,
+        'date_released': str(cff.get('date-released') or ''),
+    }
+
+
+def scholar_date(date):
+    """Google Scholar citation_publication_date: ``2010/5/12``, or a year alone."""
+    s = str(date or '').strip()
+    m = re.fullmatch(r'(\d{4})-(\d{2})-(\d{2})', s)
+    if m:
+        return f'{int(m.group(1))}/{int(m.group(2))}/{int(m.group(3))}'
+    m = re.fullmatch(r'(\d{4})-(\d{2})', s)
+    if m:
+        return f'{int(m.group(1))}/{int(m.group(2))}'
+    return s
+
+
+def person():
+    return {'@type': 'Person', 'name': AUTHOR, 'identifier': ORCID, 'sameAs': ORCID, 'url': ORCID}
+
+
+def highwire(citation):
+    """Highwire Press ``citation_*`` tags for Google Scholar, used on the edition home only.
+
+    ``citation_pdf_url`` is omitted: Scholar requires the PDF to live in the same
+    subdirectory as the HTML abstract and to be no larger than 5 MB. The book PDFs
+    are on GitHub Releases and are much larger; full-length books should go to
+    Google Book Search (Scholar then includes those works automatically).
+    """
+    if not citation:
+        return []
+    out = []
+    def add(name, value):
+        if value:
+            out.append(f'<meta name="{name}" content="{esc(value)}">')
+    add('citation_title', citation.get('title'))
+    authors = citation.get('authors') or ([citation['author']] if citation.get('author') else [])
+    for a in authors:
+        add('citation_author', a)
+    if citation.get('date'):
+        add('citation_publication_date', scholar_date(citation['date']))
+    add('citation_doi', citation.get('doi'))
+    add('citation_language', citation.get('language'))
+    add('citation_publisher', citation.get('publisher'))
+    return out
 
 
 def lastmod_date(date):
@@ -204,10 +275,11 @@ def preload(href):
 
 
 def head(u, lang, other, slug, title, desc, og_type, og_alt, book, jsonld, icon_prefix='../assets/icons/',
-         manifest_href='manifest.webmanifest', font_href=None, og_img=None):
+         manifest_href='manifest.webmanifest', font_href=None, og_img=None, citation=None):
     me, them = f'{lang}/{slug}.html', f'{other}/{slug}.html'
     rel = u.rel
     out = [GSC_META, f'<meta name="description" content="{esc(desc)}">']
+    out += highwire(citation)
     if u.base:
         out.append(f'<link rel="canonical" href="{u.abs(me)}">')
     out += [f'<link rel="alternate" hreflang="{lang}" href="{rel(me)}">',
@@ -242,8 +314,9 @@ def book_ld(u, lang, other, book, other_book, desc, version, date, chapters, ima
     """chapters: [(position, name, slug)]"""
     url = u.rel(f'{lang}/index.html')
     bid = url + '#book'
+    who = person()
     b = {'@type': 'Book', '@id': bid, 'name': book, 'url': url, 'description': desc, 'inLanguage': lang,
-         'author': {'@type': 'Person', 'name': AUTHOR}, 'creator': {'@type': 'Person', 'name': AUTHOR},
+         'author': who, 'creator': who,
          'license': LICENSE_URL, 'bookFormat': 'https://schema.org/EBook', 'version': version, 'datePublished': date,
          'image': image, 'isAccessibleForFree': True,
          'hasPart': [{'@type': 'Chapter', 'position': n, 'name': t, 'url': u.rel(f'{lang}/{s}.html')} for n, t, s in chapters]}
@@ -258,7 +331,7 @@ def book_ld(u, lang, other, book, other_book, desc, version, date, chapters, ima
     rel_key = 'translationOfWork' if lang == 'en' else 'workTranslation'
     b[rel_key] = {'@type': 'Book', 'name': other_book, 'inLanguage': other, 'url': u.rel(f'{other}/index.html')}
     site = {'@type': 'WebSite', '@id': url + '#website', 'name': book, 'url': url, 'inLanguage': lang,
-            'publisher': {'@type': 'Person', 'name': AUTHOR},
+            'publisher': who,
             'potentialAction': {'@type': 'SearchAction',
                                 'target': {'@type': 'EntryPoint', 'urlTemplate': url + '?q={search_term_string}'},
                                 'query-input': 'required name=search_term_string'}}
