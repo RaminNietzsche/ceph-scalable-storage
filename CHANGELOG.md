@@ -7,6 +7,15 @@ restructures the book.
 
 ## [Unreleased]
 
+### Changed
+
+- Badges have new art in the web edition: one SVG emblem per badge, drawn from `references/badges.yaml` by `tools/render_badges.py` (no image files). Six categories with their own frame and colour (reading, exploring, recall, habits, secret, lab medals), bronze, silver and gold rims, a three-star tier banner on tiered badges, an iridescent rim on earned secret badges, and a hand-drawn Ceph-themed glyph for each of the 52 badges. Locked badges are grey with a lock in both themes; unlocking pops the emblem with a shine in the toast (off under reduced motion). Badge ids, rules, XP and saved progress are unchanged.
+
+### Added
+
+- Badge gallery (`badges.html`, «تالار نشان‌ها» / "Badge gallery", both editions): every badge by category with category and status filters, progress to the next tier and the unlock date; linked from the sidebar, the dashboard and each lab medal.
+- `tools/check_badges.py` (`make check-badges`, part of `make check`): the badge art matches the 52 badges of game.js (tiers, hidden flags, lab medals) and every badge has fa and en names; `make shoot-site` tests the gallery and the unlock toast.
+
 ## [1.8] - 2026-11-28
 
 ### Added

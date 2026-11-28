@@ -2,7 +2,7 @@
 
 The web edition (`make site`) has an optional game layer. It is there to support studying the book, not to replace it. Everything runs in the reader's browser: no account, no server, no analytics, no network requests. State is kept in `localStorage`, one record per language edition (`book-progress:fa`, `book-progress:en`), next to the reading progress that already existed.
 
-Code: `templates/site/game.js` (logic and UI), `templates/site/game.yaml` (strings, level titles, badge names), `tools/build_site.py` (generates `<lang>/game-data.js`, `<lang>/learn-data.js` and the pages `progress.html`, `review.html`, `certificate.html`), styles in `templates/site/site.css`.
+Code: `templates/site/game.js` (logic and UI), `templates/site/game.yaml` (strings, level titles, badge names), `references/badges.yaml` (badge art: categories, tier metals, one glyph per badge), `tools/render_badges.py` and `templates/site/badges.js` (turn the art into `assets/badges.js`), `tools/build_site.py` (generates `<lang>/game-data.js`, `<lang>/learn-data.js` and the pages `progress.html`, `review.html`, `certificate.html`, `badges.html`), styles in `templates/site/site.css`.
 
 ## Principles
 
@@ -53,6 +53,21 @@ Twelve levels with thresholds 0, 100, 250, 500, 850, 1300, 1900, 2700, 3700, 500
 
 **Lab medals.** Each of the 23 interactive labs has its own medal (single tier, silver, 25 XP, never hidden), with its own icon and name in both editions, for example «نقشه‌بردار CRUSH» / "CRUSH Cartographer" or «ساعت‌ساز mClock» / "Clock Keeper". A medal is earned the first time the reader works hands-on in that lab (changes a control or presses a button; the same `sim:use` event that feeds the tiered *Experimenter* badge). The gallery has a separate "Lab medals" section that shows all 23 locked or earned, and each lab page shows its own medal under the intro line. Saved progress is unaffected: medals are stored in the same `badges` map as other badges, and medals for labs already used are awarded on the next page load.
 
+### Badge art
+
+Every badge is an SVG emblem drawn in the browser from one data file, `references/badges.yaml`; there are no image files. `tools/render_badges.py` turns it into `assets/badges.js` (SVG `<defs>` with the gradients, clip paths and one `<symbol>` per glyph, plus a small renderer from `templates/site/badges.js`), and `game.js` calls `BadgeArt.svg(id, tier)` wherever a badge appears: the dashboard, the badge gallery, the unlock toast and the medal on each lab page. `tools/render_badges.py --sheet FILE --theme dark|light [--locked]` writes a preview page with all 52 badges.
+
+- **Six categories**, each with its own frame and field colour: reading (blue hexagon: chapters, sections, parts, paths), exploring (teal hexagon: algorithm boxes, figures, bookmarks, the lab), recall (violet hexagon: cards, quizzes, glossary, inbox zero), habits (orange hexagon: hours, streak, XP, goal days), secret (magenta diamond: the eight hidden badges) and lab medals (green rosette with ribbon tails: the 23 labs).
+- **Tier metals** on the rim: bronze, silver and gold. Tiered badges carry a banner with three stars, one lit per tier. An earned secret badge has an iridescent rim and a small jewel in its tier metal.
+- **Glyphs**: one hand-drawn line icon per badge on a 24 × 24 grid, mostly about Ceph itself (a CRUSH tree, OSD disks, k + m chunks, a bucket, RBD blocks and clones, a CephFS folder, a monitor quorum, a Cephx ticket, an octopus with six arms for completing all six paths). None uses the Ceph logo.
+- **Locked** badges are grey (themed for light and dark) with a lock; a hidden badge that is still locked shows a question mark and no name.
+- **Unlocking** pops the emblem in the toast and sweeps a shine across it; cards shine on hover. Under `prefers-reduced-motion` neither runs.
+- **Accessibility**: the emblems are decorative (`aria-hidden`); each card's `aria-label` gives the name, tier and description, and the white glyphs sit on dark-enough fields in both themes.
+
+**Badge gallery** (`badges.html`, «تالار نشان‌ها» / "Badge gallery", linked from the sidebar, the dashboard and each lab medal): all 52 badges grouped by category, with filters for category and for unlocked or locked, the progress toward the next tier, the date each badge was unlocked and a "new" mark for three days. Selecting a category puts it in the address (`badges.html#labs`).
+
+`tools/check_badges.py` (`make check-badges`, part of `make check`) checks that the art and `game.js` define the same 52 badges with the same tier kind, metal and hidden flag, that every glyph parses, stays on its grid and is unique, and that every badge and category has fa and en names. Badge ids, unlock rules, XP and the stored record (`g.badges[id] = { t, ts }`) did not change with the art, so saved progress carries over.
+
 ### Review: flashcards and quiz
 
 - **End-of-chapter quizzes**: every chapter page ends with four to six multiple-choice questions written for that chapter (210 in all, the same in both editions). Each answer is checked at once, explained, and linked to the section it comes from. A quiz is passed when every answer in one run is right; it can be retried at any time. The review page has a «آزمون فصل‌ها» / "Chapter quizzes" tab that lists every chapter's status. The data, the format and the print decision are described in [QUIZZES.md](QUIZZES.md). Progress is kept in `g.cq` (per chapter: passed, best score, attempts) and `g.cqa` (first answer per question).
@@ -80,6 +95,7 @@ The six paths match the home page's "Where to start" cards. When every chapter o
 `tools/shoot_site.py` seeds a reading history and checks:
 
 - the dashboard (level, heatmap cells, badge count and unlocked badges, certificate button)
+- the badge gallery in both editions (52 emblems, hidden badges kept secret, the category and status filters, the mobile layout) and the unlock toast with its emblem
 - that the opt-out hides the game UI
 - that a flashcard reveals its answer and moves to the next Leitner box when rated
 - the level-up toast
