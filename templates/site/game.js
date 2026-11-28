@@ -77,6 +77,13 @@
     l_multisite: 'M3 6h7v5H3zM14 6h7v5h-7zM8.5 18h7v4h-7zM10 8.5h4M6.5 11v3.5h11V11M12 14.5V18'
   };
   function svg(name, cls) { return '<svg class="' + (cls || 'gi') + '" viewBox="0 0 24 24" aria-hidden="true"><path d="' + ICON[name] + '"/></svg>'; }
+  /* a badge emblem (assets/badges.js, from references/badges.yaml); the old round medal is the fallback if that file is missing */
+  function emblem(b, tier, opt) {
+    opt = opt || {};
+    if (window.BadgeArt) { var a = window.BadgeArt.svg(b[0], tier, { hidden: opt.hidden, pop: opt.pop && !REDUCE, cls: opt.cls }); if (a) return a; }
+    return '<span class="g-medal t' + (tier || 0) + '">' + svg(opt.hidden ? 'q' : b[1]) + '</span>';
+  }
+  function badgeCat(b) { return (window.BadgeArt && window.BadgeArt.cat(b[0])) || (b[5] === 'lab' ? 'labs' : b[4] ? 'secret' : 'reading'); }
 
   /* ---------------- dates (local time) ---------------- */
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -376,7 +383,7 @@
           g.badges[b[0]] = { t: newTier, ts: Date.now() };
           save();
           var tierName = S['tier' + newTier];
-          toast('<span class="g-medal t' + newTier + '">' + svg(b[1]) + '</span><div><b>' + esc(T('badge_new', { t: G.badges[b[0]][0], tier: tierName })) + '</b><span>' + esc(G.badges[b[0]][1]) + '</span></div>', 'badge', 4800);
+          toast(emblem(b, newTier, { pop: true, cls: 'bdg-toast' }) + '<div><b>' + esc(T('badge_new', { t: G.badges[b[0]][0], tier: tierName })) + '</b><span>' + esc(G.badges[b[0]][1]) + '</span></div>', 'award', 4800);
           beep('badge');
           award(TIER_XP[newTier] || 10, 'badge', true);
         }
@@ -394,7 +401,8 @@
     var have = gs().badges[id], el = $('#lab-medal');
     if (!el) { el = d.createElement('p'); el.id = 'lab-medal'; el.className = 'lab-medal game'; host.parentNode.insertBefore(el, host.nextSibling); }
     el.className = 'lab-medal game ' + (have ? 'on' : 'off');
-    el.innerHTML = '<span class="g-medal ' + (have ? 't2' : 't0') + '">' + svg('l_' + m[1]) + '</span><span><b>' + esc(G.badges[id][0]) + '</b> <small>' + esc(have ? S.labm_earned : S.labm_locked) + '</small></span>';
+    var lb = BADGES.filter(function (x) { return x[0] === id; })[0];
+    el.innerHTML = '<a class="lab-medal-art" href="badges.html#labs" aria-label="' + esc(S.gal_page) + '">' + emblem(lb, have ? have.t : 0) + '</a><span><b>' + esc(G.badges[id][0]) + '</b> <small>' + esc(have ? S.labm_earned : S.labm_locked) + '</small></span>';
   }
 
   /* ---------------- spaced repetition (Leitner, 6 boxes) ---------------- */
@@ -604,8 +612,8 @@
       var prog = '';
       if (!hidden && s.tiered && have < 3) prog = bar(Math.min(1, s.v / s.target), name) + '<span class="b-p">' + esc(L(Math.min(s.v, s.target)) + ' / ' + L(s.target)) + '</span>';
       var tierTxt = have ? S['tier' + have] : (hidden ? '' : S.locked);
-      (isLab ? lout : out).push('<li class="badge ' + tierCls + (hidden ? ' hid' : '') + '"' + ' aria-label="' + esc(name + ' — ' + (tierTxt || S.locked) + '. ' + desc) + '">' +
-        '<span class="g-medal ' + tierCls + '">' + svg(hidden ? 'q' : b[1]) + '</span><b>' + esc(name) + '</b><small>' + esc(desc) + '</small>' +
+      (isLab ? lout : out).push('<li class="badge ' + tierCls + ' c-' + badgeCat(b) + (hidden ? ' hid' : '') + '"' + ' aria-label="' + esc(name + ' — ' + (tierTxt || S.locked) + '. ' + desc) + '">' +
+        emblem(b, have, { hidden: hidden }) + '<b>' + esc(name) + '</b><small>' + esc(desc) + '</small>' +
         (tierTxt ? '<span class="b-tier">' + esc(tierTxt) + '</span>' : '') + prog + '</li>');
     });
     return { html: '<ul class="badges">' + out.join('') + '</ul>', got: got, n: BADGES.length - LABS.length,
@@ -648,7 +656,8 @@
           '<span class="p-chips">' + p.ch.map(function (s) { return '<a class="chip' + (P.read[s] ? ' is-read' : '') + '" href="' + s + '.html" title="' + esc(chTitle(s)) + '">' + L(G.chs[s]) + '</a>'; }).join('') + '</span></div>' +
           (done ? '<a class="btn" href="certificate.html?p=' + p.k + '">' + svg('crown') + esc(S.cert_get) + '</a>' : '') + '</li>';
       }).join('') + '</ul></section>';
-    html += '<section class="g-sec game" id="gm-badges"><h2>' + esc(S.badges_title) + '</h2><p class="g-sub">' + esc(T('badges_sub', { a: L(bg.got), b: L(bg.n) })) + '</p>' + bg.html + '</section>';
+    html += '<section class="g-sec game" id="gm-badges"><h2>' + esc(S.badges_title) + '</h2><p class="g-sub">' + esc(T('badges_sub', { a: L(bg.got), b: L(bg.n) })) +
+      ' <a class="g-more" href="badges.html">' + esc(S.gal_open) + ' →</a></p>' + bg.html + '</section>';
     html += '<section class="g-sec game" id="gm-labmedals"><h2>' + esc(S.labm_title) + '</h2><p class="g-sub">' + esc(T('labm_sub', { a: L(bg.lgot), b: L(bg.ln) })) + '</p>' + bg.lhtml + '</section>';
     html += '<section class="g-sec g-settings" id="gm-settings"><h2>' + esc(S.settings_title) + '</h2>' +
       sw('gs-on', S.set_game, g.on, S.set_game_help) + sw('gs-sound', S.set_sound, g.sound) + sw('gs-rest', S.rest_label, g.restDays, S.rest_help) +
@@ -885,7 +894,7 @@
       $('.cq-retry', sum).addEventListener('click', reset);
       if (first) {
         award(G.cqXP, 'cq', true);
-        toast('<span class="g-medal t3">' + svg('cq') + '</span><div><b>' + esc(T('cq_toast', { n: L(ch) })) + '</b><span>' + esc(T('xp_plus', { n: L(G.cqXP) })) + '</span></div>', 'badge', 4200);
+        toast('<span class="g-medal t3">' + svg('cq') + '</span><div><b>' + esc(T('cq_toast', { n: L(ch) })) + '</b><span>' + esc(T('xp_plus', { n: L(G.cqXP) })) + '</span></div>', 'award', 4200);
         checkBadges();
       }
       cqHead(sec, ch, n);
@@ -964,6 +973,67 @@
     $('#cert-print', el).addEventListener('click', function () { window.print(); });
   }
 
+  /* the badge gallery page (badges.html): every badge by category, filters for category and status */
+  var GAL = { c: 'all', s: 'all' };
+  function renderGallery(el) {
+    var g = gs(), st = stats(), cats = (window.BadgeArt && window.BadgeArt.cats) || ['reading', 'labs'];
+    var by = {}, tot = { got: 0, n: 0 };
+    cats.forEach(function (c) { by[c] = { got: 0, n: 0, li: [] }; });
+    var fresh = Date.now() - 3 * 864e5;
+    BADGES.forEach(function (b) {
+      var s = badgeState(b, st), rec = g.badges[b[0]], have = rec ? rec.t : 0, hidden = b[4] && !have, c = badgeCat(b), k = by[c];
+      if (!k) return;
+      k.n++; tot.n++; if (have) { k.got++; tot.got++; }
+      var name = hidden ? S.hidden : G.badges[b[0]][0], desc = hidden ? S.hidden_hint : G.badges[b[0]][1];
+      var tierTxt = have ? S['tier' + have] : S.locked, prog = '';
+      if (!hidden && s.tiered && have < 3) prog = bar(Math.min(1, s.v / s.target), name) + '<span class="b-p">' + esc(L(Math.min(s.v, s.target)) + ' / ' + L(s.target)) + '</span>';
+      var isNew = rec && rec.ts && rec.ts > fresh;
+      var when = rec && rec.ts ? '<span class="bg-when">' + esc(T('gal_when', { d: fmtDate(dkey(new Date(rec.ts))) })) + '</span>' : '';
+      k.li.push('<li class="bg-card ' + (have ? 't' + have : 't0') + (hidden ? ' hid' : '') + (isNew ? ' new' : '') + '" data-s="' + (have ? 'got' : 'locked') + '" tabindex="0" aria-label="' +
+        esc(name + ' — ' + tierTxt + (s.tiered && have ? ' (' + T('gal_tier_of', { i: L(have) }) + ')' : '') + '. ' + desc) + '">' +
+        '<span class="bg-art">' + emblem(b, have, { hidden: hidden }) + (isNew ? '<span class="bg-new">' + esc(S.gal_new) + '</span>' : '') + '</span>' +
+        '<b>' + esc(name) + '</b><small>' + esc(desc) + '</small><span class="b-tier">' + esc(tierTxt) + '</span>' + prog + when + '</li>');
+    });
+    var pill = function (grp, v, label, n, chk) {
+      return '<label class="pill bg-pill' + (v !== 'all' && grp === 'c' ? ' c-' + v : '') + '"><input type="radio" name="bg-' + grp + '" value="' + v + '"' + (chk ? ' checked' : '') + '><span>' + esc(label) +
+        (n != null ? ' <i>' + esc(n) + '</i>' : '') + '</span></label>';
+    };
+    var html = '<p class="g-offnote">' + esc(S.game_off) + '</p><div class="game">' +
+      '<div class="bg-hero"><div class="ring-wrap">' + ringSVG(tot.n ? tot.got / tot.n : 0, 'big') + '<b>' + esc(L(tot.got)) + '</b></div><div><p class="lead">' + esc(T('gal_intro', { n: L(tot.n) })) + '</p>' +
+      '<p class="g-sub">' + esc(T('badges_sub', { a: L(tot.got), b: L(tot.n) })) + ' · <a href="progress.html">' + esc(S.my_progress) + '</a></p></div></div>' +
+      '<div class="bg-filters"><fieldset class="bg-f"><legend>' + esc(S.gal_cat) + '</legend>' + pill('c', 'all', S.gal_all, L(tot.got) + '/' + L(tot.n), GAL.c === 'all') +
+      cats.map(function (c) { return pill('c', c, S['cat_' + c], L(by[c].got) + '/' + L(by[c].n), GAL.c === c); }).join('') + '</fieldset>' +
+      '<fieldset class="bg-f"><legend>' + esc(S.gal_state) + '</legend>' + pill('s', 'all', S.gal_all, null, GAL.s === 'all') + pill('s', 'got', S.gal_earned, null, GAL.s === 'got') +
+      pill('s', 'locked', S.gal_locked, null, GAL.s === 'locked') + '</fieldset></div>' +
+      '<p class="bg-shown" role="status" aria-live="polite"></p><p class="bg-none" hidden>' + esc(S.gal_none) + '</p>' +
+      cats.map(function (c) {
+        return '<section class="bg-cat c-' + c + '" data-cat="' + c + '" id="' + c + '"><h2><span class="bg-dot" aria-hidden="true"></span>' + esc(S['cat_' + c]) + ' <small>' + esc(L(by[c].got) + ' / ' + L(by[c].n)) + '</small></h2>' +
+          '<ul class="bg-grid">' + by[c].li.join('') + '</ul></section>';
+      }).join('') + '</div>';
+    el.innerHTML = html;
+    var apply = function () {
+      var shown = 0;
+      $$('.bg-cat', el).forEach(function (sec) {
+        var any = 0, catOk = GAL.c === 'all' || GAL.c === sec.dataset.cat;
+        $$('.bg-card', sec).forEach(function (li) { var ok = catOk && (GAL.s === 'all' || GAL.s === li.dataset.s); li.hidden = !ok; if (ok) { any++; shown++; } });
+        sec.hidden = !any;
+      });
+      $('.bg-shown', el).textContent = T('gal_shown', { n: L(shown) });
+      $('.bg-none', el).hidden = shown > 0;
+    };
+    $$('input[type="radio"]', el).forEach(function (r) {
+      r.addEventListener('change', function () {
+        GAL[r.name === 'bg-c' ? 'c' : 's'] = r.value; apply();
+        if (r.name === 'bg-c' && history.replaceState) history.replaceState(null, '', r.value === 'all' ? location.pathname : '#' + r.value);
+      });
+    });
+    apply();
+  }
+  function galleryFromHash() {
+    var hsh = (location.hash || '').slice(1), cats = (window.BadgeArt && window.BadgeArt.cats) || [];
+    if (cats.indexOf(hsh) >= 0) GAL.c = hsh;
+  }
+
   function renderApp() {
     if (KIND !== 'app') return;
     var el = $('#gm-' + SLUG);
@@ -971,10 +1041,12 @@
     if (SLUG === 'progress') renderDashboard(el);
     else if (SLUG === 'review') renderReview(el);
     else if (SLUG === 'certificate') renderCert(el);
+    else if (SLUG === 'badges') renderGallery(el);
     el.removeAttribute('aria-busy');
   }
 
   /* ---------------- boot ---------------- */
+  if (SLUG === 'badges') galleryFromHash();
   var g0 = gs();
   var lastSeen = g0.seen;
   if (lastSeen && daysBetween(lastSeen, today()) >= 7) { g0.flags.comeback = 1; setTimeout(function () { toast(svg('back') + '<b>' + esc(S.welcome_back) + '</b>', 'info', 4200); }, 600); }

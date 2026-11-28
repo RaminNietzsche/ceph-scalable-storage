@@ -969,6 +969,8 @@ open(os.path.join(ASSETS, 'fonts', 'README.txt'), 'w', encoding='utf-8').write(
     '(openfontlicense.org). They are not covered by the book\'s CC BY-NC-SA 4.0 licence.\n')
 for f in ('site.css', 'site.js', 'game.js', 'ask.js', 'paths.js', 'cliref.js'):
     shutil.copy2(os.path.join(TPL, f), os.path.join(ASSETS, f))
+import render_badges  # noqa: E402  badge art: references/badges.yaml -> assets/badges.js (templates/site/badges.js renders it)
+render_badges.write_asset(ASSETS)
 # KaTeX (MIT) styles + woff2 fonts for the formulas that build_book.py pre-renders; no runtime JS, no CDN
 _kx = os.path.join(ROOT, 'templates', 'vendor', 'katex')
 shutil.copytree(_kx, os.path.join(ASSETS, 'katex'), dirs_exist_ok=True, ignore=shutil.ignore_patterns('*.js'))  # the JS is for the build only
@@ -1047,6 +1049,7 @@ ICON = {
     'book': '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z"/><path d="M4 19a2 2 0 0 1 2-2h13"/></svg>',
     'github': '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" stroke="none" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.66.35-1.08.63-1.33-2.22-.25-4.56-1.11-4.56-4.95 0-1.1.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02A9.56 9.56 0 0 1 12 6.8a9.6 9.6 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.85-2.34 4.7-4.57 4.95.36.31.68.92.68 1.85v2.74c0 .26.18.58.69.48A10 10 0 0 0 12 2z"/></svg>',
 }
+ICON['medal'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="15" r="5.5"/><path d="M8.6 10.6 6 3h4l2 4.5L14 3h4l-2.6 7.6M12 12.6l.8 1.5 1.7.3-1.2 1.2.3 1.7-1.6-.8-1.6.8.3-1.7-1.2-1.2 1.7-.3z"/></svg>'
 ICON['list'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>'
 ICON['flask'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6l-5.6 9.6A1.6 1.6 0 0 0 5.8 21h12.4a1.6 1.6 0 0 0 1.4-2.4L14 9V3M7.2 15h9.6"/></svg>'
 ICON['route'] = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.8"/></svg>'
@@ -1214,7 +1217,7 @@ class AppPage:
 
 
 APP_PAGES = {'progress': AppPage('progress', GM['s']['my_progress']), 'review': AppPage('review', GM['s']['review_page']),
-             'certificate': AppPage('certificate', GM['s']['cert_page'])}
+             'certificate': AppPage('certificate', GM['s']['cert_page']), 'badges': AppPage('badges', GM['s']['gal_page'])}
 
 
 EXTRAS = (f'<div class="my-dlg" id="my-dlg" role="dialog" aria-modal="true" aria-labelledby="my-h" hidden><div class="my-box">'
@@ -1241,6 +1244,7 @@ def sidebar(cur):
     out.append(f'<ul class="sb-list"><li><a class="sb-link" href="index.html"{homecur}>{esc(S["home"])}</a></li>'
                f'<li><a class="sb-link app" href="contents.html"{acur("contents")}>{ICON["list"]}<span>{esc(S["contents"])}</span></a></li>'
                f'<li><a class="sb-link app" href="progress.html"{acur("progress")}>{ICON["trophy"]}<span>{esc(GM["s"]["my_progress"])}</span></a></li>'
+               f'<li class="game"><a class="sb-link app" href="badges.html"{acur("badges")}>{ICON["medal"]}<span>{esc(GM["s"]["gal_page"])}</span></a></li>'
                f'<li><a class="sb-link app" href="review.html"{acur("review")}>{ICON["cards"]}<span>{esc(GM["s"]["review_today"])}</span><span class="sb-due" data-due hidden></span></a></li>'
                f'<li><a class="sb-link app" href="lab.html"{acur("lab")}>{ICON["flask"]}<span>{esc(SIMY["lab_title"])}</span></a></li>'
                f'<li><a class="sb-link app" href="paths.html"{acur("paths")}>{ICON["route"]}<span>{esc(PS["paths_nav"])}</span></a></li>'
